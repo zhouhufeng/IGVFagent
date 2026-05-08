@@ -1,0 +1,52 @@
+# Keep the docker build context lean. The Dockerfile only COPYs
+# pyproject.toml, LICENSE, README.md, and Scripts/ — but stripping
+# the rest here also speeds up `docker build` on a fresh checkout.
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Runtime outputs / caches that get re-created on first run
+Data/
+Docs/Logs/
+Docs/Agent/
+Docs/KGTraversal/
+Docs/PortalToKG/
+Docs/References/
+Docs/SPLiTseq/
+Docs/AdvancedVariantAnalysis/PutamenMultiome/
+Docs/Demos/
+
+# Local secrets / authenticated session material
+.env
+*.cookies
+*.cookie
+*.token
+
+# Worktree / Claude scratch
+.claude/
+
+# Documentation build artefacts
+*.log

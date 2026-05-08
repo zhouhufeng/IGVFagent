@@ -1,0 +1,79 @@
+# IGVFagent + Ollama (Qwen 3) stack.
+#
+#   docker compose up                       # build + start everything
+#   docker compose --profile bootstrap up   # also pull qwen3:8b model
+#   docker compose run --rm agent kg gene APOE
+#   docker compose down                     # stop (volumes preserved)
+#
+# The agent service auto-resolves the in-network Ollama daemon via
+# OLLAMA_HOST_BASE; no host-side LLM install required. Pass real API
+# keys for cloud backends through a .env file (gitignored):
+#
+#   echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env
+#   echo 'OPENAI_API_KEY=sk-...'         >> .env
+
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: igvf-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    # Optional: expose to host for direct `curl http://localhost:11434/api/tags`
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # First-run helper: pulls the default Qwen 3 8B model into the
+  # ollama volume. Run with `docker compose --profile bootstrap up`
+  # once after `docker compose up`. Re-runs are safe (idempotent).
+  bootstrap:
+    image: ollama/ollama:latest
+    profiles: ["bootstrap"]
+    container_name: igvf-bootstrap
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    entrypoint: ["ollama"]
+    command: ["pull", "qwen3:8b"]
+    restart: "no"
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: igvfagent:latest
+    container_name: igvf-agent
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # Default LLM backend: the in-network Ollama daemon.
+      IGVF_LLM_BACKEND: ollama
+      OLLAMA_HOST_BASE: "http://ollama:11434/v1"
+      # Forward optional credentials from the host .env file.
+      ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY:       ${OPENAI_API_KEY:-}
+      GROQ_API_KEY:         ${GROQ_API_KEY:-}
+      TOGETHER_API_KEY:     ${TOGETHER_API_KEY:-}
+      DEEPINFRA_API_KEY:    ${DEEPINFRA_API_KEY:-}
+      HF_TOKEN:             ${HF_TOKEN:-}
+      IGVF_PORTAL_COOKIE:   ${IGVF_PORTAL_COOKIE:-}
+      IGVF_ARANGO_PASSWORD: ${IGVF_ARANGO_PASSWORD:-}
+    volumes:
+      - ./Data:/workspace/Data
+      - ./Docs:/workspace/Docs
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
