@@ -155,6 +155,27 @@ Generated outputs (timestamped folders under `Docs/<skill>/`, manifests under
 
 ## Quick start
 
+**Easiest (Docker Compose) — full stack including a local Qwen 3 LLM:**
+
+```bash
+git clone https://github.com/zhouhufeng/IGVFagent.git
+cd IGVFagent
+docker compose up -d                          # build + start agent + ollama
+docker compose --profile bootstrap up         # one-time: pull qwen3:8b
+open http://localhost:8501                    # browser UI
+docker compose run --rm agent kg gene APOE    # one-shot skill from CLI
+docker compose down                           # stop (volumes preserved)
+```
+
+The Compose stack runs IGVFagent and Ollama side-by-side in one network.
+The agent reaches Ollama at `http://ollama:11434/v1`. `./Data` and
+`./Docs` are mounted into the container so analyses persist across
+restarts. Cloud LLM keys are forwarded from a local `.env` file (which
+is gitignored) — the agent supports `ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `GROQ_API_KEY`, `TOGETHER_API_KEY`, `DEEPINFRA_API_KEY`,
+`HF_TOKEN`, plus the IGVF-specific `IGVF_PORTAL_COOKIE` and
+`IGVF_ARANGO_PASSWORD` variables.
+
 **Recommended (pipx) — one command, isolated, gives you `igvfagent` globally:**
 
 ```bash
