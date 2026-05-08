@@ -218,6 +218,84 @@ def _emit(cb: Optional[Callable[[AgentEvent], None]], kind: str,
         logger.warning("callback failure on %s: %s", kind, e)
 
 
+def _format_runtime_error(err_msg: str, backend: str, model: str) -> str:
+    """Turn a raw exception string into an actionable Markdown report.
+
+    Pattern-matches the most common Ollama / Anthropic / OpenAI failures
+    so end users in the Streamlit UI see a useful next step rather than
+    an empty 'final answer' panel.
+    """
+    em = (err_msg or "").lower()
+    msg = (
+        f"**The agent could not complete the run.**\n\n"
+        f"- Backend: `{backend or '(unknown)'}`\n"
+        f"- Model: `{model or '(default)'}`\n"
+        f"- Underlying error: `{err_msg}`\n\n"
+    )
+    if "more system memory" in em or "requires more" in em \
+            and "memory" in em:
+        msg += (
+            "### Likely cause: not enough RAM for the chosen model\n\n"
+            "Pick a smaller Ollama model in the sidebar (or via "
+            "`IGVF_LLM_MODEL` in the Docker `.env`). Roughly memory-safe "
+            "options:\n\n"
+            "| Model | Approx RAM | Notes |\n"
+            "|---|---|---|\n"
+            "| `qwen3:0.6b`  | ~1 GB | smallest, weak tool calls |\n"
+            "| `qwen2.5:1.5b` | ~2 GB | reasonable for simple tools |\n"
+            "| `qwen3:4b` | ~3 GB | good balance |\n"
+            "| `qwen3:8b` | ~6 GB | the project default |\n"
+            "| `qwen3.6:35b-*` | ~65 GB | needs a real workstation |\n\n"
+            "If you're on Docker, also bump container memory: "
+            "Docker Desktop → Settings → Resources → Memory ≥ 8 GB.\n"
+        )
+    elif "401" in em or "unauthor" in em or "invalid api key" in em \
+            or "authentication" in em:
+        msg += (
+            "### Likely cause: missing / wrong API key\n\n"
+            "- Anthropic: set `ANTHROPIC_API_KEY` in the environment.\n"
+            "- OpenAI:    set `OPENAI_API_KEY`.\n"
+            "- For Docker Compose: put the key in a host-local `.env` and "
+            "`docker compose up` will forward it.\n"
+        )
+    elif "404" in em or "not found" in em or "no such model" in em:
+        msg += (
+            "### Likely cause: model name not recognised by the backend\n\n"
+            f"- For Ollama, ensure the model is pulled: "
+            f"`ollama pull {model or 'qwen3:8b'}`.\n"
+            "- For Anthropic, use a Claude model name (e.g. "
+            "`claude-sonnet-4-5`). Putting a Qwen / Gemma name in the "
+            "Anthropic backend will always fail.\n"
+            "- Run `igvfagent models` to see what your local Ollama "
+            "daemon actually has installed.\n"
+        )
+    elif "429" in em or "rate limit" in em or "rate_limit" in em:
+        msg += (
+            "### Likely cause: provider rate limit\n\n"
+            "Wait ~30 seconds and re-run. For higher throughput either "
+            "use a paid tier or switch to a local Ollama model.\n"
+        )
+    elif "connection" in em or "refused" in em or "timed out" in em \
+            or "name resolution" in em:
+        msg += (
+            "### Likely cause: backend not reachable\n\n"
+            "- Ollama: `ollama serve` running? "
+            "Check `OLLAMA_HOST_BASE` (default `http://localhost:11434/v1`; "
+            "in Docker Compose: `http://ollama:11434/v1`).\n"
+            "- Cloud providers: verify network egress is allowed.\n"
+        )
+    else:
+        msg += (
+            "### Diagnosis tips\n\n"
+            "- Run `igvfagent backends` to confirm your provider is "
+            "configured.\n"
+            "- Run `igvfagent models` to list Ollama models on the "
+            "local daemon.\n"
+            "- Check `Docs/Logs/agent_*.log` for the full traceback.\n"
+        )
+    return msg
+
+
 def _format_tool_result_for_llm(result: dict, max_chars: int = 3500) -> str:
     """Compact, model-friendly summary of a tool execution."""
     parts: "list[str]" = []
@@ -350,9 +428,14 @@ def run(
                 max_tokens=max_tokens, temperature=temperature,
             )
         except Exception as e:
+            err_msg = str(e)
             _emit(callback, "error",
-                  {"where": "llm.chat", "error": str(e)})
+                  {"where": "llm.chat", "error": err_msg})
             stop_reason = "error"
+            final_answer = _format_runtime_error(
+                err_msg, chosen_backend or backend or "",
+                chosen_model or model or "",
+            )
             break
         chosen_backend = msg.backend
         chosen_model = msg.model
@@ -439,6 +522,11 @@ def run(
         final_answer = (
             "_The agent ran out of iterations without producing a final "
             "answer. See the transcript and any artefacts written so far._"
+        )
+    elif not final_answer and stop_reason == "error":
+        final_answer = (
+            "_The agent failed before producing a final answer. "
+            "See the transcript / log for the underlying exception._"
         )
 
     transcript_path = ""
