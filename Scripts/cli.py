@@ -282,11 +282,26 @@ def _run_ui(args: "list[str]") -> int:
     else:
         app_path = str(_P(__file__).resolve().parent / "streamlit_app.py")
 
+    # On first launch Streamlit prints an interactive "Email:" telemetry
+    # consent prompt that blocks startup until stdin is touched — which
+    # silently hangs `igvfagent ui` for first-time users. Pre-creating
+    # an empty credentials file declines the consent and skips the
+    # prompt entirely. Idempotent on re-runs.
+    cred_dir = _P.home() / ".streamlit"
+    cred_file = cred_dir / "credentials.toml"
+    if not cred_file.exists():
+        try:
+            cred_dir.mkdir(parents=True, exist_ok=True)
+            cred_file.write_text('[general]\nemail = ""\n')
+        except Exception:
+            pass  # not fatal; worst case the user sees the prompt
+
     cmd = [
         sys.executable, "-m", "streamlit", "run", app_path,
         "--server.port", str(parsed.port),
         "--server.address", parsed.host,
         "--browser.gatherUsageStats", "false",
+        "--server.headless", "true" if parsed.no_browser else "false",
     ]
     if parsed.no_browser:
         cmd.extend(["--server.headless", "true"])
