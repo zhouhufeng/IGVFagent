@@ -19,6 +19,7 @@ tool registry, and agent loop are all owned by ``_llm.py``,
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
