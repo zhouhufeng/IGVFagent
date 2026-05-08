@@ -235,6 +235,43 @@ PNG/SVG figures, markdown reports, manifest CSVs).
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
 
+## Choosing an LLM backend
+
+IGVFagent runs the same skills regardless of which model drives the
+plan-act loop. Pick the backend that matches your goal:
+
+| Goal | Pick this | How |
+|---|---|---|
+| Fast Streamlit UI, willing to manage one API key | **Anthropic Claude API** | `export ANTHROPIC_API_KEY=…` then sidebar `Backend = anthropic` |
+| Already happy with Claude Code, want analysis-from-chat | **Claude Code as the orchestrator** | `cd IGVFagent && source .venv/bin/activate && claude` — ask in the chat |
+| Offline / private / free | **Local Ollama (Qwen / Gemma)** | `ollama pull qwen3:8b && export IGVF_LLM_MODEL=qwen3:8b` |
+| Best of both worlds | **Cloud for UI, local for batch** | Anthropic for the UI, Ollama for nightly `igvfagent ask` jobs |
+
+Side-by-side trade-offs:
+
+| | Local Ollama (Qwen / Gemma) | Anthropic Claude API | Claude Code CLI |
+|---|---|---|---|
+| Cost | free | ~$0.001 – $0.01 / query (Haiku → Sonnet) | covered by your Claude Code plan |
+| Latency | 30 – 90s (35B bf16) / 8 – 20s (gemma4:31b) / 2 – 5s (qwen3:8b) | 2 – 10s | 5 – 15s (CLI subprocess + auth) |
+| Privacy | data never leaves your machine | prompts go to Anthropic | prompts go to Anthropic via Claude Code |
+| Tool-call quality | strong on Qwen 3.6 35B / Gemma 4 31B; weak on < 7B | best-in-class (native function calling) | best-in-class (Claude Code drives natively) |
+| Setup effort | install Ollama + pull a model | one env var, one sidebar click | already installed if you use Claude Code |
+| Multi-turn context | full | full | reset per `claude -p` call |
+| Best for | offline / private analyses, batch jobs | day-to-day exploratory queries in the UI | mixed coding + analysis sessions |
+
+Backend resolution rules (so the same env / sidebar settings work
+everywhere):
+
+1. Sidebar selection (UI) or `--backend` flag (CLI) wins.
+2. Else `IGVF_LLM_BACKEND` env var.
+3. Else inferred from the model name (`claude-*` → Anthropic;
+   `gpt-*` / `o1-*` / `o3-*` → OpenAI; `qwen*` / `gemma*` / `llama*` /
+   `mistral*` → Ollama).
+4. Otherwise default: **Ollama with Qwen 3 8B**.
+
+Same logic for the model: explicit `--model` > `IGVF_LLM_MODEL` env >
+backend's compiled-in default.
+
 ### Local LLM (free, private, offline)
 
 The agent's default backend is **Ollama with Qwen 3 8B** — no API key
