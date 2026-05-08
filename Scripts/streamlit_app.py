@@ -50,6 +50,32 @@ st.set_page_config(
 
 # --------------------------- Sidebar config --------------------------------
 
+def _resolve_effective_config(backend_choice: str, model_input: str
+                                  ) -> "dict":
+    """Compute exactly what _agent.run() will hit — backend + model +
+    credential presence + base URL — so the sidebar can display it."""
+    import os
+    backend_arg = None if backend_choice == "(auto)" else backend_choice
+    eff_backend = _llm._resolve_backend(backend_arg, model_input or None)
+    default_model = _llm._DEFAULT_MODELS.get(eff_backend, "qwen3:8b")
+    eff_model = (model_input or os.environ.get("IGVF_LLM_MODEL")
+                 or default_model)
+    desc = _llm.describe_backend(eff_backend)
+    key_env = desc.get("api_key_env") if isinstance(desc, dict) else None
+    key_set = bool(os.environ.get(key_env)) if key_env else None
+    base_url = desc.get("base_url") if isinstance(desc, dict) else None
+    return {
+        "backend":      eff_backend,
+        "model":        eff_model,
+        "key_env":      key_env,
+        "key_set":      key_set,
+        "base_url":     base_url,
+        "model_source": ("user input" if model_input else
+                          ("IGVF_LLM_MODEL env" if os.environ.get("IGVF_LLM_MODEL")
+                           else "backend default")),
+    }
+
+
 def _sidebar() -> dict:
     with st.sidebar:
         st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
@@ -92,6 +118,25 @@ def _sidebar() -> dict:
             placeholder=placeholders.get(backend, "default for backend"),
         )
 
+        # Resolve and display the effective configuration so the user
+        # always sees exactly what the agent run will hit.
+        eff = _resolve_effective_config(backend, model)
+        st.markdown("**Resolved configuration**")
+        st.markdown(
+            f"- Backend: `{eff['backend']}`\n"
+            f"- Model: `{eff['model']}`  _({eff['model_source']})_"
+        )
+        if eff["key_env"]:
+            icon = ("✅" if eff["key_set"] else
+                    ("➖" if eff["backend"] == "ollama" else "❌"))
+            st.markdown(
+                f"- Credential: `{eff['key_env']}` {icon}"
+                + ("" if eff["key_set"] else
+                    "  _(unset — set in your shell or .env)_")
+            )
+        if eff["base_url"]:
+            st.markdown(f"- Endpoint: `{eff['base_url']}`")
+
         # Health check
         if st.button("🔍 Test backend", use_container_width=True):
             with st.spinner("Pinging backend…"):
@@ -102,11 +147,23 @@ def _sidebar() -> dict:
                         model=model or None,
                         max_tokens=16, temperature=0.0,
                     )
-                    st.success(
-                        f"✅ OK — backend `{msg.backend}` "
-                        f"model `{msg.model}` answered.")
+                    st.session_state["_health_status"] = {
+                        "ok": True,
+                        "msg": (f"backend `{msg.backend}` · "
+                                f"model `{msg.model}` · responded"),
+                        "ts": time.strftime("%H:%M:%S"),
+                    }
                 except Exception as e:
-                    st.error(f"❌ {e}")
+                    st.session_state["_health_status"] = {
+                        "ok": False, "msg": str(e),
+                        "ts": time.strftime("%H:%M:%S"),
+                    }
+        hs = st.session_state.get("_health_status")
+        if hs:
+            if hs["ok"]:
+                st.success(f"✅ {hs['msg']}  _(at {hs['ts']})_")
+            else:
+                st.error(f"❌ {hs['msg']}  _(at {hs['ts']})_")
 
         with st.expander("Backend env vars", expanded=False):
             for name in _llm.list_backends():
@@ -158,6 +215,7 @@ def _sidebar() -> dict:
         "max_tokens":  max_tokens,
         "temperature": temperature,
         "tool_filter": tool_filter or None,
+        "effective":   eff,
     }
 
 
@@ -302,6 +360,27 @@ def main() -> None:
         "different driver of the same skills."
     )
 
+    # Persistent active-config banner so the user always sees what the
+    # next chat run will hit. Shows red/amber/green based on whether the
+    # configuration is plausibly runnable.
+    eff = cfg.get("effective", {})
+    banner_cols = st.columns([3, 3, 2, 2])
+    banner_cols[0].markdown(f"**Backend** · `{eff.get('backend','?')}`")
+    banner_cols[1].markdown(f"**Model** · `{eff.get('model','?')}`")
+    banner_cols[2].markdown(
+        "**Source** · " + str(eff.get("model_source", "?"))
+    )
+    if eff.get("key_env"):
+        if eff["backend"] == "ollama":
+            banner_cols[3].markdown("**Auth** · _none required_")
+        elif eff.get("key_set"):
+            banner_cols[3].markdown(
+                f"**Auth** · ✅ `{eff['key_env']}` set"
+            )
+        else:
+            banner_cols[3].error(f"⚠ `{eff['key_env']}` not set")
+    st.divider()
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -334,11 +413,57 @@ def main() -> None:
     if not query:
         return
 
+    # Pre-flight validation: catch obvious mismatches before we even
+    # call the agent. This is what bit you on query 2 (Anthropic
+    # backend with a Qwen model name).
+    pre_errors: "list[str]" = []
+    pre_warnings: "list[str]" = []
+    eff_b = (cfg.get("effective") or {}).get("backend") or ""
+    eff_m = ((cfg.get("effective") or {}).get("model") or "").lower()
+    if eff_b == "anthropic" and "claude" not in eff_m:
+        pre_errors.append(
+            f"Anthropic backend with non-Claude model `{eff_m}`. "
+            f"Either change Backend to `(auto)` / `ollama`, or set Model "
+            f"to a Claude name (e.g. `claude-sonnet-4-5`)."
+        )
+    elif eff_b == "openai" and not any(t in eff_m for t in
+                                        ("gpt-", "o1-", "o3-", "o4-",
+                                          "codex")):
+        pre_warnings.append(
+            f"OpenAI backend with model `{eff_m}` — that name doesn't "
+            f"look like an OpenAI model. Common picks: `gpt-4o-mini`, "
+            f"`gpt-4o`, `o1-preview`."
+        )
+    if eff_b == "anthropic" and not (cfg.get("effective") or {}).get("key_set"):
+        pre_errors.append("`ANTHROPIC_API_KEY` is not set. Export it in "
+                            "your shell or in the Compose `.env`.")
+    if eff_b == "openai" and not (cfg.get("effective") or {}).get("key_set"):
+        pre_errors.append("`OPENAI_API_KEY` is not set.")
+
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
 
+    if pre_errors:
+        with st.chat_message("assistant"):
+            st.error("Pre-flight check blocked the run:")
+            for e in pre_errors:
+                st.markdown(f"- {e}")
+            st.markdown(
+                "_Fix the configuration in the sidebar (it shows "
+                "**Resolved configuration** under the inputs) and try "
+                "again._"
+            )
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": ("**Pre-flight check failed:**\n\n"
+                          + "\n".join("- " + e for e in pre_errors)),
+        })
+        return
+
     with st.chat_message("assistant"):
+        for w in pre_warnings:
+            st.warning(w)
         # Live event stream container
         status = st.status("Planning…", expanded=True)
 
@@ -388,7 +513,10 @@ def main() -> None:
             )
             return
         except Exception as exc:  # pylint: disable=broad-except
+            import traceback
             st.error(f"Agent run failed: {exc}")
+            with st.expander("Show full traceback", expanded=False):
+                st.code(traceback.format_exc())
             return
 
         # Final answer (or error). On error stops, render as st.error so
@@ -424,9 +552,62 @@ def main() -> None:
     })
 
 
+def _diagnostics_panel() -> None:
+    """Static debug info shown at the bottom of the page so users can
+    paste it verbatim when reporting issues."""
+    import os
+    import platform
+    with st.expander("🛠 Diagnostics (paste this verbatim if you hit a bug)",
+                       expanded=False):
+        rows = [
+            ("igvfagent", __version__),
+            ("streamlit", getattr(st, "__version__", "?")),
+            ("python", f"{platform.python_version()} ({platform.machine()})"),
+            ("platform", platform.platform()),
+            ("IGVF_PROJECT_ROOT", os.environ.get("IGVF_PROJECT_ROOT", "(unset)")),
+            ("IGVF_LLM_BACKEND",  os.environ.get("IGVF_LLM_BACKEND", "(unset)")),
+            ("IGVF_LLM_MODEL",    os.environ.get("IGVF_LLM_MODEL", "(unset)")),
+            ("OLLAMA_HOST_BASE",  os.environ.get("OLLAMA_HOST_BASE", "(unset)")),
+        ]
+        for env in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY",
+                    "TOGETHER_API_KEY", "DEEPINFRA_API_KEY", "HF_TOKEN"):
+            rows.append((env, "✅ set" if os.environ.get(env) else "(unset)"))
+        for sdk in ("anthropic", "openai", "pyfaidx", "pyBigWig", "cooler",
+                    "hicstraw"):
+            try:
+                mod = __import__(sdk)
+                ver = getattr(mod, "__version__", "?")
+                rows.append((f"sdk: {sdk}", ver))
+            except Exception:
+                rows.append((f"sdk: {sdk}", "(not installed)"))
+        rows.append(("registered tools", str(len(_tools.list_tools()))))
+        try:
+            ollama_models = _llm.list_ollama_models(timeout=2)
+            if ollama_models:
+                rows.append(("ollama models",
+                              ", ".join(m.get("name", "")
+                                          for m in ollama_models)[:200]))
+            else:
+                rows.append(("ollama models", "(daemon unreachable)"))
+        except Exception as e:
+            rows.append(("ollama models", f"(error: {e})"))
+        st.code("\n".join(f"{k:24} {v}" for k, v in rows))
+
+
 # Streamlit runs `streamlit run <file>` with __name__ == "__main__", so a
 # single guard is sufficient. The module is otherwise safe to import (no
 # side effects beyond the `st.set_page_config` call at module top, which
 # is idempotent on re-imports).
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # pylint: disable=broad-except
+        import traceback
+        st.error(f"Streamlit page raised an exception: {e}")
+        with st.expander("Full traceback", expanded=True):
+            st.code(traceback.format_exc())
+    finally:
+        try:
+            _diagnostics_panel()
+        except Exception:
+            pass
