@@ -57,11 +57,19 @@ services:
         condition: service_healthy
     environment:
       # Default LLM backend: the in-network Ollama daemon.
-      IGVF_LLM_BACKEND: ollama
-      OLLAMA_HOST_BASE: "http://ollama:11434/v1"
-      # Optional: pin a specific Ollama model. Override with
-      # `IGVF_LLM_MODEL=qwen3.6:35b-a3b-coding-bf16` (etc) in your .env.
+      # If you'd rather use the Ollama you already run natively on the
+      # host (which has access to all your RAM and pulled models), put
+      # this in your .env:
+      #   OLLAMA_HOST_BASE=http://host.docker.internal:11434/v1
+      # The `extra_hosts` line below makes that resolve on Linux too.
+      IGVF_LLM_BACKEND: ${IGVF_LLM_BACKEND:-ollama}
+      OLLAMA_HOST_BASE: ${OLLAMA_HOST_BASE:-http://ollama:11434/v1}
+      # Pin a specific Ollama model (e.g. for the 35B coding tunes you
+      # already have on the host).
       IGVF_LLM_MODEL:       ${IGVF_LLM_MODEL:-}
+      # Per-request timeout (seconds) — bump this if loading a big
+      # local model takes longer than the default.
+      IGVF_LLM_TIMEOUT:     ${IGVF_LLM_TIMEOUT:-}
       # Forward optional credentials from the host .env file.
       ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY:       ${OPENAI_API_KEY:-}
@@ -76,6 +84,11 @@ services:
       - ./Docs:/workspace/Docs
     ports:
       - "8501:8501"
+    # Lets `host.docker.internal` resolve from inside the container on
+    # Linux (it already works on Docker Desktop for macOS / Windows).
+    # Required when OLLAMA_HOST_BASE points back at the host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
 volumes:
