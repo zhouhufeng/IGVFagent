@@ -418,7 +418,11 @@ def chat(
     SDK is missing or the credentials env var is unset.
     """
     bk = _resolve_backend(backend, model)
-    chosen_model = model or _DEFAULT_MODELS.get(bk, "qwen3:8b")
+    chosen_model = (
+        model
+        or os.environ.get("IGVF_LLM_MODEL")
+        or _DEFAULT_MODELS.get(bk, "qwen3:8b")
+    )
     logger.info("LLM chat: backend=%s model=%s tools=%d msgs=%d",
                  bk, chosen_model, len(tools or []), len(messages))
 
@@ -458,8 +462,47 @@ def describe_backend(name: str) -> dict:
     return {"name": name, "sdk": "openai", **cfg}
 
 
+def list_ollama_models(base_url: Optional[str] = None,
+                         timeout: float = 5.0) -> "list[dict]":
+    """Query the configured Ollama daemon for installed models.
+
+    Returns a list of dicts with at least ``name`` (the tag a user would
+    pass via ``--model``). Returns an empty list (not raising) on any
+    network error so the introspection CLI degrades gracefully.
+    """
+    import json as _json
+    import urllib.error as _urlerr
+    import urllib.request as _urlreq
+
+    base = (base_url
+            or os.environ.get("OLLAMA_HOST_BASE")
+            or _BACKENDS["ollama"]["base_url"])
+    # /api/tags lives on the native Ollama port, alongside /v1/* OpenAI compat
+    tags_url = base.rstrip("/").replace("/v1", "") + "/api/tags"
+    try:
+        req = _urlreq.Request(tags_url,
+                                headers={"Accept": "application/json"})
+        with _urlreq.urlopen(req, timeout=timeout) as resp:
+            data = _json.loads(resp.read())
+    except (_urlerr.URLError, _urlerr.HTTPError, OSError):
+        return []
+    out = []
+    for m in (data.get("models") or []):
+        if not isinstance(m, dict):
+            continue
+        size = m.get("size") or 0
+        out.append({
+            "name":     m.get("name") or m.get("model") or "",
+            "size":     size,
+            "size_gb":  round(size / (1024 ** 3), 2) if size else None,
+            "modified": m.get("modified_at") or "",
+            "family":   ((m.get("details") or {}).get("family") or ""),
+        })
+    return out
+
+
 __all__ = [
     "chat", "Message", "ToolCall",
-    "list_backends", "describe_backend",
+    "list_backends", "describe_backend", "list_ollama_models",
     "to_anthropic_tools", "to_openai_tools",
 ]

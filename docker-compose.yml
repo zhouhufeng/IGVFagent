@@ -59,6 +59,9 @@ services:
       # Default LLM backend: the in-network Ollama daemon.
       IGVF_LLM_BACKEND: ollama
       OLLAMA_HOST_BASE: "http://ollama:11434/v1"
+      # Optional: pin a specific Ollama model. Override with
+      # `IGVF_LLM_MODEL=qwen3.6:35b-a3b-coding-bf16` (etc) in your .env.
+      IGVF_LLM_MODEL:       ${IGVF_LLM_MODEL:-}
       # Forward optional credentials from the host .env file.
       ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY:       ${OPENAI_API_KEY:-}
