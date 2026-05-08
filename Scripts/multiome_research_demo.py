@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import os
+
 import argparse
 import collections
 import csv
@@ -13,7 +15,10 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DOC_DIR = ROOT / "Docs" / "Demos" / "10xMultiomeResearchDemo"
 PLOT_DIR = DOC_DIR / "Plots"
 DATA_DIR = ROOT / "Data"
