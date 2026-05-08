@@ -181,17 +181,55 @@ cp .env.example .env
 ```
 
 After installing, the `igvfagent` console command dispatches to every
-skill via short subcommands:
+skill via short subcommands, **and** drives the natural-language ReAct
+agent via `igvfagent ask`:
 
 ```bash
+# Natural-language entry point (uses the LLM router + tool registry)
+igvfagent ask "Give me the comprehensive APOE evidence pack including\
+  literature corroboration, single-cell datasets, and FAVOR annotations."
+
+# Same skills are addressable directly when you don't want an LLM in the loop
 igvfagent kg gene APOE --depth 2 --call-singlecell --call-literature
 igvfagent splitseq retrieve --limit 50
 igvfagent ref design --data-type parse_split_seq
 igvfagent portal-kg pull --tissue macrophage --limit 100
+
+# Introspection
+igvfagent backends            # registered LLM providers
+igvfagent tools               # the tool catalog the agent runtime sees
+igvfagent --help              # full skill list
 ```
 
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
+
+### Local LLM (free, private, offline)
+
+The agent's default backend is **Ollama with Qwen 3 8B** — no API key
+required. After installing Ollama:
+
+```bash
+ollama serve &              # background daemon
+ollama pull qwen3:8b
+pip install 'igvfagent[llm]'   # adds the openai SDK (Ollama speaks OpenAI's wire format)
+igvfagent ask "Walk the IGVF Knowledge Graph for APOE and return all
+   regulatory elements plus the matching IGVF single-cell datasets."
+```
+
+For higher-quality answers, point the agent at Anthropic Claude or OpenAI:
+
+```bash
+export ANTHROPIC_API_KEY=...
+igvfagent ask --backend anthropic --model claude-sonnet-4-5 \
+   "Compare DRD1 and DRD2 striatal MSN evidence in the local KG."
+
+export OPENAI_API_KEY=...
+igvfagent ask --backend openai --model gpt-4o-mini "..."
+```
+
+Every run is persisted under `Docs/Agent/<timestamp>_<label>/` (transcript
+JSON + markdown report + artefact paths from each tool call).
 
 **Optional dependency groups** (declared in `pyproject.toml`):
 
