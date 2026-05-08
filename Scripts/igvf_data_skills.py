@@ -31,11 +31,12 @@ DATA_DIR = ROOT / "Data"
 DOCS_DIR = ROOT / "Docs"
 LOG_DIR = DOCS_DIR / "Logs"
 
-PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://data.igvf.org").rstrip("/")
-CATALOG_API_BASE = os.environ.get(
-    "IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org"
-).rstrip("/")
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 
 PORTAL_OBJECT_TYPES = [
     "File",

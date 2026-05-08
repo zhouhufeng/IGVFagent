@@ -72,14 +72,15 @@ DOCS_DIR = ROOT / "Docs" / "AdvancedVariantAnalysis"
 PLOTS_DIR = DOCS_DIR / "Plots"
 
 # --- Endpoints ---------------------------------------------------------------
-CATALOG_API_BASE = os.environ.get(
-    "IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org"
-).rstrip("/")
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
-# Public ENCODE GRCh38 cCRE registry (V3) BED. Override with env var if needed.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
+# Public cCRE registry BED. Override with env var if needed.
 ENCODE_CCRE_URL = os.environ.get(
     "ENCODE_CCRE_BED_URL",
-    "https://downloads.wenglab.org/Registry-V3/GRCh38-cCREs.bed",
+    f"{_resolve_endpoint('wenglab_dl')}/Registry-V3/GRCh38-cCREs.bed",
 )
 
 DEFAULT_THRESHOLD = 20.0          # aPC / MACIE PHRED-style threshold

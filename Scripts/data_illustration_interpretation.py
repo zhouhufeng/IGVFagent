@@ -37,8 +37,11 @@ MANIFEST_DIR = DATA_DIR / "Manifests" / "DataIllustration"
 RAW_DIR = DATA_DIR / "Interpreted" / "Metadata"
 DOWNLOAD_DIR = DATA_DIR / "Interpreted" / "Downloads"
 
-IGVF_API_BASE = os.environ.get("IGVF_PORTAL_API_BASE", "https://api.data.igvf.org").rstrip("/")
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+IGVF_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 
 
 def setup_logging() -> Path:
@@ -550,14 +553,14 @@ def write_playbook() -> Path:
         "## Commands",
         "",
         "```bash",
-        "python3 Scripts/data_illustration_interpretation.py explain 'https://data.igvf.org/curated-sets/IGVFDS2544COZH/'",
-        "python3 Scripts/data_illustration_interpretation.py explain 'https://www.encodeproject.org/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'",
+        "python3 Scripts/data_illustration_interpretation.py explain '<igvf-portal-url>/curated-sets/IGVFDS2544COZH/'",
+        "python3 Scripts/data_illustration_interpretation.py explain '<encode-portal-url>/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'",
         "python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH --download --max-download-gb 2",
         "```",
         "",
         "## Workflow",
         "",
-        "1. Resolve the pasted ID or URL to JSON metadata using IGVF `api.data.igvf.org` or ENCODE `format=json`.",
+        "1. Resolve the pasted ID or URL to JSON metadata using the configured IGVF API base or ENCODE `format=json`.",
         "2. Preserve raw JSON under `Data/Interpreted/Metadata/`.",
         "3. Extract directly linked files and write a download manifest under `Data/Manifests/DataIllustration/`.",
         "4. Generate SVG plots for file formats, content types, and statuses under `Docs/DataIllustration/Plots/`.",

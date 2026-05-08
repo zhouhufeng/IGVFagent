@@ -41,21 +41,24 @@ SINGLE_CELL_PLOT_DIR = SINGLE_CELL_DOC_DIR / "Plots"
 MANIFEST_DIR = DATA_DIR / "Manifests" / "SingleCell"
 EXAMPLE_DIR = DATA_DIR / "SingleCell" / "Examples"
 
-PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://api.data.igvf.org").rstrip("/")
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+PORTAL_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_BASE")
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 
 EXAMPLE_FILES = [
     {
         "modality": "scRNA/scE2G",
         "accession": "IGVFFI9905RPTO",
-        "url": "https://api.data.igvf.org/tabular-files/IGVFFI9905RPTO/@@download/IGVFFI9905RPTO.tsv.gz",
+        "url": f"{PORTAL_BASE}/tabular-files/IGVFFI9905RPTO/@@download/IGVFFI9905RPTO.tsv.gz",
         "path": EXAMPLE_DIR / "IGVFFI9905RPTO.tsv.gz",
         "description": "K562 CRISPRi 10x Multiome scE2G gene quantification table.",
     },
     {
         "modality": "scATAC",
         "accession": "IGVFFI6024DNYI",
-        "url": "https://api.data.igvf.org/tabular-files/IGVFFI6024DNYI/@@download/IGVFFI6024DNYI.bed.gz",
+        "url": f"{PORTAL_BASE}/tabular-files/IGVFFI6024DNYI/@@download/IGVFFI6024DNYI.bed.gz",
         "path": EXAMPLE_DIR / "IGVFFI6024DNYI.bed.gz",
         "description": "Public IGVF GRCm39 single-cell ATAC peak BED example.",
     },
