@@ -5,7 +5,7 @@ from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge
 Graph) and related public resources (ENCODE, FAVOR), with a built-in
 **Plan → Action → Results → Evaluation** orchestration loop.
 
-![IGVF Agent architecture](Docs/Figures/igvfagent_architecture.png)
+![IGVF Agent architecture](Docs/Figures/IGVF_agent_archetcture.png)
 
 ## Architecture at a glance
 
