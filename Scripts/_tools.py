@@ -646,6 +646,147 @@ _TOOLS: "list[Tool]" = [
         bool_flags={"with_ccre"},
     ),
 
+    _T(
+        "encode_bigwig_frip",
+        "Compute FRiP (fraction of signal in peaks) from a bigWig "
+        "signal file plus a peak BED. ENCODE's FRiP minimum is 0.01 "
+        "for ChIP-seq; > 0.05 is good. Requires the [hic] extras "
+        "(pyBigWig).",
+        {
+            "type": "object",
+            "properties": {
+                "bigwig": {**_S_STRING},
+                "bed":    {**_S_STRING},
+                "label":  {**_S_STRING},
+            },
+            "required": ["bigwig", "bed"],
+        },
+        cli=["encode", "bigwig-frip"],
+        flag_map={"bigwig": "--bigwig", "bed": "--bed", "label": "--label"},
+    ),
+
+    _T(
+        "encode_bigwig_tss_heatmap",
+        "Aggregate bigWig signal over a window centered on each anchor "
+        "(TSS BED, peak summits, etc.) and render a sorted heatmap + "
+        "average meta-profile. Useful for QC at TSS or motif-anchored "
+        "enrichment. Requires the [hic] extras (pyBigWig + numpy).",
+        {
+            "type": "object",
+            "properties": {
+                "bigwig":      {**_S_STRING},
+                "anchor_bed":  {**_S_STRING},
+                "window":      {**_S_INTEGER, "default": 4000},
+                "bins":        {**_S_INTEGER, "default": 200},
+                "max_anchors": {**_S_INTEGER, "default": 5000},
+                "label":       {**_S_STRING},
+            },
+            "required": ["bigwig", "anchor_bed"],
+        },
+        cli=["encode", "bigwig-tss-heatmap"],
+        flag_map={"bigwig": "--bigwig", "anchor_bed": "--anchor-bed",
+                   "window": "--window", "bins": "--bins",
+                   "max_anchors": "--max-anchors", "label": "--label"},
+    ),
+
+    _T(
+        "encode_hic_matrix",
+        "Render a Hi-C contact heatmap for a genomic region from a "
+        ".mcool or .hic file. Requires the [hic] extras (cooler / "
+        "hic-straw).",
+        {
+            "type": "object",
+            "properties": {
+                "input":      {**_S_STRING,
+                    "description": "Path to .mcool / .hic file."},
+                "region":     {**_S_STRING,
+                    "description": "chr19:44900000-45100000"},
+                "resolution": {**_S_INTEGER, "default": 10000},
+                "balance":    {**_S_BOOLEAN, "default": False},
+                "label":      {**_S_STRING},
+            },
+            "required": ["input", "region"],
+        },
+        cli=["encode", "hic-matrix"],
+        flag_map={"input": "--input", "region": "--region",
+                   "resolution": "--resolution", "label": "--label"},
+        bool_flags={"balance"},
+    ),
+
+    _T(
+        "encode_hic_insulation",
+        "Crane-et-al-style insulation score across a region from a "
+        ".mcool / .hic file; reports candidate TAD boundaries as a "
+        "BED of local minima. Requires the [hic] extras.",
+        {
+            "type": "object",
+            "properties": {
+                "input":      {**_S_STRING},
+                "region":     {**_S_STRING},
+                "resolution": {**_S_INTEGER, "default": 10000},
+                "window":     {**_S_INTEGER, "default": 200000},
+                "balance":    {**_S_BOOLEAN, "default": False},
+                "boundary_threshold": {"type": "number", "default": -0.3},
+                "label":      {**_S_STRING},
+            },
+            "required": ["input", "region"],
+        },
+        cli=["encode", "hic-insulation"],
+        flag_map={"input": "--input", "region": "--region",
+                   "resolution": "--resolution", "window": "--window",
+                   "boundary_threshold": "--boundary-threshold",
+                   "label": "--label"},
+        bool_flags={"balance"},
+    ),
+
+    _T(
+        "encode_loops_analyze",
+        "Analyze a .bedpe loops / interactions file (Hi-C, ChIA-PET, "
+        "capture Hi-C). Reports loop counts, intra/inter-chromosomal "
+        "split, length distribution, and (optional) anchor ↔ peak "
+        "overlap stats.",
+        {
+            "type": "object",
+            "properties": {
+                "bedpe":  {**_S_STRING},
+                "peaks":  {**_S_ARRAY_S,
+                    "description": "Optional `LABEL:PATH` peak BEDs to "
+                                    "intersect against the loop anchors."},
+                "label":  {**_S_STRING},
+            },
+            "required": ["bedpe"],
+        },
+        cli=["encode", "loops-analyze"],
+        flag_map={"bedpe": "--bedpe", "peaks": "--peaks",
+                   "label": "--label"},
+        flag_repeat={"peaks"},
+    ),
+
+    _T(
+        "encode_motif_enrichment",
+        "Scan peak sequences against a curated JASPAR-derived TF motif "
+        "set (CTCF / AP-1 / GATA1 / ETS / NFkB / STAT1 / FOXA1 / TP53 / "
+        "MYC / SP1) and report log2 odds enrichment vs shuffled "
+        "background. Requires --genome (UCSC GRCh38 FASTA) and the "
+        "[motif] extras (pyfaidx).",
+        {
+            "type": "object",
+            "properties": {
+                "bed":          {**_S_STRING},
+                "genome":       {**_S_STRING,
+                    "description": "Path to indexed genome FASTA, e.g. "
+                                    "hg38.fa or hg38.fa.gz."},
+                "top":          {**_S_INTEGER, "default": 2000},
+                "score_cutoff": {"type": "number", "default": 8.0},
+                "label":        {**_S_STRING},
+            },
+            "required": ["bed", "genome"],
+        },
+        cli=["encode", "motif-enrichment"],
+        flag_map={"bed": "--bed", "genome": "--genome", "top": "--top",
+                   "score_cutoff": "--score-cutoff", "label": "--label"},
+    ),
+
 ]
 
 
