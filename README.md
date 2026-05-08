@@ -434,5 +434,5 @@ everything in this folder except the README and the example CSV.
 
 ## License
 
-See `LICENSE`. Add a license file appropriate to your distribution before
-making the repository public.
+Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE).
+Copyright 2026 Hufeng Zhou.
