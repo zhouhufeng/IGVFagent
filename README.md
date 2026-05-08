@@ -68,6 +68,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Data illustration and interpretation](#data-illustration-and-interpretation)
   - [Reference skill (literature retrieval, validation, design)](#reference-skill-literature-retrieval-validation-design)
   - [Knowledge Graph traversal](#knowledge-graph-traversal)
+  - [Portal → local KG ETL](#portal--local-kg-etl)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -490,6 +491,48 @@ manifest CSVs feed directly into the variant-annotation, advanced
 variant-analysis, single-cell, SPLiT-seq, and reference skills, which is
 exactly the cross-skill composition that the internal Plan → Action →
 Results → Evaluation orchestrator chains together.
+
+### Portal → local KG ETL
+
+A persistence and indexing layer that ingests unstructured IGVF Portal
+entities (AnalysisSets, MeasurementSets, Samples, Donors, Files,
+FileSets, Documents) into a **local SQLite-backed knowledge graph** that
+mirrors the IGVF Catalog ArangoDB schema (nodes + edges + properties +
+provenance). The local KG can be queried, annotated, enriched from the
+remote Catalog, and later exported as `arangoimport`-compatible JSONL for
+a future push to the IGVF Catalog. Endpoint URLs and credentials are
+resolved through `_endpoints.py` env-var overrides — nothing sensitive is
+written to source.
+
+```bash
+# 1. Pull a tissue / assay / lab corpus from the Portal (one hop expansion)
+python3 Scripts/portal_to_kg_skill.py pull \
+  --type AnalysisSet --tissue macrophage --limit 100 --depth 1
+python3 Scripts/portal_to_kg_skill.py pull \
+  --type AnalysisSet --assay 'Parse SPLiT-seq' --limit 100 --depth 1
+python3 Scripts/portal_to_kg_skill.py pull \
+  --type AnalysisSet --gene APOE --limit 25 --depth 1
+
+# 2. Text-mine for gene + variant mentions, confirm against the Catalog
+python3 Scripts/portal_to_kg_skill.py annotate
+
+# 3. Hydrate confirmed genes from the Catalog (variants, cCREs, diseases…)
+python3 Scripts/portal_to_kg_skill.py enrich --symbols APOE,TREM2,LDLR --limit 25
+
+# 4. Read the local KG
+python3 Scripts/portal_to_kg_skill.py stats
+python3 Scripts/portal_to_kg_skill.py query --gene APOE --limit 50
+python3 Scripts/portal_to_kg_skill.py query --node-id analysis_sets/IGVFDS3222WCZH
+
+# 5. Export to ArangoDB-compatible JSONL for an eventual Catalog push
+python3 Scripts/portal_to_kg_skill.py export-aql
+python3 Scripts/portal_to_kg_skill.py export-cytoscape --limit 500
+python3 Scripts/portal_to_kg_skill.py write-playbook
+```
+
+Local store: `Data/KG/local_kg.sqlite` (gitignored under `Data/*`).
+Exports: `Data/KG/Export/<timestamp>/nodes_<collection>.jsonl` plus
+`edges.jsonl`, ready for `arangoimport --type jsonl …`.
 
 ## Deployment with LLM agents
 
