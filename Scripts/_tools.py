@@ -82,13 +82,10 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "kg_gene",
-        "Comprehensive multi-hop traversal of the IGVF Catalog Knowledge "
-        "Graph for a single gene. Returns variants, transcripts, proteins, "
-        "regulatory elements (cCREs), diseases, pathways, and coding-variant "
-        "scores. With higher --depth fans out per-variant phenotypes / QTLs "
-        "/ MPRA evidence; optional --call-favor / --call-linkage / "
-        "--call-singlecell / --call-literature pull cross-skill enrichment. "
-        "This is the default 'give me everything you know about gene X' tool.",
+        "Comprehensive gene context from the IGVF Catalog KG: variants, "
+        "transcripts, proteins, regulatory elements, diseases, pathways. "
+        "Default 'tell me about gene X' tool. Optional flags pull FAVOR, "
+        "enhancer-gene linkage, single-cell datasets, prior literature.",
         {
             "type": "object",
             "properties": {
@@ -120,9 +117,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "kg_variant",
-        "Variant-centric multi-hop KG traversal: linked genes, regulatory "
-        "elements, phenotypes, biosamples, predictions. Accepts rsID, SPDI, "
-        "or HGVS identifiers.",
+        "Variant-centric KG: linked genes, regulatory elements, "
+        "phenotypes, biosamples, predictions. Accepts rsID/SPDI/HGVS.",
         {
             "type": "object",
             "properties": {
@@ -147,9 +143,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "kg_region",
-        "Region-centric KG traversal: genes overlapping the region, cCREs, "
-        "and enhancer-gene linkage predictions in window. Region format "
-        "chr19:44903000-44912000.",
+        "Region-centric KG: genes + cCREs + enhancer-gene linkage in "
+        "window. Format chr19:44903000-44912000.",
         {
             "type": "object",
             "properties": {
@@ -168,10 +163,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "explain_dataset",
-        "Explain an IGVF Portal or ENCODE accession (or full URL): fetches "
-        "metadata, builds a file inventory, generates SVG overview plots, "
-        "and writes a plain-language report describing what the dataset is "
-        "and how to use it.",
+        "Plain-language explainer for an IGVF/ENCODE accession or URL: "
+        "metadata, file inventory, SVG overview plots, how-to-use report.",
         {
             "type": "object",
             "properties": {
@@ -189,9 +182,9 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "annotate_variants",
-        "Annotate a CSV of variants against IGVF Catalog evidence (CADD, "
-        "QTL, phenotypes, regulatory elements, predictions). Input file "
-        "needs an rsid / hgvs / spdi or chr/pos/ref/alt column.",
+        "Annotate a variant CSV against IGVF Catalog evidence "
+        "(CADD/QTL/phenotypes/regulatory). CSV needs rsid/hgvs/spdi or "
+        "chr/pos/ref/alt.",
         {
             "type": "object",
             "properties": {
@@ -206,11 +199,9 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "advanced_variant_analysis",
-        "Run the integrated variant analysis pipeline: pull IGVF Catalog "
-        "evidence, overlay ENCODE cCRE classes, compute the "
-        "PredictedFunctional composite, optionally join user experimental "
-        "data, fit a logistic model, and emit a research-grade markdown "
-        "report with volcano / Miami / overlap plots.",
+        "Integrated variant pipeline: catalog evidence + cCRE overlay + "
+        "Predicted_Functional composite + optional experimental join + "
+        "logistic model + markdown report with volcano/Miami/overlap plots.",
         {
             "type": "object",
             "properties": {
@@ -230,9 +221,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "splitseq_retrieve",
-        "Discover IGVF Portal Parse SPLiT-seq AnalysisSets with optional "
-        "lab / tissue / taxa filters. Writes a dataset-level manifest with "
-        "donor and founder-strain metadata.",
+        "Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. "
+        "Writes a manifest with donor + founder-strain metadata.",
         {
             "type": "object",
             "properties": {
@@ -253,8 +243,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "splitseq_manifest",
-        "Hydrate one or more SPLiT-seq AnalysisSet accessions and emit a "
-        "per-pool / per-donor file manifest.",
+        "Per-pool/per-donor file manifest for one or more SPLiT-seq "
+        "AnalysisSet accessions.",
         {
             "type": "object",
             "properties": {
@@ -270,8 +260,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "multiome_retrieve",
-        "Discover IGVF 10x Multiome AnalysisSets and write a manifest of "
-        "files, samples, and donors.",
+        "Discover IGVF 10x Multiome AnalysisSets; writes file/sample/donor "
+        "manifest.",
         {
             "type": "object",
             "properties": {
@@ -286,9 +276,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "enhancer_gene_overview",
-        "Pull enhancer-gene linkage evidence from IGVF Catalog or ENCODE: "
-        "ABC, rE2G, ENCODE-rE2G, eQTL-based linkage. Optional region or "
-        "gene filter.",
+        "Pull enhancer-gene linkage (ABC/rE2G/eQTL) from Catalog or ENCODE.",
         {
             "type": "object",
             "properties": {
@@ -303,8 +291,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "mpra_pull",
-        "Pull MPRA / STARR / BlueSTARR metadata from the IGVF Catalog or "
-        "Portal.",
+        "Pull MPRA/STARR/BlueSTARR metadata from Catalog or Portal.",
         {
             "type": "object",
             "properties": {
@@ -319,8 +306,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "crispri_pull",
-        "Pull CRISPRi / CRISPR-FACS / Perturb-seq evidence from the IGVF "
-        "Catalog.",
+        "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog.",
         {
             "type": "object",
             "properties": {
@@ -335,16 +321,14 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ccre_screen_manifest",
-        "Build a manifest of SCREEN cCRE downloads (PLS / pELS / dELS / "
-        "CTCF / all human cCREs). Always run before ccre_screen_download.",
+        "Build a manifest of SCREEN cCRE downloads (PLS/pELS/dELS/CTCF).",
         {"type": "object", "properties": {}},
         cli=["ccre", "screen-manifest"],
     ),
 
     _T(
         "ccre_favor",
-        "Annotate variants in a region with FAVOR functional annotations "
-        "(CADD, GERP, conservation, expression QTLs, etc.).",
+        "Annotate variants in a region with FAVOR (CADD/GERP/conservation).",
         {
             "type": "object",
             "properties": {
@@ -358,10 +342,9 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ref_learn",
-        "Search the literature (PubMed / bioRxiv / medRxiv / arXiv / "
-        "Semantic Scholar / OpenAlex) for a topic; rank by top-journal "
-        "weighting and citation count; extract recurring methods and "
-        "visualization vocabulary; emit a consensus figure recipe.",
+        "Multi-source literature search (PubMed/bioRxiv/arXiv/SemanticScholar/"
+        "OpenAlex). Ranks by journal+citations; extracts methods + plot "
+        "vocabulary; emits a consensus figure recipe.",
         {
             "type": "object",
             "properties": {
@@ -379,9 +362,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ref_validate",
-        "Cross-check a CSV of genes / variants / regulatory elements "
-        "against prior literature. Returns per-item evidence with prior-"
-        "support strength.",
+        "Cross-check a CSV of genes/variants/regulatory elements against "
+        "prior literature.",
         {
             "type": "object",
             "properties": {
@@ -402,8 +384,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ref_design",
-        "Recommend a study workflow and surface cognate published studies "
-        "+ matching IGVF Portal AnalysisSets for an IGVF data type.",
+        "Recommend a study workflow + cognate published studies + matching "
+        "IGVF Portal AnalysisSets for an assay type.",
         {
             "type": "object",
             "properties": {
@@ -423,9 +405,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "portal_kg_pull",
-        "ETL: pull unstructured IGVF Portal entities by tissue / gene / "
-        "assay / lab into the local SQLite knowledge graph. Expands "
-        "linked samples / donors / files at --depth 1.",
+        "ETL: pull Portal entities by tissue/gene/assay/lab into the local "
+        "SQLite KG; expands linked samples/donors/files at depth 1.",
         {
             "type": "object",
             "properties": {
@@ -449,9 +430,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "portal_kg_annotate",
-        "Walk every Portal node in the local KG, mine descriptions for "
-        "gene-symbol and variant mentions, confirm against the Catalog, "
-        "and add `mentions_gene` / `mentions_variant` edges.",
+        "Mine local-KG Portal node descriptions for gene/variant mentions, "
+        "confirm via Catalog, add mentions_gene / mentions_variant edges.",
         {"type": "object", "properties": {}},
         cli=["portal-kg", "annotate"],
     ),
@@ -459,8 +439,7 @@ _TOOLS: "list[Tool]" = [
     _T(
         "portal_kg_enrich",
         "For each Gene node in the local KG, hydrate Catalog evidence "
-        "(variants, transcripts, proteins, cCREs, diseases, pathways) and "
-        "wire it in with semantic edge types.",
+        "(variants, transcripts, cCREs, diseases, pathways).",
         {
             "type": "object",
             "properties": {
@@ -475,8 +454,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "portal_kg_query",
-        "Read interface over the local KG. Pass exactly one of: gene "
-        "symbol, tissue substring, or node id.",
+        "Query the local KG by gene / tissue / node-id.",
         {
             "type": "object",
             "properties": {
@@ -493,16 +471,14 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "portal_kg_stats",
-        "Local KG counts (per node-type, per edge-type, per source) plus "
-        "the recent ingestion run history.",
+        "Local KG counts (node/edge/source) + recent run history.",
         {"type": "object", "properties": {}},
         cli=["portal-kg", "stats"],
     ),
 
     _T(
         "frontpage_summary",
-        "Refresh the IGVF Portal + Knowledge Graph front-page summary "
-        "stats, optionally writing them into the project README.",
+        "Refresh IGVF Portal + KG front-page summary stats.",
         {
             "type": "object",
             "properties": {
@@ -517,12 +493,9 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_retrieve",
-        "Search the ENCODE Portal for experiments by assay (ChIP-seq, "
-        "Histone ChIP-seq, ATAC-seq, DNase-seq, Hi-C, capture Hi-C, "
-        "ChIA-PET, RNA-seq, MNase-seq, FAIRE-seq, CAGE, RAMPAGE), "
-        "biosample, target (for ChIP), and assembly. Use this to "
-        "discover candidate experiments before describing or "
-        "downloading them.",
+        "Search ENCODE for experiments by assay (ChIP-seq / Histone / "
+        "ATAC-seq / DNase / Hi-C / capture Hi-C / ChIA-PET / RNA-seq / "
+        "MNase / FAIRE / CAGE / RAMPAGE), biosample, target, assembly.",
         {
             "type": "object",
             "properties": {
@@ -551,9 +524,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_describe",
-        "Plain-language description of a single ENCODE experiment: "
-        "assay, biosample, target, ENCODE pipeline, replicates, file "
-        "inventory by format and output_type, plus suggested follow-ups.",
+        "Plain-language report for one ENCODE experiment: assay, biosample, "
+        "target, replicates, file inventory.",
         {
             "type": "object",
             "properties": {
@@ -568,11 +540,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_super_enhancers",
-        "ROSE-style super-enhancer calling on an enhancer-mark peak BED "
-        "file (typically H3K27ac, BRD4, MED1, MED12, P300). Stitches "
-        "nearby peaks, ranks by summed signal, and finds the geometric "
-        "inflection. Emits separate super-/typical-enhancer BEDs and a "
-        "hockey-stick plot.",
+        "ROSE-style super-enhancer call from an enhancer-mark peak BED "
+        "(H3K27ac/BRD4/MED1/P300). Stitches + ranks + inflection point.",
         {
             "type": "object",
             "properties": {
@@ -595,10 +564,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_integrate_ccre",
-        "Overlay a peak BED with the SCREEN GRCh38 cCRE registry and "
-        "annotate each peak with its cCRE class (PLS, pELS, dELS, "
-        "CTCF-only, DNase-H3K4me3). Auto-downloads the SCREEN V4 cCRE "
-        "BED on first use; emits a stacked-bar overview plot.",
+        "Overlay a peak BED with SCREEN cCRE classes (PLS/pELS/dELS/CTCF). "
+        "Auto-downloads the cCRE registry on first use.",
         {
             "type": "object",
             "properties": {
@@ -618,11 +585,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_browser",
-        "Render an IGV-style multi-track SVG for a genomic region. "
-        "Takes one or more `LABEL:PATH` BED tracks plus an optional "
-        "SCREEN cCRE track (--with-ccre). Useful for visualizing peak "
-        "calls + cCRE classes + super-enhancers around a candidate "
-        "locus.",
+        "IGV-style multi-track SVG for a region. LABEL:PATH BED tracks + "
+        "optional SCREEN cCRE overlay.",
         {
             "type": "object",
             "properties": {
@@ -648,10 +612,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_bigwig_frip",
-        "Compute FRiP (fraction of signal in peaks) from a bigWig "
-        "signal file plus a peak BED. ENCODE's FRiP minimum is 0.01 "
-        "for ChIP-seq; > 0.05 is good. Requires the [hic] extras "
-        "(pyBigWig).",
+        "FRiP (fraction-of-signal-in-peaks) from bigWig + peak BED. "
+        "Requires [hic] extras.",
         {
             "type": "object",
             "properties": {
@@ -667,10 +629,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_bigwig_tss_heatmap",
-        "Aggregate bigWig signal over a window centered on each anchor "
-        "(TSS BED, peak summits, etc.) and render a sorted heatmap + "
-        "average meta-profile. Useful for QC at TSS or motif-anchored "
-        "enrichment. Requires the [hic] extras (pyBigWig + numpy).",
+        "bigWig signal heatmap centered on anchors (TSS BED / peak "
+        "summits) + meta-profile. Requires [hic] extras.",
         {
             "type": "object",
             "properties": {
@@ -691,9 +651,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_hic_matrix",
-        "Render a Hi-C contact heatmap for a genomic region from a "
-        ".mcool or .hic file. Requires the [hic] extras (cooler / "
-        "hic-straw).",
+        "Hi-C contact heatmap for a region from .mcool or .hic. "
+        "Requires [hic] extras.",
         {
             "type": "object",
             "properties": {
@@ -715,9 +674,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_hic_insulation",
-        "Crane-et-al-style insulation score across a region from a "
-        ".mcool / .hic file; reports candidate TAD boundaries as a "
-        "BED of local minima. Requires the [hic] extras.",
+        "Crane-style insulation score for TAD-boundary calls from "
+        ".mcool/.hic. Requires [hic] extras.",
         {
             "type": "object",
             "properties": {
@@ -741,10 +699,8 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_loops_analyze",
-        "Analyze a .bedpe loops / interactions file (Hi-C, ChIA-PET, "
-        "capture Hi-C). Reports loop counts, intra/inter-chromosomal "
-        "split, length distribution, and (optional) anchor ↔ peak "
-        "overlap stats.",
+        "Loop QC from .bedpe (Hi-C / ChIA-PET / capture Hi-C): length "
+        "distribution, intra/inter split, optional anchor-peak overlap.",
         {
             "type": "object",
             "properties": {
@@ -764,11 +720,9 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "encode_motif_enrichment",
-        "Scan peak sequences against a curated JASPAR-derived TF motif "
-        "set (CTCF / AP-1 / GATA1 / ETS / NFkB / STAT1 / FOXA1 / TP53 / "
-        "MYC / SP1) and report log2 odds enrichment vs shuffled "
-        "background. Requires --genome (UCSC GRCh38 FASTA) and the "
-        "[motif] extras (pyfaidx).",
+        "TF motif enrichment in peak sequences (CTCF/AP-1/GATA1/ETS/NFkB/"
+        "STAT1/FOXA1/TP53/MYC/SP1) vs shuffled background. Requires "
+        "--genome FASTA and [motif] extras.",
         {
             "type": "object",
             "properties": {
