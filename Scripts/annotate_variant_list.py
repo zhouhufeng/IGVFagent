@@ -22,7 +22,10 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DATA_DIR = ROOT / "Data"
 LOG_DIR = ROOT / "Docs" / "Logs"
 REPORT_DIR = ROOT / "Docs" / "VariantAnnotation"
