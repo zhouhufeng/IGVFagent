@@ -60,7 +60,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 # --- Project paths -----------------------------------------------------------
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DATA_DIR = ROOT / "Data"
 CACHE_DIR = DATA_DIR / "Cache" / "AdvancedVariantAnnotations"
 CCRE_CACHE_DIR = CACHE_DIR / "cCRE"
