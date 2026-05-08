@@ -1,13 +1,51 @@
 # IGVF Agent
 
-A local, auditable agent for discovering, retrieving, and analyzing data from
-the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge Graph) and
-related public resources (ENCODE, FAVOR).
+A local, auditable AI agent for discovering, retrieving, and analyzing data
+from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge
+Graph) and related public resources (ENCODE, FAVOR), with a built-in
+**Plan → Action → Results → Evaluation** orchestration loop.
 
-The agent is **CLI-first**: every skill exposes shell-runnable subcommands, so
-it can be driven by Codex, Claude, Ollama, or any orchestration layer that can
-invoke `python3 Scripts/...` and read files. Reads, writes, caches, and logs
-all stay inside the repository folder for auditability.
+![IGVF Agent architecture](Docs/Figures/igvfagent_architecture.png)
+
+## Architecture at a glance
+
+IGVFagent ships **its own internal orchestrator** — a Plan → Action → Results
+loop with an Evaluation Agent that cross-checks discoveries against the
+literature, plus an explicit *skill retrieval* layer that selects the right
+capability for each task. The agent is not just a bag of CLI tools; it
+combines:
+
+- **Inputs** — the IGVF Knowledge Graph (structured: genes, variants,
+  regulatory elements, diseases, pathways) and the IGVF Portal (unstructured:
+  publications, assay data from ATAC-seq / RNA-seq / CRISPRi / MPRA / 10x
+  multiome / Parse SPLiT-seq, metadata, reports).
+- **Skill retrieval** — KG queries, database accesses (FAVOR, VEP), file
+  parsing (ATAC, RNA), coding tools, and a literature skill that pulls from
+  PubMed / bioRxiv / arXiv / Semantic Scholar / OpenAlex.
+- **Action execution loop** — KG queries, database calls, coding, and
+  literature retrieval feed *data reading*, *analysis*, *tool use*, and
+  *error handling* steps.
+- **Evaluation Agent** — cross-checks evidence and validates consistency,
+  with an optional human-feedback channel.
+- **Outputs** — variant scoring & interpretation, multi-omic integration,
+  enhancer-gene mapping & GRNs, fine-mapping / GWAS, trajectory inference,
+  and cross-tissue / cross-species analyses.
+- **Responsible-AI guardrails** — accountability, data provenance, bias &
+  fairness review, privacy & consent, AI disclosure, explainability &
+  transparency, and system security are first-class citizens of the design.
+
+The agent is also **CLI-first** at the skill layer: every capability exposes
+shell-runnable subcommands so the same skills can also be driven by an
+external orchestrator (Codex, Claude Code, Ollama-served Qwen, or any
+LLM that can invoke `python3 Scripts/...` and read files). Reads, writes,
+caches, and logs all stay inside the repository folder for auditability.
+
+In short — **two ways to drive every skill, one shared contract**:
+
+| Mode | Who drives the loop | Best for |
+|---|---|---|
+| Internal orchestrator | IGVFagent's Plan→Action→Results→Evaluation runner (in-process) | Multi-step integrative analyses with branching and cross-evidence checks |
+| External orchestrator | Codex / Claude Code / Ollama / your own harness | Day-to-day shell-level use, scripted pipelines, and CI |
 
 ## Table of contents
 
@@ -22,11 +60,14 @@ all stay inside the repository folder for auditability.
   - [Variant annotation](#variant-annotation)
   - [Advanced variant analysis](#advanced-variant-analysis)
   - [Single-cell, multiome, specialized assays](#single-cell-multiome-specialized-assays)
+  - [Parse SPLiT-seq pipeline](#parse-splitseq-pipeline)
   - [Enhancer–gene linkage](#enhancergene-linkage)
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
   - [CRISPRi / CRISPR-FACS / Perturb-seq](#crispri--crispr-facs--perturb-seq)
   - [cCRE, FAVOR, IGV-style browser views](#ccre-favor-igv-style-browser-views)
   - [Data illustration and interpretation](#data-illustration-and-interpretation)
+  - [Reference skill (literature retrieval, validation, design)](#reference-skill-literature-retrieval-validation-design)
+  - [Knowledge Graph traversal](#knowledge-graph-traversal)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -268,6 +309,47 @@ python3 Scripts/igvf_specialized_data_skills.py download-plan --skill all --limi
 python3 Scripts/igvf_specialized_data_skills.py write-playbook
 ```
 
+### Parse SPLiT-seq pipeline
+
+End-to-end pipeline for Parse-Biosciences combinatorial-barcoding snRNA-seq
+(SPLiT-seq) datasets. Handles the SPLiT-seq quirks that generic single-cell
+skills don't: multiplexed sub-pools, tens of donors per pool, MatrixMarket
+tarball delivery, and per-strain analytical comparisons (the value of the
+Mortazavi 8-cube founder atlas in IGVF).
+
+```bash
+# Discover SPLiT-seq AnalysisSets in the IGVF Portal
+python3 Scripts/splitseq_pipeline.py retrieve --limit 50 --label splitseq_corpus
+
+# Per-pool / per-donor manifest for one or more accessions
+python3 Scripts/splitseq_pipeline.py manifest \
+  --accessions IGVFDS3222WCZH,IGVFDS6290WNNH --label demo
+
+# Pull files under a size cap, then load into AnnData
+python3 Scripts/splitseq_pipeline.py download \
+  --manifest Data/Manifests/SPLiTseq/<files_per_pool.csv> --max-download-gb 5
+python3 Scripts/splitseq_pipeline.py process-local --label demo
+
+# Full pipeline: QC -> normalize -> Harmony integrate -> UMAP -> Leiden ->
+# auto-annotate against bundled mouse marker panels
+python3 Scripts/splitseq_pipeline.py analyze \
+  --input Data/Cache/SPLiTseq/demo.h5ad --tissue gonad --label demo
+python3 Scripts/splitseq_pipeline.py plot \
+  --input Data/Cache/SPLiTseq/demo_processed.h5ad --tissue gonad --label demo
+
+# Per-cell-type strain DEG (after donor demultiplexing)
+python3 Scripts/splitseq_pipeline.py compare-strains \
+  --input Data/Cache/SPLiTseq/demo_processed.h5ad --label 8cube_strain_DEG
+
+# Scaffold a souporcell or vireo demultiplexing run (the agent emits the
+# shell script; the demultiplexer itself runs locally)
+python3 Scripts/splitseq_pipeline.py demux-script --tool souporcell --n-donors 8
+python3 Scripts/splitseq_pipeline.py write-playbook
+```
+
+Bundled mouse marker panels: `gonad`, `adrenal`, `brain`, `liver`, `heart`,
+`kidney`, `muscle` — covers the full Mortazavi 8-cube founder atlas tissues.
+
 ### Enhancer–gene linkage
 
 ```bash
@@ -332,6 +414,82 @@ python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH \
   --download --max-download-gb 2
 python3 Scripts/data_illustration_interpretation.py write-playbook
 ```
+
+### Reference skill (literature retrieval, validation, design)
+
+The Reference Skill is the literature arm of the agent: it pulls publications
+across PubMed / PMC, bioRxiv, medRxiv, arXiv, Semantic Scholar, and OpenAlex,
+weights top-tier journals (Nature / Cell / Science families, NEJM, NAR,
+Bioinformatics, Genome Biology / Research, eLife, PNAS), and feeds three
+distinct functions used by the internal orchestrator's Evaluation Agent.
+
+```bash
+# 1) learn — what does the field do for this topic / assay / biosample?
+python3 Scripts/reference_skill.py learn \
+  --topic '10x multiome human putamen' --limit 30 --top 15
+
+# 2) validate — has anyone seen these genes / variants / regulatory elements
+#               before? cross-check IGVFagent discoveries against literature
+python3 Scripts/reference_skill.py validate \
+  --input Docs/AdvancedVariantAnalysis/<run>/<label>_summary_stats.csv \
+  --context 'putamen Parkinson' --limit-per-item 5
+
+# 3) design — given an IGVF data type, recommend a workflow + cognate studies
+#             + matching IGVF Portal AnalysisSets
+python3 Scripts/reference_skill.py design \
+  --data-type parse_split_seq --assay-title 'Parse SPLiT-seq'
+
+# generic multi-source search and playbook
+python3 Scripts/reference_skill.py search --query 'enhancer-gene linkage rE2G ABC' --top 20
+python3 Scripts/reference_skill.py write-playbook
+```
+
+All API responses are cached under `Data/Cache/References/<source>/` with a
+14-day TTL; re-querying is free. Reports under
+`Docs/References/<timestamp>_<subcommand>_<label>/`.
+
+### Knowledge Graph traversal
+
+The orchestrator-friendly **comprehensive context** tool. Starts from a
+single entity (gene, variant, or genomic region) and iteratively walks the
+IGVF Catalog Knowledge Graph (`api.catalogkg.igvf.org` + the underlying
+ArangoDB at `db.catalog.igvf.org`), assembling a unified evidence pack that
+includes direct neighbors, second-degree relations, and optional cross-skill
+enrichment (FAVOR, enhancer-gene linkage, IGVF single-cell datasets, prior
+literature). One CLI call → per-relation manifests + JSON evidence pack +
+markdown report.
+
+```bash
+# Comprehensive APOE traversal — variants, cCREs, transcripts, proteins,
+# diseases, pathways, plus enhancer-gene linkage, candidate single-cell
+# datasets (matched via the gene's eQTL biological contexts), and prior
+# literature
+python3 Scripts/kg_traversal_skill.py gene APOE \
+  --depth 2 --limit 50 --max-variants 25 --subvariant-limit 10 \
+  --call-favor --call-linkage --call-singlecell --call-literature \
+  --literature-context Alzheimer cardiovascular --label apoe_full
+
+# Variant-centric: one rsID -> linked genes, cCREs, phenotypes, predictions
+python3 Scripts/kg_traversal_skill.py variant rs429358 \
+  --call-favor --call-literature --label apoe_e4_variant
+
+# Region-centric: genes + cCREs + linkage in window
+python3 Scripts/kg_traversal_skill.py region chr19:44903000-44912000 \
+  --call-favor --label apoe_locus
+
+# Direct AQL pass-through
+python3 Scripts/kg_traversal_skill.py aql \
+  'FOR g IN genes FILTER g.name == "APOE" RETURN g'
+python3 Scripts/kg_traversal_skill.py write-playbook
+```
+
+Outputs land under `Docs/KGTraversal/<timestamp>_<label>/` — a markdown
+report with sectioned evidence per relation type, a complete
+`evidence_pack.json`, and one CSV per relation under `Manifests/`. The
+manifest CSVs feed directly into the variant-annotation, advanced
+variant-analysis, single-cell, SPLiT-seq, and reference skills, which is
+exactly the cross-skill composition that the internal Plan → Action →
+Results → Evaluation orchestrator chains together.
 
 ## Deployment with LLM agents
 
