@@ -59,18 +59,16 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Literature retrieval / validation / study design"),
 }
 
-# Reserved namespaces for the upcoming UI layer (step 4). It prints a
-# "not yet wired" message until that step lands.
-RESERVED = {
-    "ui": "Browser UI (Streamlit). Coming in step 4.",
-}
+# All reserved namespaces are now wired. Kept as a (currently empty)
+# anchor so future placeholders have a documented home.
+RESERVED: "dict[str, str]" = {}
 
 # Introspection commands wired in step 2: lists the LLM provider router's
 # registered backends and the tool registry the agent runtime will see.
 INTROSPECTION = ("backends", "tools")
 
-# Top-level command wired in step 3: natural-language ReAct agent.
-TOP_LEVEL = ("ask",)
+# Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
+TOP_LEVEL = ("ask", "ui")
 
 
 def _print_help() -> None:
@@ -90,14 +88,16 @@ def _print_help() -> None:
     print()
     print("Top-level commands:")
     print(f"  {'ask':{width}}  Natural-language ReAct agent (LLM-driven)")
+    print(f"  {'ui':{width}}  Launch the Streamlit browser UI")
     print()
     print("Introspection:")
     print(f"  {'backends':{width}}  List configured LLM provider backends")
     print(f"  {'tools':{width}}  List the tool registry the agent runtime sees")
-    print()
-    print("Reserved (not yet wired):")
-    for name, doc in RESERVED.items():
-        print(f"  {name:{width}}  {doc}")
+    if RESERVED:
+        print()
+        print("Reserved (not yet wired):")
+        for name, doc in RESERVED.items():
+            print(f"  {name:{width}}  {doc}")
     print()
     print("Use `igvfagent <skill> --help` for a skill's subcommands.")
     print("Documentation:  https://github.com/zhouhufeng/IGVFagent")
@@ -160,6 +160,8 @@ def main(argv: Optional["list[str]"] = None) -> int:
 def _run_top_level(skill: str, args: "list[str]") -> int:
     if skill == "ask":
         return _run_ask(args)
+    if skill == "ui":
+        return _run_ui(args)
     return 2
 
 
@@ -234,6 +236,65 @@ def _run_ask(args: "list[str]") -> int:
         return 1
 
     return 0 if result.stop_reason == "complete" else 2
+
+
+def _run_ui(args: "list[str]") -> int:
+    import argparse, shutil, subprocess
+    parser = argparse.ArgumentParser(
+        prog="igvfagent ui",
+        description="Launch the Streamlit browser UI for IGVFagent.",
+    )
+    parser.add_argument("--port", type=int, default=8501)
+    parser.add_argument("--host", default="localhost")
+    parser.add_argument("--no-browser", action="store_true",
+                         help="Don't auto-open the browser tab.")
+    parser.add_argument("--", dest="extra", nargs=argparse.REMAINDER,
+                         help="Forward arbitrary `streamlit run` flags.")
+    parsed = parser.parse_args(args)
+
+    # Prefer ``python -m streamlit run`` so we always invoke the streamlit
+    # installed in the SAME venv as igvfagent, regardless of whether the
+    # venv's bin/ is on PATH.
+    try:
+        import streamlit  # noqa: F401  -- presence check only
+    except ImportError:
+        sys.stderr.write(
+            "streamlit is not installed in this environment.\n"
+            "Install with: pip install 'igvfagent[ui]'\n"
+            "Then re-run: igvfagent ui\n"
+        )
+        return 1
+
+    # Prefer the streamlit_app.py shipped inside the installed package;
+    # fall back to the file next to this dispatcher when running out of
+    # a checkout without `pip install`. We resolve the path *without*
+    # importing the module so Streamlit's import-time hooks
+    # (set_page_config et al.) don't warn outside a real run context.
+    from importlib.util import find_spec
+    from pathlib import Path as _P
+    spec = find_spec("igvfagent.streamlit_app")
+    if spec and spec.origin:
+        app_path = spec.origin
+    else:
+        app_path = str(_P(__file__).resolve().parent / "streamlit_app.py")
+
+    cmd = [
+        sys.executable, "-m", "streamlit", "run", app_path,
+        "--server.port", str(parsed.port),
+        "--server.address", parsed.host,
+        "--browser.gatherUsageStats", "false",
+    ]
+    if parsed.no_browser:
+        cmd.extend(["--server.headless", "true"])
+    if parsed.extra:
+        cmd.extend(parsed.extra)
+
+    sys.stderr.write(
+        f"\n  → Streamlit UI starting at http://{parsed.host}:{parsed.port}\n"
+        f"  → Source: {app_path}\n"
+        f"  → Backends: `igvfagent backends`  ·  Tools: `igvfagent tools`\n\n"
+    )
+    return subprocess.call(cmd)
 
 
 def _run_introspection(skill: str, args: "list[str]") -> int:
