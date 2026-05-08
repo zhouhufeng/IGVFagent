@@ -5,15 +5,15 @@ Use this skill when a user pastes an IGVF Portal or ENCODE accession, object URL
 ## Commands
 
 ```bash
-python3 Scripts/data_illustration_interpretation.py explain 'https://data.igvf.org/curated-sets/IGVFDS2544COZH/'
-python3 Scripts/data_illustration_interpretation.py explain 'https://www.encodeproject.org/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
+python3 Scripts/data_illustration_interpretation.py explain '<igvf-portal-url>/curated-sets/IGVFDS2544COZH/'
+python3 Scripts/data_illustration_interpretation.py explain '<encode-portal-url>/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
 python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH --download --max-download-gb 2
 python3 Scripts/data_illustration_interpretation.py explain '<search-url>' --hydrate-limit 50
 ```
 
 ## Workflow
 
-1. Resolve the pasted ID or URL to JSON metadata using IGVF `api.data.igvf.org` or ENCODE `format=json`.
+1. Resolve the pasted ID or URL to JSON metadata using the configured IGVF API base or ENCODE `format=json`.
 2. Preserve raw JSON under `Data/Interpreted/Metadata/`.
 3. Extract directly linked files and write a download manifest under `Data/Manifests/DataIllustration/`.
 4. Generate SVG plots for file formats, content types, and statuses under `Docs/DataIllustration/Plots/`.

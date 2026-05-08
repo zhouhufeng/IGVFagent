@@ -35,7 +35,10 @@ SKILL_DOC_DIR = DOCS_DIR / "Skills"
 MANIFEST_DIR = DATA_DIR / "Manifests" / "SpecializedIGVF"
 RAW_DIR = DATA_DIR / "IGVF" / "SpecializedIGVF"
 
-PORTAL_API_BASE = os.environ.get("IGVF_PORTAL_API_BASE", "https://api.data.igvf.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 
 
 SKILLS: dict[str, dict[str, Any]] = {

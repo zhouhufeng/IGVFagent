@@ -27,9 +27,12 @@ LOG_DIR = DOCS_DIR / "Logs"
 SUMMARY_DIR = DATA_DIR / "Summaries"
 README = ROOT / "README.md"
 
-PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://api.data.igvf.org").rstrip("/")
-CATALOG_API_BASE = os.environ.get("IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org").rstrip("/")
-ARANGO_BASE = os.environ.get("IGVF_ARANGO_BASE", "https://db.catalog.igvf.org/_db/igvf").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+PORTAL_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_BASE")
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
+ARANGO_BASE = _resolve_endpoint("arango", "IGVF_ARANGO_BASE")
 
 README_START = "<!-- IGVF_FRONT_PAGE_STATS_START -->"
 README_END = "<!-- IGVF_FRONT_PAGE_STATS_END -->"
@@ -264,7 +267,6 @@ def readme_block(summary: dict[str, Any], report_path: Path, json_path: Path) ->
         "",
         "### IGVF Portal Snapshot",
         "",
-        f"- Portal API base: `{portal['base_url']}`",
         f"- Authenticated portal cookie used: `{portal['used_cookie']}`",
         f"- Status: {status_note(portal['objects'])}",
         "",
@@ -281,7 +283,6 @@ def readme_block(summary: dict[str, Any], report_path: Path, json_path: Path) ->
             "",
             "### IGVF Catalog / Knowledge Graph Snapshot",
             "",
-            f"- Catalog API base: `{catalog['base_url']}`",
             f"- Catalog API status: {status_note(catalog_endpoints)}",
             "",
             "| Catalog evidence class | Returned rows in smoke query | HTTP |",

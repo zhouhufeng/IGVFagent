@@ -4,26 +4,26 @@ The IGVF agent will provide a local, auditable workflow for discovering and read
 
 ## Initial Targets
 
-1. IGVF Portal at `https://data.igvf.org/`
+1. IGVF Portal
    - Requires authenticated access for protected data.
    - Authentication should use a local, user-approved Google/OAuth/browser-session workflow.
    - The repository must not store Gmail passwords or raw session exports.
 
-2. IGVF Catalog docs at `https://docs.catalog.igvf.org/introduction`
+2. IGVF Catalog docs
    - Public documentation describing Catalog pages, data entities, and query features.
-   - The docs identify `https://docs.catalog.igvf.org/llms.txt` as the documentation index.
+   - The docs publish a documentation index used as a programmatic table of contents.
 
-3. IGVF Catalog API at `https://api.catalogkg.igvf.org/`
+3. IGVF Catalog API
    - Preferred programmatic interface for Knowledge Graph data.
    - The Catalog UI's X-ray button can reveal the exact API call behind supported tables.
    - Table-oriented endpoints should be captured as reusable client methods as we discover them.
 
-4. IGVF Knowledge Graph at `https://db.catalog.igvf.org/_db/igvf/`
+4. IGVF Knowledge Graph
    - Backed by ArangoDB.
    - Guest access is configured locally with `IGVF_ARANGO_USER` and `IGVF_ARANGO_PASSWORD`.
    - Use direct ArangoDB access when the REST API is insufficient or when we need schema-level inspection.
 
-5. ENCODE Portal at `https://www.encodeproject.org/`
+5. ENCODE Portal
    - Public source for ENCODE experiments, files, biosamples, assays, genome references, schemas, pipelines, and related functional genomics data.
    - The agent should learn to query ENCODE search endpoints, inspect metadata JSON, and download selected files with provenance.
 

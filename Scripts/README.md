@@ -91,8 +91,8 @@ python3 Scripts/ccre_linkage_annotation_skills.py write-playbook
 ## Data illustration and interpretation
 
 ```bash
-python3 Scripts/data_illustration_interpretation.py explain 'https://data.igvf.org/curated-sets/IGVFDS2544COZH/'
-python3 Scripts/data_illustration_interpretation.py explain 'https://www.encodeproject.org/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
+python3 Scripts/data_illustration_interpretation.py explain '<igvf-portal-url>/curated-sets/IGVFDS2544COZH/'
+python3 Scripts/data_illustration_interpretation.py explain '<encode-portal-url>/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
 python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH --download --max-download-gb 2
 python3 Scripts/data_illustration_interpretation.py write-playbook
 ```

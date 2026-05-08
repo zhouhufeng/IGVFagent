@@ -10,8 +10,8 @@ python3 Scripts/igvf_frontpage_summary.py refresh --update-readme
 
 ## What It Summarizes
 
-- IGVF Portal object-type totals from `https://api.data.igvf.org/search/`.
-- IGVF Catalog API smoke evidence classes from `https://api.catalogkg.igvf.org/`.
+- IGVF Portal object-type totals from the configured portal API.
+- IGVF Catalog API smoke evidence classes from the configured catalog API.
 - IGVF Knowledge Graph / ArangoDB collection counts when `IGVF_ARANGO_PASSWORD` is set locally.
 
 ## Outputs
