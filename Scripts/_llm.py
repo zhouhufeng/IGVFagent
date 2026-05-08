@@ -307,7 +307,14 @@ def _chat_openai_compat(messages, *, model, tools, max_tokens, temperature,
         raise RuntimeError(
             f"{api_key_env} not set in the environment."
         )
-    client = openai.OpenAI(api_key=api_key, base_url=base_url)
+    # Ollama / vLLM / local servers can take 60-180s to load a multi-GB
+    # model on the first request. Honor IGVF_LLM_TIMEOUT (seconds);
+    # default 600s for local backends, 120s for cloud.
+    default_timeout = (600.0 if backend_label in ("ollama", "vllm", "tgi")
+                       else 120.0)
+    timeout = float(os.environ.get("IGVF_LLM_TIMEOUT", default_timeout))
+    client = openai.OpenAI(api_key=api_key, base_url=base_url,
+                            timeout=timeout)
     payload: dict = {
         "model":       model,
         "messages":    _to_openai_messages(messages),
