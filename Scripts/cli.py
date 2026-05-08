@@ -59,17 +59,18 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Literature retrieval / validation / study design"),
 }
 
-# Reserved namespaces for the upcoming agent + UI layers (steps 3-4 in
-# the shipping plan). They print a "not yet wired" message until those
-# steps land — keeping the CLI surface stable for users now.
+# Reserved namespaces for the upcoming UI layer (step 4). It prints a
+# "not yet wired" message until that step lands.
 RESERVED = {
-    "ask": "Natural-language agent (LLM-driven). Coming in step 3.",
-    "ui":  "Browser UI (Streamlit). Coming in step 4.",
+    "ui": "Browser UI (Streamlit). Coming in step 4.",
 }
 
 # Introspection commands wired in step 2: lists the LLM provider router's
 # registered backends and the tool registry the agent runtime will see.
 INTROSPECTION = ("backends", "tools")
+
+# Top-level command wired in step 3: natural-language ReAct agent.
+TOP_LEVEL = ("ask",)
 
 
 def _print_help() -> None:
@@ -86,6 +87,9 @@ def _print_help() -> None:
     width = max(len(name) for name in SKILLS)
     for name, (_, doc) in SKILLS.items():
         print(f"  {name:{width}}  {doc}")
+    print()
+    print("Top-level commands:")
+    print(f"  {'ask':{width}}  Natural-language ReAct agent (LLM-driven)")
     print()
     print("Introspection:")
     print(f"  {'backends':{width}}  List configured LLM provider backends")
@@ -125,6 +129,8 @@ def main(argv: Optional["list[str]"] = None) -> int:
         return 64
     if skill in INTROSPECTION:
         return _run_introspection(skill, args[1:])
+    if skill in TOP_LEVEL:
+        return _run_top_level(skill, args[1:])
     if skill not in SKILLS:
         sys.stderr.write(f"unknown skill: {skill}\n")
         sys.stderr.write("Run `igvfagent --help` for the skill list.\n")
@@ -149,6 +155,85 @@ def main(argv: Optional["list[str]"] = None) -> int:
     except SystemExit as exc:  # argparse + sys.exit propagation
         return int(exc.code) if exc.code is not None else 0
     return int(rc) if isinstance(rc, int) else 0
+
+
+def _run_top_level(skill: str, args: "list[str]") -> int:
+    if skill == "ask":
+        return _run_ask(args)
+    return 2
+
+
+def _run_ask(args: "list[str]") -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="igvfagent ask",
+        description="Natural-language ReAct agent. The LLM plans, calls "
+                    "IGVFagent skills as tools, and writes a final answer "
+                    "with file paths to the artefacts.",
+    )
+    parser.add_argument("query", nargs="+",
+                         help="Your question (any natural-language text).")
+    parser.add_argument("--backend", default=None,
+                         help="LLM backend (anthropic / openai / codex / "
+                              "ollama / vllm / tgi / groq / together / "
+                              "deepinfra / huggingface / custom). Default: "
+                              "auto-detect.")
+    parser.add_argument("--model", default=None,
+                         help="Model name. Default: backend-specific (e.g. "
+                              "claude-sonnet-4-5, gpt-4o-mini, qwen3:8b).")
+    parser.add_argument("--max-iterations", type=int, default=8,
+                         help="Cap on Plan→Action loop iterations.")
+    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--tool", action="append", default=None,
+                         help="Restrict the agent to a subset of tools. "
+                              "Repeat the flag for multiple tools.")
+    parser.add_argument("--system-prompt-file", default=None,
+                         help="Path to a custom system prompt.")
+    parser.add_argument("--quiet", action="store_true",
+                         help="Suppress the per-step progress trace.")
+    parser.add_argument("--no-persist", action="store_true",
+                         help="Don't write the transcript / report files.")
+    parsed = parser.parse_args(args)
+
+    # Lazy-import the agent module so `igvfagent --help` doesn't pay the
+    # SDK-import cost.
+    try:
+        from igvfagent import _agent
+    except ImportError:
+        import _agent  # type: ignore[no-redef]
+
+    system_prompt = None
+    if parsed.system_prompt_file:
+        from pathlib import Path as _P
+        system_prompt = _P(parsed.system_prompt_file).read_text()
+
+    cb = None if parsed.quiet else _agent._print_callback
+    try:
+        result = _agent.run(
+            " ".join(parsed.query),
+            backend=parsed.backend, model=parsed.model,
+            max_iterations=parsed.max_iterations,
+            max_tokens=parsed.max_tokens,
+            temperature=parsed.temperature,
+            tools_subset=parsed.tool,
+            system_prompt=system_prompt,
+            callback=cb,
+            persist=not parsed.no_persist,
+        )
+    except RuntimeError as e:
+        sys.stderr.write(f"agent failed to start: {e}\n")
+        sys.stderr.write(
+            "Hint: install an LLM SDK and set credentials. For local "
+            "free use:\n"
+            "  pip install 'igvfagent[llm]'\n"
+            "  ollama serve   # in another terminal\n"
+            "  ollama pull qwen3:8b\n"
+            "Then re-run `igvfagent ask ...`.\n"
+        )
+        return 1
+
+    return 0 if result.stop_reason == "complete" else 2
 
 
 def _run_introspection(skill: str, args: "list[str]") -> int:
