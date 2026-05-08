@@ -180,26 +180,35 @@ cp .env.example .env
 # .env is gitignored.
 ```
 
-After installing, the `igvfagent` console command dispatches to every
-skill via short subcommands, **and** drives the natural-language ReAct
-agent via `igvfagent ask`:
+After installing, the `igvfagent` console command gives you four ways to
+drive the same skills:
 
 ```bash
-# Natural-language entry point (uses the LLM router + tool registry)
+# 1) Browser UI — chat input, streaming progress, inline plot rendering
+pip install 'igvfagent[ui]'
+igvfagent ui                      # opens http://localhost:8501
+
+# 2) Natural-language CLI — same agent, terminal output
 igvfagent ask "Give me the comprehensive APOE evidence pack including\
   literature corroboration, single-cell datasets, and FAVOR annotations."
 
-# Same skills are addressable directly when you don't want an LLM in the loop
+# 3) Direct skills — every tool addressable as a subcommand
 igvfagent kg gene APOE --depth 2 --call-singlecell --call-literature
 igvfagent splitseq retrieve --limit 50
 igvfagent ref design --data-type parse_split_seq
 igvfagent portal-kg pull --tissue macrophage --limit 100
 
-# Introspection
+# 4) Introspection
 igvfagent backends            # registered LLM providers
 igvfagent tools               # the tool catalog the agent runtime sees
 igvfagent --help              # full skill list
 ```
+
+The Streamlit UI exposes the **same** ReAct agent as `igvfagent ask`,
+with an interactive sidebar for backend / model / tool-subset selection,
+a streaming progress trace as the agent plans and calls tools, and inline
+rendering of any artefacts the tools produce (UMAP / dot-plot / volcano
+PNG/SVG figures, markdown reports, manifest CSVs).
 
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
