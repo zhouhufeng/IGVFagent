@@ -59,13 +59,17 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Literature retrieval / validation / study design"),
 }
 
-# Reserved namespaces for the upcoming agent + UI layers (steps 2-4 in
+# Reserved namespaces for the upcoming agent + UI layers (steps 3-4 in
 # the shipping plan). They print a "not yet wired" message until those
 # steps land — keeping the CLI surface stable for users now.
 RESERVED = {
-    "ask": "Natural-language agent (LLM-driven). Coming in step 2/3.",
+    "ask": "Natural-language agent (LLM-driven). Coming in step 3.",
     "ui":  "Browser UI (Streamlit). Coming in step 4.",
 }
+
+# Introspection commands wired in step 2: lists the LLM provider router's
+# registered backends and the tool registry the agent runtime will see.
+INTROSPECTION = ("backends", "tools")
 
 
 def _print_help() -> None:
@@ -82,6 +86,10 @@ def _print_help() -> None:
     width = max(len(name) for name in SKILLS)
     for name, (_, doc) in SKILLS.items():
         print(f"  {name:{width}}  {doc}")
+    print()
+    print("Introspection:")
+    print(f"  {'backends':{width}}  List configured LLM provider backends")
+    print(f"  {'tools':{width}}  List the tool registry the agent runtime sees")
     print()
     print("Reserved (not yet wired):")
     for name, doc in RESERVED.items():
@@ -115,6 +123,8 @@ def main(argv: Optional["list[str]"] = None) -> int:
             f"`{skill}` is reserved but not yet wired. {RESERVED[skill]}\n"
         )
         return 64
+    if skill in INTROSPECTION:
+        return _run_introspection(skill, args[1:])
     if skill not in SKILLS:
         sys.stderr.write(f"unknown skill: {skill}\n")
         sys.stderr.write("Run `igvfagent --help` for the skill list.\n")
@@ -139,6 +149,33 @@ def main(argv: Optional["list[str]"] = None) -> int:
     except SystemExit as exc:  # argparse + sys.exit propagation
         return int(exc.code) if exc.code is not None else 0
     return int(rc) if isinstance(rc, int) else 0
+
+
+def _run_introspection(skill: str, args: "list[str]") -> int:
+    if skill == "backends":
+        from . import _llm
+        for name in _llm.list_backends():
+            d = _llm.describe_backend(name)
+            tag = d.get("sdk", "")
+            extras = ""
+            if "base_url" in d:
+                extras += f"  base_url={d['base_url']}"
+            if "api_key_env" in d:
+                extras += f"  api_key_env={d['api_key_env']}"
+            print(f"{name:14} {tag:10}{extras}")
+        return 0
+    if skill == "tools":
+        from . import _tools
+        if "--json" in args:
+            import json as _json
+            print(_json.dumps([t.to_dict() for t in _tools.list_tools()],
+                                indent=2))
+            return 0
+        for t in _tools.list_tools():
+            print(_tools.render_tool_summary(t))
+            print()
+        return 0
+    return 2
 
 
 if __name__ == "__main__":
