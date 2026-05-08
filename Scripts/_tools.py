@@ -513,6 +513,139 @@ _TOOLS: "list[Tool]" = [
         bool_flags={"update_readme"},
     ),
 
+    # ---- ENCODE pipeline tools (step 6) ----
+
+    _T(
+        "encode_retrieve",
+        "Search the ENCODE Portal for experiments by assay (ChIP-seq, "
+        "Histone ChIP-seq, ATAC-seq, DNase-seq, Hi-C, capture Hi-C, "
+        "ChIA-PET, RNA-seq, MNase-seq, FAIRE-seq, CAGE, RAMPAGE), "
+        "biosample, target (for ChIP), and assembly. Use this to "
+        "discover candidate experiments before describing or "
+        "downloading them.",
+        {
+            "type": "object",
+            "properties": {
+                "assay":       {**_S_STRING,
+                    "description": "Assay group; e.g. 'Histone ChIP-seq', "
+                                    "'ATAC-seq', 'Hi-C'."},
+                "biosample":   {**_S_STRING,
+                    "description": "Biosample term name (K562, GM12878, "
+                                    "liver, hippocampus, etc.)."},
+                "target":      {**_S_STRING,
+                    "description": "ChIP-seq / Histone target (H3K27ac, "
+                                    "CTCF, etc.). Ignored for non-ChIP."},
+                "assembly":    {**_S_STRING},
+                "limit":       {**_S_INTEGER, "default": 50},
+                "fetch_file_details": {**_S_BOOLEAN, "default": False},
+                "label":       {**_S_STRING},
+            },
+            "required": ["assay"],
+        },
+        cli=["encode", "retrieve"],
+        flag_map={"assay": "--assay", "biosample": "--biosample",
+                   "target": "--target", "assembly": "--assembly",
+                   "limit": "--limit", "label": "--label"},
+        bool_flags={"fetch_file_details"},
+    ),
+
+    _T(
+        "encode_describe",
+        "Plain-language description of a single ENCODE experiment: "
+        "assay, biosample, target, ENCODE pipeline, replicates, file "
+        "inventory by format and output_type, plus suggested follow-ups.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING,
+                    "description": "ENCODE accession (e.g. ENCSR000DUB)."},
+            },
+            "required": ["accession"],
+        },
+        cli=["encode", "describe"],
+        flag_map={"accession": "--accession"},
+    ),
+
+    _T(
+        "encode_super_enhancers",
+        "ROSE-style super-enhancer calling on an enhancer-mark peak BED "
+        "file (typically H3K27ac, BRD4, MED1, MED12, P300). Stitches "
+        "nearby peaks, ranks by summed signal, and finds the geometric "
+        "inflection. Emits separate super-/typical-enhancer BEDs and a "
+        "hockey-stick plot.",
+        {
+            "type": "object",
+            "properties": {
+                "bed":                 {**_S_STRING},
+                "stitching_distance":  {**_S_INTEGER, "default": 12500},
+                "tss_bed":             {**_S_STRING,
+                    "description": "Optional TSS BED for excluding "
+                                    "promoter-proximal peaks."},
+                "tss_distance":        {**_S_INTEGER, "default": 2000},
+                "label":               {**_S_STRING},
+            },
+            "required": ["bed"],
+        },
+        cli=["encode", "super-enhancers"],
+        flag_map={"bed": "--bed",
+                   "stitching_distance": "--stitching-distance",
+                   "tss_bed": "--tss-bed", "tss_distance": "--tss-distance",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "encode_integrate_ccre",
+        "Overlay a peak BED with the SCREEN GRCh38 cCRE registry and "
+        "annotate each peak with its cCRE class (PLS, pELS, dELS, "
+        "CTCF-only, DNase-H3K4me3). Auto-downloads the SCREEN V4 cCRE "
+        "BED on first use; emits a stacked-bar overview plot.",
+        {
+            "type": "object",
+            "properties": {
+                "bed":         {**_S_STRING},
+                "ccre_bed":    {**_S_STRING,
+                    "description": "Optional local cCRE BED override."},
+                "ccre_class":  {**_S_STRING,
+                    "enum": ["PLS", "pELS", "dELS", "CTCF"]},
+                "label":       {**_S_STRING},
+            },
+            "required": ["bed"],
+        },
+        cli=["encode", "integrate-ccre"],
+        flag_map={"bed": "--bed", "ccre_bed": "--ccre-bed",
+                   "ccre_class": "--ccre-class", "label": "--label"},
+    ),
+
+    _T(
+        "encode_browser",
+        "Render an IGV-style multi-track SVG for a genomic region. "
+        "Takes one or more `LABEL:PATH` BED tracks plus an optional "
+        "SCREEN cCRE track (--with-ccre). Useful for visualizing peak "
+        "calls + cCRE classes + super-enhancers around a candidate "
+        "locus.",
+        {
+            "type": "object",
+            "properties": {
+                "region": {**_S_STRING,
+                    "description": "chr19:44903000-44912000"},
+                "tracks": {**_S_ARRAY_S,
+                    "description": "List of `LABEL:PATH` strings for "
+                                    "each BED track to render."},
+                "with_ccre": {**_S_BOOLEAN, "default": False},
+                "ccre_bed":  {**_S_STRING},
+                "width":     {**_S_INTEGER, "default": 1000},
+                "label":     {**_S_STRING},
+            },
+            "required": ["region"],
+        },
+        cli=["encode", "browser"],
+        flag_map={"region": "--region", "tracks": "--track",
+                   "ccre_bed": "--ccre-bed", "width": "--width",
+                   "label": "--label"},
+        flag_repeat={"tracks"},
+        bool_flags={"with_ccre"},
+    ),
+
 ]
 
 

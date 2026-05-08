@@ -57,6 +57,8 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Portal → local Knowledge Graph ETL"),
     "ref":              ("igvfagent.reference_skill",
                           "Literature retrieval / validation / study design"),
+    "encode":           ("igvfagent.encode_pipeline",
+                          "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
