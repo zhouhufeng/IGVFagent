@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "igvfagent"
+version = "0.1.0"
+description = "Local, auditable AI agent for IGVF / ENCODE data analysis with a built-in Plan → Action → Results → Evaluation orchestrator."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Hufeng Zhou" }]
+keywords = [
+    "igvf",
+    "encode",
+    "single-cell",
+    "variant-annotation",
+    "knowledge-graph",
+    "splitseq",
+    "multiome",
+    "bioinformatics",
+    "agent",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Operating System :: OS Independent",
+]
+
+# Every skill that does only metadata / KG / Portal work runs on the
+# Python standard library (urllib, json, sqlite3, csv, re). Heavier
+# analytical capabilities pull their deps in via the extras below.
+dependencies = []
+
+[project.optional-dependencies]
+# Single-cell / plotting / variant analysis stack
+analysis = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pyarrow>=14",
+    "anndata>=0.10",
+    "scanpy>=1.9",
+    "seaborn>=0.13",
+]
+# Web UI for natural-language interaction (Streamlit)
+ui = [
+    "streamlit>=1.30",
+]
+# Optional native LLM SDKs (Anthropic + OpenAI). The agent runtime can
+# also talk to Ollama / vLLM / HuggingFace TGI via the OpenAI-compatible
+# wire format, in which case the openai package alone is sufficient.
+llm = [
+    "anthropic>=0.40",
+    "openai>=1.50",
+]
+# Developer tooling
+dev = [
+    "pytest>=7",
+    "ruff>=0.5",
+    "build>=1.0",
+]
+all = [
+    "igvfagent[analysis,ui,llm]",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhouhufeng/IGVFagent"
+Repository = "https://github.com/zhouhufeng/IGVFagent"
+Issues = "https://github.com/zhouhufeng/IGVFagent/issues"
+
+[project.scripts]
+igvfagent = "igvfagent.cli:main"
+
+# The Python source lives in Scripts/, exposed as the importable package
+# `igvfagent`. Existing `python3 Scripts/<skill>.py` invocations keep
+# working because we don't move any files; we only mark Scripts/ as a
+# package and add a thin dispatcher.
+[tool.setuptools]
+packages = ["igvfagent"]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"igvfagent" = "Scripts"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

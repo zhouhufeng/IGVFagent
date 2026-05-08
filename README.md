@@ -155,17 +155,24 @@ Generated outputs (timestamped folders under `Docs/<skill>/`, manifests under
 
 ## Quick start
 
+**Recommended (pipx) — one command, isolated, gives you `igvfagent` globally:**
+
 ```bash
-# 1) clone
+pipx install 'git+https://github.com/zhouhufeng/IGVFagent.git'
+pipx inject igvfagent 'igvfagent[analysis]'    # optional: scanpy + matplotlib stack
+igvfagent --help
+```
+
+**Or pip into a virtual env (developer / contributor flow):**
+
+```bash
 git clone https://github.com/zhouhufeng/IGVFagent.git
 cd IGVFagent
-
-# 2) python environment (the core scripts use only stdlib;
-#    install requirements.txt for the analysis extras)
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt   # optional but recommended
+python3 -m pip install -e '.[analysis]'        # core + analysis extras
+# python3 -m pip install -e '.[all]'           # core + analysis + UI + LLM SDKs
+igvfagent --help
 
 # 3) configure endpoints / credentials locally
 cp .env.example .env
@@ -173,9 +180,28 @@ cp .env.example .env
 # .env is gitignored.
 ```
 
-`requirements.txt` installs `pandas`, `numpy`, `scipy`, `matplotlib`,
-`pyarrow`, `anndata`, and `scanpy` — needed for plotting, single-cell
-analysis, and the advanced variant analysis logistic models.
+After installing, the `igvfagent` console command dispatches to every
+skill via short subcommands:
+
+```bash
+igvfagent kg gene APOE --depth 2 --call-singlecell --call-literature
+igvfagent splitseq retrieve --limit 50
+igvfagent ref design --data-type parse_split_seq
+igvfagent portal-kg pull --tissue macrophage --limit 100
+```
+
+The legacy `python3 Scripts/<skill>.py …` invocations documented later
+in this README continue to work unchanged.
+
+**Optional dependency groups** (declared in `pyproject.toml`):
+
+| Extra | Adds | When you need it |
+|---|---|---|
+| `analysis` | pandas, numpy, scipy, matplotlib, pyarrow, anndata, scanpy, seaborn | Single-cell pipelines, advanced variant analysis, plotting |
+| `ui` | streamlit | Browser UI (lands in step 4 of the shipping plan) |
+| `llm` | anthropic, openai | Native SDKs for the LLM-driven `igvfagent ask` runner (coming) |
+| `all` | analysis + ui + llm | Everything |
+| `dev` | pytest, ruff, build | Developer tooling |
 
 ## Configuration
 
