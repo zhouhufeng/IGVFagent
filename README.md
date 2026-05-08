@@ -247,6 +247,36 @@ igvfagent ask "Walk the IGVF Knowledge Graph for APOE and return all
    regulatory elements plus the matching IGVF single-cell datasets."
 ```
 
+`igvfagent models` introspects the local Ollama daemon and lists every
+installed model + size, so you can pick one for `--model`:
+
+```bash
+igvfagent models           # lists installed Ollama models
+igvfagent models --json    # machine-readable
+```
+
+Bigger / coding-tuned local models work well too — backend inference is
+substring-based, so anything with `qwen` / `gemma` / `llama` / `mistral`
+/ `phi` / `deepseek` / `yi` / `command` in the tag auto-routes to Ollama:
+
+```bash
+# 35B Qwen 3.6 coding tune (e.g. via Ollama):
+igvfagent ask --model qwen3.6:35b-a3b-coding-bf16 \
+   "Comprehensive APOE evidence pack with literature corroboration."
+
+# 31B Gemma 4 coding tune:
+igvfagent ask --model gemma4:31b-coding-mtp-bf16 \
+   "Discover Parse SPLiT-seq AnalysisSets profiling macrophages."
+
+# Pin the model globally so you don't repeat --model:
+export IGVF_LLM_BACKEND=ollama
+export IGVF_LLM_MODEL=qwen3.6:35b-a3b-coding-bf16
+igvfagent ask "..."
+```
+
+The same `IGVF_LLM_MODEL` env var is forwarded by the Compose stack —
+drop it in a local `.env` and the containerized agent picks it up.
+
 For higher-quality answers, point the agent at Anthropic Claude or OpenAI:
 
 ```bash
