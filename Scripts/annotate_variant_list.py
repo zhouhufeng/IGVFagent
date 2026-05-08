@@ -32,9 +32,10 @@ REPORT_DIR = ROOT / "Docs" / "VariantAnnotation"
 OUTPUT_DIR = DATA_DIR / "Annotated" / "VariantList"
 CACHE_DIR = DATA_DIR / "Cache" / "IGVFCatalogVariantAnnotations"
 
-CATALOG_API_BASE = os.environ.get(
-    "IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org"
-).rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
 
 DEFAULT_ENDPOINTS = {
     "summary": ("/api/variants/summary", {}),

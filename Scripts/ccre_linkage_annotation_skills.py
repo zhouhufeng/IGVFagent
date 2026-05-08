@@ -44,23 +44,25 @@ CACHE_DIR = DATA_DIR / "Cache" / "cCRELinkage"
 REPORT_DIR = DOCS_DIR / "cCRELinkage"
 PLOT_DIR = REPORT_DIR / "Plots"
 
-SCREEN_DOWNLOAD_PAGES = [
-    "https://screen.wenglab.org/downloads",
-    "https://screen.beta.wenglab.org/downloads",
-]
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
-IGVF_PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://data.igvf.org").rstrip("/")
-CATALOG_API_BASE = os.environ.get(
-    "IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org"
-).rstrip("/")
-FAVOR_API_BASE = os.environ.get("FAVOR_API_BASE", "https://api.genohub.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint, host as _resolve_host
 
+SCREEN_DOWNLOAD_PAGES = [
+    f"{_resolve_endpoint('screen')}/downloads",
+    f"{_resolve_endpoint('screen_beta')}/downloads",
+]
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
+IGVF_PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
+FAVOR_API_BASE = _resolve_endpoint("favor", "FAVOR_API_BASE")
+
+_REG_BASE = _resolve_endpoint("wenglab_dl")
 FALLBACK_SCREEN_DOWNLOADS = [
     {
         "label": "all_human_ccres",
         "category": "cCREs by Class",
         "description": "All Human cCREs, SCREEN V4, GRCh38/hg38",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.bed",
         "expected_count": "2348854",
         "size_mb": "129.1",
     },
@@ -68,7 +70,7 @@ FALLBACK_SCREEN_DOWNLOADS = [
         "label": "promoter_like_pls",
         "category": "cCREs by Class",
         "description": "Promoter-like cCREs, PLS",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.PLS.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.PLS.bed",
         "expected_count": "47532",
         "size_mb": "2.6",
     },
@@ -76,7 +78,7 @@ FALLBACK_SCREEN_DOWNLOADS = [
         "label": "candidate_enhancers_pels_dels",
         "category": "cCREs by Class",
         "description": "All candidate enhancers, pELS and dELS",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.ELS.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.ELS.bed",
         "expected_count": "1718669",
         "size_mb": "94.4",
     },
@@ -84,7 +86,7 @@ FALLBACK_SCREEN_DOWNLOADS = [
         "label": "proximal_enhancer_like_pels",
         "category": "cCREs by Class",
         "description": "Proximal enhancer-like cCREs, pELS",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.pELS.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.pELS.bed",
         "expected_count": "249464",
         "size_mb": "13.7",
     },
@@ -92,7 +94,7 @@ FALLBACK_SCREEN_DOWNLOADS = [
         "label": "distal_enhancer_like_dels",
         "category": "cCREs by Class",
         "description": "Distal enhancer-like cCREs, dELS",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.dELS.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.dELS.bed",
         "expected_count": "1469205",
         "size_mb": "80.7",
     },
@@ -100,7 +102,7 @@ FALLBACK_SCREEN_DOWNLOADS = [
         "label": "ctcf_bound_ccres",
         "category": "cCREs by Class",
         "description": "CTCF-bound cCREs",
-        "url": "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.CTCF.bed",
+        "url": f"{_REG_BASE}/Registry-V4/GRCh38-cCREs.CTCF.bed",
         "expected_count": "948642",
         "size_mb": "63.0",
     },
@@ -299,7 +301,7 @@ def parse_screen_downloads(page_url: str, html_text: str) -> list[dict[str, str]
         href = html.unescape(match.group(1))
         label_text = re.sub(r"<[^>]+>", " ", match.group(2))
         label_text = html.unescape(re.sub(r"\s+", " ", label_text)).strip()
-        if "downloads.wenglab.org" not in href:
+        if _resolve_host("wenglab_dl") not in href:
             continue
         url = urllib.parse.urljoin(page_url, href)
         lower = label_text.lower()
@@ -357,7 +359,7 @@ def command_screen_manifest(args: argparse.Namespace) -> int:
         "",
         f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         "",
-        "Source: https://screen.wenglab.org/downloads",
+        f"Source: {_resolve_endpoint('screen')}/downloads",
         "",
         "The manifest is intentionally separate from download execution because full cCRE, cCRE-gene, and matrix files can be large.",
         "",

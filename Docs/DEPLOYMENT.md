@@ -19,13 +19,15 @@ The current scripts use the Python standard library where possible. Optional dow
 
 Released IGVF Portal and ENCODE data can be accessed without login. Unreleased IGVF Portal data require the user's own authorized browser or cookie/session workflow.
 
-Environment variables:
+Environment variables (all optional — defaults are baked into the scripts):
 
 ```bash
-export IGVF_CATALOG_API_BASE="https://api.catalogkg.igvf.org"
-export ENCODE_BASE="https://www.encodeproject.org"
-export IGVF_PORTAL_BASE="https://data.igvf.org"
-export FAVOR_API_BASE="https://api.genohub.org"
+# Override only if you need a non-default endpoint.
+# export IGVF_CATALOG_API_BASE="<your-catalog-api-base>"
+# export ENCODE_BASE="<your-encode-portal-base>"
+# export IGVF_PORTAL_BASE="<your-portal-base>"
+# export IGVF_PORTAL_API_BASE="<your-portal-api-base>"
+# export FAVOR_API_BASE="<your-favor-api-base>"
 ```
 
 For IGVF Knowledge Graph / ArangoDB access:

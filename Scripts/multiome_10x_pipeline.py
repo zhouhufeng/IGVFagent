@@ -40,8 +40,11 @@ MANIFEST_DIR = DATA_DIR / "Manifests" / "Multiome10x"
 METADATA_DIR = DATA_DIR / "IGVF" / "10xMultiome" / "Metadata"
 DOWNLOAD_DIR = DATA_DIR / "IGVF" / "10xMultiome" / "Downloads"
 
-PORTAL_API_BASE = os.environ.get("IGVF_PORTAL_API_BASE", "https://api.data.igvf.org").rstrip("/")
-PORTAL_PUBLIC_BASE = os.environ.get("IGVF_PORTAL_PUBLIC_BASE", "https://data.igvf.org").rstrip("/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
+PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
+PORTAL_PUBLIC_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_PUBLIC_BASE")
 
 PROCESSED_CONTENT_TYPES = {
     "annotated sparse peak count matrix",

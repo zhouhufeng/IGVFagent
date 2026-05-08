@@ -16,6 +16,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint
+
 
 ROOT = Path(
     os.environ.get("IGVF_PROJECT_ROOT")
@@ -24,17 +27,11 @@ ROOT = Path(
 DATA_DIR = ROOT / "Data"
 LOG_DIR = ROOT / "Docs" / "Logs"
 
-PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://data.igvf.org").rstrip("/")
-CATALOG_DOCS_BASE = os.environ.get(
-    "IGVF_CATALOG_DOCS_BASE", "https://docs.catalog.igvf.org"
-).rstrip("/")
-CATALOG_API_BASE = os.environ.get(
-    "IGVF_CATALOG_API_BASE", "https://api.catalogkg.igvf.org"
-).rstrip("/")
-ARANGO_BASE = os.environ.get(
-    "IGVF_ARANGO_BASE", "https://db.catalog.igvf.org/_db/igvf"
-).rstrip("/")
-ENCODE_BASE = os.environ.get("ENCODE_BASE", "https://www.encodeproject.org").rstrip("/")
+PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
+CATALOG_DOCS_BASE = _resolve_endpoint("catalog_docs", "IGVF_CATALOG_DOCS_BASE")
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
+ARANGO_BASE = _resolve_endpoint("arango", "IGVF_ARANGO_BASE")
+ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 
 
 def setup_logging() -> Path:

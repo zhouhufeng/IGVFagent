@@ -137,30 +137,18 @@ analysis, and the advanced variant analysis logistic models.
 
 ## Configuration
 
-The agent reads endpoints and credentials from environment variables. Defaults
-point at the public IGVF / ENCODE services, so most reads work out of the box.
+The agent reads endpoints and credentials from environment variables. Copy
+`.env.example` to `.env` and fill in the values you have access to; `.env`
+is gitignored.
 
-| Variable                | Default                              | Purpose                                       |
-|-------------------------|--------------------------------------|-----------------------------------------------|
-| `IGVF_PROJECT_ROOT`     | (script's parent dir)                | Override repo root for portable installs      |
-| `IGVF_CATALOG_API_BASE` | `https://api.catalogkg.igvf.org`     | IGVF Catalog API root                         |
-| `IGVF_CATALOG_DOCS_BASE`| `https://docs.catalog.igvf.org`      | IGVF Catalog docs root                        |
-| `IGVF_PORTAL_BASE`      | `https://data.igvf.org`              | IGVF Portal root                              |
-| `IGVF_PORTAL_COOKIE`    | (unset)                              | Optional authenticated portal session cookie  |
-| `IGVF_ARANGO_BASE`      | `https://db.catalog.igvf.org/_db/igvf` | IGVF Knowledge Graph ArangoDB endpoint     |
-| `IGVF_ARANGO_USER`      | `guest`                              | KG user                                       |
-| `IGVF_ARANGO_PASSWORD`  | (unset)                              | KG password — set locally; never commit       |
-| `ENCODE_BASE`           | `https://www.encodeproject.org`      | ENCODE Portal root                            |
-| `FAVOR_API_BASE`        | `https://api.genohub.org`            | FAVOR API root                                |
-| `ENCODE_CCRE_BED_URL`   | `https://downloads.wenglab.org/Registry-V3/GRCh38-cCREs.bed` | Public ENCODE cCRE registry, used by advanced variant analysis |
+Public, read-only endpoints have sensible defaults baked into the scripts —
+most reads work without any configuration. Authenticated workflows (for
+example unreleased datasets, or knowledge-graph queries that require an
+account) need credentials you supply locally. Never commit `.env`, cookies,
+tokens, or any other authenticated session material.
 
-Released IGVF Portal and ENCODE data can be accessed without login.
-Unreleased IGVF Portal data require your own authorized browser or
-cookie/session workflow — set `IGVF_PORTAL_COOKIE` locally.
-
-`IGVF_PROJECT_ROOT` lets you place the repo anywhere and run scripts from
-anywhere. Without it, every script falls back to its own location, so a
-default install at `/path/to/IGVFagent/` just works.
+Set `IGVF_PROJECT_ROOT` if you want to run the scripts from outside the
+repository directory.
 
 ## Smoke test
 
@@ -337,9 +325,9 @@ rE2G, and single-cell linkage corpora can be many gigabytes.
 
 ```bash
 python3 Scripts/data_illustration_interpretation.py explain \
-  'https://data.igvf.org/curated-sets/IGVFDS2544COZH/'
+  '<igvf-portal-url>/curated-sets/IGVFDS2544COZH/'
 python3 Scripts/data_illustration_interpretation.py explain \
-  'https://www.encodeproject.org/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
+  '<encode-portal-url>/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
 python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH \
   --download --max-download-gb 2
 python3 Scripts/data_illustration_interpretation.py write-playbook
