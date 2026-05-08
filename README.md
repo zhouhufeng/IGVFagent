@@ -69,6 +69,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Reference skill (literature retrieval, validation, design)](#reference-skill-literature-retrieval-validation-design)
   - [Knowledge Graph traversal](#knowledge-graph-traversal)
   - [Portal → local KG ETL](#portal--local-kg-etl)
+  - [ENCODE bulk-genomics pipeline](#encode-bulk-genomics-pipeline)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -657,6 +658,58 @@ python3 Scripts/portal_to_kg_skill.py write-playbook
 Local store: `Data/KG/local_kg.sqlite` (gitignored under `Data/*`).
 Exports: `Data/KG/Export/<timestamp>/nodes_<collection>.jsonl` plus
 `edges.jsonl`, ready for `arangoimport --type jsonl …`.
+
+### ENCODE bulk-genomics pipeline
+
+End-to-end retrieval, description, peak QC, super-enhancer calling,
+SCREEN cCRE integration, and IGV-style browser-SVG visualization for
+the major ENCODE bulk assays — ChIP-seq (TF + Histone), ATAC-seq,
+DNase-seq, Hi-C, capture Hi-C, ChIA-PET, plus RNA-seq / MNase-seq /
+FAIRE-seq / CAGE / RAMPAGE for retrieval & description.
+
+```bash
+# 1) Discover experiments by assay × biosample × target
+igvfagent encode retrieve --assay 'Histone ChIP-seq' \
+  --target H3K27ac --biosample K562 --assembly GRCh38 --limit 50
+
+# 2) Per-file inventory for one or more accessions
+igvfagent encode manifest --accessions ENCSR000AKP --label k562_h3k27ac
+
+# 3) Pull files under a size cap, filter by file format
+igvfagent encode download \
+  --manifest Data/Manifests/ENCODE/<files.csv> \
+  --max-download-gb 5 --formats bed bigWig
+
+# 4) Plain-language description of one experiment
+igvfagent encode describe --accession ENCSR000AKP
+
+# 5) Peak QC (count, width, score, per-chromosome) from a BED file
+igvfagent encode analyze-peaks --bed peaks.bed.gz
+
+# 6) ROSE-style super-enhancer call (H3K27ac / BRD4 / MED1 / P300)
+igvfagent encode super-enhancers --bed h3k27ac_peaks.bed \
+  --stitching-distance 12500 --tss-bed tss.bed --tss-distance 2000
+
+# 7) Overlay peaks with SCREEN cCRE classes (PLS / pELS / dELS / CTCF)
+igvfagent encode integrate-ccre --bed peaks.bed
+
+# 8) IGV-style multi-track SVG browser view
+igvfagent encode browser --region chr19:44903000-44912000 \
+  --track 'H3K27ac peaks:peaks.bed' \
+  --track 'ATAC peaks:atac_peaks.bed' \
+  --with-ccre --label apoe_locus
+```
+
+The agent runtime exposes `encode_retrieve`, `encode_describe`,
+`encode_super_enhancers`, `encode_integrate_ccre`, and `encode_browser`
+as tools, so a single `igvfagent ask` can drive the full pipeline:
+
+```bash
+igvfagent ask "Find K562 H3K27ac ChIP-seq experiments on GRCh38, pick \
+  the highest-quality one, describe it, and call super-enhancers from \
+  its peak BED. Then overlay the super-enhancers against SCREEN cCREs \
+  and produce a browser view of the APOE locus."
+```
 
 ## Deployment with LLM agents
 
