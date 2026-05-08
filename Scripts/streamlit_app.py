@@ -61,16 +61,52 @@ def _sidebar() -> dict:
 
         st.subheader("Backend")
         backends = ["(auto)"] + _llm.list_backends()
+        # Reset the model field whenever the backend changes so a Qwen
+        # model name doesn't accidentally carry over into the Anthropic
+        # backend (or vice versa).
+        prev_backend = st.session_state.get("_prev_backend")
         backend = st.selectbox(
             "LLM provider", backends, index=0,
             help="`(auto)` infers from the model name; defaults to Ollama "
                  "(Qwen 3 8B) when nothing else is configured.",
         )
+        if prev_backend is not None and prev_backend != backend:
+            st.session_state.pop("_model_input", None)
+        st.session_state["_prev_backend"] = backend
+
+        # Suggest a sensible default model placeholder per backend.
+        placeholders = {
+            "(auto)":   "default for backend (e.g. qwen3:8b)",
+            "anthropic": "claude-sonnet-4-5  ← needs ANTHROPIC_API_KEY",
+            "openai":    "gpt-4o-mini  ← needs OPENAI_API_KEY",
+            "ollama":    "qwen3:8b  (run `igvfagent models` to list yours)",
+            "groq":      "llama-3.1-70b-versatile",
+            "together":  "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            "vllm":      "qwen3:8b  (or whatever your vLLM serves)",
+            "tgi":       "(your HuggingFace TGI model id)",
+        }
         model = st.text_input(
             "Model",
             value="",
-            placeholder="default for backend (e.g. qwen3:8b)",
+            key="_model_input",
+            placeholder=placeholders.get(backend, "default for backend"),
         )
+
+        # Health check
+        if st.button("🔍 Test backend", use_container_width=True):
+            with st.spinner("Pinging backend…"):
+                try:
+                    msg = _llm.chat(
+                        messages=[{"role": "user", "content": "ping"}],
+                        backend=None if backend == "(auto)" else backend,
+                        model=model or None,
+                        max_tokens=16, temperature=0.0,
+                    )
+                    st.success(
+                        f"✅ OK — backend `{msg.backend}` "
+                        f"model `{msg.model}` answered.")
+                except Exception as e:
+                    st.error(f"❌ {e}")
 
         with st.expander("Backend env vars", expanded=False):
             for name in _llm.list_backends():
@@ -78,6 +114,23 @@ def _sidebar() -> dict:
                 bullet = (f"- **{name}** · key=`{d.get('api_key_env','')}`"
                             f"{'  · base=`'+d['base_url']+'`' if d.get('base_url') else ''}")
                 st.markdown(bullet)
+            if backend == "ollama" or backend == "(auto)":
+                with st.spinner("Querying Ollama for installed models…"):
+                    try:
+                        models = _llm.list_ollama_models(timeout=2)
+                    except Exception:
+                        models = []
+                if models:
+                    st.markdown("**Local Ollama models** (paste a name above):")
+                    for m in sorted(models, key=lambda r: r.get("name") or ""):
+                        sz = (f" — {m['size_gb']:.1f} GB"
+                              if m.get("size_gb") else "")
+                        st.markdown(f"- `{m.get('name','')}`{sz}")
+                else:
+                    st.caption(
+                        "_(no Ollama daemon reachable — start `ollama serve` "
+                        "or set `OLLAMA_HOST_BASE`)_"
+                    )
 
         st.divider()
         st.subheader("Run parameters")
@@ -301,14 +354,14 @@ def main() -> None:
                                     f"{event.payload.get('iteration','?')}",
                               state="running")
             elif event.kind == "run_end":
-                state = ("complete"
-                         if event.payload.get("stop_reason") == "complete"
-                         else "error")
+                stop_r = event.payload.get("stop_reason")
+                state = "complete" if stop_r == "complete" else "error"
                 status.update(label=f"Done · {event.payload.get('iterations')} "
                                     f"iters, "
                                     f"{event.payload.get('tool_calls_made')} "
-                                    f"tool calls",
-                              state=state, expanded=False)
+                                    f"tool calls · stop `{stop_r}`",
+                              state=state,
+                              expanded=state != "complete")
 
         try:
             result = _agent.run(
@@ -338,8 +391,12 @@ def main() -> None:
             st.error(f"Agent run failed: {exc}")
             return
 
-        # Final answer
-        if result.final_answer:
+        # Final answer (or error). On error stops, render as st.error so
+        # the message is impossible to miss; otherwise render markdown.
+        if result.stop_reason != "complete" and result.final_answer:
+            st.error("Agent run ended before completion. See details below.")
+            st.markdown(result.final_answer)
+        elif result.final_answer:
             st.markdown(result.final_answer)
         else:
             st.warning("_The agent finished without producing a final answer._")
