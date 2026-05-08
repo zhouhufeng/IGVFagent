@@ -64,8 +64,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
 RESERVED: "dict[str, str]" = {}
 
 # Introspection commands wired in step 2: lists the LLM provider router's
-# registered backends and the tool registry the agent runtime will see.
-INTROSPECTION = ("backends", "tools")
+# registered backends, the tool registry the agent runtime will see, and
+# (step 5) the locally installed Ollama models when the daemon is running.
+INTROSPECTION = ("backends", "tools", "models")
 
 # Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
 TOP_LEVEL = ("ask", "ui")
@@ -93,6 +94,7 @@ def _print_help() -> None:
     print("Introspection:")
     print(f"  {'backends':{width}}  List configured LLM provider backends")
     print(f"  {'tools':{width}}  List the tool registry the agent runtime sees")
+    print(f"  {'models':{width}}  List Ollama models installed on the local daemon")
     if RESERVED:
         print()
         print("Reserved (not yet wired):")
@@ -320,6 +322,29 @@ def _run_introspection(skill: str, args: "list[str]") -> int:
         for t in _tools.list_tools():
             print(_tools.render_tool_summary(t))
             print()
+        return 0
+    if skill == "models":
+        from . import _llm
+        if "--json" in args:
+            import json as _json
+            print(_json.dumps(_llm.list_ollama_models(), indent=2))
+            return 0
+        models = _llm.list_ollama_models()
+        if not models:
+            sys.stderr.write(
+                "No Ollama models found.\n"
+                "  - Is `ollama serve` running?\n"
+                "  - Or set OLLAMA_HOST_BASE to your daemon "
+                "(e.g. http://localhost:11434/v1).\n"
+            )
+            return 1
+        print(f"{'name':52} {'size':>8}  family")
+        print("-" * 78)
+        for m in sorted(models, key=lambda r: (r.get("name") or "")):
+            size = (f"{m['size_gb']:>5.2f}GB"
+                    if m.get("size_gb") is not None else "      ?")
+            print(f"{(m.get('name') or ''):52} {size:>8}  "
+                  f"{m.get('family','') or ''}")
         return 0
     return 2
 
