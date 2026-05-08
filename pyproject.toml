@@ -62,6 +62,17 @@ llm = [
     "anthropic>=0.40",
     "openai>=1.50",
 ]
+# Hi-C contact-matrix loading + bigWig signal analysis
+hic = [
+    "cooler>=0.9",      # .mcool reader
+    "hic-straw>=1.3",   # .hic reader (Aiden lab format)
+    "pyBigWig>=0.3",    # bigWig signal at TSS / FRiP from raw signal
+]
+# TF motif scanning + enrichment
+motif = [
+    "pyfaidx>=0.7",     # genome FASTA indexed access
+    "biopython>=1.81",  # PWM + sequence utilities
+]
 # Developer tooling
 dev = [
     "pytest>=7",
@@ -69,7 +80,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "igvfagent[analysis,ui,llm]",
+    "igvfagent[analysis,ui,llm,hic,motif]",
 ]
 
 [project.urls]
