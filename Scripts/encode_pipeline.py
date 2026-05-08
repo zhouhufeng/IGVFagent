@@ -1202,6 +1202,869 @@ def _color_for_track(track_label: str, name: str) -> str:
     return "#0072B2"
 
 
+# --------------------------- bigWig: FRiP + TSS heatmap --------------------
+
+def _open_bigwig(path: Path):
+    try:
+        import pyBigWig
+    except ImportError as e:
+        raise RuntimeError(
+            "bigWig analysis needs the `pyBigWig` package. "
+            "Install with: pip install 'igvfagent[hic]'"
+        ) from e
+    return pyBigWig.open(str(path))
+
+
+def cmd_bigwig_frip(args: argparse.Namespace) -> Path:
+    """Compute FRiP (fraction of reads / signal in peaks) from a bigWig
+    signal file + a peak BED. Reports per-chromosome FRiP plus a global
+    FRiP and a stacked histogram of in-peak vs out-of-peak signal."""
+    setup_logging(); mkdirs()
+    bw = _open_bigwig(Path(args.bigwig))
+    peaks, _ = parse_bed(Path(args.bed))
+    if not peaks:
+        raise SystemExit(f"No peaks parsed from {args.bed}")
+
+    # Total signal per chromosome (use stats(... type='sum') over each chrom).
+    total_per_chrom: "dict[str, float]" = {}
+    for chrom, length in bw.chroms().items():
+        s = bw.stats(chrom, 0, length, type="sum")
+        total_per_chrom[chrom] = float(s[0]) if s and s[0] is not None else 0.0
+    in_peak_per_chrom: "dict[str, float]" = defaultdict(float)
+    n_per_chrom: "dict[str, int]" = defaultdict(int)
+    for p in peaks:
+        s = bw.stats(p["chrom"], p["start"], p["end"], type="sum")
+        if s and s[0] is not None:
+            in_peak_per_chrom[p["chrom"]] += float(s[0])
+        n_per_chrom[p["chrom"]] += 1
+    bw.close()
+
+    rows: "list[dict]" = []
+    g_in = g_total = 0.0
+    for chrom, total in total_per_chrom.items():
+        if total <= 0:
+            continue
+        in_p = in_peak_per_chrom.get(chrom, 0.0)
+        rows.append({
+            "chrom":         chrom,
+            "n_peaks":       n_per_chrom.get(chrom, 0),
+            "total_signal":  total,
+            "in_peak_signal": in_p,
+            "frip":          (in_p / total) if total else 0.0,
+        })
+        g_in += in_p; g_total += total
+    rows.sort(key=lambda r: -r["total_signal"])
+    global_frip = g_in / g_total if g_total else 0.0
+
+    ts = timestamp()
+    label = safe_label(args.label or Path(args.bigwig).stem + "_FRiP")
+    out_dir = REPORT_DIR / f"{ts}_FRiP_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(out_dir / f"{label}_per_chromosome.csv", rows,
+              cols=["chrom", "n_peaks", "total_signal",
+                     "in_peak_signal", "frip"])
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+        top = rows[:24]
+        x = np.arange(len(top))
+        in_p = np.array([r["in_peak_signal"] for r in top])
+        out_p = np.array([r["total_signal"] - r["in_peak_signal"]
+                            for r in top])
+        plt.figure(figsize=(10, 4))
+        plt.bar(x, out_p, color="#cccccc", label="out of peaks")
+        plt.bar(x, in_p, bottom=out_p, color="#D55E00",
+                  label=f"in peaks (FRiP={global_frip:.3f})")
+        plt.xticks(x, [r["chrom"] for r in top], rotation=70, fontsize=7)
+        plt.ylabel("Signal sum")
+        plt.title(f"FRiP — {label}  (global = {global_frip:.3f})")
+        plt.legend(loc="upper right")
+        plt.tight_layout()
+        for ext in ("png", "svg"):
+            plt.savefig(plot_dir / f"{label}_frip.{ext}", dpi=200,
+                          bbox_inches="tight", facecolor="white")
+        plt.close()
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_frip_report.md"
+    report.write_text(
+        f"# FRiP report — `{Path(args.bigwig).name}`\n\n"
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
+        f"- Peaks: **{len(peaks):,}**\n"
+        f"- Global FRiP: **{global_frip:.4f}**\n"
+        f"  (in-peak signal / total signal across all chromosomes)\n\n"
+        f"FRiP > 0.01 is the ENCODE minimum; > 0.05 is good. Histone "
+        f"ChIP-seq tends to score lower than TF ChIP-seq because the "
+        f"signal is broader.\n\n"
+        f"![FRiP per chromosome](Plots/{label}_frip.png)\n"
+    )
+    print(f"Global FRiP: {global_frip:.4f}")
+    print(f"Report:      {report}")
+    return report
+
+
+def cmd_bigwig_tss_heatmap(args: argparse.Namespace) -> Path:
+    """Aggregate bigWig signal over a window centered on each anchor in
+    the BED (TSS BED, peak summits, etc.) and render a sorted heatmap +
+    average meta-profile."""
+    setup_logging(); mkdirs()
+    bw = _open_bigwig(Path(args.bigwig))
+    anchors, _ = parse_bed(Path(args.anchor_bed))
+    if not anchors:
+        raise SystemExit(f"No anchors in {args.anchor_bed}")
+
+    # Down-sample to keep the heatmap manageable
+    if args.max_anchors and len(anchors) > args.max_anchors:
+        step = max(1, len(anchors) // args.max_anchors)
+        anchors = anchors[::step][: args.max_anchors]
+
+    half = args.window // 2
+    bins = args.bins
+    bin_w = max(args.window // bins, 1)
+    try:
+        import numpy as np
+    except ImportError:
+        raise RuntimeError("Heatmap needs numpy. pip install 'igvfagent[analysis]'")
+
+    matrix = np.zeros((len(anchors), bins), dtype=float)
+    for i, a in enumerate(anchors):
+        center = (a["start"] + a["end"]) // 2
+        s = max(center - half, 0); e = center + half
+        try:
+            row = bw.stats(a["chrom"], s, e, type="mean", nBins=bins)
+        except Exception:
+            row = [0.0] * bins
+        if row:
+            matrix[i] = [float(r) if r is not None else 0.0 for r in row]
+    bw.close()
+
+    # Sort rows by total signal (descending) for the classic heatmap look.
+    order = np.argsort(-matrix.sum(axis=1))
+    matrix = matrix[order]
+
+    ts = timestamp()
+    label = safe_label(args.label or Path(args.bigwig).stem + "_TSS")
+    out_dir = REPORT_DIR / f"{ts}_signal_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    np.save(out_dir / f"{label}_matrix.npy", matrix)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+        vmax = float(np.nanpercentile(matrix, 99))
+        fig = plt.figure(figsize=(7, 9), constrained_layout=True)
+        gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 4])
+        ax_top = fig.add_subplot(gs[0])
+        ax_top.plot(np.linspace(-half, half, bins),
+                     np.nanmean(matrix, axis=0), color="#0072B2", lw=1.5)
+        ax_top.axvline(0, color="#888", lw=0.5)
+        ax_top.set_ylabel("Mean signal")
+        ax_top.set_title(f"{label} — meta-profile")
+        ax_bot = fig.add_subplot(gs[1])
+        ax_bot.imshow(matrix, aspect="auto", cmap="OrRd", vmin=0,
+                       vmax=vmax,
+                       extent=[-half, half, len(matrix), 0])
+        ax_bot.set_xlabel("Distance from anchor center (bp)")
+        ax_bot.set_ylabel(f"{len(matrix):,} anchors (sorted by signal)")
+        for ext in ("png", "svg"):
+            fig.savefig(plot_dir / f"{label}_heatmap.{ext}", dpi=200,
+                          bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_signal_report.md"
+    report.write_text(
+        f"# Anchor-centered signal heatmap — `{Path(args.bigwig).name}`\n\n"
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
+        f"- Anchors: **{len(matrix):,}** (window ± {half} bp, {bins} bins)\n"
+        f"- Source bigWig: `{args.bigwig}`\n"
+        f"- Anchor BED: `{args.anchor_bed}`\n\n"
+        f"![meta-profile + heatmap](Plots/{label}_heatmap.png)\n"
+    )
+    print(f"Heatmap report: {report}")
+    return report
+
+
+# --------------------------- Hi-C matrix + insulation ----------------------
+
+def _load_hic_region(path: Path, region: str, resolution: int,
+                       balance: bool = True):
+    """Load a square contact matrix for ``region`` from .mcool or .hic."""
+    chrom, start, end = _parse_region_str(region)
+    suffix = path.suffix.lower()
+    try:
+        if suffix in (".mcool", ".cool"):
+            import cooler
+            uri = (f"{path}::resolutions/{resolution}"
+                   if suffix == ".mcool" else str(path))
+            c = cooler.Cooler(uri)
+            mat = c.matrix(balance=balance).fetch(region)
+            return mat, chrom, start, end
+        if suffix == ".hic":
+            import hicstraw  # type: ignore
+            hic = hicstraw.HiCFile(str(path))
+            norm = "KR" if balance else "NONE"
+            mzd = hic.getMatrixZoomData(
+                chrom.replace("chr", ""), chrom.replace("chr", ""),
+                "observed", norm, "BP", resolution,
+            )
+            mat = mzd.getRecordsAsMatrix(start, end, start, end)
+            return mat, chrom, start, end
+        raise SystemExit(f"Unsupported Hi-C format: {suffix}")
+    except ImportError as e:
+        raise RuntimeError(
+            "Hi-C analysis needs the `cooler` (.mcool) or `hic-straw` "
+            "(.hic) package. Install with: pip install 'igvfagent[hic]'"
+        ) from e
+
+
+def _parse_region_str(region: str) -> "tuple[str, int, int]":
+    m = re.match(r"^(chr\w+):(\d+)-(\d+)$", region)
+    if not m:
+        raise SystemExit("Region format: chr19:44900000-45100000")
+    return m.group(1), int(m.group(2)), int(m.group(3))
+
+
+def cmd_hic_matrix(args: argparse.Namespace) -> Path:
+    setup_logging(); mkdirs()
+    mat, chrom, start, end = _load_hic_region(
+        Path(args.input), args.region, args.resolution, balance=args.balance,
+    )
+    import numpy as np
+    mat = np.asarray(mat, dtype=float)
+    mat[~np.isfinite(mat)] = 0.0
+
+    ts = timestamp()
+    label = safe_label(args.label or
+                         f"{Path(args.input).stem}_{chrom}_{start}_{end}_"
+                         f"{args.resolution}")
+    out_dir = REPORT_DIR / f"{ts}_hic_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    np.save(out_dir / f"{label}_matrix.npy", mat)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        vmax = float(np.nanpercentile(mat, 99))
+        plt.figure(figsize=(7, 7))
+        plt.imshow(np.log1p(mat), cmap="YlOrRd", vmin=0,
+                     vmax=np.log1p(vmax), origin="upper",
+                     extent=[start, end, end, start])
+        plt.title(f"Hi-C contacts — {chrom}:{start:,}-{end:,}  "
+                    f"({args.resolution} bp bins)")
+        plt.xlabel("Position"); plt.ylabel("Position")
+        plt.colorbar(label="log1p(contacts)")
+        for ext in ("png", "svg"):
+            plt.savefig(plot_dir / f"{label}_heatmap.{ext}", dpi=200,
+                          bbox_inches="tight", facecolor="white")
+        plt.close()
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_hic_report.md"
+    report.write_text(
+        f"# Hi-C contact matrix — `{Path(args.input).name}`\n\n"
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
+        f"- Region: `{chrom}:{start:,}-{end:,}`\n"
+        f"- Resolution: **{args.resolution:,}** bp\n"
+        f"- Balanced: `{args.balance}`\n"
+        f"- Matrix shape: `{mat.shape}`\n"
+        f"- Total contacts (sum, post-balance): "
+        f"**{float(np.nansum(mat)):.2f}**\n\n"
+        f"![contact heatmap](Plots/{label}_heatmap.png)\n"
+        f"\nRaw matrix saved as `{label}_matrix.npy` "
+        f"for downstream analysis (e.g. cooler-balance / "
+        f"insulation-score chaining).\n"
+    )
+    print(f"Hi-C report: {report}")
+    return report
+
+
+def cmd_hic_insulation(args: argparse.Namespace) -> Path:
+    """Crane-et-al-style insulation score across a region.
+
+    For each diagonal bin i, score = mean(M[i-w:i, i:i+w]) where w is the
+    sliding window in bins. Local minima of the insulation signal mark
+    candidate TAD boundaries.
+    """
+    setup_logging(); mkdirs()
+    mat, chrom, start, end = _load_hic_region(
+        Path(args.input), args.region, args.resolution, balance=args.balance,
+    )
+    import numpy as np
+    mat = np.asarray(mat, dtype=float)
+    mat[~np.isfinite(mat)] = 0.0
+    n = mat.shape[0]
+    w_bins = max(args.window // args.resolution, 2)
+    if n < 2 * w_bins + 4:
+        raise SystemExit("Region too small for the requested window. "
+                         "Use a wider --region or smaller --window.")
+    ins = np.full(n, np.nan)
+    for i in range(w_bins, n - w_bins):
+        sub = mat[i - w_bins: i, i + 1: i + w_bins + 1]
+        ins[i] = float(np.nanmean(sub)) if sub.size else np.nan
+    # log-mean-normalize so the score is comparable across regions
+    valid = ins[np.isfinite(ins) & (ins > 0)]
+    if len(valid):
+        log_mean = float(np.log2(valid.mean()))
+        ins_norm = np.log2(np.clip(ins, 1e-9, None)) - log_mean
+    else:
+        ins_norm = ins
+
+    # Local minima as candidate TAD boundaries
+    boundaries: "list[int]" = []
+    for i in range(1, n - 1):
+        if (np.isfinite(ins_norm[i]) and
+                ins_norm[i] < ins_norm[i - 1] and
+                ins_norm[i] < ins_norm[i + 1] and
+                ins_norm[i] < args.boundary_threshold):
+            boundaries.append(i)
+
+    ts = timestamp()
+    label = safe_label(args.label or f"insulation_{chrom}_{start}_{end}")
+    out_dir = REPORT_DIR / f"{ts}_ins_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write boundaries BED
+    bed_path = out_dir / f"{label}_boundaries.bed"
+    with bed_path.open("w") as f:
+        for b in boundaries:
+            pos = start + b * args.resolution
+            f.write(f"{chrom}\t{pos}\t{pos + args.resolution}\t"
+                     f"boundary_{b}\t{ins_norm[b]:.3f}\t.\n")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        x = np.arange(n) * args.resolution + start
+        plt.figure(figsize=(11, 3.5))
+        plt.plot(x, ins_norm, color="#0072B2", lw=1.0)
+        plt.axhline(args.boundary_threshold, color="#D55E00", ls="--",
+                      lw=0.8)
+        for b in boundaries:
+            plt.axvline(start + b * args.resolution, color="#D55E00",
+                          alpha=0.4, lw=0.4)
+        plt.xlabel("Position"); plt.ylabel("log2 insulation (centered)")
+        plt.title(f"Insulation score — {chrom}:{start:,}-{end:,}  "
+                    f"(window {args.window:,} bp)")
+        for ext in ("png", "svg"):
+            plt.savefig(plot_dir / f"{label}_insulation.{ext}", dpi=200,
+                          bbox_inches="tight", facecolor="white")
+        plt.close()
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_insulation_report.md"
+    report.write_text(
+        f"# Hi-C insulation score — `{Path(args.input).name}`\n\n"
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
+        f"- Region: `{chrom}:{start:,}-{end:,}`\n"
+        f"- Resolution: **{args.resolution:,}** bp; window "
+        f"**{args.window:,}** bp\n"
+        f"- Candidate TAD boundaries (below threshold "
+        f"`{args.boundary_threshold}`): **{len(boundaries)}**\n"
+        f"- Boundaries BED: `{bed_path.relative_to(ROOT)}`\n\n"
+        f"![insulation score](Plots/{label}_insulation.png)\n\n"
+        f"Boundaries are local minima of the centered log2 insulation "
+        f"score below the configured threshold. They approximate TAD "
+        f"boundaries (Crane et al. 2015). For loop-level calls "
+        f"(HiCCUPS / Mustache / Peakachu), use a dedicated tool and "
+        f"feed the resulting bedpe back through `loops-analyze`.\n"
+    )
+    print(f"Insulation report: {report}")
+    print(f"Boundaries BED:    {bed_path}")
+    return report
+
+
+# --------------------------- loops-analyze (Hi-C + ChIA-PET) ---------------
+
+def _parse_bedpe(path: Path) -> "list[dict]":
+    rows: "list[dict]" = []
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt") as f:
+        for line in f:
+            if not line or line.startswith(("#", "track", "browser")):
+                continue
+            p = line.rstrip("\n").split("\t")
+            if len(p) < 6:
+                continue
+            try:
+                s1, e1, s2, e2 = int(p[1]), int(p[2]), int(p[4]), int(p[5])
+            except ValueError:
+                continue
+            rows.append({
+                "chrom1": p[0], "start1": s1, "end1": e1,
+                "chrom2": p[3], "start2": s2, "end2": e2,
+                "name":   p[6] if len(p) > 6 else "",
+                "score":  float(p[7]) if (len(p) > 7
+                            and re.match(r"^-?\d+(\.\d+)?$", p[7] or "")) else 0.0,
+            })
+    return rows
+
+
+def cmd_loops_analyze(args: argparse.Namespace) -> Path:
+    """Analyze a .bedpe loop / interaction file (Hi-C, ChIA-PET, capture
+    Hi-C). Reports per-anchor count, intra- vs inter-chromosomal
+    breakdown, loop length distribution, and (if peak BEDs are
+    provided) anchor ↔ peak overlap stats."""
+    setup_logging(); mkdirs()
+    loops = _parse_bedpe(Path(args.bedpe))
+    if not loops:
+        raise SystemExit(f"No loops parsed from {args.bedpe}")
+
+    intra = [L for L in loops if L["chrom1"] == L["chrom2"]]
+    inter = [L for L in loops if L["chrom1"] != L["chrom2"]]
+    lengths = [(((L["start2"] + L["end2"]) // 2) -
+                ((L["start1"] + L["end1"]) // 2)) for L in intra]
+    lengths = [abs(x) for x in lengths]
+
+    # Peak overlap (anchor sets)
+    peak_overlap_stats: "dict[str, dict]" = {}
+    for spec in (args.peaks or []):
+        label, _, path = spec.partition(":")
+        if not path:
+            label, path = Path(spec).stem, spec
+        peaks, _ = parse_bed(Path(path))
+        anchor1_overlap = 0
+        anchor2_overlap = 0
+        both = 0
+        peak_by_chr: "dict[str, list[tuple[int,int]]]" = defaultdict(list)
+        for p in peaks:
+            peak_by_chr[p["chrom"]].append((p["start"], p["end"]))
+        for chrom in peak_by_chr:
+            peak_by_chr[chrom].sort()
+
+        def overlaps(chrom, s, e):
+            from bisect import bisect_left
+            arr = peak_by_chr.get(chrom, [])
+            if not arr:
+                return False
+            i = bisect_left([a[0] for a in arr], e)
+            for j in range(max(0, i - 100), min(len(arr), i + 1)):
+                if arr[j][1] >= s and arr[j][0] <= e:
+                    return True
+            return False
+
+        for L in loops:
+            a1 = overlaps(L["chrom1"], L["start1"], L["end1"])
+            a2 = overlaps(L["chrom2"], L["start2"], L["end2"])
+            anchor1_overlap += int(a1)
+            anchor2_overlap += int(a2)
+            both += int(a1 and a2)
+        peak_overlap_stats[label] = {
+            "n_loops": len(loops),
+            "anchor1_overlap":  anchor1_overlap,
+            "anchor2_overlap":  anchor2_overlap,
+            "both_anchors":     both,
+            "either_anchor":    sum(1 for L in loops
+                                     if overlaps(L["chrom1"], L["start1"], L["end1"])
+                                     or overlaps(L["chrom2"], L["start2"], L["end2"])),
+            "peak_count":       len(peaks),
+        }
+
+    ts = timestamp()
+    label = safe_label(args.label or Path(args.bedpe).stem + "_loops")
+    out_dir = REPORT_DIR / f"{ts}_loops_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+        if lengths:
+            fig, axes = plt.subplots(1, 2, figsize=(11, 4),
+                                       constrained_layout=True)
+            axes[0].hist(np.log10(np.array(lengths) + 1), bins=40,
+                          color="#0072B2")
+            axes[0].set_xlabel("log10(loop length, bp)")
+            axes[0].set_ylabel("Count")
+            axes[0].set_title("Loop length distribution (intra-chrom)")
+            chr_counts = Counter(L["chrom1"] for L in intra)
+            top = sorted(chr_counts.items(), key=lambda x: -x[1])[:24]
+            axes[1].bar(range(len(top)), [c[1] for c in top],
+                          color="#009E73")
+            axes[1].set_xticks(range(len(top)))
+            axes[1].set_xticklabels([c[0] for c in top], rotation=70,
+                                       fontsize=7)
+            axes[1].set_ylabel("Loops"); axes[1].set_title("Loops per chromosome")
+            for ext in ("png", "svg"):
+                fig.savefig(plot_dir / f"{label}_loop_qc.{ext}", dpi=200,
+                              bbox_inches="tight", facecolor="white")
+            plt.close(fig)
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_loops_report.md"
+    lines = [
+        f"# Loop / interaction analysis — `{Path(args.bedpe).name}`",
+        "",
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
+        "",
+        f"- Total loops: **{len(loops):,}**",
+        f"- Intra-chromosomal: **{len(intra):,}**",
+        f"- Inter-chromosomal: **{len(inter):,}**",
+    ]
+    if lengths:
+        lengths_arr = sorted(lengths)
+        lines += [
+            f"- Loop length median: **{lengths_arr[len(lengths_arr)//2]:,}** bp",
+            f"  (min {min(lengths_arr):,}, max {max(lengths_arr):,})",
+        ]
+    if peak_overlap_stats:
+        lines += ["", "## Anchor ↔ peak overlap", "",
+                   "| peak set | peaks | anchor1 | anchor2 | both | either |",
+                   "|---|---:|---:|---:|---:|---:|"]
+        for label_, st in peak_overlap_stats.items():
+            lines.append(
+                f"| {label_} | {st['peak_count']:,} | "
+                f"{st['anchor1_overlap']:,} | {st['anchor2_overlap']:,} | "
+                f"{st['both_anchors']:,} | {st['either_anchor']:,} |"
+            )
+    lines += ["", f"![loop QC](Plots/{label}_loop_qc.png)", ""]
+    report.write_text("\n".join(lines))
+    print(f"Loops report: {report}")
+    return report
+
+
+# --------------------------- Motif enrichment ------------------------------
+
+# Compact JASPAR-style PFM database (counts; treated as PFMs after
+# pseudocount + normalisation in score_motif). Public-domain (JASPAR
+# matrices are CC0).
+_INLINE_PFMS = {
+    "CTCF (MA0139.1)": [
+        # A  C  G  T
+        [ 87, 167, 281,  56],
+        [ 99, 174, 132, 122],
+        [125, 127, 207,  45],
+        [ 60,  38, 387,  42],
+        [ 40,  61, 388,  21],
+        [114,  36, 290,  92],
+        [197, 133, 117,  85],
+        [ 91, 147, 273,  30],
+        [114, 178,  74, 175],
+        [ 30,  20, 460,  30],
+        [277,  68, 191,  60],
+        [ 23, 477,   1,  41],
+        [ 14, 446,  43,  39],
+        [ 40, 146,   8, 343],
+        [ 32, 350,  37, 109],
+        [ 62, 211,  72, 136],
+        [122, 245, 102,  45],
+        [109, 285,  26, 102],
+        [ 86,  64, 314, 136],
+    ],
+    "AP-1 / FOS-JUN (MA0099.3)": [
+        [ 18,  17, 165,  39],
+        [ 23, 169,  18,  29],
+        [219,  10,   2,   8],
+        [  4,   7,  10, 218],
+        [ 17,  29,   7, 186],
+        [  3,   1, 235,   0],
+        [148,  64,  18,   9],
+        [ 41,  20, 128,  50],
+        [  5,  62,  71, 101],
+        [ 24,  56,  53, 106],
+        [ 46,  18,  98,  77],
+    ],
+    "GATA1 (MA0035.4)": [
+        [ 38,  14, 199,  10],
+        [256,   1,   3,   1],
+        [  1, 256,   0,   4],
+        [  4,   0,   0, 257],
+        [259,   0,   0,   2],
+        [108,  16,  56,  81],
+        [193,  12,  47,   9],
+        [196,  19,  29,  17],
+    ],
+    "ETS / ELF1 (MA0473.4)": [
+        [108,  73,  43,  37],
+        [ 32,  18,   3, 208],
+        [ 16,  20,   1, 224],
+        [  5,  27, 224,   5],
+        [  0,   1, 260,   0],
+        [261,   0,   0,   0],
+        [  0,   3, 257,   1],
+        [ 41, 144,  20,  56],
+        [ 87,  81,  25,  68],
+    ],
+    "NFKB / RELA (MA0107.1)": [
+        [ 48,  34,  84,  10],
+        [  6,   3, 161,   6],
+        [  3,   3, 163,   7],
+        [  1, 159,   3,  13],
+        [ 90,  10,   2,  74],
+        [  4,  15,   3, 154],
+        [110,   5,  10,  51],
+        [128,   3,  40,   5],
+        [134,   3,  35,   4],
+        [ 61,  34,  25,  56],
+    ],
+    "STAT1 (MA0137.3)": [
+        [186,  24,  28,  62],
+        [  3, 261,  31,   5],
+        [ 20,   2,   0, 278],
+        [288,   0,   0,  12],
+        [ 23,   0,   1, 276],
+        [ 24, 110, 117,  49],
+        [299,   0,   0,   1],
+        [ 27, 153,  54,  66],
+        [ 86,  87,  44,  83],
+    ],
+    "FOXA1 (MA0148.4)": [
+        [ 38,  31, 167,  38],
+        [ 35,  10,  58, 171],
+        [  4,   1,   0, 269],
+        [  3, 268,   2,   1],
+        [223,   1,   1,  49],
+        [187,  16,  61,  10],
+        [186,  36,  19,  33],
+        [ 31, 150,  20,  73],
+    ],
+    "TP53 (MA0106.3)": [
+        [ 15, 157,  30,  18],
+        [120,   2,  87,  11],
+        [  4, 200,   2,  14],
+        [  6, 122,  87,   5],
+        [ 73,  24,  16, 107],
+        [ 57,  15, 135,  13],
+        [  6, 112,  13,  89],
+        [ 13, 168,  19,  20],
+        [125,  20,  60,  15],
+        [  1, 208,   1,  10],
+    ],
+    "MYC (MA0147.3)": [
+        [ 38,  60,  40, 142],
+        [  0, 277,   1,   2],
+        [277,   0,   3,   0],
+        [  3, 262,   2,  13],
+        [  0,   3, 274,   3],
+        [  0, 266,   3,  11],
+        [ 19,  41, 197,  23],
+        [ 23, 158,  46,  53],
+    ],
+    "SP1 / KLF (MA0079.5)": [
+        [ 48, 206,  20,   6],
+        [  4, 260,   1,  15],
+        [  3, 263,   0,  14],
+        [  2,  24, 247,   7],
+        [  1, 270,   0,   9],
+        [  2, 263,   1,  14],
+        [ 33, 187,  28,  32],
+        [ 46, 166,  43,  25],
+    ],
+}
+
+_DNA_INDEX = {"A": 0, "C": 1, "G": 2, "T": 3, "N": -1, "a": 0, "c": 1,
+              "g": 2, "t": 3, "n": -1}
+
+
+def _pfm_to_pwm(pfm, pseudocount: float = 0.5):
+    import math
+    total_counts = [sum(row) + 4 * pseudocount for row in pfm]
+    pwm = []
+    for row, total in zip(pfm, total_counts):
+        log_odds = []
+        for c in row:
+            p = (c + pseudocount) / total
+            log_odds.append(math.log2(p / 0.25))
+        pwm.append(log_odds)
+    return pwm
+
+
+def _score_pwm(pwm, seq: str) -> float:
+    best = -1e9
+    L = len(pwm)
+    for i in range(0, len(seq) - L + 1):
+        s = 0.0
+        ok = True
+        for j in range(L):
+            idx = _DNA_INDEX.get(seq[i + j], -1)
+            if idx < 0:
+                ok = False; break
+            s += pwm[j][idx]
+        if ok and s > best:
+            best = s
+    return best
+
+
+def _revcomp(seq: str) -> str:
+    comp = {"A": "T", "C": "G", "G": "C", "T": "A",
+             "a": "t", "c": "g", "g": "c", "t": "a", "N": "N", "n": "n"}
+    return "".join(comp.get(b, "N") for b in reversed(seq))
+
+
+def _shuffle_seq_dinuc(seq: str, rng) -> str:
+    """Mononucleotide-preserving shuffle (lighter than dinuc; sufficient
+    for first-pass enrichment)."""
+    chars = list(seq)
+    rng.shuffle(chars)
+    return "".join(chars)
+
+
+def cmd_motif_enrichment(args: argparse.Namespace) -> Path:
+    """Score peak sequences against a curated TF motif PFM set, compare
+    to mononucleotide-shuffled controls, and report per-motif
+    enrichment + a bar plot.
+
+    Inputs:
+      --bed        peaks BED
+      --genome     genome FASTA (gzip OK if pyfaidx supports it)
+      --top        cap on peak count for speed
+      --score-cutoff   PWM log-odds cutoff to count a 'hit'
+    """
+    setup_logging(); mkdirs()
+    try:
+        from pyfaidx import Fasta
+    except ImportError as e:
+        raise RuntimeError(
+            "Motif enrichment needs `pyfaidx`. "
+            "Install with: pip install 'igvfagent[motif]'"
+        ) from e
+    import random
+    rng = random.Random(args.seed)
+
+    peaks, _ = parse_bed(Path(args.bed))
+    if not peaks:
+        raise SystemExit(f"No peaks in {args.bed}")
+    if args.top and len(peaks) > args.top:
+        peaks = peaks[: args.top]
+
+    fa = Fasta(args.genome, sequence_always_upper=True, as_raw=True)
+    seqs: "list[str]" = []
+    for p in peaks:
+        try:
+            s = str(fa[p["chrom"]][p["start"]: p["end"]])
+        except KeyError:
+            continue
+        if "N" in s and s.count("N") > 0.3 * len(s):
+            continue
+        seqs.append(s)
+    if not seqs:
+        raise SystemExit("No usable peak sequences (check chromosome "
+                         "naming + genome FASTA).")
+
+    pwm_cache = {name: _pfm_to_pwm(pfm) for name, pfm in _INLINE_PFMS.items()}
+    cutoff = args.score_cutoff
+
+    fg_hits = {name: 0 for name in pwm_cache}
+    bg_hits = {name: 0 for name in pwm_cache}
+    fg_total = len(seqs)
+    bg_seqs = [_shuffle_seq_dinuc(s, rng) for s in seqs]
+
+    for name, pwm in pwm_cache.items():
+        for s in seqs:
+            top_score = max(_score_pwm(pwm, s), _score_pwm(pwm, _revcomp(s)))
+            if top_score >= cutoff:
+                fg_hits[name] += 1
+        for s in bg_seqs:
+            top_score = max(_score_pwm(pwm, s), _score_pwm(pwm, _revcomp(s)))
+            if top_score >= cutoff:
+                bg_hits[name] += 1
+
+    rows: "list[dict]" = []
+    for name in pwm_cache:
+        fg = fg_hits[name]; bg = bg_hits[name]
+        # Fisher's exact (right-tailed) approximation via log odds + p-est
+        a, b = fg, fg_total - fg
+        c, d = bg, fg_total - bg
+        # avoid div by 0
+        odds = ((a + 0.5) * (d + 0.5)) / ((b + 0.5) * (c + 0.5))
+        # quick chi-sq stat
+        n = a + b + c + d
+        expected_a = (a + b) * (a + c) / n
+        chi = ((a - expected_a) ** 2) / max(expected_a, 0.5)
+        rows.append({
+            "motif":   name,
+            "fg_hits": fg, "bg_hits": bg,
+            "fg_rate": fg / fg_total,
+            "bg_rate": bg / fg_total,
+            "log2_odds": math.log2(max(odds, 1e-9)),
+            "chi_sq":  chi,
+        })
+    rows.sort(key=lambda r: -r["log2_odds"])
+
+    ts = timestamp()
+    label = safe_label(args.label or Path(args.bed).stem + "_motifs")
+    out_dir = REPORT_DIR / f"{ts}_motif_{label}"
+    plot_dir = out_dir / "Plots"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(out_dir / f"{label}_motif_enrichment.csv", rows,
+              cols=["motif", "fg_hits", "bg_hits", "fg_rate", "bg_rate",
+                     "log2_odds", "chi_sq"])
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+        names = [r["motif"] for r in rows]
+        odds = np.array([r["log2_odds"] for r in rows])
+        plt.figure(figsize=(8, 0.35 * len(rows) + 1))
+        colors = ["#D55E00" if x > 0 else "#0072B2" for x in odds]
+        plt.barh(range(len(rows)), odds, color=colors)
+        plt.yticks(range(len(rows)), names, fontsize=8)
+        plt.gca().invert_yaxis()
+        plt.axvline(0, color="black", lw=0.5)
+        plt.xlabel("log2(odds ratio) vs shuffled background")
+        plt.title(f"Motif enrichment — {label}")
+        plt.tight_layout()
+        for ext in ("png", "svg"):
+            plt.savefig(plot_dir / f"{label}_motif_enrichment.{ext}",
+                          dpi=200, bbox_inches="tight", facecolor="white")
+        plt.close()
+    except Exception as e:
+        logging.warning("Plot skipped (%s)", e)
+
+    report = out_dir / f"{label}_motif_report.md"
+    report.write_text(
+        f"# Motif enrichment — `{Path(args.bed).name}`\n\n"
+        f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n\n"
+        f"- Peaks scanned: **{len(seqs):,}**\n"
+        f"- Genome FASTA: `{args.genome}`\n"
+        f"- PWM cutoff (log2 odds): **{cutoff}**\n"
+        f"- PFM database: bundled JASPAR-derived "
+        f"({len(_INLINE_PFMS)} motifs)\n\n"
+        + "| motif | fg | bg | fg/bg | log2-odds |\n"
+        + "|---|---:|---:|---:|---:|\n"
+        + "\n".join(
+            f"| {r['motif']} | {r['fg_hits']} | {r['bg_hits']} | "
+            f"{(r['fg_rate'] / max(r['bg_rate'], 1e-9)):.2f} | "
+            f"{r['log2_odds']:+.3f} |"
+            for r in rows
+        )
+        + f"\n\n![motif enrichment](Plots/{label}_motif_enrichment.png)\n"
+        + "\n\nNotes: this is a lightweight first-pass scanner over a "
+          "curated set of common TF motifs (CTCF, AP-1, GATA1, ETS, "
+          "NFkB, STAT1, FOXA1, TP53, MYC, SP1/KLF). For a publication-"
+          "grade motif analysis use HOMER (`findMotifsGenome.pl`) or "
+          "MEME/MEME-ChIP with their full motif libraries.\n"
+    )
+    print(f"Motif report: {report}")
+    return report
+
+
 # --------------------------- write-playbook ---------------------------------
 
 def cmd_write_playbook(_args) -> Path:
@@ -1300,6 +2163,91 @@ def cmd_write_playbook(_args) -> Path:
         "",
         "Each `--track LABEL:PATH` adds a horizontal track strip; "
         "`--with-ccre` overlays SCREEN cCREs colored by class.",
+        "",
+        "### `bigwig-frip` — fraction-of-signal-in-peaks (needs `[hic]` extras)",
+        "",
+        "```bash",
+        "pip install 'igvfagent[hic]'",
+        "igvfagent encode bigwig-frip --bigwig signal.bw --bed peaks.bed",
+        "```",
+        "",
+        "Returns the global FRiP plus per-chromosome breakdown. ENCODE's "
+        "FRiP minimum is 0.01 for ChIP-seq; > 0.05 is good. Histone "
+        "ChIP-seq tends to score lower because the signal is broader.",
+        "",
+        "### `bigwig-tss-heatmap` — anchor-centered signal heatmap (needs `[hic]`)",
+        "",
+        "```bash",
+        "igvfagent encode bigwig-tss-heatmap \\",
+        "    --bigwig signal.bw --anchor-bed tss.bed \\",
+        "    --window 4000 --bins 200 --max-anchors 5000 --label tss_h3k27ac",
+        "```",
+        "",
+        "Aggregates bigWig signal over `--window` bp centered on each "
+        "anchor (TSS BED, peak summits, etc.), sorts rows by total "
+        "signal, and renders a heatmap + meta-profile in one figure.",
+        "",
+        "### `hic-matrix` — Hi-C contact heatmap (needs `[hic]`)",
+        "",
+        "```bash",
+        "pip install 'igvfagent[hic]'",
+        "igvfagent encode hic-matrix \\",
+        "    --input ENCFF000XYZ.mcool --region chr19:44900000-45100000 \\",
+        "    --resolution 10000 --balance --label apoe_hic",
+        "igvfagent encode hic-matrix \\",
+        "    --input ENCFF111ABC.hic --region chr19:44900000-45100000 \\",
+        "    --resolution 10000",
+        "```",
+        "",
+        "Loads the contact matrix for a region from `.mcool` (cooler) or "
+        "`.hic` (hic-straw), saves the raw matrix as `.npy`, and renders "
+        "a `log1p`-scaled contact heatmap PNG/SVG.",
+        "",
+        "### `hic-insulation` — Crane-style TAD-boundary score (needs `[hic]`)",
+        "",
+        "```bash",
+        "igvfagent encode hic-insulation \\",
+        "    --input ENCFF000XYZ.mcool --region chr19:44000000-46000000 \\",
+        "    --resolution 10000 --window 200000 --balance \\",
+        "    --boundary-threshold -0.3 --label apoe_ins",
+        "```",
+        "",
+        "Computes the insulation score along the diagonal, identifies "
+        "local minima below `--boundary-threshold` as candidate TAD "
+        "boundaries, and emits a BED of boundaries plus a 1-D track "
+        "plot. For loop-level calls, run a dedicated tool (HiCCUPS / "
+        "Mustache / Peakachu) and feed the resulting bedpe into "
+        "`loops-analyze`.",
+        "",
+        "### `loops-analyze` — Hi-C / ChIA-PET / capture Hi-C loops",
+        "",
+        "```bash",
+        "igvfagent encode loops-analyze --bedpe loops.bedpe \\",
+        "    --peaks 'CTCF peaks:ctcf.bed' --peaks 'H3K27ac peaks:h3k27ac.bed' \\",
+        "    --label gm12878_loops",
+        "```",
+        "",
+        "Parses a `.bedpe` and reports total / intra / inter / median "
+        "loop length plus optional anchor ↔ peak overlap stats per "
+        "input peak set. Works on outputs from any loop caller (Mustache, "
+        "HiCCUPS, MAPS, Fit-Hi-C, ChIA-PET clusters, etc.).",
+        "",
+        "### `motif-enrichment` — TF motif enrichment in peak sequences",
+        "",
+        "```bash",
+        "pip install 'igvfagent[motif]'",
+        "# Download a genome FASTA from UCSC (one-time):",
+        "#   curl -L https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz -O",
+        "igvfagent encode motif-enrichment \\",
+        "    --bed peaks.bed --genome hg38.fa.gz \\",
+        "    --top 2000 --score-cutoff 8 --label k562_h3k27ac_motifs",
+        "```",
+        "",
+        "Scans peak sequences against a curated, bundled JASPAR-derived "
+        "PFM set (CTCF, AP-1, GATA1, ETS, NFkB, STAT1, FOXA1, TP53, "
+        "MYC, SP1/KLF) and reports log2 odds enrichment vs "
+        "mononucleotide-shuffled background. For full TF coverage use "
+        "HOMER `findMotifsGenome.pl` or MEME-ChIP.",
         "",
         "## How this chains with other skills",
         "",
@@ -1401,6 +2349,81 @@ def main() -> None:
     s.add_argument("--width", type=int, default=1000)
     s.add_argument("--label", default="")
     s.set_defaults(func=cmd_browser)
+
+    # ---- bigWig signal subcommands ----
+    s = sub.add_parser("bigwig-frip",
+                        help="FRiP from a bigWig + peak BED.")
+    s.add_argument("--bigwig", required=True)
+    s.add_argument("--bed", required=True)
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_bigwig_frip)
+
+    s = sub.add_parser("bigwig-tss-heatmap",
+                        help="bigWig signal heatmap centered on anchors "
+                             "(TSS BED, peak summits, etc.).")
+    s.add_argument("--bigwig", required=True)
+    s.add_argument("--anchor-bed", required=True)
+    s.add_argument("--window", type=int, default=4000,
+                    help="Window size in bp (centered on each anchor).")
+    s.add_argument("--bins", type=int, default=200)
+    s.add_argument("--max-anchors", type=int, default=5000)
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_bigwig_tss_heatmap)
+
+    # ---- Hi-C subcommands ----
+    s = sub.add_parser("hic-matrix",
+                        help="Render a contact heatmap for a region from "
+                             ".mcool / .hic.")
+    s.add_argument("--input", required=True,
+                    help="Path to .mcool or .hic file.")
+    s.add_argument("--region", required=True,
+                    help="chr19:44900000-45100000")
+    s.add_argument("--resolution", type=int, default=10000)
+    s.add_argument("--balance", action="store_true",
+                    help=".mcool: use ICE-balanced matrix; .hic: KR.")
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_hic_matrix)
+
+    s = sub.add_parser("hic-insulation",
+                        help="Crane-style insulation score across a region.")
+    s.add_argument("--input", required=True)
+    s.add_argument("--region", required=True)
+    s.add_argument("--resolution", type=int, default=10000)
+    s.add_argument("--window", type=int, default=200000,
+                    help="Insulation window in bp.")
+    s.add_argument("--balance", action="store_true")
+    s.add_argument("--boundary-threshold", type=float, default=-0.3,
+                    help="Local-minimum threshold for boundary calls.")
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_hic_insulation)
+
+    # ---- bedpe loop / interaction analysis ----
+    s = sub.add_parser("loops-analyze",
+                        help="Analyze a .bedpe loops / interactions file "
+                             "(Hi-C, ChIA-PET, capture Hi-C). Optionally "
+                             "overlay anchors with peak BEDs.")
+    s.add_argument("--bedpe", required=True)
+    s.add_argument("--peaks", action="append", default=None,
+                    help="Optional `LABEL:PATH` peak BED for anchor "
+                         "overlap. Repeatable.")
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_loops_analyze)
+
+    # ---- motif enrichment ----
+    s = sub.add_parser("motif-enrichment",
+                        help="JASPAR-derived TF motif enrichment in peak "
+                             "sequences (foreground vs shuffled "
+                             "background).")
+    s.add_argument("--bed", required=True)
+    s.add_argument("--genome", required=True,
+                    help="Indexed genome FASTA (.fa / .fa.gz). Use UCSC "
+                         "GRCh38: hg38.fa.gz")
+    s.add_argument("--top", type=int, default=2000)
+    s.add_argument("--score-cutoff", type=float, default=8.0,
+                    help="PWM log2-odds cutoff for a 'hit' (default 8).")
+    s.add_argument("--seed", type=int, default=42)
+    s.add_argument("--label", default="")
+    s.set_defaults(func=cmd_motif_enrichment)
 
     s = sub.add_parser("write-playbook",
                         help="Emit Docs/Skills/ENCODE_PIPELINE_SKILLS.md.")
