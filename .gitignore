@@ -52,8 +52,12 @@ Docs/Agent/2*
 Docs/ENCODE/2*
 Docs/SETargets/2*
 Docs/GEO/2*
+Docs/Proteomics/2*
 Docs/RNAseq/2*
 Docs/Demos/
 
 # Plots subfolders are generated artifacts
 Docs/*/Plots/
+
+# Local helper scripts (not part of the public deploy)
+clean_and_push.sh
