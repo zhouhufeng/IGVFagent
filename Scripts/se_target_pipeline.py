@@ -606,6 +606,258 @@ def aggregate_se_targets(loops_links: "list[dict]",
     return rows
 
 
+# --------------------------- Plots: hockey-stick + browser ----------------
+
+def plot_hockey_stick(stitched: "list[dict]", n_se: int, out_path: Path,
+                         label: str = "Super-enhancers") -> None:
+    """ROSE-style ranked-signal plot. Stitched regions on x-axis, summed
+    signal on y-axis; the inflection cut is shown as a vertical line."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return
+    if not stitched:
+        return
+    scores = np.array([r["score_sum"] for r in stitched])
+    order = np.argsort(scores)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(np.arange(len(scores))[::-1], scores[order],
+              color="#0072B2", lw=1.6)
+    ax.axvline(len(scores) - n_se - 0.5, color="#D55E00", ls="--",
+                  lw=1.0, label=f"inflection: {n_se} SE")
+    ax.fill_betweenx(
+        [scores[order].min(), scores[order].max()],
+        len(scores) - n_se - 0.5, len(scores),
+        alpha=0.08, color="#D55E00",
+    )
+    ax.set_xlabel("Stitched-enhancer rank (low → high)")
+    ax.set_ylabel("Summed signal (peak score)")
+    ax.set_title(f"Hockey-stick ranking — {label}")
+    ax.legend()
+    plt.tight_layout()
+    for ext in ("png", "svg"):
+        fig.savefig(out_path.with_suffix(f".{ext}"), dpi=200,
+                      bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def plot_top_se_browser(se_regions: "list[dict]",
+                          targets: "list[dict]",
+                          ccre_bed: Path,
+                          loops_path: Optional[Path],
+                          out_path: Path,
+                          top_n: int = 10,
+                          flank_bp: int = 30000) -> None:
+    """Multi-panel "browser" figure: one panel per top-N super-enhancer.
+    Each panel shows the SE rectangle (highlighted), nearby SCREEN cCREs
+    colored by class (PLS/pELS/dELS/CTCF), and short labels of the
+    top target genes joined from `targets`. If `loops_path` is given,
+    overlapping ChIA-PET / Hi-C loop arcs are drawn too.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Rectangle
+        from matplotlib.path import Path as MplPath
+        from matplotlib.patches import PathPatch
+    except ImportError:
+        return
+
+    panels = se_regions[:top_n]
+    if not panels:
+        return
+
+    targets_by_se: "dict[str, list[dict]]" = defaultdict(list)
+    for t in targets:
+        targets_by_se[t["se_id"]].append(t)
+
+    loops = ep._parse_bedpe(loops_path) if (loops_path and
+                                                  loops_path.exists()) else []
+
+    n_rows = len(panels)
+    fig, axes = plt.subplots(n_rows, 1, figsize=(12, 1.6 * n_rows),
+                               constrained_layout=True)
+    if n_rows == 1:
+        axes = [axes]
+
+    for ax, se in zip(axes, panels):
+        chrom = se["chrom"]
+        win_start = max(se["start"] - flank_bp, 0)
+        win_end = se["end"] + flank_bp
+        # Background panel
+        ax.set_xlim(win_start, win_end)
+        ax.set_ylim(0, 6.0)
+
+        # SE rectangle (gold)
+        ax.add_patch(Rectangle(
+            (se["start"], 4.5), max(se["end"] - se["start"], 1), 1.0,
+            facecolor="#F4C430", edgecolor="#D9A300", lw=1.0, alpha=0.95,
+        ))
+        ax.text(se["start"], 5.7,
+                  f"{se['name']} · rank {se.get('rank','?')} · "
+                  f"score {se.get('score',0):.1f}",
+                  fontsize=8, fontweight="bold", color="#7A5400")
+
+        # cCRE overlay track
+        ccre_in_region = ep._bed_in_region(ccre_bed, chrom,
+                                                  win_start, win_end)
+        for s, e, name, score in ccre_in_region:
+            color = ep._color_for_track("SCREEN cCREs", name or "")
+            ax.add_patch(Rectangle(
+                (s, 2.7), max(e - s, 1), 1.0,
+                facecolor=color, edgecolor=color, alpha=0.85,
+            ))
+        ax.text(win_start + 200, 3.3, "cCREs",
+                  fontsize=7, color="#444", va="center")
+
+        # Loop arcs that touch the SE
+        if loops:
+            for L in loops:
+                if L["chrom1"] != chrom or L["chrom2"] != chrom:
+                    continue
+                a_mid = (L["start1"] + L["end1"]) / 2
+                b_mid = (L["start2"] + L["end2"]) / 2
+                hits_se = (
+                    (L["end1"] >= se["start"] and L["start1"] <= se["end"])
+                    or (L["end2"] >= se["start"] and L["start2"] <= se["end"])
+                )
+                if not hits_se:
+                    continue
+                if not (win_start <= a_mid <= win_end and
+                        win_start <= b_mid <= win_end):
+                    continue
+                lo, hi = sorted([a_mid, b_mid])
+                top = 1.4
+                arc = MplPath([(lo, 1.2), ((lo + hi) / 2, top),
+                                 (hi, 1.2)],
+                                [MplPath.MOVETO, MplPath.CURVE3,
+                                 MplPath.CURVE3])
+                ax.add_patch(PathPatch(arc, fill=False, ec="#4E79A7",
+                                          lw=0.8, alpha=0.7))
+
+        # Target gene labels (top 3)
+        targs = targets_by_se.get(se["name"], [])[:4]
+        if targs:
+            label_str = " · ".join(t["gene_id"] for t in targs
+                                     if t.get("gene_id"))
+            ax.text(se["end"] + 800, 5.0,
+                      "→ " + label_str,
+                      fontsize=8, color="#333",
+                      verticalalignment="center")
+
+        # Coordinate axis
+        ax.set_xticks([win_start, se["start"], se["end"], win_end])
+        ax.set_xticklabels([f"{int(win_start):,}",
+                              f"{int(se['start']):,}",
+                              f"{int(se['end']):,}",
+                              f"{int(win_end):,}"],
+                              fontsize=7)
+        ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_visible(False)
+        ax.text(win_start - (win_end - win_start) * 0.04,
+                  3.3, chrom, ha="right", va="center",
+                  fontsize=8, fontweight="bold", color="#222")
+
+    # cCRE legend across the whole figure
+    legend_handles = []
+    for cls, info in ep.CCRE_CLASSES.items():
+        legend_handles.append(plt.Line2D(
+            [], [], color=info["color"], marker="s", lw=0,
+            markersize=10, label=info["label"],
+        ))
+    if loops:
+        legend_handles.append(plt.Line2D(
+            [], [], color="#4E79A7", lw=0.9, label="ChIA-PET / Hi-C loop"))
+    legend_handles.append(plt.Line2D(
+        [], [], color="#F4C430", marker="s", lw=0,
+        markersize=10, label="Super-enhancer"))
+    fig.legend(handles=legend_handles,
+                 loc="upper center", bbox_to_anchor=(0.5, -0.005),
+                 ncol=4, frameon=False, fontsize=8)
+    fig.suptitle(f"Top {len(panels)} super-enhancers — region browser",
+                  y=1.00, fontsize=11, weight="bold")
+    for ext in ("png", "svg"):
+        fig.savefig(out_path.with_suffix(f".{ext}"), dpi=200,
+                      bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def analyse_se_ccre_correlation(ccre_summary: "list[dict]",
+                                     out_path: Path,
+                                     n_se: int) -> "dict":
+    """Per-SE cCRE class composition + a stacked-bar plot. Returns
+    summary stats: % of SEs containing each cCRE class, average count
+    per SE, etc."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return {}
+    if not ccre_summary:
+        return {}
+
+    classes = ["PLS", "pELS", "dELS", "CTCF-only"]
+    palette = {c: ep.CCRE_CLASSES.get(c, {"color": "#888"})["color"]
+                for c in classes}
+    counts = {c: np.array([r.get(f"n_{c.lower().replace('-only','')}", 0) +
+                              (r.get("n_ctcf", 0) if c == "CTCF-only" else 0)
+                            for r in ccre_summary]) for c in classes}
+    # The above is messy; use the structure from link_via_ccre_classes:
+    counts = {
+        "PLS":       np.array([r.get("n_pls", 0)  for r in ccre_summary]),
+        "pELS":      np.array([r.get("n_pels", 0) for r in ccre_summary]),
+        "dELS":      np.array([r.get("n_dels", 0) for r in ccre_summary]),
+        "CTCF-only": np.array([r.get("n_ctcf", 0) for r in ccre_summary]),
+    }
+
+    n = min(n_se, len(ccre_summary))
+    rows = ccre_summary[:n]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, max(4.0, 0.3 * n)),
+                                       constrained_layout=True)
+
+    # Panel A: stacked bar per top-N SE
+    se_names = [r["se_id"] for r in rows]
+    bottom = np.zeros(n)
+    for cls in classes:
+        vals = np.array([counts[cls][i] for i in range(n)])
+        ax1.barh(se_names, vals, left=bottom, color=palette[cls],
+                    edgecolor="white", linewidth=0.4, label=cls)
+        bottom += vals
+    ax1.invert_yaxis()
+    ax1.set_xlabel("cCRE count within SE")
+    ax1.set_title("cCRE class composition per top SE")
+    ax1.legend(frameon=False, fontsize=8, loc="lower right")
+
+    # Panel B: presence rate across ALL SEs (not just top)
+    presence = {cls: float((arr > 0).mean() * 100) for cls, arr in counts.items()}
+    ax2.bar(presence.keys(), presence.values(),
+              color=[palette[c] for c in presence.keys()])
+    ax2.set_ylabel("% of SEs containing class")
+    ax2.set_ylim(0, 100)
+    ax2.set_title("cCRE class presence across all SEs")
+    for i, (cls, v) in enumerate(presence.items()):
+        ax2.text(i, v + 1.2, f"{v:.0f}%", ha="center", fontsize=8)
+
+    for ext in ("png", "svg"):
+        fig.savefig(out_path.with_suffix(f".{ext}"), dpi=200,
+                      bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+    return {
+        "n_ses_analysed": len(ccre_summary),
+        "presence_pct":   presence,
+        "mean_per_se":    {cls: float(arr.mean())
+                            for cls, arr in counts.items()},
+    }
+
+
 # --------------------------- Plots -----------------------------------------
 
 def plot_se_target_network(targets: "list[dict]", out_path: Path,
@@ -844,6 +1096,39 @@ def cmd_pipeline(args: argparse.Namespace) -> Path:
     print(f"▶ Step 5/5  Plots + report")
     plot_se_target_network(targets, plot_dir / f"{label}_se_target_network.png",
                               top_n=args.top_n_edges)
+    plot_hockey_stick(stitched, len(se_regions),
+                          plot_dir / f"{label}_hockey_stick.png",
+                          label=f"{biosample} {args.target}")
+    plot_top_se_browser(
+        se_regions, targets, ccre_bed,
+        loops_path=loops_dest,
+        out_path=plot_dir / f"{label}_top_se_browser.png",
+        top_n=args.top_n_browser,
+    )
+    ccre_corr_stats = analyse_se_ccre_correlation(
+        ccre_summary,
+        out_path=plot_dir / f"{label}_se_ccre_correlation.png",
+        n_se=args.top_n_browser,
+    )
+
+    # Optional motif enrichment on the top-N SE BED via encode_pipeline
+    motif_report_path: Optional[Path] = None
+    if args.genome:
+        try:
+            top_se_bed = out_dir / f"{label}_top_super_enhancers.bed"
+            with top_se_bed.open("w") as f:
+                for s in se_regions[: args.top_n_browser]:
+                    f.write(f"{s['chrom']}\t{s['start']}\t{s['end']}\t"
+                             f"{s['name']}\t{s['score']:.3f}\t.\n")
+            ns = argparse.Namespace(
+                bed=str(top_se_bed), genome=args.genome,
+                top=min(2000, args.top_n_browser),
+                score_cutoff=args.motif_cutoff, seed=42,
+                label=f"{label}_top_se_motifs",
+            )
+            motif_report_path = ep.cmd_motif_enrichment(ns)
+        except Exception as e:
+            logging.warning("Motif enrichment skipped (%s)", e)
 
     if args.gene:
         # Per-gene browser SVG: pick the best SE for this gene
@@ -945,8 +1230,29 @@ def cmd_pipeline(args: argparse.Namespace) -> Path:
                f"- cCRE class composition per SE: "
                   f"`{label}_se_ccre_composition.csv`",
                f"- Network plot: `Plots/{label}_se_target_network.png`",
+               f"- Hockey-stick ranked-signal plot: "
+                  f"`Plots/{label}_hockey_stick.png`",
+               f"- Top-{args.top_n_browser} SE browser figure: "
+                  f"`Plots/{label}_top_se_browser.png`",
+               f"- SE↔cCRE correlation panels: "
+                  f"`Plots/{label}_se_ccre_correlation.png`",
+               (f"- Motif enrichment report: "
+                f"`{motif_report_path.relative_to(ROOT)}`"
+                if motif_report_path else
+                "- Motif enrichment: skipped (pass `--genome <hg38.fa>` to enable)"),
                "",
-               "## Suggested follow-ups",
+               "## SE↔cCRE composition summary",
+               ""]
+    if ccre_corr_stats:
+        lines.append("Class presence across all called SEs:")
+        lines.append("")
+        lines.append("| Class | % of SEs | mean count per SE |")
+        lines.append("|---|---:|---:|")
+        for cls, pct in ccre_corr_stats.get("presence_pct", {}).items():
+            mean = ccre_corr_stats.get("mean_per_se", {}).get(cls, 0)
+            lines.append(f"| {cls} | {pct:.1f} | {mean:.2f} |")
+        lines.append("")
+    lines += ["## Suggested follow-ups",
                "",
                "- For a specific candidate gene, drill in with "
                   "`igvfagent kg gene <SYMBOL> --depth 2 --call-literature`.",
@@ -1137,6 +1443,15 @@ def main() -> None:
                          "browser SVG of its top-supported SE.")
     s.add_argument("--top-n-edges", type=int, default=80,
                     help="Network plot edge cap.")
+    s.add_argument("--top-n-browser", type=int, default=10,
+                    help="How many top SEs to render in the browser figure "
+                         "and SE↔cCRE comparison panels.")
+    s.add_argument("--genome", default=None,
+                    help="Optional indexed genome FASTA. If provided, runs "
+                         "TF motif enrichment on the top-N SE BED via "
+                         "encode_pipeline.cmd_motif_enrichment.")
+    s.add_argument("--motif-cutoff", type=float, default=8.0,
+                    help="PWM log2-odds cutoff for the motif step.")
     s.add_argument("--label", default="")
     s.set_defaults(func=cmd_pipeline)
 
