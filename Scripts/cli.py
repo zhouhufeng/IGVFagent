@@ -249,7 +249,11 @@ def _run_ui(args: "list[str]") -> int:
         description="Launch the Streamlit browser UI for IGVFagent.",
     )
     parser.add_argument("--port", type=int, default=8501)
-    parser.add_argument("--host", default="localhost")
+    # Default to 127.0.0.1 (explicit IPv4) instead of "localhost" because
+    # most modern browsers resolve "localhost" to IPv6 (::1) first while
+    # Streamlit binds IPv4 only — leading to "site can't be reached" on
+    # http://localhost:8501. The IPv4 form is unambiguous everywhere.
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true",
                          help="Don't auto-open the browser tab.")
     parser.add_argument("--", dest="extra", nargs=argparse.REMAINDER,
