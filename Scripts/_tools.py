@@ -797,6 +797,130 @@ _TOOLS: "list[Tool]" = [
                    "label": "--label"},
     ),
 
+    _T(
+        "geo_search",
+        "Search NCBI GEO Series by keyword / organism / platform "
+        "(e.g. 'GM12878 RNA-seq' organism 'Homo sapiens').",
+        {
+            "type": "object",
+            "properties": {
+                "query":    {**_S_STRING},
+                "organism": {**_S_STRING},
+                "platform": {**_S_STRING},
+                "study_type": {**_S_STRING},
+                "limit":    {**_S_INTEGER, "default": 25},
+                "label":    {**_S_STRING},
+            },
+            "required": ["query"],
+        },
+        cli=["geo", "search"],
+        flag_map={"query": "--query", "organism": "--organism",
+                   "platform": "--platform", "study_type": "--study-type",
+                   "limit": "--limit", "label": "--label"},
+    ),
+
+    _T(
+        "geo_series",
+        "Pull metadata + sample sheet for one GEO Series accession "
+        "(e.g. GSE9574). Writes a markdown report and a per-GSM CSV "
+        "ready to feed to rnaseq_pipeline.",
+        {
+            "type": "object",
+            "properties": {
+                "gse":           {**_S_STRING,
+                    "description": "GSE accession, e.g. GSE9574."},
+                "full_samples":  {**_S_BOOLEAN, "default": False},
+                "label":         {**_S_STRING},
+            },
+            "required": ["gse"],
+        },
+        cli=["geo", "series"],
+        flag_map={"gse": "--gse", "label": "--label"},
+        bool_flags={"full_samples"},
+    ),
+
+    _T(
+        "geo_download",
+        "Download supplementary / matrix files for a GEO Series. "
+        "Filter by category (matrix / suppl / soft) and a regex over "
+        "filenames; cap by --max-download-gb.",
+        {
+            "type": "object",
+            "properties": {
+                "gse":     {**_S_STRING},
+                "only":    {**_S_ARRAY_S,
+                    "description": "Subset of [matrix, suppl, soft]."},
+                "pattern": {**_S_STRING,
+                    "description": "Case-insensitive regex over filenames."},
+                "max_download_gb": {"type": "number", "default": 1.0},
+            },
+            "required": ["gse"],
+        },
+        cli=["geo", "download"],
+        flag_map={"gse": "--gse", "only": "--only",
+                   "pattern": "--pattern",
+                   "max_download_gb": "--max-download-gb"},
+        flag_repeat={"only"},
+    ),
+
+    _T(
+        "rnaseq_pipeline",
+        "End-to-end bulk RNA-seq: QC + PCA + differential expression "
+        "(pyDESeq2 if installed, Welch's t-test + BH FDR fallback) + "
+        "volcano/MA/heatmap plots + DEG → controlling cCRE linkage "
+        "via the IGVF Catalog. Inputs: counts matrix + sample sheet + "
+        "two group labels in --condition-col.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":         {**_S_STRING},
+                "sample_sheet":   {**_S_STRING},
+                "condition_col":  {**_S_STRING, "default": "condition"},
+                "group_a":        {**_S_STRING,
+                    "description": "Control / reference group label."},
+                "group_b":        {**_S_STRING,
+                    "description": "Treated / test group label."},
+                "padj_cut":       {"type": "number", "default": 0.05},
+                "fc_cut":         {"type": "number", "default": 1.0},
+                "skip_link_cre":  {**_S_BOOLEAN, "default": False},
+                "label":          {**_S_STRING},
+            },
+            "required": ["counts", "sample_sheet", "group_a", "group_b"],
+        },
+        cli=["rnaseq", "pipeline"],
+        flag_map={"counts": "--counts", "sample_sheet": "--sample-sheet",
+                   "condition_col": "--condition-col",
+                   "group_a": "--group-a", "group_b": "--group-b",
+                   "padj_cut": "--padj-cut", "fc_cut": "--fc-cut",
+                   "label": "--label"},
+        bool_flags={"skip_link_cre"},
+    ),
+
+    _T(
+        "rnaseq_link_cre",
+        "Given a DEG CSV (with `gene`, `log2FC`, `padj` columns), query "
+        "the IGVF Catalog for the regulatory elements that control "
+        "each significant gene. Useful as a follow-up to an existing "
+        "DEG analysis.",
+        {
+            "type": "object",
+            "properties": {
+                "deg":             {**_S_STRING},
+                "padj_cut":        {"type": "number", "default": 0.05},
+                "fc_cut":          {"type": "number", "default": 1.0},
+                "limit_per_gene":  {**_S_INTEGER, "default": 10},
+                "max_genes":       {**_S_INTEGER, "default": 50},
+                "label":           {**_S_STRING},
+            },
+            "required": ["deg"],
+        },
+        cli=["rnaseq", "link-cre"],
+        flag_map={"deg": "--deg", "padj_cut": "--padj-cut",
+                   "fc_cut": "--fc-cut",
+                   "limit_per_gene": "--limit-per-gene",
+                   "max_genes": "--max-genes", "label": "--label"},
+    ),
+
 ]
 
 
