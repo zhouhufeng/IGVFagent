@@ -70,6 +70,9 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Knowledge Graph traversal](#knowledge-graph-traversal)
   - [Portal → local KG ETL](#portal--local-kg-etl)
   - [ENCODE bulk-genomics pipeline](#encode-bulk-genomics-pipeline)
+  - [Super-enhancer → target-gene pipeline](#super-enhancer--target-gene-pipeline)
+  - [GEO retrieval](#geo-retrieval)
+  - [Bulk RNA-seq analysis](#bulk-rna-seq-analysis)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -771,6 +774,109 @@ igvfagent ask "Find K562 H3K27ac ChIP-seq experiments on GRCh38, pick \
   its peak BED. Then overlay the super-enhancers against SCREEN cCREs \
   and produce a browser view of the APOE locus."
 ```
+
+### Super-enhancer → target-gene pipeline
+
+End-to-end discovery of H3K27ac/BRD4/MED1/P300 ChIP-seq experiments,
+ROSE-style super-enhancer calling, ranked-signal "hockey-stick" plots,
+multi-track browser views of top SEs, and SE → target-gene linkage via
+four parallel streams: Hi-C / ChIA-PET loops, IGVF Catalog rE2G
+predictions, TSS proximity windows, and constituent cCRE composition.
+Optional motif enrichment (CTCF, AP-1, GATA1, ETS, NFkB, STAT1, FOXA1,
+TP53, MYC, SP1) and SE↔cCRE-density correlation. Playbook:
+[`Docs/Skills/SE_TARGET_PIPELINE_SKILLS.md`](Docs/Skills/SE_TARGET_PIPELINE_SKILLS.md).
+
+```bash
+# 1) One-shot discovery → SE call → linkage → plots → optional motifs
+igvfagent se-targets pipeline --biosample GM12878 --assembly GRCh38 \
+  --label gm12878_h3k27ac --max-experiments 1 --top-n 10 \
+  --genome /path/to/GRCh38.fa  # motif enrichment is optional
+
+# 2) Just the discovery half (lists candidate SE-driver experiments)
+igvfagent se-targets discover --biosample K562 --assembly GRCh38 \
+  --target H3K27ac
+
+# 3) Re-run linkage on an existing SE table (skip discovery & calling)
+igvfagent se-targets link-targets \
+  --se-bed Docs/SETargets/<run>/super_enhancers.bed \
+  --label gm12878_relinked --max-ses 100
+```
+
+The pipeline is bounded: per-Catalog-call timeouts default to 20 s and
+linkage stops after 3 consecutive failures so a slow Catalog endpoint
+can never hang the run. Outputs land in `Docs/SETargets/<timestamp>_<label>/`
+with `super_enhancers.bed`, ranked SE → target-gene CSVs, the
+hockey-stick/Top-SE browser PNGs, and a markdown report.
+
+### GEO retrieval
+
+Search NCBI GEO Series, parse SOFT metadata, list FTP file inventories,
+download supplementary files, and produce a tidy sample sheet for any
+downstream RNA-seq / ATAC / ChIP analysis. Pure stdlib + `requests` — no
+Bioconductor dependency. Playbook:
+[`Docs/Skills/GEO_RETRIEVAL_SKILLS.md`](Docs/Skills/GEO_RETRIEVAL_SKILLS.md).
+
+```bash
+# 1) Keyword search → top GSEs (title, organism, summary, n samples)
+igvfagent geo search --query "GM12878 RNA-seq" --max-results 10
+
+# 2) Pull the SOFT family file and parse series + sample metadata
+igvfagent geo series --gse GSE9574 --label nci_breast
+
+# 3) List supplementary files on the GEO FTP site for one Series
+igvfagent geo list-files --gse GSE9574
+
+# 4) Download chosen supplementary files (size-capped)
+igvfagent geo download --gse GSE9574 --max-download-gb 5 \
+  --extensions .txt.gz .tsv.gz .csv.gz
+
+# 5) Write a tidy sample sheet (one row per GSM, condition columns)
+igvfagent geo sample-sheet --gse GSE9574 --label nci_breast
+```
+
+Outputs land in `Docs/GEO/<timestamp>_<label>/` with the SOFT-derived
+metadata JSON, file inventory CSV, sample sheet CSV, and a
+human-readable summary. The agent runtime exposes `geo_search`,
+`geo_series`, and `geo_download` as tools.
+
+### Bulk RNA-seq analysis
+
+Counts QC, sample PCA + correlation heatmap, differential expression
+(pyDESeq2 when available, Welch's t-test on log-CPM with BH FDR
+fallback), volcano + MA + top-DEG z-scored heatmap, and DEG → cCRE
+linkage via the IGVF Catalog `/api/genes/genomic-elements` endpoint.
+Playbook:
+[`Docs/Skills/RNASEQ_ANALYSIS_SKILLS.md`](Docs/Skills/RNASEQ_ANALYSIS_SKILLS.md).
+
+```bash
+# 1) Counts QC (library size, gene detection, mito %, top genes)
+igvfagent rnaseq qc --counts counts.tsv --label k562_vs_gm12878
+
+# 2) PCA + sample correlation heatmap
+igvfagent rnaseq pca --counts counts.tsv --sample-sheet samples.csv \
+  --label k562_vs_gm12878
+
+# 3) Differential expression (uses pyDESeq2 if installed, else Welch + BH)
+igvfagent rnaseq deg --counts counts.tsv --sample-sheet samples.csv \
+  --condition-col condition --treated K562 --control GM12878 \
+  --label k562_vs_gm12878
+
+# 4) Link significant DEGs to controlling cCREs via IGVF Catalog
+igvfagent rnaseq link-cre \
+  --deg Docs/RNAseq/<run>/k562_vs_gm12878_deg.csv \
+  --label k562_vs_gm12878 --padj-threshold 0.05 --max-genes 200
+
+# 5) End-to-end QC → PCA → DEG → cCRE linkage in one call
+igvfagent rnaseq pipeline --counts counts.tsv --sample-sheet samples.csv \
+  --condition-col condition --treated K562 --control GM12878 \
+  --label k562_vs_gm12878
+```
+
+Outputs include `<label>_deg.csv`, `<label>_deg_to_cre.csv`, the
+volcano/MA/heatmap/PCA PNGs, and a markdown report under
+`Docs/RNAseq/<timestamp>_<label>/`. Chains naturally with `geo` (pull
+counts) and `se-targets` (cross-reference up-regulated genes against
+SE-driven targets).
 
 ## Deployment with LLM agents
 
