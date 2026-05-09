@@ -50,6 +50,8 @@ analysis = [
     "anndata>=0.10",
     "scanpy>=1.9",
     "seaborn>=0.13",
+    "scikit-learn>=1.3",
+    "umap-learn>=0.5",
 ]
 # Web UI for natural-language interaction (Streamlit)
 ui = [
