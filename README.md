@@ -156,51 +156,75 @@ Generated outputs (timestamped folders under `Docs/<skill>/`, manifests under
 
 ## Quick start
 
-**Easiest (Docker Compose) — full stack including a local Qwen 3 LLM:**
-
-```bash
-git clone https://github.com/zhouhufeng/IGVFagent.git
-cd IGVFagent
-docker compose up -d                          # build + start agent + ollama
-docker compose --profile bootstrap up         # one-time: pull qwen3:8b
-open http://localhost:8501                    # browser UI
-docker compose run --rm agent kg gene APOE    # one-shot skill from CLI
-docker compose down                           # stop (volumes preserved)
-```
-
-The Compose stack runs IGVFagent and Ollama side-by-side in one network.
-The agent reaches Ollama at `http://ollama:11434/v1`. `./Data` and
-`./Docs` are mounted into the container so analyses persist across
-restarts. Cloud LLM keys are forwarded from a local `.env` file (which
-is gitignored) — the agent supports `ANTHROPIC_API_KEY`,
-`OPENAI_API_KEY`, `GROQ_API_KEY`, `TOGETHER_API_KEY`, `DEEPINFRA_API_KEY`,
-`HF_TOKEN`, plus the IGVF-specific `IGVF_PORTAL_COOKIE` and
-`IGVF_ARANGO_PASSWORD` variables.
-
-**Recommended (pipx) — one command, isolated, gives you `igvfagent` globally:**
-
-```bash
-pipx install 'git+https://github.com/zhouhufeng/IGVFagent.git'
-pipx inject igvfagent 'igvfagent[analysis]'    # optional: scanpy + matplotlib stack
-igvfagent --help
-```
-
-**Or pip into a virtual env (developer / contributor flow):**
+**Recommended — native pip install in a virtual env (best for local LLMs):**
 
 ```bash
 git clone https://github.com/zhouhufeng/IGVFagent.git
 cd IGVFagent
 python3 -m venv .venv && source .venv/bin/activate
 python3 -m pip install --upgrade pip
-python3 -m pip install -e '.[analysis]'        # core + analysis extras
-# python3 -m pip install -e '.[all]'           # core + analysis + UI + LLM SDKs
+python3 -m pip install -e '.[ui,llm,analysis]'   # core + UI + LLM SDKs + scanpy stack
+# python3 -m pip install -e '.[all]'             # also adds [hic] + [motif] extras
+
+igvfagent --version
 igvfagent --help
 
-# 3) configure endpoints / credentials locally
+# Optional: configure credentials / overrides locally (.env is gitignored)
 cp .env.example .env
-# edit .env to set IGVF_ARANGO_PASSWORD, optional IGVF_PORTAL_COOKIE, etc.
-# .env is gitignored.
 ```
+
+Then:
+
+```bash
+igvfagent ui                # browser UI at http://127.0.0.1:8501
+igvfagent ask "Pull the comprehensive APOE evidence pack."
+igvfagent kg gene APOE      # direct CLI to a single skill, no LLM in the loop
+```
+
+This is the right path if you already have Ollama running natively
+(`ollama serve`) — IGVFagent reaches it at `http://localhost:11434/v1`
+and gets full access to your host's RAM and any models you've already
+pulled.
+
+**Alternative — `pipx` for a global `igvfagent` (no venv activation):**
+
+```bash
+pipx install 'git+https://github.com/zhouhufeng/IGVFagent.git'
+pipx inject igvfagent 'igvfagent[analysis,ui,llm]'
+igvfagent --help        # works from any directory
+```
+
+**Alternative — Docker Compose (self-contained stack, includes Ollama in a container):**
+
+Picks up Ollama-in-a-container by default. Useful for a clean demo
+machine with no Python or Ollama set up; **less ideal** if you already
+run Ollama natively (the in-container Ollama can't see the host's
+models, and Docker Desktop's default 8 GB memory cap is too small for
+30B+ models). Requires Docker Desktop running.
+
+```bash
+git clone https://github.com/zhouhufeng/IGVFagent.git
+cd IGVFagent
+
+# Option A: in-container Ollama (default)
+docker compose up -d                          # build agent + start ollama service
+docker compose --profile bootstrap up         # one-time: pull qwen3:8b into the container
+
+# Option B: reach back to your host's Ollama (recommended if you already have it)
+echo 'OLLAMA_HOST_BASE=http://host.docker.internal:11434/v1' >> .env
+echo 'IGVF_LLM_MODEL=qwen3.6:35b-a3b-coding-bf16'           >> .env
+docker compose up -d agent                    # only the agent, host Ollama supplies the LLM
+
+open http://127.0.0.1:8501                    # browser UI
+docker compose run --rm agent kg gene APOE    # one-shot skill from CLI
+docker compose down                           # stop (volumes preserved)
+```
+
+`./Data` and `./Docs` are mounted into the container so analyses persist
+across restarts. Cloud LLM keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GROQ_API_KEY`, `TOGETHER_API_KEY`, `DEEPINFRA_API_KEY`, `HF_TOKEN`)
+plus the IGVF-specific `IGVF_PORTAL_COOKIE` and
+`IGVF_ARANGO_PASSWORD` are forwarded from `.env` automatically.
 
 After installing, the `igvfagent` console command gives you four ways to
 drive the same skills:
@@ -208,7 +232,7 @@ drive the same skills:
 ```bash
 # 1) Browser UI — chat input, streaming progress, inline plot rendering
 pip install 'igvfagent[ui]'
-igvfagent ui                      # opens http://localhost:8501
+igvfagent ui                      # opens http://127.0.0.1:8501
 
 # 2) Natural-language CLI — same agent, terminal output
 igvfagent ask "Give me the comprehensive APOE evidence pack including\
