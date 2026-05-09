@@ -600,7 +600,14 @@ def parse_bed(path: Path, max_rows: Optional[int] = None
     """Read a BED / narrowPeak / broadPeak file (plain or .gz) into a list
     of dicts. Returns (rows, stats) where stats contains chromosome
     counts and median width."""
-    opener = gzip.open if str(path).endswith(".gz") else open
+    is_gz = str(path).endswith(".gz")
+    if not is_gz:
+        try:
+            with open(path, "rb") as probe:
+                is_gz = probe.read(2) == b"\x1f\x8b"
+        except Exception:
+            pass
+    opener = gzip.open if is_gz else open
     rows: "list[dict]" = []
     widths: "list[int]" = []
     chrom_counts: Counter = Counter()
@@ -1597,7 +1604,16 @@ def cmd_hic_insulation(args: argparse.Namespace) -> Path:
 
 def _parse_bedpe(path: Path) -> "list[dict]":
     rows: "list[dict]" = []
-    opener = gzip.open if str(path).endswith(".gz") else open
+    # Detect gzip by magic bytes as well as by extension — ENCODE files
+    # are sometimes downloaded with the extension stripped.
+    is_gz = str(path).endswith(".gz")
+    if not is_gz:
+        try:
+            with open(path, "rb") as probe:
+                is_gz = probe.read(2) == b"\x1f\x8b"
+        except Exception:
+            pass
+    opener = gzip.open if is_gz else open
     with opener(path, "rt") as f:
         for line in f:
             if not line or line.startswith(("#", "track", "browser")):
