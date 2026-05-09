@@ -87,6 +87,8 @@ _DEFAULT_MODELS = {
     # claude_cli: empty default lets Claude Code use whatever it's
     # configured for in `claude config` (no --model override).
     "claude_cli": "",
+    # codex_cli: empty default lets the user's `codex` config decide.
+    "codex_cli":  "",
 }
 
 
@@ -96,6 +98,8 @@ def _infer_backend(model: Optional[str]) -> str:
     m = model.lower()
     if "claude_cli" in m or "claude-cli" in m or m == "cc":
         return "claude_cli"
+    if "codex_cli" in m or "codex-cli" in m or m == "cx":
+        return "codex_cli"
     if "claude" in m:
         return "anthropic"
     if any(p in m for p in ("gpt-", "o1-", "o3-", "o4-")):
@@ -447,6 +451,11 @@ def chat(
                                   max_tokens=max_tokens,
                                   temperature=temperature, stop=stop,
                                   **kwargs)
+    if bk == "codex_cli":
+        return _chat_codex_cli(messages, model=chosen_model, tools=tools,
+                                 max_tokens=max_tokens,
+                                 temperature=temperature, stop=stop,
+                                 **kwargs)
     cfg = _BACKENDS.get(bk)
     if not cfg or not cfg.get("base_url"):
         raise RuntimeError(
@@ -465,7 +474,7 @@ def chat(
 
 
 def list_backends() -> "list[str]":
-    extras = ["claude_cli"]
+    extras = ["claude_cli", "codex_cli"]
     return ["anthropic"] + sorted(set(_BACKENDS) - {"anthropic"}) + extras
 
 
@@ -595,6 +604,53 @@ def _claude_cli_serialize_messages(messages) -> str:
     return "\n".join(parts)
 
 
+def _xml_cli_build_prompt(messages, tools) -> str:
+    """Shared prompt builder used by both the claude_cli and codex_cli
+    subprocess backends."""
+    system_chunks = [m.get("content", "") for m in messages
+                     if m.get("role") == "system"]
+    user_system = "\n\n".join(c for c in system_chunks if c).strip()
+    tools_block = _claude_cli_render_tools(tools) if tools else \
+                  "_(no tools — produce <final_answer> directly)_"
+    framework = _CLAUDE_CLI_TOOL_PROMPT.format(tools_block=tools_block)
+    convo = _claude_cli_serialize_messages(messages).strip()
+    return (
+        framework
+        + ("\n\n# Project-specific guidance\n\n" + user_system
+            if user_system else "")
+        + "\n\n# Conversation so far\n\n"
+        + (convo or "_(no prior turns)_")
+        + "\n\nRespond now."
+    )
+
+
+def _xml_cli_parse_response(text: str, prefix: str
+                              ) -> "tuple[str, list[ToolCall]]":
+    """Parse the XML-tool-call framework response into (content,
+    tool_calls)."""
+    tool_calls: "list[ToolCall]" = []
+    for i, m in enumerate(_CLAUDE_CLI_TOOL_CALL_RE.finditer(text)):
+        name = m.group("name").strip()
+        raw_args = m.group("args").strip()
+        try:
+            args = json.loads(raw_args) if raw_args else {}
+        except json.JSONDecodeError:
+            args = {"_raw_arguments": raw_args}
+        tool_calls.append(ToolCall(
+            id=f"{prefix}_{i+1}", name=name,
+            arguments=args if isinstance(args, dict)
+                      else {"_raw": str(args)},
+        ))
+    final_match = _CLAUDE_CLI_FINAL_RE.search(text)
+    if final_match:
+        content = final_match.group(1).strip()
+    elif tool_calls:
+        content = ""
+    else:
+        content = text.strip()
+    return content, tool_calls
+
+
 def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
                       stop, **kwargs) -> Message:
     """Subprocess-out to `claude --print` and parse a ReAct-style
@@ -619,23 +675,7 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
             "`npm i -g @anthropic-ai/claude-code`."
         )
 
-    system_chunks = [m.get("content", "") for m in messages
-                     if m.get("role") == "system"]
-    user_system = "\n\n".join(c for c in system_chunks if c).strip()
-
-    tools_block = _claude_cli_render_tools(tools) if tools else \
-                  "_(no tools — produce <final_answer> directly)_"
-    framework = _CLAUDE_CLI_TOOL_PROMPT.format(tools_block=tools_block)
-    convo = _claude_cli_serialize_messages(messages).strip()
-    prompt = (
-        framework
-        + ("\n\n# Project-specific guidance\n\n" + user_system
-            if user_system else "")
-        + "\n\n# Conversation so far\n\n"
-        + (convo or "_(no prior turns)_")
-        + "\n\nRespond now."
-    )
-
+    prompt = _xml_cli_build_prompt(messages, tools)
     cmd = ["claude", "--print", "--output-format", "text"]
     if model and model.strip():
         cmd.extend(["--model", model.strip()])
@@ -659,39 +699,108 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
                             f"{result.returncode}: {err}")
 
     text = result.stdout or ""
-
-    # Parse <tool_call> blocks
-    tool_calls: "list[ToolCall]" = []
-    for i, m in enumerate(_CLAUDE_CLI_TOOL_CALL_RE.finditer(text)):
-        name = m.group("name").strip()
-        raw_args = m.group("args").strip()
-        try:
-            args = json.loads(raw_args) if raw_args else {}
-        except json.JSONDecodeError:
-            # Best-effort: try wrapping in {} or leave raw
-            args = {"_raw_arguments": raw_args}
-        tool_calls.append(ToolCall(id=f"cc_{i+1}", name=name,
-                                       arguments=args if isinstance(args, dict)
-                                                 else {"_raw": str(args)}))
-
-    # Final answer block, if present
-    final_match = _CLAUDE_CLI_FINAL_RE.search(text)
-    if final_match:
-        content = final_match.group(1).strip()
-    elif tool_calls:
-        content = ""   # tool-call-only turn
-    else:
-        # Model didn't follow the framework; treat the whole output as
-        # the final answer rather than dropping the turn.
-        content = text.strip()
-
-    stop_reason = "tool_use" if tool_calls else "end_turn"
+    content, tool_calls = _xml_cli_parse_response(text, prefix="cc")
     return Message(
         content=content,
         tool_calls=tool_calls,
-        stop_reason=stop_reason,
+        stop_reason="tool_use" if tool_calls else "end_turn",
         backend="claude_cli",
         model=model or "(claude-code default)",
+        raw={"stdout_len": len(text)},
+    )
+
+
+# --------------------------- Codex CLI backend ----------------------------
+
+def codex_cli_available() -> "tuple[bool, str]":
+    """Whether the `codex` (OpenAI Codex CLI) binary is on PATH.
+    Returns (ok, version_or_error_msg)."""
+    import shutil
+    import subprocess
+    if not shutil.which("codex"):
+        return False, "`codex` not found on PATH"
+    try:
+        out = subprocess.run(
+            ["codex", "--version"], capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        if out.returncode == 0:
+            return True, (out.stdout or out.stderr).strip()
+        return False, (out.stderr or out.stdout).strip()
+    except Exception as e:
+        return False, str(e)
+
+
+def _chat_codex_cli(messages, *, model, tools, max_tokens, temperature,
+                     stop, **kwargs) -> Message:
+    """Subprocess-out to `codex exec` with the same XML tool-call
+    framework as claude_cli. Mirrors the trade-off profile: reuses the
+    user's Codex CLI login (no separate OPENAI_API_KEY needed) at the
+    cost of subprocess + XML-parsing overhead vs the native OpenAI API.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("codex"):
+        raise RuntimeError(
+            "Codex CLI (`codex`) is not on PATH. Install with "
+            "`npm i -g @openai/codex` (or follow "
+            "https://github.com/openai/codex)."
+        )
+
+    prompt = _xml_cli_build_prompt(messages, tools)
+
+    # `codex exec` runs in non-interactive mode. Approval mode `never`
+    # auto-approves any tool calls Codex's own runtime might want to
+    # make — we don't expect any since our prompt explicitly tells it
+    # to emit XML rather than use its built-in tools, but the flag
+    # keeps the run from blocking on a TTY prompt.
+    cmd = ["codex", "exec", "--ask-for-approval", "never"]
+    if model and model.strip():
+        cmd.extend(["--model", model.strip()])
+    # Read the prompt from stdin to avoid argv-length limits.
+    cmd.append("-")  # convention: dash means "read prompt from stdin"
+
+    timeout = float(os.environ.get("IGVF_LLM_TIMEOUT", "600"))
+    try:
+        result = subprocess.run(
+            cmd, input=prompt, capture_output=True, text=True,
+            timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"Codex CLI timed out after {timeout:.0f}s "
+            f"(set IGVF_LLM_TIMEOUT to override)."
+        ) from e
+
+    # Some Codex CLI versions don't accept `-` for stdin or differ on
+    # the approval flag. Fall back to passing the prompt as a positional
+    # argument (truncated diagnostic on persistent failure).
+    if result.returncode != 0 and ("unrecognized" in (result.stderr or "")
+                                    or "invalid value" in (result.stderr or "")
+                                    or "expected one of" in (result.stderr or "")):
+        cmd_fallback = ["codex", "exec"]
+        if model and model.strip():
+            cmd_fallback.extend(["--model", model.strip()])
+        cmd_fallback.append(prompt)
+        result = subprocess.run(
+            cmd_fallback, capture_output=True, text=True,
+            timeout=timeout, check=False,
+        )
+
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()[:600]
+        raise RuntimeError(f"`codex exec` exited with status "
+                            f"{result.returncode}: {err}")
+
+    text = result.stdout or ""
+    content, tool_calls = _xml_cli_parse_response(text, prefix="cx")
+    return Message(
+        content=content,
+        tool_calls=tool_calls,
+        stop_reason="tool_use" if tool_calls else "end_turn",
+        backend="codex_cli",
+        model=model or "(codex-cli default)",
         raw={"stdout_len": len(text)},
     )
 
