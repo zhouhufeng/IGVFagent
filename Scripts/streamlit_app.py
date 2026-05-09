@@ -18,6 +18,7 @@ tool registry, and agent loop are all owned by ``_llm.py``,
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -77,6 +78,273 @@ def _resolve_effective_config(backend_choice: str, model_input: str
     }
 
 
+_BACKEND_KIND_LABELS = {
+    "local":     "🖥  Local LLM (Ollama)",
+    "anthropic": "🤖  Anthropic Claude API",
+    "openai":    "⚡  OpenAI / Codex API",
+    "advanced":  "🔧  Other (advanced)",
+}
+
+_BACKEND_KIND_TO_NAME = {
+    "local":     "ollama",
+    "anthropic": "anthropic",
+    "openai":    "openai",
+    # advanced -> resolved from sub-selectbox below
+}
+
+
+def _sidebar_backend_kind() -> str:
+    """Render the top-level backend-type radio. Resets dependent state
+    when the kind changes."""
+    options = list(_BACKEND_KIND_LABELS.keys())
+    labels = [_BACKEND_KIND_LABELS[k] for k in options]
+    prev = st.session_state.get("_backend_kind", "local")
+    idx = options.index(prev) if prev in options else 0
+    chosen_label = st.radio("Backend type", labels, index=idx,
+                              key="_backend_kind_radio",
+                              help="Pick the model provider. Local LLM uses "
+                                   "your Ollama daemon; the cloud options need "
+                                   "their respective API keys.")
+    chosen = options[labels.index(chosen_label)]
+    if chosen != prev:
+        # Reset model selection when the user switches kind
+        for k in ("_local_model_choice", "_anthropic_model_choice",
+                   "_openai_model_choice", "_advanced_backend",
+                   "_advanced_model"):
+            st.session_state.pop(k, None)
+        st.session_state["_backend_kind"] = chosen
+    return chosen
+
+
+def _sidebar_local_model_picker() -> "tuple[str, str]":
+    """Render the installed-models dropdown + downloadable picker for
+    Local LLM. Returns (backend_name, model_name)."""
+    with st.spinner("Querying local Ollama daemon…"):
+        try:
+            installed = _llm.list_ollama_models(timeout=3)
+        except Exception:
+            installed = []
+
+    if not installed:
+        st.warning(
+            "Local Ollama daemon not reachable on "
+            f"`{_llm._BACKENDS['ollama']['base_url']}`.\n\n"
+            "Start it with `ollama serve` in another terminal, or set "
+            "`OLLAMA_HOST_BASE` to the right URL."
+        )
+        st.caption("After Ollama is up, click **Refresh** to repopulate.")
+        if st.button("🔄 Refresh installed models", use_container_width=True):
+            st.rerun()
+        installed_names: "list[str]" = []
+    else:
+        installed_names = sorted(m.get("name", "") for m in installed
+                                    if m.get("name"))
+
+    # Installed models dropdown
+    if installed_names:
+        labels = []
+        for m in sorted(installed, key=lambda r: r.get("name") or ""):
+            sz = (f" · {m['size_gb']:.1f} GB"
+                  if m.get("size_gb") else "")
+            fam = (f" · {m['family']}" if m.get("family") else "")
+            labels.append(f"{m['name']}{sz}{fam}")
+        prev = st.session_state.get("_local_model_choice")
+        idx = next((i for i, n in enumerate(installed_names) if n == prev),
+                   0)
+        chosen_label = st.selectbox(
+            "Installed Ollama models",
+            labels, index=idx, key="_local_installed_select",
+            help="Models the local Ollama daemon already has on disk.",
+        )
+        chosen_idx = labels.index(chosen_label)
+        chosen_model = installed_names[chosen_idx]
+        st.session_state["_local_model_choice"] = chosen_model
+    else:
+        chosen_model = ""
+
+    # Refresh button to re-query the daemon
+    cols = st.columns([2, 1])
+    with cols[1]:
+        if st.button("🔄", help="Re-query the Ollama daemon",
+                       use_container_width=True):
+            st.rerun()
+    with cols[0]:
+        st.caption(f"Endpoint: `{_llm._BACKENDS['ollama']['base_url']}`")
+
+    # Downloadable model picker
+    with st.expander("⬇ Download more models", expanded=False):
+        st.caption(
+            "Pick a model from Ollama's library and pull it into your "
+            "local daemon. Big models (≥ 20 GB) can take many minutes — "
+            "for those you may prefer running `ollama pull <name>` in a "
+            "terminal directly."
+        )
+        installed_set = set(installed_names)
+        available = [(name, gb, note)
+                     for name, gb, note in _llm.OLLAMA_LIBRARY
+                     if name not in installed_set]
+        if not available:
+            st.caption("_All curated models already installed._")
+        else:
+            avail_labels = [f"{n} — ~{gb:.1f} GB ({note})"
+                             for n, gb, note in available]
+            pick_label = st.selectbox(
+                "Available to download", avail_labels,
+                key="_download_pick_select",
+            )
+            pick_name = available[avail_labels.index(pick_label)][0]
+            if st.button(f"⬇ Pull `{pick_name}`",
+                            use_container_width=True,
+                            key="_download_pull_btn"):
+                _do_ollama_pull(pick_name)
+
+    return "ollama", chosen_model
+
+
+def _do_ollama_pull(model_name: str) -> None:
+    """Stream-pull an Ollama model with a Streamlit progress bar."""
+    progress = st.progress(0.0, text=f"Pulling `{model_name}` …")
+    status_box = st.empty()
+    last_status = ""
+    try:
+        for status, pct, total, completed, errored in \
+                _llm.pull_ollama_model(model_name):
+            if errored:
+                st.error(f"Pull failed: {status}")
+                break
+            last_status = status or last_status
+            label = (f"`{model_name}` · {last_status} · "
+                     f"{completed/1e9:.2f}/{total/1e9:.2f} GB"
+                     if total else f"`{model_name}` · {last_status}")
+            try:
+                progress.progress(min(max(pct / 100.0, 0.0), 1.0),
+                                    text=label)
+            except Exception:
+                pass
+            status_box.caption(label)
+        else:
+            progress.progress(1.0, text=f"`{model_name}` pulled.")
+            st.success(f"✅ `{model_name}` is now available locally.")
+            time.sleep(0.5)
+            st.rerun()
+    except Exception as e:
+        st.error(f"Pull failed: {e}")
+
+
+def _sidebar_anthropic_model_picker() -> "tuple[str, str]":
+    """Curated Claude model dropdown + key check."""
+    options = list(_llm.ANTHROPIC_MODELS) + ["(custom...)"]
+    prev = st.session_state.get("_anthropic_model_choice", options[1])
+    idx = options.index(prev) if prev in options else 1
+    chosen = st.selectbox("Claude model", options, index=idx,
+                            key="_anthropic_model_select")
+    if chosen == "(custom...)":
+        chosen = st.text_input("Custom Claude model id",
+                                 value="", key="_anthropic_model_custom")
+    st.session_state["_anthropic_model_choice"] = chosen
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        st.error("`ANTHROPIC_API_KEY` is not set. Export it in your shell, "
+                  "then restart the UI.")
+    else:
+        st.caption("✅ `ANTHROPIC_API_KEY` is set.")
+    return "anthropic", chosen
+
+
+def _sidebar_openai_model_picker() -> "tuple[str, str]":
+    """Curated OpenAI / Codex model dropdown + key check."""
+    options = list(_llm.OPENAI_MODELS) + ["(custom...)"]
+    prev = st.session_state.get("_openai_model_choice", options[0])
+    idx = options.index(prev) if prev in options else 0
+    chosen = st.selectbox("OpenAI / Codex model", options, index=idx,
+                            key="_openai_model_select")
+    if chosen == "(custom...)":
+        chosen = st.text_input("Custom OpenAI model id",
+                                 value="", key="_openai_model_custom")
+    st.session_state["_openai_model_choice"] = chosen
+
+    if not os.environ.get("OPENAI_API_KEY"):
+        st.error("`OPENAI_API_KEY` is not set. Export it in your shell, "
+                  "then restart the UI.")
+    else:
+        st.caption("✅ `OPENAI_API_KEY` is set.")
+    return "openai", chosen
+
+
+def _sidebar_advanced_picker() -> "tuple[str, str]":
+    """Free-form backend + model picker for vLLM / TGI / Groq / etc."""
+    backends = [b for b in _llm.list_backends()
+                 if b not in ("anthropic", "openai", "ollama")]
+    backend = st.selectbox("Backend", backends,
+                              key="_advanced_backend_select")
+    desc = _llm.describe_backend(backend)
+    if desc.get("base_url"):
+        st.caption(f"Endpoint: `{desc['base_url']}`")
+    if desc.get("api_key_env"):
+        if os.environ.get(desc["api_key_env"]):
+            st.caption(f"✅ `{desc['api_key_env']}` is set.")
+        else:
+            st.error(f"`{desc['api_key_env']}` is not set.")
+    model = st.text_input("Model", value="", key="_advanced_model_input")
+    return backend, model
+
+
+def _sidebar_load_button(backend: str, model: str) -> None:
+    """Renders the Load Model button + persistent status."""
+    cols = st.columns([2, 1])
+    with cols[0]:
+        clicked = st.button("⚙  Load Model", type="primary",
+                              use_container_width=True,
+                              disabled=not (backend and model),
+                              help="Ping the backend to confirm credentials, "
+                                   "model presence, and (for Ollama) preload "
+                                   "the weights into memory so the first chat "
+                                   "doesn't pay the cold-load cost.")
+    with cols[1]:
+        if st.button("🔄", help="Refresh state",
+                       use_container_width=True, key="_load_refresh_btn"):
+            st.session_state.pop("_loaded_status", None)
+            st.rerun()
+    if clicked:
+        with st.spinner(f"Loading `{model}` via `{backend}` …"):
+            t0 = time.time()
+            try:
+                msg = _llm.chat(
+                    messages=[{"role": "user", "content": "READY"}],
+                    backend=backend, model=model,
+                    max_tokens=8, temperature=0.0,
+                )
+                dt = time.time() - t0
+                st.session_state["_loaded_status"] = {
+                    "ok":      True,
+                    "backend": msg.backend,
+                    "model":   msg.model,
+                    "ts":      time.strftime("%H:%M:%S"),
+                    "secs":    dt,
+                    "preview": (msg.content or "").strip()[:60],
+                }
+            except Exception as e:
+                st.session_state["_loaded_status"] = {
+                    "ok":      False,
+                    "backend": backend, "model": model,
+                    "ts":      time.strftime("%H:%M:%S"),
+                    "error":   str(e),
+                }
+    status = st.session_state.get("_loaded_status")
+    if status:
+        if status["ok"]:
+            st.success(
+                f"✅ Loaded · `{status['model']}` via `{status['backend']}`  "
+                f"_(in {status['secs']:.1f}s, at {status['ts']})_"
+            )
+        else:
+            st.error(
+                f"❌ Load failed for `{status['model']}` via "
+                f"`{status['backend']}`  _(at {status['ts']})_\n\n"
+                f"`{status['error']}`"
+            )
+
+
 def _sidebar() -> dict:
     with st.sidebar:
         st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
@@ -86,109 +354,32 @@ def _sidebar() -> dict:
         )
         st.divider()
 
-        st.subheader("Backend")
-        backends = ["(auto)"] + _llm.list_backends()
-        # Reset the model field whenever the backend changes so a Qwen
-        # model name doesn't accidentally carry over into the Anthropic
-        # backend (or vice versa).
-        prev_backend = st.session_state.get("_prev_backend")
-        backend = st.selectbox(
-            "LLM provider", backends, index=0,
-            help="`(auto)` infers from the model name; defaults to Ollama "
-                 "(Qwen 3 8B) when nothing else is configured.",
-        )
-        if prev_backend is not None and prev_backend != backend:
-            st.session_state.pop("_model_input", None)
-        st.session_state["_prev_backend"] = backend
+        st.subheader("Model")
+        kind = _sidebar_backend_kind()
+        if kind == "local":
+            backend, model = _sidebar_local_model_picker()
+        elif kind == "anthropic":
+            backend, model = _sidebar_anthropic_model_picker()
+        elif kind == "openai":
+            backend, model = _sidebar_openai_model_picker()
+        else:
+            backend, model = _sidebar_advanced_picker()
 
-        # Suggest a sensible default model placeholder per backend.
-        placeholders = {
-            "(auto)":   "default for backend (e.g. qwen3:8b)",
-            "anthropic": "claude-sonnet-4-5  ← needs ANTHROPIC_API_KEY",
-            "openai":    "gpt-4o-mini  ← needs OPENAI_API_KEY",
-            "ollama":    "qwen3:8b  (run `igvfagent models` to list yours)",
-            "groq":      "llama-3.1-70b-versatile",
-            "together":  "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-            "vllm":      "qwen3:8b  (or whatever your vLLM serves)",
-            "tgi":       "(your HuggingFace TGI model id)",
-        }
-        model = st.text_input(
-            "Model",
-            value="",
-            key="_model_input",
-            placeholder=placeholders.get(backend, "default for backend"),
-        )
+        _sidebar_load_button(backend, model)
 
-        # Resolve and display the effective configuration so the user
-        # always sees exactly what the agent run will hit.
+        # Resolved configuration block — kept for transparency.
         eff = _resolve_effective_config(backend, model)
-        st.markdown("**Resolved configuration**")
-        st.markdown(
-            f"- Backend: `{eff['backend']}`\n"
-            f"- Model: `{eff['model']}`  _({eff['model_source']})_"
-        )
-        if eff["key_env"]:
-            icon = ("✅" if eff["key_set"] else
-                    ("➖" if eff["backend"] == "ollama" else "❌"))
+        with st.expander("Resolved configuration", expanded=False):
             st.markdown(
-                f"- Credential: `{eff['key_env']}` {icon}"
-                + ("" if eff["key_set"] else
-                    "  _(unset — set in your shell or .env)_")
+                f"- Backend: `{eff['backend']}`\n"
+                f"- Model: `{eff['model']}`  _({eff['model_source']})_"
             )
-        if eff["base_url"]:
-            st.markdown(f"- Endpoint: `{eff['base_url']}`")
-
-        # Health check
-        if st.button("🔍 Test backend", use_container_width=True):
-            with st.spinner("Pinging backend…"):
-                try:
-                    msg = _llm.chat(
-                        messages=[{"role": "user", "content": "ping"}],
-                        backend=None if backend == "(auto)" else backend,
-                        model=model or None,
-                        max_tokens=16, temperature=0.0,
-                    )
-                    st.session_state["_health_status"] = {
-                        "ok": True,
-                        "msg": (f"backend `{msg.backend}` · "
-                                f"model `{msg.model}` · responded"),
-                        "ts": time.strftime("%H:%M:%S"),
-                    }
-                except Exception as e:
-                    st.session_state["_health_status"] = {
-                        "ok": False, "msg": str(e),
-                        "ts": time.strftime("%H:%M:%S"),
-                    }
-        hs = st.session_state.get("_health_status")
-        if hs:
-            if hs["ok"]:
-                st.success(f"✅ {hs['msg']}  _(at {hs['ts']})_")
-            else:
-                st.error(f"❌ {hs['msg']}  _(at {hs['ts']})_")
-
-        with st.expander("Backend env vars", expanded=False):
-            for name in _llm.list_backends():
-                d = _llm.describe_backend(name)
-                bullet = (f"- **{name}** · key=`{d.get('api_key_env','')}`"
-                            f"{'  · base=`'+d['base_url']+'`' if d.get('base_url') else ''}")
-                st.markdown(bullet)
-            if backend == "ollama" or backend == "(auto)":
-                with st.spinner("Querying Ollama for installed models…"):
-                    try:
-                        models = _llm.list_ollama_models(timeout=2)
-                    except Exception:
-                        models = []
-                if models:
-                    st.markdown("**Local Ollama models** (paste a name above):")
-                    for m in sorted(models, key=lambda r: r.get("name") or ""):
-                        sz = (f" — {m['size_gb']:.1f} GB"
-                              if m.get("size_gb") else "")
-                        st.markdown(f"- `{m.get('name','')}`{sz}")
-                else:
-                    st.caption(
-                        "_(no Ollama daemon reachable — start `ollama serve` "
-                        "or set `OLLAMA_HOST_BASE`)_"
-                    )
+            if eff["key_env"]:
+                icon = ("✅" if eff["key_set"] else
+                        ("➖" if eff["backend"] == "ollama" else "❌"))
+                st.markdown(f"- Credential: `{eff['key_env']}` {icon}")
+            if eff["base_url"]:
+                st.markdown(f"- Endpoint: `{eff['base_url']}`")
 
         st.divider()
         st.subheader("Run parameters")
@@ -202,21 +393,25 @@ def _sidebar() -> dict:
         tool_filter = st.multiselect(
             "Restrict to specific tools",
             options=all_tools, default=[],
-            help="Empty = all tools allowed.",
+            help="Empty = all tools allowed. Smaller subsets cut prompt "
+                 "size and noticeably speed up local LLMs.",
         )
 
         st.divider()
         if st.button("🗑 Clear conversation", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
+
     return {
-        "backend":     None if backend == "(auto)" else backend,
-        "model":       model or None,
-        "max_iter":    max_iter,
-        "max_tokens":  max_tokens,
-        "temperature": temperature,
-        "tool_filter": tool_filter or None,
-        "effective":   eff,
+        "backend":      backend or None,
+        "model":        model or None,
+        "max_iter":     max_iter,
+        "max_tokens":   max_tokens,
+        "temperature":  temperature,
+        "tool_filter":  tool_filter or None,
+        "effective":    eff,
+        "kind":         kind,
+        "loaded_ok":    bool(st.session_state.get("_loaded_status", {}).get("ok")),
     }
 
 
@@ -361,25 +556,33 @@ def main() -> None:
         "different driver of the same skills."
     )
 
-    # Persistent active-config banner so the user always sees what the
-    # next chat run will hit. Shows red/amber/green based on whether the
-    # configuration is plausibly runnable.
+    # Active-model banner — LM Studio-style. Big, unmissable, colored
+    # by whether a model is loaded.
+    status = st.session_state.get("_loaded_status")
     eff = cfg.get("effective", {})
-    banner_cols = st.columns([3, 3, 2, 2])
-    banner_cols[0].markdown(f"**Backend** · `{eff.get('backend','?')}`")
-    banner_cols[1].markdown(f"**Model** · `{eff.get('model','?')}`")
-    banner_cols[2].markdown(
-        "**Source** · " + str(eff.get("model_source", "?"))
-    )
-    if eff.get("key_env"):
-        if eff["backend"] == "ollama":
-            banner_cols[3].markdown("**Auth** · _none required_")
-        elif eff.get("key_set"):
-            banner_cols[3].markdown(
-                f"**Auth** · ✅ `{eff['key_env']}` set"
-            )
-        else:
-            banner_cols[3].error(f"⚠ `{eff['key_env']}` not set")
+    kind = cfg.get("kind", "local")
+    kind_label = _BACKEND_KIND_LABELS.get(kind, kind)
+    if status and status.get("ok"):
+        st.success(
+            f"### {kind_label}  ·  `{status['model']}`  "
+            f"·  ✅ Loaded  "
+            f"_(in {status['secs']:.1f}s)_\n\n"
+            f"All chat queries below will use this model."
+        )
+    elif status and not status.get("ok"):
+        st.error(
+            f"### {kind_label}  ·  `{status.get('model','?')}`  "
+            f"·  ❌ Load failed\n\n"
+            f"Fix the configuration in the sidebar and click "
+            f"**⚙  Load Model** again. Error: `{status.get('error','?')}`"
+        )
+    else:
+        st.warning(
+            f"### {kind_label}  ·  No model loaded yet\n\n"
+            f"Pick a model in the sidebar and click **⚙  Load Model** "
+            f"before sending a chat. Until then queries will fail "
+            f"or be slow on first call."
+        )
     st.divider()
 
     if "messages" not in st.session_state:

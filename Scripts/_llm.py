@@ -508,6 +508,103 @@ def list_ollama_models(base_url: Optional[str] = None,
     return out
 
 
+# Curated Ollama-pullable models with approximate sizes. Used by the UI
+# "Download more models" picker so users can grab a model without leaving
+# the page. Names match Ollama's library tags.
+OLLAMA_LIBRARY = [
+    # name                          approx GB   notes
+    ("qwen3:0.6b",                       0.5,  "smallest, weak tool calls"),
+    ("qwen3:4b",                         2.7,  "fast, decent tool calls"),
+    ("qwen3:8b",                         5.2,  "project default; balanced"),
+    ("qwen3:14b",                        9.0,  "stronger reasoning"),
+    ("qwen3:32b",                       20.0,  "needs ≥ 32 GB free"),
+    ("qwen2.5:1.5b",                     1.0,  "tiny baseline"),
+    ("qwen2.5:7b",                       4.7,  "Qwen 2.5 standard"),
+    ("qwen2.5-coder:7b",                 4.7,  "code-tuned"),
+    ("qwen2.5-coder:14b",                9.0,  "code-tuned, stronger"),
+    ("gemma3:4b",                        3.3,  "Google Gemma 3"),
+    ("gemma3:12b",                       8.1,  ""),
+    ("gemma3:27b",                      17.0,  ""),
+    ("llama3.1:8b",                      4.7,  "Meta Llama 3.1"),
+    ("llama3.1:70b",                    40.0,  "needs ≥ 64 GB free"),
+    ("llama3.2:3b",                      2.0,  "tiny Llama 3.2"),
+    ("mistral:7b",                       4.1,  "Mistral baseline"),
+    ("mistral-small:22b",               13.0,  "Mistral small instruct"),
+    ("deepseek-r1:7b",                   4.7,  "reasoning model"),
+    ("deepseek-r1:14b",                  9.0,  ""),
+    ("phi4:14b",                         9.1,  "Microsoft Phi 4"),
+    ("codellama:13b",                    7.4,  "code-tuned Llama"),
+]
+
+
+# Per-backend curated model lists used by the LM Studio-style sidebar
+# dropdowns. Real model availability is checked separately (e.g.
+# Anthropic API access requires the key + tier).
+ANTHROPIC_MODELS = [
+    "claude-opus-4-5",
+    "claude-sonnet-4-5",
+    "claude-sonnet-4",
+    "claude-haiku-4-5",
+    "claude-3-7-sonnet-latest",
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-haiku-latest",
+]
+
+OPENAI_MODELS = [
+    "gpt-5",
+    "gpt-5-codex",
+    "gpt-5-mini",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o3",
+    "o3-mini",
+    "o1-preview",
+    "o1-mini",
+]
+
+
+def pull_ollama_model(model_name: str,
+                        base_url: Optional[str] = None,
+                        timeout: float = 1800.0):
+    """Stream-pull an Ollama model. Yields ``(status, percent, total_bytes,
+    completed_bytes)`` tuples as progress arrives so the UI can render a
+    progress bar without blocking.
+
+    Returns the final status (``success`` or ``error``) at the end.
+    """
+    import json as _json
+    import urllib.request as _urlreq
+
+    base = (base_url
+            or os.environ.get("OLLAMA_HOST_BASE")
+            or _BACKENDS["ollama"]["base_url"])
+    pull_url = base.rstrip("/").replace("/v1", "") + "/api/pull"
+    payload = _json.dumps({"name": model_name, "stream": True}).encode("utf-8")
+    req = _urlreq.Request(
+        pull_url, data=payload,
+        headers={"Content-Type": "application/json",
+                 "Accept": "application/x-ndjson"},
+        method="POST",
+    )
+    with _urlreq.urlopen(req, timeout=timeout) as resp:
+        for line in resp:
+            if not line.strip():
+                continue
+            try:
+                evt = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+            yield (
+                evt.get("status", ""),
+                (float(evt.get("completed", 0)) /
+                 float(evt.get("total", 1)) * 100.0
+                 if evt.get("total") else 0.0),
+                int(evt.get("total") or 0),
+                int(evt.get("completed") or 0),
+                bool(evt.get("error")),
+            )
+
+
 __all__ = [
     "chat", "Message", "ToolCall",
     "list_backends", "describe_backend", "list_ollama_models",
