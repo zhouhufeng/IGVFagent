@@ -75,15 +75,18 @@ class Message:
 
 
 _DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-5",
-    "openai":    "gpt-4o-mini",
-    "codex":     "gpt-5-codex",
-    "ollama":    "qwen3:8b",
-    "vllm":      "qwen3:8b",
-    "tgi":       "qwen3:8b",
-    "groq":      "llama-3.1-70b-versatile",
-    "together":  "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-    "deepinfra": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+    "anthropic":  "claude-sonnet-4-5",
+    "openai":     "gpt-4o-mini",
+    "codex":      "gpt-5-codex",
+    "ollama":     "qwen3:8b",
+    "vllm":       "qwen3:8b",
+    "tgi":        "qwen3:8b",
+    "groq":       "llama-3.1-70b-versatile",
+    "together":   "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    "deepinfra":  "meta-llama/Meta-Llama-3.1-70B-Instruct",
+    # claude_cli: empty default lets Claude Code use whatever it's
+    # configured for in `claude config` (no --model override).
+    "claude_cli": "",
 }
 
 
@@ -91,6 +94,8 @@ def _infer_backend(model: Optional[str]) -> str:
     if not model:
         return os.environ.get("IGVF_LLM_BACKEND", "ollama")
     m = model.lower()
+    if "claude_cli" in m or "claude-cli" in m or m == "cc":
+        return "claude_cli"
     if "claude" in m:
         return "anthropic"
     if any(p in m for p in ("gpt-", "o1-", "o3-", "o4-")):
@@ -437,6 +442,11 @@ def chat(
         return _chat_anthropic(messages, model=chosen_model, tools=tools,
                                 max_tokens=max_tokens,
                                 temperature=temperature, stop=stop, **kwargs)
+    if bk == "claude_cli":
+        return _chat_claude_cli(messages, model=chosen_model, tools=tools,
+                                  max_tokens=max_tokens,
+                                  temperature=temperature, stop=stop,
+                                  **kwargs)
     cfg = _BACKENDS.get(bk)
     if not cfg or not cfg.get("base_url"):
         raise RuntimeError(
@@ -455,7 +465,25 @@ def chat(
 
 
 def list_backends() -> "list[str]":
-    return ["anthropic"] + sorted(set(_BACKENDS) - {"anthropic"})
+    extras = ["claude_cli"]
+    return ["anthropic"] + sorted(set(_BACKENDS) - {"anthropic"}) + extras
+
+
+def claude_cli_available() -> "tuple[bool, str]":
+    """Whether the `claude` (Claude Code) CLI is reachable on PATH.
+    Returns (ok, version_or_error_msg)."""
+    import shutil
+    import subprocess
+    if not shutil.which("claude"):
+        return False, "`claude` not found on PATH"
+    try:
+        out = subprocess.run(["claude", "--version"], capture_output=True,
+                                text=True, timeout=10, check=False)
+        if out.returncode == 0:
+            return True, (out.stdout or out.stderr).strip()
+        return False, (out.stderr or out.stdout).strip()
+    except Exception as e:
+        return False, str(e)
 
 
 def describe_backend(name: str) -> dict:
@@ -467,6 +495,205 @@ def describe_backend(name: str) -> dict:
     if not cfg:
         return {"name": name, "_unknown": True}
     return {"name": name, "sdk": "openai", **cfg}
+
+
+# --------------------------- Claude Code CLI backend ----------------------
+
+_CLAUDE_CLI_TOOL_PROMPT = """\
+You are IGVFagent, an autonomous research assistant. The user is running
+this conversation through the Claude Code CLI; we use the CLI as a
+backend, not as an interactive coding agent. Do NOT use Claude Code's
+own file/edit/bash tools — they will not be executed in this context.
+
+You have access ONLY to the tools listed below. To call one, respond
+with EXACTLY this XML block (you may emit multiple in one turn):
+
+<tool_call>
+  <name>tool_name_here</name>
+  <arguments>{"argname": "value", "another": 42}</arguments>
+</tool_call>
+
+When you have enough information to answer the user, respond with:
+
+<final_answer>
+Your concise Markdown response. Cite report / manifest paths from the
+tool results, flag caveats, and suggest one concrete next CLI call.
+</final_answer>
+
+You may emit either tool_calls OR a final_answer per turn, not both.
+The system will execute the tool calls and re-prompt you with the
+results.
+
+# Tools available
+
+{tools_block}
+"""
+
+_CLAUDE_CLI_TOOL_CALL_RE = __import__("re").compile(
+    r"<tool_call>\s*"
+    r"<name>\s*(?P<name>[A-Za-z0-9_\-]+)\s*</name>\s*"
+    r"<arguments>\s*(?P<args>.*?)\s*</arguments>\s*"
+    r"</tool_call>",
+    __import__("re").DOTALL,
+)
+_CLAUDE_CLI_FINAL_RE = __import__("re").compile(
+    r"<final_answer>\s*(.*?)\s*</final_answer>",
+    __import__("re").DOTALL,
+)
+
+
+def _claude_cli_render_tools(tools) -> str:
+    out = []
+    for t in tools or []:
+        params = t.get("parameters") or {}
+        props = params.get("properties") or {}
+        required = set(params.get("required") or [])
+        param_lines = []
+        for k, v in props.items():
+            tag = "" if k in required else "  (optional)"
+            ty = v.get("type", "?") if isinstance(v, dict) else "?"
+            desc = v.get("description", "") if isinstance(v, dict) else ""
+            param_lines.append(f"    - {k}: {ty}{tag}  {desc[:80]}")
+        out.append(
+            f"## {t['name']}\n{t.get('description','').strip()}\n"
+            + ("\nParameters:\n" + "\n".join(param_lines) if param_lines
+                else "\n(no parameters)\n")
+        )
+    return "\n\n".join(out)
+
+
+def _claude_cli_serialize_messages(messages) -> str:
+    """Compact textual rendering of the conversation for the CLI prompt."""
+    parts = []
+    for m in messages:
+        role = m.get("role", "user")
+        if role == "system":
+            continue   # system goes into the prompt template separately
+        if role == "tool":
+            parts.append(
+                f"[Tool result for call {m.get('tool_call_id','?')}]\n"
+                f"{m.get('content','')}\n"
+            )
+            continue
+        if role == "assistant":
+            tcs = m.get("tool_calls") or []
+            if tcs:
+                for tc in tcs:
+                    name = tc["name"] if isinstance(tc, dict) else tc.name
+                    args = (tc["arguments"] if isinstance(tc, dict)
+                            else tc.arguments)
+                    parts.append(
+                        f"[Assistant called tool]\n<tool_call>\n"
+                        f"  <name>{name}</name>\n"
+                        f"  <arguments>{json.dumps(args, default=str)}"
+                        f"</arguments>\n</tool_call>\n"
+                    )
+            if m.get("content"):
+                parts.append(f"[Assistant said]\n{m['content']}\n")
+            continue
+        parts.append(f"[User]\n{m.get('content','')}\n")
+    return "\n".join(parts)
+
+
+def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
+                      stop, **kwargs) -> Message:
+    """Subprocess-out to `claude --print` and parse a ReAct-style
+    response. Trade-offs vs the native Anthropic API:
+
+      + Re-uses the user's existing Claude Code login (no separate
+        ANTHROPIC_API_KEY required).
+      + Whatever model Claude Code is configured for is what's used.
+      - 5–15s per turn of CLI subprocess + auth overhead.
+      - Each call ships the full conversation history (no session
+        reuse on the CLI side).
+      - Tool calls are text-parsed (XML), not native function calling;
+        a malformed model response can drop a turn.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("claude"):
+        raise RuntimeError(
+            "Claude Code CLI (`claude`) is not on PATH. Install from "
+            "https://docs.claude.com/en/docs/claude-code or via "
+            "`npm i -g @anthropic-ai/claude-code`."
+        )
+
+    system_chunks = [m.get("content", "") for m in messages
+                     if m.get("role") == "system"]
+    user_system = "\n\n".join(c for c in system_chunks if c).strip()
+
+    tools_block = _claude_cli_render_tools(tools) if tools else \
+                  "_(no tools — produce <final_answer> directly)_"
+    framework = _CLAUDE_CLI_TOOL_PROMPT.format(tools_block=tools_block)
+    convo = _claude_cli_serialize_messages(messages).strip()
+    prompt = (
+        framework
+        + ("\n\n# Project-specific guidance\n\n" + user_system
+            if user_system else "")
+        + "\n\n# Conversation so far\n\n"
+        + (convo or "_(no prior turns)_")
+        + "\n\nRespond now."
+    )
+
+    cmd = ["claude", "--print", "--output-format", "text"]
+    if model and model.strip():
+        cmd.extend(["--model", model.strip()])
+    cmd.append(prompt)
+
+    timeout = float(os.environ.get("IGVF_LLM_TIMEOUT", "600"))
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"Claude Code CLI timed out after {timeout:.0f}s "
+            f"(set IGVF_LLM_TIMEOUT to override)."
+        ) from e
+
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()[:600]
+        raise RuntimeError(f"`claude` exited with status "
+                            f"{result.returncode}: {err}")
+
+    text = result.stdout or ""
+
+    # Parse <tool_call> blocks
+    tool_calls: "list[ToolCall]" = []
+    for i, m in enumerate(_CLAUDE_CLI_TOOL_CALL_RE.finditer(text)):
+        name = m.group("name").strip()
+        raw_args = m.group("args").strip()
+        try:
+            args = json.loads(raw_args) if raw_args else {}
+        except json.JSONDecodeError:
+            # Best-effort: try wrapping in {} or leave raw
+            args = {"_raw_arguments": raw_args}
+        tool_calls.append(ToolCall(id=f"cc_{i+1}", name=name,
+                                       arguments=args if isinstance(args, dict)
+                                                 else {"_raw": str(args)}))
+
+    # Final answer block, if present
+    final_match = _CLAUDE_CLI_FINAL_RE.search(text)
+    if final_match:
+        content = final_match.group(1).strip()
+    elif tool_calls:
+        content = ""   # tool-call-only turn
+    else:
+        # Model didn't follow the framework; treat the whole output as
+        # the final answer rather than dropping the turn.
+        content = text.strip()
+
+    stop_reason = "tool_use" if tool_calls else "end_turn"
+    return Message(
+        content=content,
+        tool_calls=tool_calls,
+        stop_reason=stop_reason,
+        backend="claude_cli",
+        model=model or "(claude-code default)",
+        raw={"stdout_len": len(text)},
+    )
 
 
 def list_ollama_models(base_url: Optional[str] = None,
