@@ -588,12 +588,14 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
     k = event.kind
     p = event.payload
     if k == "run_start":
-        return (f"▶ **run_start** — backend `{p.get('backend')}`, "
+        return (f"▶ **Internal orchestrator engaged** — Plan → Action → "
+                f"Results → Evaluation loop · backend `{p.get('backend')}`, "
                 f"model `{p.get('model')}`, {p.get('n_tools')} tools, "
                 f"max {p.get('max_iterations')} iters")
     if k == "llm_call_start":
-        return (f"🧠 **plan** — iter {p['iteration']}/"
-                f"{p['max_iterations']}, {p['n_messages']} messages")
+        return (f"🧠 **Plan step** (orchestrator) — iter {p['iteration']}/"
+                f"{p['max_iterations']}, {p['n_messages']} messages sent "
+                f"to LLM brain")
     if k == "llm_call_end":
         bits: "list[str]" = []
         if p.get("content"):
@@ -626,7 +628,7 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
     if k == "final_answer":
         return ""        # rendered separately, full markdown
     if k == "run_end":
-        return (f"✓ **run_end** — {p['iterations']} iters, "
+        return (f"✓ **Orchestrator finished** — {p['iterations']} iters, "
                 f"{p['tool_calls_made']} tool calls, stop "
                 f"`{p['stop_reason']}`")
     return f"_{k}_  `{p}`"
@@ -655,7 +657,10 @@ def main() -> None:
             f"### {kind_label}  ·  `{status['model']}`  "
             f"·  ✅ Loaded  "
             f"_(in {status['secs']:.1f}s)_\n\n"
-            f"All chat queries below will use this model."
+            f"Every chat query runs through IGVFagent's **internal "
+            f"orchestrator** (Plan → Action → Results → Evaluation). "
+            f"This LLM is the brain at the planning step; your 34 "
+            f"IGVFagent skills are the tools the orchestrator calls."
         )
     elif status and not status.get("ok"):
         st.error(
