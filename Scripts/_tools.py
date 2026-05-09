@@ -921,6 +921,147 @@ _TOOLS: "list[Tool]" = [
                    "max_genes": "--max-genes", "label": "--label"},
     ),
 
+    _T(
+        "proteomics_download",
+        "Download latest PPI/pathway sources (BioGRID, IntAct, HuRI, "
+        "Reactome, KEGG, UniProt idmap) and IGVF Portal protein assays. "
+        "Maintains _versions.json and only re-fetches changed releases.",
+        {
+            "type": "object",
+            "properties": {
+                "source": {**_S_STRING,
+                            "description": "biogrid|intact|huri|reactome|kegg|"
+                                           "igvf|uniprot|all (comma-separated)"},
+                "biogrid_version": {**_S_STRING,
+                            "description": "Pin a BioGRID release (e.g. 4.4.244)."},
+                "kegg_max_pathways": {**_S_INTEGER, "default": 400},
+            },
+            "required": ["source"],
+        },
+        cli=["proteomics", "download"],
+        flag_map={"source": "--source",
+                   "biogrid_version": "--biogrid-version",
+                   "kegg_max_pathways": "--kegg-max-pathways"},
+    ),
+
+    _T(
+        "proteomics_versions",
+        "Show locally-installed PPI/pathway source versions and probe "
+        "upstream-latest. Use before deciding to update.",
+        {"type": "object", "properties": {}},
+        cli=["proteomics", "versions"],
+    ),
+
+    _T(
+        "proteomics_igvf_protein",
+        "Pull all IGVF Portal protein-assay metadata + actual PPI / "
+        "stability files (semi-qY2H, DUAL-IPA, VAMP-seq) into "
+        "Data/Proteomics/Sources/IGVF/.",
+        {"type": "object", "properties": {}},
+        cli=["proteomics", "igvf-protein"],
+    ),
+
+    _T(
+        "proteomics_build_kg",
+        "Build the local SQLite proteomics knowledge graph from "
+        "previously-downloaded sources. Edges deduped on "
+        "(id_a, id_b, source, source_id).",
+        {
+            "type": "object",
+            "properties": {
+                "sources":  {**_S_STRING, "default": "all",
+                              "description": "biogrid,intact,huri,reactome,"
+                                             "kegg,igvf,uniprot or 'all'."},
+                "max_rows": {**_S_INTEGER, "default": 0,
+                              "description": "Cap rows per source (0 = no cap)."},
+            },
+        },
+        cli=["proteomics", "build-kg"],
+        flag_map={"sources": "--sources", "max_rows": "--max-rows"},
+    ),
+
+    _T(
+        "proteomics_kg_stats",
+        "Summary statistics on the integrated proteomics PPI-KG: total "
+        "interactions, distinct proteins, per-source / per-evidence-type / "
+        "per-detection-method breakdowns, top hubs.",
+        {"type": "object",
+         "properties": {"label": {**_S_STRING}}},
+        cli=["proteomics", "kg-stats"],
+        flag_map={"label": "--label"},
+    ),
+
+    _T(
+        "proteomics_kg_visualize",
+        "Generate degree distribution, top-hubs, per-source breakdown, "
+        "and (when --gene given) an ego graph PNG. Saves under "
+        "Docs/Proteomics/<ts>_<label>/Plots/.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":           {**_S_STRING,
+                                    "description": "Symbol/UniProt for ego graph."},
+                "max_neighbors":  {**_S_INTEGER, "default": 60},
+                "label":          {**_S_STRING},
+            },
+        },
+        cli=["proteomics", "kg-visualize"],
+        flag_map={"gene": "--gene",
+                   "max_neighbors": "--max-neighbors",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "proteomics_assay_survey",
+        "Use the Reference skill to retrieve recent Nature/Cell/Science "
+        "studies on VAMP-seq (MultiSTEP), VAMP-seq, MAVE, semi-qY2H, and "
+        "DUAL-IPA. Writes literature_survey.md/.json.",
+        {
+            "type": "object",
+            "properties": {
+                "label":          {**_S_STRING},
+                "max_per_assay":  {**_S_INTEGER, "default": 20},
+            },
+        },
+        cli=["proteomics", "assay-survey"],
+        flag_map={"label": "--label",
+                   "max_per_assay": "--max-per-assay"},
+    ),
+
+    _T(
+        "proteomics_assay_figures",
+        "Generate per-assay example histograms from the IGVF Portal "
+        "files for VAMP-seq family, MAVE, semi-qY2H v1/v2/v3, DUAL-IPA. "
+        "Requires `proteomics igvf-protein` first.",
+        {"type": "object",
+         "properties": {"label": {**_S_STRING}}},
+        cli=["proteomics", "assay-figures"],
+        flag_map={"label": "--label"},
+    ),
+
+    _T(
+        "proteomics_pipeline",
+        "End-to-end: download sources → build KG → stats → visualize → "
+        "per-assay figures → literature survey. Use --skip-download to "
+        "reuse cached files; --gene to add an ego graph.",
+        {
+            "type": "object",
+            "properties": {
+                "sources":  {**_S_STRING, "default": "all"},
+                "label":    {**_S_STRING, "default": "pipeline"},
+                "gene":     {**_S_STRING},
+                "max_rows": {**_S_INTEGER, "default": 0},
+                "skip_download":       {**_S_BOOLEAN, "default": False},
+                "skip_literature":     {**_S_BOOLEAN, "default": False},
+                "skip_assay_figures":  {**_S_BOOLEAN, "default": False},
+            },
+        },
+        cli=["proteomics", "pipeline"],
+        flag_map={"sources": "--sources", "label": "--label",
+                   "gene": "--gene", "max_rows": "--max-rows"},
+        bool_flags={"skip_download", "skip_literature", "skip_assay_figures"},
+    ),
+
 ]
 
 

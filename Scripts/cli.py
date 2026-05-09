@@ -65,6 +65,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "NCBI GEO retrieval (search / metadata / download)"),
     "rnaseq":           ("igvfagent.rnaseq_analysis_skill",
                           "Bulk RNA-seq QC / PCA / DEG / DEG→cCRE linkage"),
+    "proteomics":       ("igvfagent.proteomics_skill",
+                          "Proteomics & PPI: BioGRID/IntAct/HuRI/Reactome/KEGG/"
+                          "IGVF integration, KG, viz, literature survey"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
