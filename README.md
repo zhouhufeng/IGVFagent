@@ -73,6 +73,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Super-enhancer → target-gene pipeline](#super-enhancer--target-gene-pipeline)
   - [GEO retrieval](#geo-retrieval)
   - [Bulk RNA-seq analysis](#bulk-rna-seq-analysis)
+  - [Proteomics & PPI knowledge graph](#proteomics--ppi-knowledge-graph)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -877,6 +878,71 @@ volcano/MA/heatmap/PCA PNGs, and a markdown report under
 `Docs/RNAseq/<timestamp>_<label>/`. Chains naturally with `geo` (pull
 counts) and `se-targets` (cross-reference up-regulated genes against
 SE-driven targets).
+
+### Proteomics & PPI knowledge graph
+
+End-to-end protein/PPI skill: pulls and version-tracks
+**BioGRID**, **IntAct**, **HuRI**, **Reactome**, **KEGG**, **UniProt
+id-mapping**, and **all 214 IGVF Portal protein-slim MeasurementSets**
+(plus the 14 PPI-score files, the DUAL-IPA fluorescence file, and the
+UniProt / protein-language-model reference files). Integrates everything
+into a local SQLite knowledge graph (`Data/Proteomics/KG/proteomics.sqlite`)
+with deduplicated edges keyed on `(id_a, id_b, source, source_id)`.
+Provides summary stats, network visualizations, per-IGVF-assay example
+figures from real Portal files, and a literature survey for the IGVF
+protein assays via the Reference skill. Playbook:
+[`Docs/Skills/PROTEOMICS_SKILLS.md`](Docs/Skills/PROTEOMICS_SKILLS.md).
+
+```bash
+# 1) Download (only sources that changed upstream)
+igvfagent proteomics download --source all
+# Or one at a time:
+igvfagent proteomics download --source biogrid
+igvfagent proteomics download --source intact
+igvfagent proteomics download --source huri
+igvfagent proteomics download --source reactome
+igvfagent proteomics download --source kegg --kegg-max-pathways 400
+
+# 2) Version manifest (local + upstream probe)
+igvfagent proteomics versions
+
+# 3) Pull all IGVF Portal protein assays + actual files (semi-qY2H,
+#    DUAL-IPA, VAMP-seq, MAVE) from the public S3 bucket
+igvfagent proteomics igvf-protein
+
+# 4) Build the integrated PPI-KG (SQLite)
+igvfagent proteomics build-kg --sources all
+
+# 5) Summary statistics (per source / evidence type / detection method,
+#    top-30 hubs)
+igvfagent proteomics kg-stats --label initial
+
+# 6) Network visualizations (degree distribution, top-30 hubs,
+#    per-source breakdown, ego graph for a query gene)
+igvfagent proteomics kg-visualize --gene TP53 --label tp53
+
+# 7) Literature survey for IGVF protein assays — restricted to the
+#    Nature/Cell/Science journal family
+igvfagent proteomics assay-survey --label may2026
+
+# 8) Per-assay example histograms generated from real IGVF Portal files
+#    (semi-qY2H v1/v2/v3, DUAL-IPA, plus VAMP-seq family / MAVE if
+#    those Portal files are pulled)
+igvfagent proteomics assay-figures --label demos
+
+# 9) End-to-end orchestrator
+igvfagent proteomics pipeline --label may2026 --gene TP53 \
+  --sources biogrid,intact,huri,reactome,kegg,igvf
+```
+
+The skill maintains a `Data/Proteomics/_versions.json` manifest with
+URL, sha256, and record count per source. `update` only re-fetches
+sources where the upstream version differs from the local one. KEGG
+calls are throttled (default 0.4 s/req) to respect their TOS; IntAct
+defaults to the smaller `intact-micluster.txt` rather than the full
+~700 MB `intact.zip`. HuRI uses Ensembl gene IDs; run
+`proteomics download --source uniprot` to populate the `id_map` table
+for UniProt ↔ Ensembl ↔ Symbol harmonization.
 
 ## Deployment with LLM agents
 
