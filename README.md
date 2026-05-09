@@ -108,55 +108,95 @@ In short — **two ways to drive every skill, one shared contract**:
 
 ```
 IGVFagent/
-├── README.md                        ← you are here
-├── requirements.txt                 ← optional analysis extras
-├── .env.example                     ← copy to .env and edit locally
-├── .gitignore                       ← excludes Data/, Logs/, .env, caches
-├── Scripts/                         ← CLI skills + shared client code
-│   ├── README.md                    ← full skill catalog
-│   ├── igvf_client.py
-│   ├── igvf_data_skills.py
-│   ├── igvf_frontpage_summary.py
-│   ├── annotate_variant_list.py
-│   ├── advanced_variant_analysis.py ← integrated variant analysis pipeline
+├── README.md                            ← you are here
+├── LICENSE
+├── pyproject.toml                       ← installable package (`pip install -e .[all]`)
+├── requirements.txt                     ← minimal pip-only fallback
+├── Dockerfile  docker-compose.yml  .dockerignore
+├── .env.example                         ← copy to .env and edit locally
+├── .gitignore                           ← excludes Data/, Docs/<skill>/2*, .env, caches
+│
+├── Scripts/                             ← CLI skills + shared runtime
+│   ├── cli.py                           ← unified `igvfagent <skill> <subcommand>` dispatcher
+│   ├── _agent.py                        ← in-process Plan→Action→Results→Evaluation runtime
+│   ├── _llm.py                          ← multi-backend LLM router (Anthropic / OpenAI /
+│   │                                       Codex / Ollama / vLLM / TGI / Groq / Together /
+│   │                                       DeepInfra / HuggingFace / claude_cli / codex_cli)
+│   ├── _tools.py                        ← curated tool registry the runtime exposes
+│   ├── _endpoints.py                    ← endpoint resolver (env-overridable)
+│   ├── streamlit_app.py                 ← LM-Studio-style browser UI (`igvfagent ui`)
+│   │
+│   ├── igvf_client.py                   ← Portal / Catalog / KG / ENCODE HTTP client
+│   ├── igvf_data_skills.py              ← Catalog / Portal / ENCODE overview + smoke summaries
+│   ├── igvf_frontpage_summary.py        ← refresh front-page Portal + KG stats
+│   ├── igvf_specialized_data_skills.py  ← specialized assay catalog
+│   │
+│   ├── annotate_variant_list.py         ← variant-list annotation against Catalog evidence
+│   ├── advanced_variant_analysis.py     ← integrated variant scoring + logistic + report
+│   │
+│   ├── single_cell_data_skills.py       ← scRNA / scATAC discovery + example analysis
+│   ├── multiome_10x_pipeline.py         ← 10x Multiome retrieval pipeline
+│   ├── multiome_research_demo.py
+│   ├── portal_multiome.py  portal_scrna_10.py
+│   ├── putamen_multiome_demo_analysis.py
+│   ├── splitseq_pipeline.py             ← Parse SPLiT-seq end-to-end pipeline
+│   │
 │   ├── ccre_linkage_annotation_skills.py
 │   ├── enhancer_gene_linkage_skills.py
-│   ├── mpra_data_skills.py
-│   ├── crispri_data_skills.py
-│   ├── single_cell_data_skills.py
-│   ├── multiome_10x_pipeline.py
-│   ├── multiome_research_demo.py
-│   ├── igvf_specialized_data_skills.py
+│   ├── mpra_data_skills.py              ← MPRA / STARR / BlueSTARR
+│   ├── crispri_data_skills.py           ← CRISPRi / CRISPR-FACS / Perturb-seq
+│   ├── encode_pipeline.py               ← ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline
+│   ├── se_target_pipeline.py            ← super-enhancer → target-gene pipeline
+│   │
+│   ├── kg_traversal_skill.py            ← IGVF Knowledge Graph multi-hop traversal
+│   ├── portal_to_kg_skill.py            ← Portal → local KG ETL (SQLite mirror)
+│   │
+│   ├── geo_retrieval_skill.py           ← NCBI GEO retrieval (search / metadata / download)
+│   ├── rnaseq_analysis_skill.py         ← bulk RNA-seq QC / PCA / DEG / DEG→cCRE linkage
+│   ├── proteomics_skill.py              ← BioGRID/IntAct/HuRI/Reactome/KEGG + IGVF protein
+│   │                                       PPI knowledge graph + per-assay viz + lit survey
+│   │
+│   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
-├── Data/                            ← inputs + cached responses (gitignored)
-│   └── Input/VariantList/           ← user-supplied variant CSVs
-│       └── example_variants.csv     ← public smoke-test set
+│
+├── Data/                                ← inputs + cached responses (gitignored)
+│   ├── Input/VariantList/example_variants.csv
+│   ├── Manifests/   Cache/   KG/        ← ETL outputs (gitignored)
+│   └── Proteomics/  ← _versions.json + Sources/<src>/  + KG/proteomics.sqlite (gitignored)
+│
 └── Docs/
-    ├── PROJECT_SCOPE.md             ← what the agent is and isn't
-    ├── DEPLOYMENT.md                ← legacy deployment doc (this README supersedes it)
-    ├── IGVF_PORTAL_DATA_OVERVIEW.md
-    ├── IGVF_CATALOG_SMOKE_ANALYSIS.md
+    ├── PROJECT_SCOPE.md                 ← what the agent is and isn't
+    ├── DEPLOYMENT.md                    ← legacy deploy notes (this README supersedes)
+    ├── IGVF_PORTAL_DATA_OVERVIEW.md     IGVF_CATALOG_SMOKE_ANALYSIS.md
     ├── IGVF_FRONT_PAGE_DATA_SUMMARY.md
-    ├── ENCODE_DATA_OVERVIEW.md
-    ├── ENCODE_SMOKE_ANALYSIS.md
+    ├── ENCODE_DATA_OVERVIEW.md          ENCODE_SMOKE_ANALYSIS.md
+    ├── Figures/                         ← architecture diagram, etc.
     ├── CRISPRi/CRISPRI_BIOINFORMATICS_APPLICATIONS.md
-    ├── Skills/                      ← per-skill reference docs
+    ├── SingleCell/{Multiome10_survey.md, Portal10_survey.md}
+    ├── Skills/                          ← per-skill playbooks (one per CLI module)
     │   ├── ADVANCED_VARIANT_ANALYSIS_SKILLS.md
-    │   ├── IGVF_PORTAL_DATA_ANALYSIS.md
-    │   ├── IGVF_FRONT_PAGE_SUMMARY_SKILLS.md
-    │   ├── IGVF_SPECIALIZED_DATA_SKILLS.md
-    │   ├── 10X_MULTIOME_SKILLS.md
-    │   ├── SINGLE_CELL_ANALYSIS_SKILLS.md
-    │   ├── ENHANCER_GENE_LINKAGE_SKILLS.md
-    │   ├── MPRA_ANALYSIS_SKILLS.md
-    │   ├── CRISPRI_ANALYSIS_SKILLS.md
-    │   ├── CCRE_LINKAGE_FAVOR_SKILLS.md
+    │   ├── IGVF_PORTAL_DATA_ANALYSIS.md         IGVF_FRONT_PAGE_SUMMARY_SKILLS.md
+    │   ├── IGVF_SPECIALIZED_DATA_SKILLS.md      IGVF_KG_TRAVERSAL_SKILLS.md
+    │   ├── PORTAL_TO_KG_SKILLS.md
+    │   ├── 10X_MULTIOME_SKILLS.md               SINGLE_CELL_ANALYSIS_SKILLS.md
+    │   ├── SPLITSEQ_SKILLS.md
+    │   ├── ENHANCER_GENE_LINKAGE_SKILLS.md      CCRE_LINKAGE_FAVOR_SKILLS.md
+    │   ├── MPRA_ANALYSIS_SKILLS.md              CRISPRI_ANALYSIS_SKILLS.md
+    │   ├── ENCODE_PIPELINE_SKILLS.md            SE_TARGET_PIPELINE_SKILLS.md
+    │   ├── GEO_RETRIEVAL_SKILLS.md              RNASEQ_ANALYSIS_SKILLS.md
+    │   ├── PROTEOMICS_SKILLS.md
+    │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
-    └── Logs/                        ← runtime logs (gitignored)
+    ├── Logs/                            ← runtime logs (gitignored)
+    └── <skill>/<timestamp>_<label>/     ← per-run outputs from every skill (gitignored)
 ```
 
-Generated outputs (timestamped folders under `Docs/<skill>/`, manifests under
-`Data/Manifests/`, caches under `Data/Cache/`) are gitignored by default.
+Generated outputs (timestamped folders under `Docs/<Skill>/`, manifests under
+`Data/Manifests/`, source dumps under `Data/Proteomics/Sources/`, the local
+KG mirrors under `Data/KG/` and `Data/Proteomics/KG/`, and caches under
+`Data/Cache/`) are gitignored. When a new skill ships, three things must
+update together: the script in `Scripts/`, its playbook in `Docs/Skills/`,
+and this Repository layout block.
 
 ## Quick start
 
