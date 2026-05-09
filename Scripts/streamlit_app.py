@@ -83,6 +83,7 @@ _BACKEND_KIND_LABELS = {
     "anthropic":  "🤖  Anthropic Claude API",
     "openai":     "⚡  OpenAI / Codex API",
     "claude_cli": "🧠  Claude Code CLI (subprocess)",
+    "codex_cli":  "💻  Codex CLI (subprocess)",
     "advanced":   "🔧  Other (advanced)",
 }
 
@@ -91,6 +92,7 @@ _BACKEND_KIND_TO_NAME = {
     "anthropic":  "anthropic",
     "openai":     "openai",
     "claude_cli": "claude_cli",
+    "codex_cli":  "codex_cli",
     # advanced -> resolved from sub-selectbox below
 }
 
@@ -313,6 +315,46 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
     return "claude_cli", chosen or "(default)"
 
 
+def _sidebar_codex_cli_picker() -> "tuple[str, str]":
+    """Picker for the Codex CLI backend."""
+    ok, info = _llm.codex_cli_available()
+    if ok:
+        st.caption(f"✅ Codex CLI detected — {info}")
+    else:
+        st.error(
+            f"Codex CLI not available: {info}\n\n"
+            "Install with `npm i -g @openai/codex`, then sign in via "
+            "`codex login`. Restart this UI afterward."
+        )
+        return "codex_cli", ""
+
+    st.caption(
+        "Subprocess shell-out to `codex exec` for each LLM turn. "
+        "Reuses your Codex CLI login (no separate OPENAI_API_KEY "
+        "needed). Same trade-offs as the Claude Code CLI backend: "
+        "5–15s per turn of CLI overhead and tool-calls are XML-parsed "
+        "(less robust than native function calling). Prefer the "
+        "**OpenAI / Codex API** backend with a real key for best speed."
+    )
+
+    options = ["(use Codex CLI's configured default)"] + \
+              list(_llm.OPENAI_MODELS) + ["(custom...)"]
+    prev = st.session_state.get("_codex_cli_model_choice", options[0])
+    idx = options.index(prev) if prev in options else 0
+    chosen = st.selectbox("Model override", options, index=idx,
+                            key="_codex_cli_model_select",
+                            help="Leave on the default to use whatever "
+                                 "Codex CLI is configured for, or pick "
+                                 "an explicit model name.")
+    if chosen == "(use Codex CLI's configured default)":
+        chosen = ""
+    elif chosen == "(custom...)":
+        chosen = st.text_input("Custom model id",
+                                 value="", key="_codex_cli_model_custom")
+    st.session_state["_codex_cli_model_choice"] = chosen or options[0]
+    return "codex_cli", chosen or "(default)"
+
+
 def _sidebar_advanced_picker() -> "tuple[str, str]":
     """Free-form backend + model picker for vLLM / TGI / Groq / etc."""
     backends = [b for b in _llm.list_backends()
@@ -406,6 +448,8 @@ def _sidebar() -> dict:
             backend, model = _sidebar_openai_model_picker()
         elif kind == "claude_cli":
             backend, model = _sidebar_claude_cli_picker()
+        elif kind == "codex_cli":
+            backend, model = _sidebar_codex_cli_picker()
         else:
             backend, model = _sidebar_advanced_picker()
 
