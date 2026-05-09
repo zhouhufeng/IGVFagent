@@ -61,6 +61,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline"),
     "se-targets":       ("igvfagent.se_target_pipeline",
                           "Super-enhancer → target-gene pipeline (ENCODE)"),
+    "geo":              ("igvfagent.geo_retrieval_skill",
+                          "NCBI GEO retrieval (search / metadata / download)"),
+    "rnaseq":           ("igvfagent.rnaseq_analysis_skill",
+                          "Bulk RNA-seq QC / PCA / DEG / DEG→cCRE linkage"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
