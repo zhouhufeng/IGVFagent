@@ -59,6 +59,8 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Literature retrieval / validation / study design"),
     "encode":           ("igvfagent.encode_pipeline",
                           "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline"),
+    "se-targets":       ("igvfagent.se_target_pipeline",
+                          "Super-enhancer → target-gene pipeline (ENCODE)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)

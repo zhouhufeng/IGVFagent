@@ -741,6 +741,62 @@ _TOOLS: "list[Tool]" = [
                    "score_cutoff": "--score-cutoff", "label": "--label"},
     ),
 
+    _T(
+        "se_targets_pipeline",
+        "End-to-end super-enhancer → target-gene pipeline. For a chosen "
+        "biosample (GM12878 / K562 / HepG2 / liver / brain / ...): "
+        "discovers H3K27ac (or BRD4/MED1/P300) ChIP-seq + optional "
+        "Hi-C/ChIA-PET 3D experiments, downloads peak BED, calls "
+        "super-enhancers ROSE-style, and links each SE to candidate "
+        "target genes via four streams (3D loops, IGVF Catalog rE2G/ABC "
+        "predictions, proximity, SCREEN cCRE composition). Outputs a "
+        "ranked SE↔gene table, network plot, and report.",
+        {
+            "type": "object",
+            "properties": {
+                "biosample":  {**_S_STRING,
+                    "description": "ENCODE biosample term (GM12878, K562, "
+                                    "liver, hippocampus, ...)."},
+                "target":     {**_S_STRING, "default": "H3K27ac"},
+                "assembly":   {**_S_STRING, "default": "GRCh38"},
+                "include_3d": {**_S_BOOLEAN, "default": False},
+                "gene":       {**_S_STRING,
+                    "description": "Optional gene to focus a per-locus "
+                                    "browser view on."},
+                "label":      {**_S_STRING},
+            },
+            "required": ["biosample"],
+        },
+        cli=["se-targets", "pipeline"],
+        flag_map={"biosample": "--biosample", "target": "--target",
+                   "assembly": "--assembly", "gene": "--gene",
+                   "label": "--label"},
+        bool_flags={"include_3d"},
+    ),
+
+    _T(
+        "se_targets_discover",
+        "List candidate ChIP-seq + DNase/ATAC + Hi-C/ChIA-PET "
+        "experiments for a biosample without downloading or analyzing "
+        "anything. Use this to scope what's available before running "
+        "the full pipeline.",
+        {
+            "type": "object",
+            "properties": {
+                "biosample": {**_S_STRING},
+                "target":    {**_S_STRING, "default": "H3K27ac"},
+                "assembly":  {**_S_STRING, "default": "GRCh38"},
+                "limit":     {**_S_INTEGER, "default": 25},
+                "label":     {**_S_STRING},
+            },
+            "required": ["biosample"],
+        },
+        cli=["se-targets", "discover"],
+        flag_map={"biosample": "--biosample", "target": "--target",
+                   "assembly": "--assembly", "limit": "--limit",
+                   "label": "--label"},
+    ),
+
 ]
 
 
