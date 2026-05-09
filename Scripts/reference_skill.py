@@ -184,6 +184,7 @@ def cached_get(source: str, url: str, params: dict | None = None,
                             accept_json=accept_json,
                             source_delay_key=source)
     if status == 200 and body:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(body)
     return status, body
 
