@@ -79,16 +79,18 @@ def _resolve_effective_config(backend_choice: str, model_input: str
 
 
 _BACKEND_KIND_LABELS = {
-    "local":     "🖥  Local LLM (Ollama)",
-    "anthropic": "🤖  Anthropic Claude API",
-    "openai":    "⚡  OpenAI / Codex API",
-    "advanced":  "🔧  Other (advanced)",
+    "local":      "🖥  Local LLM (Ollama)",
+    "anthropic":  "🤖  Anthropic Claude API",
+    "openai":     "⚡  OpenAI / Codex API",
+    "claude_cli": "🧠  Claude Code CLI (subprocess)",
+    "advanced":   "🔧  Other (advanced)",
 }
 
 _BACKEND_KIND_TO_NAME = {
-    "local":     "ollama",
-    "anthropic": "anthropic",
-    "openai":    "openai",
+    "local":      "ollama",
+    "anthropic":  "anthropic",
+    "openai":     "openai",
+    "claude_cli": "claude_cli",
     # advanced -> resolved from sub-selectbox below
 }
 
@@ -271,6 +273,46 @@ def _sidebar_openai_model_picker() -> "tuple[str, str]":
     return "openai", chosen
 
 
+def _sidebar_claude_cli_picker() -> "tuple[str, str]":
+    """Picker for the Claude Code CLI backend."""
+    ok, info = _llm.claude_cli_available()
+    if ok:
+        st.caption(f"✅ Claude Code CLI detected — {info}")
+    else:
+        st.error(
+            f"Claude Code CLI not available: {info}\n\n"
+            "Install with `npm i -g @anthropic-ai/claude-code`, then "
+            "log in via `claude login`. Restart this UI afterward."
+        )
+        return "claude_cli", ""
+
+    st.caption(
+        "Subprocess shell-out to `claude --print` for each LLM turn. "
+        "Reuses your Claude Code login (no separate ANTHROPIC_API_KEY "
+        "needed). Trade-offs: 5–15s per turn of CLI overhead and "
+        "tool-calls are XML-parsed (less robust than native function "
+        "calling). For best speed, prefer the **Anthropic Claude API** "
+        "backend instead with a real API key."
+    )
+
+    options = ["(use Claude Code's configured default)"] + \
+              list(_llm.ANTHROPIC_MODELS) + ["(custom...)"]
+    prev = st.session_state.get("_claude_cli_model_choice", options[0])
+    idx = options.index(prev) if prev in options else 0
+    chosen = st.selectbox("Claude model override", options, index=idx,
+                            key="_claude_cli_model_select",
+                            help="Leave on the default to use whatever "
+                                 "Claude Code is configured for, or pick "
+                                 "an explicit Claude model name.")
+    if chosen == "(use Claude Code's configured default)":
+        chosen = ""
+    elif chosen == "(custom...)":
+        chosen = st.text_input("Custom Claude model id",
+                                 value="", key="_claude_cli_model_custom")
+    st.session_state["_claude_cli_model_choice"] = chosen or options[0]
+    return "claude_cli", chosen or "(default)"
+
+
 def _sidebar_advanced_picker() -> "tuple[str, str]":
     """Free-form backend + model picker for vLLM / TGI / Groq / etc."""
     backends = [b for b in _llm.list_backends()
@@ -362,6 +404,8 @@ def _sidebar() -> dict:
             backend, model = _sidebar_anthropic_model_picker()
         elif kind == "openai":
             backend, model = _sidebar_openai_model_picker()
+        elif kind == "claude_cli":
+            backend, model = _sidebar_claude_cli_picker()
         else:
             backend, model = _sidebar_advanced_picker()
 
