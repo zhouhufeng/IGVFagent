@@ -973,6 +973,15 @@ igvfagent proteomics assay-figures --label demos
 # 9) End-to-end orchestrator
 igvfagent proteomics pipeline --label may2026 --gene TP53 \
   --sources biogrid,intact,huri,reactome,kegg,igvf
+
+# 10) VAMP-seq deep analysis — pull canonical MaveDB scoresets, run the
+#     full Matreyek/Suiter/Clausen/Coyote-Maestas analysis pipeline,
+#     and inventory the IGVF Portal raw VAMP-seq experiments
+igvfagent proteomics vampseq-pull              # PTEN, TPMT, VKOR, PRKN,
+                                               # CYP2C9, NUDT15 from MaveDB
+igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep
+igvfagent proteomics vampseq-analyze           # all 6 catalogued targets
+igvfagent proteomics vampseq-inventory --label igvf_f9
 ```
 
 The skill maintains a `Data/Proteomics/_versions.json` manifest with
@@ -983,6 +992,25 @@ defaults to the smaller `intact-micluster.txt` rather than the full
 ~700 MB `intact.zip`. HuRI uses Ensembl gene IDs; run
 `proteomics download --source uniprot` to populate the `id_map` table
 for UniProt ↔ Ensembl ↔ Symbol harmonization.
+
+The `vampseq-analyze` subcommand follows the canonical pipeline
+distilled from Matreyek *Nat Genet* 2018, Suiter *eLife* 2020, Clausen
+*Nat Commun* 2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP) —
+producing six publication-grade plots per gene: score distribution,
+residue × AA heatmap (the iconic VAMP-seq view), per-residue mean ±
+IQR with a domain track, replicate concordance scatter with Pearson
+*r*, abundance-class breakdown, and a cumulative ranked-variant curve.
+Domain tracks are pre-curated for PTEN (PIP4-bind / Phosphatase / C2 /
+C-tail), TPMT, VKOR, PRKN (Ubl / Linker / RING0 / RING1 / IBR / RING2),
+CYP2C9, and NUDT15.
+
+The `vampseq-inventory` subcommand decodes the alias scheme on the
+IGVF Portal MeasurementSets (`<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>`)
+into per-gene coverage matrices: the 144 MultiSTEP sets resolve to
+**F9 (Coagulation Factor IX)** across 3 tiles × 4 bins × 4 replicates ×
+5 antibody readouts (Light-chain, Heavy-chain, Strep-II-tag, and two
+carboxylation-sensitive Gla-domain antibodies); the 36 plain VAMP-seq
+sets cover **CYP2C19** and **G6PD**.
 
 ## Deployment with LLM agents
 
