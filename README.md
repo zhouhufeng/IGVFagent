@@ -7,6 +7,12 @@ Graph) and related public resources (ENCODE, FAVOR), with a built-in
 
 ![IGVF Agent architecture](Docs/Figures/IGVF_agent_archetcture.png)
 
+### 🎬 Video demo
+
+[![IGVFagent demo](https://img.youtube.com/vi/iGMLSC-riFM/maxresdefault.jpg)](https://www.youtube.com/watch?v=iGMLSC-riFM)
+
+▶ **Watch on YouTube:** <https://www.youtube.com/watch?v=iGMLSC-riFM>
+
 ## Architecture at a glance
 
 IGVFagent ships **its own internal orchestrator** — a Plan → Action → Results
