@@ -1548,6 +1548,581 @@ def assay_survey(label: str, *, max_per_assay: int = 20) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# VAMP-seq deep analysis (MaveDB scoresets + IGVF Portal raw inventory)
+# ---------------------------------------------------------------------------
+
+# Curated catalog of canonical published VAMP-seq scoresets on MaveDB.
+# Each entry: target gene → MaveDB URN of the scoreset, PubMed ID, and
+# domain track (start, end, label) for residue-level annotation in the
+# per-position plots.
+MAVEDB_VAMPSEQ_CATALOG = {
+    "PTEN": {
+        "urn":    "urn:mavedb:00000013-a-1",
+        "paper":  "Matreyek et al. Nat Genet 2018  PMID 29785012",
+        "uniprot": "P60484",
+        "length": 403,
+        "domains": [(1, 13, "PIP4-bind"),
+                     (14, 185, "Phosphatase"),
+                     (186, 353, "C2"),
+                     (354, 403, "C-tail")],
+    },
+    "TPMT": {
+        "urn":    "urn:mavedb:00000013-b-1",
+        "paper":  "Matreyek et al. Nat Genet 2018  PMID 29785012",
+        "uniprot": "P51580",
+        "length": 245,
+        "domains": [(1, 245, "Methyltransferase")],
+    },
+    "VKOR": {
+        "urn":    "urn:mavedb:00000078-a-1",   # VKOR abundance, Suiter eLife 2020
+        "paper":  "Suiter et al. eLife 2020  PMID 33198913",
+        "uniprot": "Q9BQB6",
+        "length": 163,
+        "domains": [(1, 163, "VKOR fold")],
+    },
+    "PRKN": {
+        "urn":    "urn:mavedb:00001173-a-1",   # Parkin VAMP-seq, Clausen Nat Commun 2024
+        "paper":  "Clausen et al. Nat Commun 2024  PMID 38378758",
+        "uniprot": "O60260",
+        "length": 465,
+        "domains": [(1, 76, "Ubl"),
+                     (77, 144, "Linker"),
+                     (145, 215, "RING0"),
+                     (216, 327, "RING1"),
+                     (328, 377, "IBR"),
+                     (378, 465, "RING2")],
+    },
+    "CYP2C9": {
+        "urn":    "urn:mavedb:00000095-a-1",
+        "paper":  "Amorosi et al. Genome Med 2021  PMID 33648532",
+        "uniprot": "P11712",
+        "length": 490,
+        "domains": [(1, 490, "P450")],
+    },
+    "NUDT15": {
+        "urn":    "urn:mavedb:00000054-a-1",
+        "paper":  "Suiter et al. PNAS 2020  PMID 32094184",
+        "uniprot": "Q9NV35",
+        "length": 164,
+        "domains": [(1, 164, "Nudix")],
+    },
+}
+
+# Categorical bin -> human label and color, matching the Matreyek 2018
+# `abundance_class` column convention (0=lowest .. 4=hyperabundant).
+ABUNDANCE_CLASS_LABELS = {
+    0: ("low", "#762A83"),
+    1: ("low-int", "#9970AB"),
+    2: ("intermediate", "#C2A5CF"),
+    3: ("WT-like", "#5AAE61"),
+    4: ("hyper-abund", "#1B7837"),
+}
+
+AA_ORDER = list("ACDEFGHIKLMNPQRSTVWY*")    # 20 AAs + stop
+
+
+def download_mavedb_scoreset(urn: str, dest_dir: Optional[Path] = None) -> Path:
+    """Pull the score CSV for a MaveDB scoreset URN from the public REST API."""
+    dest_dir = dest_dir or (SOURCES_DIR / "MaveDB")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    safe = urn.replace(":", "-").replace("/", "_")
+    dest = dest_dir / f"{safe}.csv"
+    url = f"https://api.mavedb.org/api/v1/score-sets/{urn}/scores"
+    if not dest.exists() or dest.stat().st_size < 100:
+        logger.info("MaveDB: downloading %s -> %s", urn, dest.name)
+        try:
+            http_download(url, dest, timeout=180)
+        except Exception as e:
+            logger.error("MaveDB %s download failed: %s", urn, e)
+            return dest
+    return dest
+
+
+_HGVS_PRO_RE = re.compile(
+    r"^p\.\(?(?P<wt>[A-Z][a-z]{2}|=|Ter)(?P<pos>\d+)"
+    r"(?P<alt>[A-Z][a-z]{2}|=|Ter|del|fs|\*)?\)?$"
+)
+_AA_3TO1 = {
+    "Ala":"A","Arg":"R","Asn":"N","Asp":"D","Cys":"C","Gln":"Q","Glu":"E",
+    "Gly":"G","His":"H","Ile":"I","Leu":"L","Lys":"K","Met":"M","Phe":"F",
+    "Pro":"P","Ser":"S","Thr":"T","Trp":"W","Tyr":"Y","Val":"V","Ter":"*",
+}
+
+
+def _parse_hgvs_pro(s: str) -> Optional[dict]:
+    """Parse e.g. `p.Met1Val` -> {pos:1, wt:'M', alt:'V', kind:'missense'}."""
+    if not s or s == "NA":
+        return None
+    m = _HGVS_PRO_RE.match(s.strip())
+    if not m:
+        return None
+    wt3 = m.group("wt")
+    alt3 = m.group("alt")
+    pos = int(m.group("pos"))
+    wt = _AA_3TO1.get(wt3, "?")
+    if alt3 in (None, "=", ""):
+        return {"pos": pos, "wt": wt, "alt": wt, "kind": "synonymous"}
+    if alt3 == "Ter" or alt3 == "*":
+        return {"pos": pos, "wt": wt, "alt": "*", "kind": "nonsense"}
+    if alt3 in ("del", "fs"):
+        return {"pos": pos, "wt": wt, "alt": "-", "kind": "indel"}
+    alt = _AA_3TO1.get(alt3, "?")
+    if alt == "?":
+        return None
+    if alt == wt:
+        kind = "synonymous"
+    else:
+        kind = "missense"
+    return {"pos": pos, "wt": wt, "alt": alt, "kind": kind}
+
+
+def _read_mavedb_csv(path: Path) -> "list[dict]":
+    """Stream MaveDB scoreset CSV, parse hgvs_pro, attach numeric columns."""
+    rows = []
+    with path.open("r", encoding="utf-8", errors="replace") as fp:
+        reader = csv.DictReader(fp)
+        for r in reader:
+            parsed = _parse_hgvs_pro(r.get("hgvs_pro", ""))
+            if not parsed:
+                continue
+            score = r.get("score", "NA")
+            try:
+                score_f = float(score) if score not in ("", "NA") else None
+            except Exception:
+                score_f = None
+            if score_f is None:
+                continue
+            sd = r.get("sd", "NA")
+            se = r.get("se", "NA")
+            try: sd_f = float(sd)
+            except Exception: sd_f = None
+            try: se_f = float(se)
+            except Exception: se_f = None
+            try: cls = int(float(r.get("abundance_class", "0") or 0))
+            except Exception: cls = -1
+            reps = []
+            for k in ("score1","score2","score3","score4",
+                      "score5","score6","score7","score8"):
+                v = r.get(k, "NA")
+                try:
+                    if v not in ("", "NA"):
+                        reps.append(float(v))
+                except Exception:
+                    pass
+            rows.append({**parsed, "score": score_f, "sd": sd_f, "se": se_f,
+                          "abundance_class": cls, "replicates": reps,
+                          "expts": r.get("expts","")})
+    return rows
+
+
+def _matplotlib():
+    import matplotlib  # type: ignore
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # type: ignore
+    from matplotlib.colors import LinearSegmentedColormap  # type: ignore
+    return matplotlib, plt, LinearSegmentedColormap
+
+
+def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
+                               domains: "list[tuple]" = (),
+                               length: Optional[int] = None,
+                               label: Optional[str] = None) -> Path:
+    """Deep VAMP-seq analysis on a MaveDB-format scoreset.
+
+    Generates:
+      1. distribution.png      — overlaid score densities (missense / syn / nonsense)
+      2. heatmap.png           — residue × AA matrix (the iconic VAMP-seq plot)
+      3. per_position.png      — per-residue mean ± IQR with domain track
+      4. replicate_corr.png    — pairwise replicate scatter + Pearson r
+      5. abundance_class.png   — categorical breakdown bar
+      6. cumulative.png        — sorted-rank cumulative variant plot
+      7. summary.json + report.md
+    """
+    _, plt, LSC = _matplotlib()
+    out = DOCS_DIR / f"{timestamp()}_{safe_label(label or gene)}_vampseq"
+    plots = out / "Plots"
+    plots.mkdir(parents=True, exist_ok=True)
+
+    rows = _read_mavedb_csv(csv_path)
+    if not rows:
+        raise RuntimeError(f"No usable rows parsed from {csv_path}")
+    miss = [r["score"] for r in rows if r["kind"] == "missense"]
+    syn  = [r["score"] for r in rows if r["kind"] == "synonymous"]
+    non  = [r["score"] for r in rows if r["kind"] == "nonsense"]
+
+    L = length or max(r["pos"] for r in rows)
+
+    summary = {
+        "gene": gene,
+        "csv": str(csv_path),
+        "n_rows": len(rows),
+        "n_missense": len(miss),
+        "n_synonymous": len(syn),
+        "n_nonsense": len(non),
+        "score_min": min(r["score"] for r in rows),
+        "score_max": max(r["score"] for r in rows),
+        "score_median": sorted(miss)[len(miss)//2] if miss else None,
+        "length": L,
+    }
+
+    # --- 1. Distribution ----------------------------------------------------
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    bins = 50
+    if miss:
+        ax.hist(miss, bins=bins, color="#1F77B4", alpha=0.65,
+                  label=f"missense (n={len(miss)})", density=True)
+    if syn:
+        ax.hist(syn, bins=bins, color="#2CA02C", alpha=0.65,
+                  label=f"synonymous (n={len(syn)})", density=True)
+    if non:
+        ax.hist(non, bins=bins, color="#D62728", alpha=0.65,
+                  label=f"nonsense (n={len(non)})", density=True)
+    ax.axvline(0.0, color="black", linestyle=":", lw=1, alpha=0.7)
+    ax.axvline(1.0, color="black", linestyle=":", lw=1, alpha=0.7)
+    ax.text(0.02, ax.get_ylim()[1]*0.92, "nonsense=0", fontsize=8)
+    ax.text(1.02, ax.get_ylim()[1]*0.92, "WT=1", fontsize=8)
+    ax.set_xlabel("Abundance score"); ax.set_ylabel("Density")
+    ax.set_title(f"{gene} VAMP-seq score distribution")
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(alpha=0.25, linestyle=":")
+    fig.tight_layout()
+    fig.savefig(plots / "distribution.png", dpi=150)
+    plt.close(fig)
+
+    # --- 2. Heatmap (residue × AA) ------------------------------------------
+    import math
+    grid = [[float("nan")] * 21 for _ in range(L)]
+    for r in rows:
+        if r["kind"] not in ("missense", "synonymous", "nonsense"):
+            continue
+        if r["pos"] < 1 or r["pos"] > L:
+            continue
+        try:
+            j = AA_ORDER.index(r["alt"])
+        except ValueError:
+            continue
+        v = r["score"]
+        if grid[r["pos"]-1][j] != grid[r["pos"]-1][j]:
+            grid[r["pos"]-1][j] = v
+        else:
+            grid[r["pos"]-1][j] = (grid[r["pos"]-1][j] + v) / 2
+    cmap = LSC.from_list("vamp", ["#67001F", "#D6604D", "#F7F7F7",
+                                    "#92C5DE", "#053061"], N=256)
+    fig_h = max(8, L / 25)
+    fig, ax = plt.subplots(figsize=(8.5, fig_h))
+    arr = [[v if v == v else None for v in row] for row in grid]
+    import numpy as np
+    M = np.array([[v if v is not None else np.nan for v in row]
+                   for row in arr], dtype=float)
+    vmax = max(1.4, np.nanpercentile(M, 99))
+    vmin = min(-0.2, np.nanpercentile(M, 1))
+    im = ax.imshow(M, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax,
+                    interpolation="nearest", origin="upper")
+    ax.set_xticks(range(21)); ax.set_xticklabels(AA_ORDER, fontsize=7)
+    ystep = max(1, L // 25)
+    ax.set_yticks(list(range(0, L, ystep)))
+    ax.set_yticklabels([str(p+1) for p in range(0, L, ystep)], fontsize=7)
+    ax.set_xlabel("Substituted amino acid")
+    ax.set_ylabel(f"{gene} residue position (1–{L})")
+    ax.set_title(f"{gene} VAMP-seq abundance heatmap (n={len(rows):,} variants)")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+    cbar.set_label("Abundance score (0=null, 1=WT)")
+    fig.tight_layout()
+    fig.savefig(plots / "heatmap.png", dpi=160)
+    plt.close(fig)
+
+    # --- 3. Per-position mean +/- IQR with domain track ---------------------
+    pos_means = [None] * L
+    pos_q1 = [None] * L
+    pos_q3 = [None] * L
+    by_pos = defaultdict(list)
+    for r in rows:
+        if r["kind"] != "missense":
+            continue
+        if 1 <= r["pos"] <= L:
+            by_pos[r["pos"]].append(r["score"])
+    for p, vs in by_pos.items():
+        vs2 = sorted(vs)
+        n = len(vs2)
+        pos_means[p-1] = sum(vs2)/n
+        pos_q1[p-1] = vs2[n//4] if n >= 4 else min(vs2)
+        pos_q3[p-1] = vs2[max(0, (3*n)//4 - 1)] if n >= 4 else max(vs2)
+    fig, (ax_d, ax) = plt.subplots(2, 1, figsize=(11, 4),
+                                     gridspec_kw={"height_ratios":[0.18,1]},
+                                     sharex=True)
+    ax_d.set_ylim(0, 1)
+    palette = ["#1B9E77","#D95F02","#7570B3","#E7298A","#66A61E","#E6AB02"]
+    for i, (a, b, name) in enumerate(domains or [(1, L, "full length")]):
+        ax_d.add_patch(plt.Rectangle((a-1, 0.2), b - a + 1, 0.6,
+                                        color=palette[i % len(palette)],
+                                        alpha=0.85))
+        ax_d.text((a+b)/2, 0.5, name, ha="center", va="center",
+                    fontsize=7, color="white", weight="bold")
+    ax_d.set_yticks([]); ax_d.set_xlim(0, L)
+    xs = [i+1 for i in range(L) if pos_means[i] is not None]
+    ms = [pos_means[i] for i in range(L) if pos_means[i] is not None]
+    q1 = [pos_q1[i] for i in range(L) if pos_means[i] is not None]
+    q3 = [pos_q3[i] for i in range(L) if pos_means[i] is not None]
+    ax.fill_between(xs, q1, q3, color="#3182BD", alpha=0.25, label="IQR")
+    ax.plot(xs, ms, color="#08519C", lw=0.8, label="mean")
+    ax.axhline(1.0, color="green", linestyle=":", lw=1, alpha=0.6)
+    ax.axhline(0.0, color="red", linestyle=":", lw=1, alpha=0.6)
+    ax.set_xlim(0, L); ax.set_ylim(min(-0.2, min(q1) if q1 else 0),
+                                       max(1.4, max(q3) if q3 else 1.2))
+    ax.set_xlabel(f"{gene} residue position")
+    ax.set_ylabel("Missense abundance (per-residue)")
+    ax.legend(loc="lower left", fontsize=8)
+    ax.grid(alpha=0.25, linestyle=":")
+    ax.set_title(f"{gene} VAMP-seq — per-residue abundance with domain track")
+    fig.tight_layout()
+    fig.savefig(plots / "per_position.png", dpi=160)
+    plt.close(fig)
+
+    # --- 4. Replicate concordance (pairwise score1 vs score2) ---------------
+    pairs = []
+    for r in rows:
+        rps = r.get("replicates") or []
+        if len(rps) >= 2:
+            pairs.append((rps[0], rps[1]))
+    if pairs:
+        a = [p[0] for p in pairs]; b = [p[1] for p in pairs]
+        ma = sum(a)/len(a); mb = sum(b)/len(b)
+        cov = sum((x-ma)*(y-mb) for x, y in pairs)
+        sa = sum((x-ma)**2 for x in a) ** 0.5
+        sb = sum((y-mb)**2 for y in b) ** 0.5
+        pearson = cov / (sa*sb) if sa*sb > 0 else 0.0
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.scatter(a, b, s=4, alpha=0.4, c="#08519C")
+        lo = min(min(a), min(b)); hi = max(max(a), max(b))
+        ax.plot([lo, hi], [lo, hi], "k:", lw=0.8)
+        ax.set_xlabel("Replicate 1 score"); ax.set_ylabel("Replicate 2 score")
+        ax.set_title(f"{gene} replicate concordance  Pearson r = {pearson:.3f}  (n={len(pairs):,})")
+        ax.grid(alpha=0.25, linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "replicate_corr.png", dpi=150)
+        plt.close(fig)
+        summary["replicate_pearson"] = pearson
+        summary["replicate_n_pairs"] = len(pairs)
+
+    # --- 5. Abundance class breakdown ---------------------------------------
+    cls_counts = Counter()
+    for r in rows:
+        if r["kind"] != "missense":
+            continue
+        cls_counts[r.get("abundance_class", -1)] += 1
+    if cls_counts:
+        fig, ax = plt.subplots(figsize=(6.5, 4))
+        keys = sorted(cls_counts.keys())
+        labels = [ABUNDANCE_CLASS_LABELS.get(k, (str(k), "#888"))[0] for k in keys]
+        colors = [ABUNDANCE_CLASS_LABELS.get(k, (str(k), "#888"))[1] for k in keys]
+        vals = [cls_counts[k] for k in keys]
+        ax.bar(range(len(keys)), vals, color=colors, edgecolor="white")
+        ax.set_xticks(range(len(keys))); ax.set_xticklabels(labels, fontsize=9)
+        for i, v in enumerate(vals):
+            ax.text(i, v, f" {v:,}", ha="center", va="bottom", fontsize=8)
+        ax.set_ylabel("Missense variants")
+        ax.set_title(f"{gene} VAMP-seq abundance classes")
+        ax.grid(alpha=0.25, axis="y", linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "abundance_class.png", dpi=150)
+        plt.close(fig)
+        summary["abundance_class_counts"] = {str(k): v for k, v in cls_counts.items()}
+
+    # --- 6. Cumulative ranked variants --------------------------------------
+    sorted_scores = sorted(miss)
+    if sorted_scores:
+        fig, ax = plt.subplots(figsize=(7, 4))
+        xs2 = list(range(len(sorted_scores)))
+        ax.plot(xs2, sorted_scores, color="#08519C", lw=1)
+        ax.axhline(0.5, color="#888", linestyle=":", lw=0.6)
+        n_low = sum(1 for s in sorted_scores if s < 0.5)
+        ax.fill_between(xs2[:n_low], [0]*n_low, sorted_scores[:n_low],
+                          color="#FCBBA1", alpha=0.6, label=f"low (<0.5) n={n_low}")
+        ax.set_xlabel("Variant rank"); ax.set_ylabel("Abundance score")
+        ax.set_title(f"{gene} missense variants ranked by abundance")
+        ax.legend(loc="lower right", fontsize=8)
+        ax.grid(alpha=0.25, linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "cumulative.png", dpi=150)
+        plt.close(fig)
+        summary["frac_low_abundance"] = n_low / len(sorted_scores)
+
+    # --- Report -------------------------------------------------------------
+    md = ["# VAMP-seq deep analysis — " + gene, "",
+          f"- Source: `{csv_path.name}`  ({summary['n_rows']:,} variants)",
+          f"- Length parsed: **{L}** residues",
+          f"- Missense / Synonymous / Nonsense: "
+          f"**{len(miss):,} / {len(syn):,} / {len(non):,}**",
+          f"- Score range: **{summary['score_min']:.2f} … {summary['score_max']:.2f}**"
+          f" (anchors: nonsense=0, WT=1)",
+          ]
+    if "replicate_pearson" in summary:
+        md.append(f"- Replicate Pearson r: **{summary['replicate_pearson']:.3f}** "
+                  f"(n={summary['replicate_n_pairs']:,} variant pairs)")
+    if "frac_low_abundance" in summary:
+        md.append(f"- Fraction of missense with low abundance "
+                  f"(score < 0.5): **{summary['frac_low_abundance']*100:.1f}%**")
+    md += ["",
+           "## Plots",
+           "- `Plots/distribution.png` — score densities by variant kind",
+           "- `Plots/heatmap.png` — residue × AA abundance matrix (the iconic VAMP-seq view)",
+           "- `Plots/per_position.png` — per-residue mean ± IQR with domain track",
+           "- `Plots/replicate_corr.png` — replicate-1 vs replicate-2 concordance",
+           "- `Plots/abundance_class.png` — categorical class breakdown",
+           "- `Plots/cumulative.png` — variants sorted by abundance rank"]
+    if cls_counts:
+        md += ["", "## Abundance class counts (missense)",
+               "| Class | Count |", "|---|---|"]
+        for k in sorted(cls_counts.keys()):
+            lab = ABUNDANCE_CLASS_LABELS.get(k, (str(k), ""))[0]
+            md.append(f"| {k} ({lab}) | {cls_counts[k]:,} |")
+    (out / "report.md").write_text("\n".join(md) + "\n")
+    (out / "summary.json").write_text(json.dumps(summary, indent=2,
+                                                   default=str))
+    return out
+
+
+# --- IGVF Portal raw VAMP-seq inventory analysis ---------------------------
+
+_ALIAS_RE = re.compile(
+    r"(?P<gene>[A-Z0-9]+)-DMS-(?P<antibody>[A-Za-z0-9\-]+?)"
+    r"-Tile(?P<tile>\d+)-Replicate(?P<rep>\d+)-Bin(?P<bin>\d+)",
+    re.IGNORECASE,
+)
+
+
+def _decode_igvf_alias(alias: str) -> Optional[dict]:
+    """Decode aliases like
+       'lea-starita:F9-DMS-Light-chain-antibody-Tile1-Replicate1-Bin1-FileSet'."""
+    if not alias:
+        return None
+    bare = alias.split(":", 1)[-1]
+    m = _ALIAS_RE.search(bare)
+    if not m:
+        return None
+    return {"gene": m.group("gene").upper(),
+            "antibody": m.group("antibody").rstrip("-"),
+            "tile": int(m.group("tile")),
+            "replicate": int(m.group("rep")),
+            "bin": int(m.group("bin"))}
+
+
+def inventory_igvf_vampseq(label: str) -> Path:
+    """Decode the 144 VAMP-seq (MultiSTEP) MeasurementSets into a tile × bin
+    × replicate × antibody coverage matrix and render heatmaps."""
+    _, plt, _ = _matplotlib()
+    out = DOCS_DIR / f"{timestamp()}_{safe_label(label)}_igvf_vampseq"
+    plots = out / "Plots"
+    plots.mkdir(parents=True, exist_ok=True)
+
+    ms_path = SOURCES_DIR / "IGVF" / "measurement_sets.json"
+    if not ms_path.exists():
+        # Pull on the fly
+        igvf_protein_download()
+    ms = json.loads(ms_path.read_text())
+    rows = []
+    for m in ms:
+        titles = m.get("preferred_assay_titles") or []
+        if "VAMP-seq (MultiSTEP)" not in titles and "VAMP-seq" not in titles:
+            continue
+        for a in (m.get("aliases") or []):
+            d = _decode_igvf_alias(a)
+            if d:
+                rows.append({**d, "accession": m.get("accession"),
+                              "lab": (m.get("lab") or {}).get("title", "")
+                                if isinstance(m.get("lab"), dict)
+                                else m.get("lab", ""),
+                              "summary": (m.get("summary") or "")[:200],
+                              "preferred_assay_titles": ", ".join(titles)})
+                break
+
+    inv_path = out / "inventory.json"
+    inv_path.write_text(json.dumps(rows, indent=2))
+
+    # Per-gene tile × bin coverage
+    by_gene = defaultdict(list)
+    for r in rows:
+        by_gene[r["gene"]].append(r)
+
+    md = ["# IGVF Portal raw VAMP-seq inventory", "",
+          f"- {len(rows):,} MeasurementSets decoded across **{len(by_gene)} target genes**",
+          ""]
+    for gene, recs in sorted(by_gene.items(), key=lambda x: -len(x[1])):
+        tiles = sorted({r["tile"] for r in recs})
+        bins = sorted({r["bin"] for r in recs})
+        reps = sorted({r["replicate"] for r in recs})
+        antibodies = sorted({r["antibody"] for r in recs})
+        md += [f"## {gene}",
+                f"- {len(recs)} MeasurementSets",
+                f"- Tiles: {tiles}",
+                f"- Bins: {bins}",
+                f"- Replicates: {reps}",
+                f"- Antibody readouts: {antibodies}",
+                ""]
+        # Tile × bin presence-count matrix (summed over rep × antibody)
+        mat = [[0] * len(bins) for _ in tiles]
+        for r in recs:
+            ti = tiles.index(r["tile"]); bi = bins.index(r["bin"])
+            mat[ti][bi] += 1
+        import numpy as np
+        M = np.array(mat)
+        fig, ax = plt.subplots(figsize=(max(4, len(bins)*0.7),
+                                          max(2.4, len(tiles)*0.6)))
+        im = ax.imshow(M, aspect="auto", cmap="YlGnBu")
+        for i in range(len(tiles)):
+            for j in range(len(bins)):
+                ax.text(j, i, str(mat[i][j]), ha="center", va="center",
+                          fontsize=8,
+                          color="white" if mat[i][j] > M.max()/2 else "black")
+        ax.set_xticks(range(len(bins)))
+        ax.set_xticklabels([f"Bin{b}" for b in bins], fontsize=8)
+        ax.set_yticks(range(len(tiles)))
+        ax.set_yticklabels([f"Tile{t}" for t in tiles], fontsize=8)
+        ax.set_title(f"{gene}: VAMP-seq MeasurementSet count by tile × bin")
+        fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+        fig.tight_layout()
+        fig.savefig(plots / f"{safe_label(gene)}_tile_bin_matrix.png", dpi=150)
+        plt.close(fig)
+
+        # Antibody × tile heatmap (replicate completeness)
+        if len(antibodies) > 1:
+            ant_mat = [[0] * len(tiles) for _ in antibodies]
+            for r in recs:
+                ai = antibodies.index(r["antibody"]); ti = tiles.index(r["tile"])
+                ant_mat[ai][ti] += 1
+            A = np.array(ant_mat)
+            fig, ax = plt.subplots(figsize=(max(4, len(tiles)*0.8),
+                                              max(2.4, len(antibodies)*0.6)))
+            im = ax.imshow(A, aspect="auto", cmap="Purples")
+            for i in range(len(antibodies)):
+                for j in range(len(tiles)):
+                    ax.text(j, i, str(ant_mat[i][j]), ha="center",
+                              va="center", fontsize=8,
+                              color="white" if ant_mat[i][j] > A.max()/2
+                              else "black")
+            ax.set_xticks(range(len(tiles)))
+            ax.set_xticklabels([f"Tile{t}" for t in tiles], fontsize=8)
+            ax.set_yticks(range(len(antibodies)))
+            ax.set_yticklabels(antibodies, fontsize=8)
+            ax.set_title(f"{gene}: VAMP-seq antibody × tile coverage")
+            fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+            fig.tight_layout()
+            fig.savefig(plots / f"{safe_label(gene)}_antibody_tile_matrix.png",
+                          dpi=150)
+            plt.close(fig)
+
+    md += ["",
+           "## Decoded fields per MeasurementSet",
+           "Aliases follow the pattern "
+           "`<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>-FileSet`",
+           "and are decoded into per-gene tile / bin / replicate / antibody slots.",
+           "",
+           f"Full inventory: `inventory.json` ({len(rows):,} rows)"]
+    (out / "report.md").write_text("\n".join(md) + "\n")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Subcommand handlers
 # ---------------------------------------------------------------------------
 
@@ -1693,6 +2268,62 @@ def cmd_assay_figures(args: argparse.Namespace) -> int:
     mkdirs()
     setup_logging("assay_figures")
     out = assay_figures(args.label or "assays")
+    print(f"Output: {out}")
+    return 0
+
+
+def cmd_vampseq_pull(args: argparse.Namespace) -> int:
+    mkdirs()
+    setup_logging("vampseq_pull_" + (args.gene or "all"))
+    targets = ([args.gene.upper()] if args.gene
+                else list(MAVEDB_VAMPSEQ_CATALOG.keys()))
+    pulled = []
+    for g in targets:
+        meta = MAVEDB_VAMPSEQ_CATALOG.get(g)
+        if not meta:
+            logger.warning("No MaveDB URN curated for %s", g)
+            continue
+        p = download_mavedb_scoreset(meta["urn"])
+        if p.exists() and p.stat().st_size > 0:
+            pulled.append({"gene": g, "csv": str(p),
+                            "size_bytes": p.stat().st_size,
+                            "urn": meta["urn"], "paper": meta["paper"]})
+    print(json.dumps(pulled, indent=2))
+    return 0
+
+
+def cmd_vampseq_analyze(args: argparse.Namespace) -> int:
+    mkdirs()
+    setup_logging("vampseq_analyze_" + (args.gene or "all"))
+    targets = ([args.gene.upper()] if args.gene
+                else list(MAVEDB_VAMPSEQ_CATALOG.keys()))
+    outs = []
+    for g in targets:
+        meta = MAVEDB_VAMPSEQ_CATALOG.get(g)
+        if not meta:
+            logger.warning("No catalog entry for %s", g)
+            continue
+        csv = download_mavedb_scoreset(meta["urn"])
+        if not csv.exists() or csv.stat().st_size < 100:
+            logger.warning("CSV for %s missing or empty", g)
+            continue
+        try:
+            out = analyze_vampseq_scoreset(
+                csv, gene=g,
+                domains=meta.get("domains") or (),
+                length=meta.get("length"),
+                label=args.label or g)
+            outs.append(str(out))
+        except Exception as e:
+            logger.error("Analyze failed for %s: %s", g, e)
+    print(json.dumps(outs, indent=2))
+    return 0
+
+
+def cmd_vampseq_inventory(args: argparse.Namespace) -> int:
+    mkdirs()
+    setup_logging("vampseq_inventory")
+    out = inventory_igvf_vampseq(args.label or "igvf_vampseq")
     print(f"Output: {out}")
     return 0
 
@@ -1847,6 +2478,51 @@ Generates per-assay example histograms from the actual IGVF Portal files
 pulled by `igvf-protein`. One PNG per assay under
 `Docs/Proteomics/<ts>_demos_assay_figures/Plots/`.
 
+### vampseq-pull / vampseq-analyze / vampseq-inventory
+```
+# 1) Pull canonical published scoresets from MaveDB (PTEN, TPMT, VKOR,
+#    PRKN, CYP2C9, NUDT15) — full per-replicate score CSVs
+igvfagent proteomics vampseq-pull
+igvfagent proteomics vampseq-pull --gene PTEN
+
+# 2) Deep analysis — produces 6 publication-grade plots per gene
+igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep
+igvfagent proteomics vampseq-analyze    # all 6 catalogued targets
+
+# 3) Inventory the IGVF Portal raw VAMP-seq experiments by decoding the
+#    alias scheme (<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>).
+#    Produces tile×bin and antibody×tile coverage matrices per gene.
+igvfagent proteomics vampseq-inventory --label igvf_f9
+```
+The deep analysis follows the canonical VAMP-seq pipeline distilled from
+Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
+2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP):
+
+  1. **Distribution** — overlay missense / synonymous / nonsense densities
+     anchored at WT=1, nonsense=0.
+  2. **Residue × AA heatmap** — the iconic VAMP-seq view; one cell per
+     (position, substituted AA), color = abundance score.
+  3. **Per-position mean ± IQR with domain track** — annotates which
+     domain each residue belongs to (e.g. PTEN phosphatase / C2 / C-tail,
+     PRKN Ubl / RING0 / RING1 / IBR / RING2).
+  4. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
+     variant.
+  5. **Abundance class breakdown** — categorical bar (low / low-int /
+     intermediate / WT-like / hyper-abundant), matching the Matreyek
+     2018 `abundance_class` convention.
+  6. **Cumulative ranked variants** — sorted score curve, with the
+     low-abundance fraction (score < 0.5) shaded.
+
+Catalogued MaveDB targets (URN, paper, length, domains) are in
+`MAVEDB_VAMPSEQ_CATALOG` in `proteomics_skill.py` — extend this dict to
+analyze additional published scoresets.
+
+The `vampseq-inventory` command decodes the IGVF Portal `aliases` field
+to build a coverage matrix across the 144 MultiSTEP MeasurementSets
+(currently all targeting **F9 / Coagulation Factor IX** across 3 tiles ×
+4 bins × 4 replicates × 5 antibody readouts) and the 36 plain VAMP-seq
+sets (CYP2C19, G6PD).
+
 ### pipeline
 ```
 igvfagent proteomics pipeline --label may2026 --gene TP53 \\
@@ -1987,6 +2663,30 @@ def main(argv: Optional["list[str]"] = None) -> int:
                               "files.")
     s.add_argument("--label", default=None)
     s.set_defaults(func=cmd_assay_figures)
+
+    s = sub.add_parser("vampseq-pull",
+                        help="Download published VAMP-seq scoresets from MaveDB "
+                              "(PTEN, TPMT, VKOR, PRKN, CYP2C9, NUDT15).")
+    s.add_argument("--gene", default=None,
+                    help="Gene symbol to pull. Default = all curated entries.")
+    s.set_defaults(func=cmd_vampseq_pull)
+
+    s = sub.add_parser("vampseq-analyze",
+                        help="Deep VAMP-seq analysis: distribution, residue×AA "
+                              "heatmap, per-residue with domain track, replicate "
+                              "concordance, abundance class, ranked variants.")
+    s.add_argument("--gene", default=None,
+                    help="Gene to analyze (PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15) "
+                         "or omit to analyze all available.")
+    s.add_argument("--label", default=None)
+    s.set_defaults(func=cmd_vampseq_analyze)
+
+    s = sub.add_parser("vampseq-inventory",
+                        help="Inventory the IGVF Portal raw VAMP-seq "
+                              "MeasurementSets (tile × bin × replicate × "
+                              "antibody coverage).")
+    s.add_argument("--label", default=None)
+    s.set_defaults(func=cmd_vampseq_inventory)
 
     s = sub.add_parser("pipeline",
                         help="End-to-end: download → kg → stats → viz → "

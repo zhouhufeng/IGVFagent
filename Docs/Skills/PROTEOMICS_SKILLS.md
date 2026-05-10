@@ -94,6 +94,51 @@ Generates per-assay example histograms from the actual IGVF Portal files
 pulled by `igvf-protein`. One PNG per assay under
 `Docs/Proteomics/<ts>_demos_assay_figures/Plots/`.
 
+### vampseq-pull / vampseq-analyze / vampseq-inventory
+```
+# 1) Pull canonical published scoresets from MaveDB (PTEN, TPMT, VKOR,
+#    PRKN, CYP2C9, NUDT15) — full per-replicate score CSVs
+igvfagent proteomics vampseq-pull
+igvfagent proteomics vampseq-pull --gene PTEN
+
+# 2) Deep analysis — produces 6 publication-grade plots per gene
+igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep
+igvfagent proteomics vampseq-analyze    # all 6 catalogued targets
+
+# 3) Inventory the IGVF Portal raw VAMP-seq experiments by decoding the
+#    alias scheme (<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>).
+#    Produces tile×bin and antibody×tile coverage matrices per gene.
+igvfagent proteomics vampseq-inventory --label igvf_f9
+```
+The deep analysis follows the canonical VAMP-seq pipeline distilled from
+Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
+2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP):
+
+  1. **Distribution** — overlay missense / synonymous / nonsense densities
+     anchored at WT=1, nonsense=0.
+  2. **Residue × AA heatmap** — the iconic VAMP-seq view; one cell per
+     (position, substituted AA), color = abundance score.
+  3. **Per-position mean ± IQR with domain track** — annotates which
+     domain each residue belongs to (e.g. PTEN phosphatase / C2 / C-tail,
+     PRKN Ubl / RING0 / RING1 / IBR / RING2).
+  4. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
+     variant.
+  5. **Abundance class breakdown** — categorical bar (low / low-int /
+     intermediate / WT-like / hyper-abundant), matching the Matreyek
+     2018 `abundance_class` convention.
+  6. **Cumulative ranked variants** — sorted score curve, with the
+     low-abundance fraction (score < 0.5) shaded.
+
+Catalogued MaveDB targets (URN, paper, length, domains) are in
+`MAVEDB_VAMPSEQ_CATALOG` in `proteomics_skill.py` — extend this dict to
+analyze additional published scoresets.
+
+The `vampseq-inventory` command decodes the IGVF Portal `aliases` field
+to build a coverage matrix across the 144 MultiSTEP MeasurementSets
+(currently all targeting **F9 / Coagulation Factor IX** across 3 tiles ×
+4 bins × 4 replicates × 5 antibody readouts) and the 36 plain VAMP-seq
+sets (CYP2C19, G6PD).
+
 ### pipeline
 ```
 igvfagent proteomics pipeline --label may2026 --gene TP53 \

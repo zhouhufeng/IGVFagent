@@ -1062,6 +1062,57 @@ _TOOLS: "list[Tool]" = [
         bool_flags={"skip_download", "skip_literature", "skip_assay_figures"},
     ),
 
+    _T(
+        "proteomics_vampseq_pull",
+        "Download canonical published VAMP-seq scoresets from MaveDB "
+        "(PTEN, TPMT, VKOR, PRKN, CYP2C9, NUDT15). Pulls per-replicate "
+        "score CSVs for downstream analysis.",
+        {
+            "type": "object",
+            "properties": {
+                "gene": {**_S_STRING,
+                          "description": "Gene symbol; omit to pull all curated "
+                                         "VAMP-seq targets."},
+            },
+        },
+        cli=["proteomics", "vampseq-pull"],
+        flag_map={"gene": "--gene"},
+    ),
+
+    _T(
+        "proteomics_vampseq_analyze",
+        "Deep VAMP-seq analysis on a MaveDB scoreset: distribution, "
+        "residue×AA heatmap, per-residue mean with domain track, "
+        "replicate concordance, abundance class, cumulative ranked "
+        "variants. Six publication-grade plots per gene.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":  {**_S_STRING,
+                           "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | "
+                                          "NUDT15. Omit for all targets."},
+                "label": {**_S_STRING},
+            },
+        },
+        cli=["proteomics", "vampseq-analyze"],
+        flag_map={"gene": "--gene", "label": "--label"},
+    ),
+
+    _T(
+        "proteomics_vampseq_inventory",
+        "Decode IGVF Portal raw VAMP-seq MeasurementSets into a "
+        "tile × bin × replicate × antibody coverage matrix per target gene "
+        "(currently F9 from the MultiSTEP deposit, plus CYP2C19 / G6PD).",
+        {
+            "type": "object",
+            "properties": {
+                "label": {**_S_STRING},
+            },
+        },
+        cli=["proteomics", "vampseq-inventory"],
+        flag_map={"label": "--label"},
+    ),
+
 ]
 
 
