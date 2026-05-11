@@ -166,7 +166,15 @@ def main(argv: Optional["list[str]"] = None) -> int:
     try:
         rc = mod.main()
     except SystemExit as exc:  # argparse + sys.exit propagation
-        return int(exc.code) if exc.code is not None else 0
+        code = exc.code
+        if code is None:
+            return 0
+        if isinstance(code, int):
+            return code
+        # Non-int code (e.g. sys.exit("some error message")) — print to
+        # stderr and use exit 1, matching Python's own default behavior.
+        sys.stderr.write(f"{code}\n")
+        return 1
     return int(rc) if isinstance(rc, int) else 0
 
 
