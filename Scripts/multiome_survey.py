@@ -67,6 +67,9 @@ PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 EUTILS_BASE = _resolve_endpoint("pubmed_eutils", "PUBMED_EUTILS_BASE")
 GEO_FTP_BASE = _resolve_endpoint("geo_ftp", "GEO_FTP_BASE")
+CELLXGENE_BASE = _resolve_endpoint("cellxgene_api", "CELLXGENE_API_BASE")
+HCA_AZUL_BASE = _resolve_endpoint("hca_azul", "HCA_AZUL_BASE")
+ZENODO_BASE = _resolve_endpoint("zenodo_api", "ZENODO_API_BASE")
 
 USER_AGENT = "IGVFagent-multiome-survey/0.1"
 
@@ -95,6 +98,37 @@ GEO_MULTIOME_QUERIES = [
     '"SHARE-seq"',
     '"Multiome ATAC + Gene Expression"',
 ]
+
+# Assay labels CELLxGENE Discover uses for multiome and adjacent assays.
+# Matching is case-insensitive substring on either the human label or the
+# EFO ontology term id.
+CELLXGENE_MULTIOME_LABELS = [
+    "10x multiome",
+    "multiome",
+    "share-seq",
+    "snare-seq",
+    "paired-tag",
+    "cite-seq",  # multimodal, often listed alongside multiome
+]
+CELLXGENE_MULTIOME_EFO = [
+    "EFO:0030059",   # 10x multiome
+    "EFO:0009310",   # SHARE-seq
+    "EFO:0700004",   # 10x multiome (newer term)
+]
+
+# HCA Azul uses ``libraryConstructionApproach`` for assay identity. The
+# facet is strict — invalid terms cause a 400.  Only the values below
+# were observed in the live facet listing (as of May 2026); SHARE-seq /
+# SNARE-seq / Paired-Tag are not present on HCA and live elsewhere.
+HCA_MULTIOME_APPROACHES = [
+    "10x multiome",
+    "10x multiome ATAC v1",
+    "10x multiome GEX v1",
+]
+
+# Zenodo keyword queries — Zenodo's ``q`` accepts Lucene; we reuse the GEO
+# query set since they're the canonical multiome phrases.
+ZENODO_MULTIOME_QUERIES = list(GEO_MULTIOME_QUERIES)
 
 # Map content_type / file_format → training-relevant "kind" used in the
 # unified manifest.  Anything not matched is left as ``other``.
@@ -607,6 +641,254 @@ def survey_geo(*, limit: int = 50, label: str = "geo_multiome",
 
 
 # ---------------------------------------------------------------------------
+# CELLxGENE Discover survey
+# ---------------------------------------------------------------------------
+
+
+def _assay_matches_multiome(assay_field: Any) -> tuple[bool, list[str]]:
+    """Return (matches, labels) given a CELLxGENE assay field (list of {label, ontology_term_id})."""
+    labels: list[str] = []
+    if not isinstance(assay_field, list):
+        return False, labels
+    for a in assay_field:
+        if not isinstance(a, dict):
+            continue
+        label = (a.get("label") or "").lower()
+        term = (a.get("ontology_term_id") or "")
+        labels.append(a.get("label") or term)
+        if any(s in label for s in CELLXGENE_MULTIOME_LABELS):
+            return True, labels
+        if any(term == efo for efo in CELLXGENE_MULTIOME_EFO):
+            return True, labels
+    return False, labels
+
+
+def survey_cellxgene(*, label: str = "cellxgene_multiome",
+                     fetch_files: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Survey CZI CELLxGENE Discover for multiome collections + datasets."""
+    base = CELLXGENE_BASE
+    payload = http_get_json(f"{base}/curation/v1/collections")
+    if not isinstance(payload, list):
+        logging.warning("CELLxGENE: collections endpoint returned non-list")
+        return [], []
+    logging.info("CELLxGENE total public collections: %d", len(payload))
+
+    datasets: list[dict[str, Any]] = []
+    files: list[dict[str, Any]] = []
+    for coll in payload:
+        cid = coll.get("collection_id")
+        if not cid:
+            continue
+        # Probe just the dataset list; we need the assay labels per dataset.
+        det = http_get_json(f"{base}/curation/v1/collections/{cid}")
+        if not isinstance(det, dict):
+            continue
+        ds_list = det.get("datasets") or []
+        matched_any = False
+        for ds in ds_list:
+            ok, labels = _assay_matches_multiome(ds.get("assay"))
+            if not ok:
+                continue
+            matched_any = True
+            dataset_id = ds.get("dataset_id") or ds.get("dataset_version_id") or ""
+            row = {
+                "source": "cellxgene",
+                "dataset_accession": dataset_id,
+                "title": (ds.get("title") or det.get("name") or "")[:200],
+                "summary": (det.get("description") or "")[:300],
+                "organism": stringify([o.get("label") for o in (ds.get("organism") or []) if isinstance(o, dict)]),
+                "assay": stringify(labels),
+                "samples": stringify([t.get("label") for t in (ds.get("tissue") or []) if isinstance(t, dict)]),
+                "n_samples": int(ds.get("cell_count") or 0),
+                "publications": stringify(det.get("doi") or ""),
+                "url": ds.get("explorer_url") or det.get("collection_url") or "",
+                "lab_or_pi": stringify(det.get("contact_name") or det.get("curator_name") or ""),
+                "creation_date": ds.get("revised_at") or det.get("revised_at") or det.get("published_at") or "",
+            }
+            datasets.append(row)
+            if fetch_files:
+                for asset in ds.get("assets") or []:
+                    if not isinstance(asset, dict):
+                        continue
+                    url = asset.get("url") or ""
+                    ftype = (asset.get("filetype") or "").lower()
+                    filename = url.split("/")[-1] if url else f"{dataset_id}.{ftype}"
+                    files.append({
+                        "source": "cellxgene",
+                        "dataset_accession": dataset_id,
+                        "file_accession": filename,
+                        "kind": classify_kind(None, ftype, filename) if ftype != "h5ad" else "matrix_rna",
+                        "content_type": ftype,
+                        "file_format": ftype,
+                        "file_size_bytes": int(asset.get("filesize") or 0),
+                        "download_url": url,
+                        "local_path": rel_path(DOWNLOAD_DIR / "cellxgene" / dataset_id / filename),
+                        "md5sum": "",
+                        "notes": f"collection={cid}",
+                    })
+        if matched_any:
+            logging.debug("CELLxGENE multiome hit: collection=%s", cid)
+
+    logging.info("CELLxGENE survey: %d datasets, %d files (fetch_files=%s)",
+                 len(datasets), len(files), fetch_files)
+    return datasets, files
+
+
+# ---------------------------------------------------------------------------
+# HCA Data Portal (Azul) survey
+# ---------------------------------------------------------------------------
+
+
+def survey_hca(*, label: str = "hca_multiome",
+               fetch_files: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Survey Human Cell Atlas Data Portal via the Azul ``/index/projects`` API."""
+    base = HCA_AZUL_BASE
+    # Build a filter for any multiome-style ``library_construction_approach``.
+    filters = json.dumps({
+        "libraryConstructionApproach": {
+            "is": HCA_MULTIOME_APPROACHES,
+        }
+    })
+    datasets: list[dict[str, Any]] = []
+    files: list[dict[str, Any]] = []
+    next_url: str | None = (
+        f"{base}/index/projects?filters={urllib.parse.quote(filters)}&size=75"
+    )
+    page = 0
+    while next_url and page < 20:
+        payload = http_get_json(next_url)
+        if not isinstance(payload, dict):
+            break
+        hits = payload.get("hits") or []
+        for hit in hits:
+            projects = hit.get("projects") or [{}]
+            proj = projects[0]
+            project_id = proj.get("projectId") or hit.get("entryId") or ""
+            assays = hit.get("protocols") or []
+            assay_names = []
+            for p in assays:
+                if isinstance(p, dict):
+                    assay_names.extend(p.get("libraryConstructionApproach") or [])
+            ds = {
+                "source": "hca",
+                "dataset_accession": project_id,
+                "title": (proj.get("projectTitle") or "")[:200],
+                "summary": (proj.get("projectDescription") or "")[:300],
+                "organism": stringify([o.get("genusSpecies") for o in (hit.get("donorOrganisms") or []) if isinstance(o, dict)]),
+                "assay": stringify(sorted({a for a in assay_names})),
+                "samples": stringify([s.get("organ") for s in (hit.get("specimens") or []) if isinstance(s, dict)]),
+                "n_samples": int((hit.get("cellSuspensions") or [{}])[0].get("totalCells") or 0),
+                "publications": stringify([p.get("doi") for p in (proj.get("publications") or []) if isinstance(p, dict)]),
+                "url": f"https://data.humancellatlas.org/explore/projects/{project_id}",
+                "lab_or_pi": stringify([c.get("contactName") for c in (proj.get("contributors") or []) if isinstance(c, dict)][:3]),
+                "creation_date": (hit.get("dates") or [{}])[0].get("submissionDate") or "",
+            }
+            datasets.append(ds)
+            if fetch_files:
+                # File listing requires a second call to /index/files filtered by projectId.
+                f_filters = json.dumps({"projectId": {"is": [project_id]}})
+                f_url = f"{base}/index/files?filters={urllib.parse.quote(f_filters)}&size=200"
+                f_payload = http_get_json(f_url)
+                if isinstance(f_payload, dict):
+                    for fhit in f_payload.get("hits") or []:
+                        for fobj in fhit.get("files") or []:
+                            if not isinstance(fobj, dict):
+                                continue
+                            files.append({
+                                "source": "hca",
+                                "dataset_accession": project_id,
+                                "file_accession": fobj.get("name") or fobj.get("uuid") or "",
+                                "kind": classify_kind(fobj.get("contentDescription"),
+                                                      fobj.get("format"),
+                                                      fobj.get("name")),
+                                "content_type": stringify(fobj.get("contentDescription")),
+                                "file_format": fobj.get("format") or "",
+                                "file_size_bytes": int(fobj.get("size") or 0),
+                                "download_url": fobj.get("url") or "",
+                                "local_path": rel_path(DOWNLOAD_DIR / "hca" / project_id / (fobj.get("name") or fobj.get("uuid") or "file")),
+                                "md5sum": fobj.get("sha256") or fobj.get("crc32c") or "",
+                                "notes": "",
+                            })
+
+        next_url = (payload.get("pagination") or {}).get("next")
+        page += 1
+    logging.info("HCA survey: %d datasets, %d files (fetch_files=%s, pages=%d)",
+                 len(datasets), len(files), fetch_files, page)
+    return datasets, files
+
+
+# ---------------------------------------------------------------------------
+# Zenodo survey
+# ---------------------------------------------------------------------------
+
+
+def survey_zenodo(*, label: str = "zenodo_multiome", per_query: int = 25,
+                  extra_queries: list[str] | None = None,
+                  fetch_files: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Search Zenodo for multiome datasets via the public ``/api/records`` endpoint."""
+    queries = list(ZENODO_MULTIOME_QUERIES)
+    if extra_queries:
+        queries.extend(extra_queries)
+    seen: dict[str, dict[str, Any]] = {}
+    files: list[dict[str, Any]] = []
+    for q in queries:
+        payload = http_get_json(
+            f"{ZENODO_BASE}/api/records",
+            params={"q": q, "size": str(per_query), "page": "1"},
+        )
+        if not isinstance(payload, dict):
+            continue
+        hits = (payload.get("hits") or {}).get("hits") or []
+        new = 0
+        for h in hits:
+            rid = str(h.get("id") or h.get("conceptrecid") or "")
+            if not rid or rid in seen:
+                continue
+            meta = h.get("metadata") or {}
+            seen[rid] = {
+                "source": "zenodo",
+                "dataset_accession": rid,
+                "title": (meta.get("title") or "")[:200],
+                "summary": (meta.get("description") or "")[:300],
+                "organism": "",  # Zenodo doesn't standardize organism
+                "assay": stringify([k.get("name") for k in (meta.get("keywords") or []) if isinstance(k, dict)] or meta.get("keywords") or []),
+                "samples": "",
+                "n_samples": len(h.get("files") or []),
+                "publications": stringify(meta.get("related_identifiers")),
+                "url": h.get("links", {}).get("self_html", "") or f"https://zenodo.org/records/{rid}",
+                "lab_or_pi": stringify([c.get("name") for c in (meta.get("creators") or []) if isinstance(c, dict)][:3]),
+                "creation_date": meta.get("publication_date", ""),
+            }
+            new += 1
+            if fetch_files:
+                for f in h.get("files") or []:
+                    if not isinstance(f, dict):
+                        continue
+                    fname = f.get("key") or f.get("filename") or ""
+                    files.append({
+                        "source": "zenodo",
+                        "dataset_accession": rid,
+                        "file_accession": fname,
+                        "kind": classify_kind(None, None, fname),
+                        "content_type": "",
+                        "file_format": Path(fname).suffix.lstrip("."),
+                        "file_size_bytes": int(f.get("size") or 0),
+                        "download_url": f.get("links", {}).get("self", "") or f.get("links", {}).get("download", ""),
+                        "local_path": rel_path(DOWNLOAD_DIR / "zenodo" / rid / fname),
+                        "md5sum": (f.get("checksum") or "").replace("md5:", ""),
+                        "notes": "",
+                    })
+        logging.info("Zenodo q=%-50s hits=%d new=%d", q[:50], len(hits), new)
+        # Zenodo is slower per-query than other sources; sleep a beat to
+        # avoid hammering the public endpoint.
+        time.sleep(1.5)
+    datasets = list(seen.values())
+    logging.info("Zenodo survey: %d unique records, %d files (fetch_files=%s)",
+                 len(datasets), len(files), fetch_files)
+    return datasets, files
+
+
+# ---------------------------------------------------------------------------
 # Per-source writers
 # ---------------------------------------------------------------------------
 
@@ -687,9 +969,12 @@ def newest_files_csv(source: str) -> Path | None:
     return cands[-1] if cands else None
 
 
+SUPPORTED_SOURCES = ("igvf", "encode", "geo", "cellxgene", "hca", "zenodo")
+
+
 def build_unified_manifest(label: str = "unified") -> Path:
     rows: list[dict[str, Any]] = []
-    for source in ("igvf", "encode", "geo"):
+    for source in SUPPORTED_SOURCES:
         csv_path = newest_files_csv(source)
         if csv_path is None:
             logging.info("no files manifest yet for source=%s; skipping in unified", source)
@@ -825,10 +1110,24 @@ def inventory_local() -> Path:
 
 SKILL_DOC_TEMPLATE = """# Skill: Multiome cross-source survey
 
-Surveys **IGVF Portal**, **ENCODE**, and **GEO** for single-cell multiome
-datasets (10x Multiome / SHARE-seq / single-nucleus multiome), produces a
-unified file manifest, and downloads the training-relevant files into
-``Data/MultiomeSurvey/``.
+Surveys six independent public sources for single-cell multiome data
+(10x Multiome / SHARE-seq / single-nucleus multiome / SNARE-seq /
+Paired-Tag), produces a unified file manifest, and downloads the
+training-relevant files into ``Data/MultiomeSurvey/``.
+
+| source         | what it covers                                                          |
+|----------------|--------------------------------------------------------------------------|
+| **IGVF**        | IGVF Portal AnalysisSets / MeasurementSets (10x multiome + SHARE-seq).   |
+| **ENCODE**      | ENCODE Experiments + Series tagged 10x multiome / SHARE-seq.              |
+| **GEO**         | NCBI Gene Expression Omnibus Series, via E-utilities + FTP listings.      |
+| **CELLxGENE**   | CZI CELLxGENE Discover collections (curated h5ad release).                |
+| **HCA**         | Human Cell Atlas Data Portal projects (Azul ``/index/projects``).         |
+| **Zenodo**      | Zenodo records with multiome keywords in title / description / files.     |
+
+A companion overview of *what each source offers, what it doesn't, and
+where the rest of the multiome universe lives* (Allen ABC Atlas, Broad
+Single Cell Portal, Synapse, dbGaP/EGA, BioStudies / ArrayExpress) is
+written by this skill to ``Docs/MultiomeSurvey/SOURCES_OVERVIEW.md``.
 
 ## Subcommands
 
@@ -863,13 +1162,45 @@ Runs NCBI E-utilities `esearch+esummary` on the `gds` database for the
 canonical multiome queries.  Optionally scrapes the GEO FTP listing for
 each GSE to expose supplementary files.
 
+### `survey-cellxgene`
+
+```bash
+igvfagent multiome-survey survey-cellxgene --fetch-files
+```
+
+Walks every public CELLxGENE Discover collection and keeps the datasets
+whose ``assay`` label or EFO term matches multiome / SHARE-seq / SNARE-seq
+/ Paired-Tag / CITE-seq.  ``--fetch-files`` adds the H5AD/RDS download
+URLs to the files manifest.
+
+### `survey-hca`
+
+```bash
+igvfagent multiome-survey survey-hca --fetch-files
+```
+
+Calls the HCA Azul ``/index/projects`` endpoint with a
+``libraryConstructionApproach`` filter for multiome-style assays.
+``--fetch-files`` also expands ``/index/files`` per project.
+
+### `survey-zenodo`
+
+```bash
+igvfagent multiome-survey survey-zenodo --per-query 50 --fetch-files
+```
+
+Keyword-searches Zenodo for the six canonical multiome phrases.
+Captures arbitrary deposits associated with papers — useful for catching
+data that authors share outside ENCODE / GEO.
+
 ### `survey-all`
 
 ```bash
 igvfagent multiome-survey survey-all --limit 100 --fetch-files
+igvfagent multiome-survey survey-all --sources igvf,cellxgene,hca   # subset
 ```
 
-Runs all three.
+Runs every enabled source and writes a unified manifest.
 
 ### `manifest`
 
@@ -910,6 +1241,9 @@ Data/
     igvf/<IGVFDS...>/<file>
     encode/<ENCSR...>/<file>
     geo/<GSE...>/<file>
+    cellxgene/<dataset_id>/<file>
+    hca/<projectId>/<file>
+    zenodo/<recordId>/<file>
     inventory.csv
   Manifests/MultiomeSurvey/
     <ts>_<label>_<source>_datasets.csv
@@ -929,6 +1263,121 @@ cookies, or credentials are written to source.  `Data/MultiomeSurvey/`
 matches `Data/*` in the repo `.gitignore`, so downloaded payload never
 accidentally lands in commits.
 """
+
+
+SOURCES_OVERVIEW_PATH = REPORT_DIR / "SOURCES_OVERVIEW.md"
+
+SOURCES_OVERVIEW_TEMPLATE = """# Single-cell multiome data: where it actually lives
+
+This document is the systemic overview produced alongside the
+``multiome_survey`` skill.  It summarizes (a) the six public sources the
+skill queries directly, (b) what each gives you and what it does not,
+and (c) the other repositories that host multiome data but are not (yet)
+auto-searchable from this skill — pointing you to where to go manually.
+
+## Six sources surveyed by this skill
+
+| source        | identifier on disk       | API endpoint                                              | what you get                                                                                  |
+|---------------|--------------------------|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| **IGVF**      | ``IGVFDS…`` AnalysisSets | IGVF Portal ``/search/`` (JSON)                           | Cell Ranger ARC tars, ATAC fragments BED, cell annotations TSV, peak matrices (.rds).         |
+| **ENCODE**    | ``ENCSR…`` experiments   | ENCODE ``/search/`` (JSON)                                | Snippets from joint snRNA + snATAC Series, SHARE-seq Experiment records, alignments + signals. |
+| **GEO**       | ``GSE…`` Series          | NCBI E-utilities (``esearch`` / ``esummary``) on ``gds``  | Sample sheet, supplementary processed files (matrices, fragment beds, h5ad if author uploaded). |
+| **CELLxGENE** | dataset UUIDs            | ``https://api.cellxgene.cziscience.com/curation/v1``      | Curated H5AD with standardized cell ontology + assay metadata; ready for training.            |
+| **HCA**       | HCA project UUIDs        | Azul ``/index/projects`` and ``/index/files``             | Project-level metadata + per-file download URLs (loom, h5ad, matrices, raw FASTQs).           |
+| **Zenodo**    | numeric record ids       | ``https://zenodo.org/api/records``                        | Author-uploaded archives — captures data shared *outside* the standard repositories.          |
+
+### Strengths and weaknesses, side by side
+
+- **IGVF** — newest data, richest variant-to-function context, smallest catalog overall (1,954 AnalysisSets as of May 2026). Peak matrices ship as ``.rds`` (R-only).
+- **ENCODE** — strong for SHARE-seq and rare paired-modality experiments, but native multiome coverage is small.
+- **GEO** — broadest catalog by far (50+ GSEs match basic queries; the long tail of author submissions is here). Heterogeneous file naming; supplementary files require FTP scraping.
+- **CELLxGENE Discover** — curated, schema-validated H5AD; the easiest pure-RNA half to download and train on. But the chromatin half of multiome is dropped during ingestion.
+- **HCA Data Portal** — best for organized consortium projects; supports filtering on ``libraryConstructionApproach``.
+- **Zenodo** — catches anything authors deposit alongside a paper (cluster labels, region-of-interest BEDs, custom models). No standardized schema.
+
+## Where multiome data also lives (not auto-queried here)
+
+The sources below host substantial multiome data but were left out of the
+default skill either because (a) they require authenticated access that
+this CLI shouldn't bake in, (b) their API needs careful schema-mapping
+beyond the scope of a generic survey, or (c) coverage is comparatively
+small relative to the six above.
+
+| repository                                            | typical content                                          | how to access                                                                                                       |
+|-------------------------------------------------------|----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| **Allen Brain Cell (ABC) Atlas**                      | Yao et al. *Nature* 2023 whole-mouse-brain snATAC + 10x Multiome (1,687 nuclei across 33 clusters). | https://alleninstitute.github.io/abc_atlas_access/  — Python package, S3-backed direct download.                    |
+| **Broad Single Cell Portal (SCP)**                    | Many published multiome studies (Buenrostro/Engreitz labs etc.) | https://singlecell.broadinstitute.org — REST API ``/single_cell/api/v1/`` (auth needed for some studies).            |
+| **Synapse (Sage Bionetworks)**                        | PsychENCODE 2.0 multiome, AMP-AD, AMP-PD consortia.       | https://www.synapse.org — Python client; **most studies require login + access agreement**.                          |
+| **dbGaP**                                              | Controlled-access human genomics; many multiome studies referenced here. | https://www.ncbi.nlm.nih.gov/gap — formal DAR/IRB approval required.                                                  |
+| **EGA (European Genome-phenome Archive)**             | European equivalent of dbGaP; same access model.          | https://ega-archive.org — controlled access, EGA download client.                                                    |
+| **ArrayExpress / BioStudies (EBI)**                   | European GEO-equivalent; some multiome Series.            | https://www.ebi.ac.uk/biostudies/api/v1/search                                                                       |
+| **figshare**                                          | Long-tail dataset deposits attached to papers.            | https://api.figshare.com/v2/articles                                                                                 |
+| **DDBJ Omics Archive (DOR)**                          | Japanese counterpart to GEO/SRA — small but non-overlapping. | https://ddbj.nig.ac.jp                                                                                              |
+| **CIRM**                                              | California stem-cell repository; iPSC + multiome derivatives. | https://www.cirm.ca.gov                                                                                              |
+| **Tabula Sapiens / Tabula Muris**                     | Standalone tissue atlases; mostly RNA-only but with some multimodal slices. | https://tabula-sapiens-portal.ds.czbiohub.org                                                                        |
+| **DNAnexus / Terra (BroadFC)**                        | Many consortium workspaces share processed multiome (auth required). | https://www.dnanexus.com / https://app.terra.bio                                                                     |
+| **NeMO Archive (Brain Initiative)**                   | BICCN multiome data including 10x Multiome + SHARE-seq.   | https://nemoarchive.org                                                                                              |
+
+### When to use each
+
+- **Training a foundation model** → start with **CELLxGENE Discover** (clean H5AD, ontology labels) for the RNA modality and **IGVF + GEO** for paired modalities.
+- **Variant-to-function modeling** → **IGVF** is purpose-built for this; supplement with **CELLxGENE** for cell-type context.
+- **Recreating a specific published analysis** → check **GEO** first (typical deposit), then **Zenodo** for analysis-time auxiliary files (cluster labels, derived features), then ABC / Synapse for consortium-specific releases.
+- **Brain-specific work** → **Allen ABC Atlas** + **NeMO Archive** are the high-value mines; supplement with HCA brain projects.
+- **Human disease cohorts** → likely controlled-access: **dbGaP** (US) or **EGA** (EU).  Plan around the DAR timeline.
+
+## Filename / kind classification
+
+The skill normalises every discovered file into a ``kind`` label so a
+training pipeline can pull only what it cares about:
+
+| kind            | matches                                                                                          |
+|-----------------|---------------------------------------------------------------------------------------------------|
+| ``matrix_rna``   | sparse gene count matrix, gene quantifications, filtered/raw feature-barcode matrix.             |
+| ``matrix_atac``  | annotated sparse peak count matrix, cell-by-peak matrices.                                       |
+| ``fragments``    | ATAC fragments BED (.bed.gz / .tsv.gz).                                                          |
+| ``peaks``        | Peak call files (.bed / .narrowPeak).                                                            |
+| ``annotations``  | Cell metadata / annotations / sample sheet (.tsv).                                               |
+| ``alignments``   | BAM / aligned reads.                                                                              |
+| ``index``        | BAI / TBI / CRAI index files.                                                                     |
+| ``raw_reads``    | FASTQ / sequence reads.                                                                           |
+| ``other``        | everything else.                                                                                  |
+
+Filter ``download`` by these kinds with ``--only matrix_rna,fragments,annotations``.
+
+## Privacy
+
+Every endpoint URL is hex-encoded in ``Scripts/_endpoints.py``; no
+hard-coded URLs or credentials appear in source.  All output paths are
+repo-relative.  ``Data/MultiomeSurvey/`` is covered by the existing
+``Data/*`` rule in ``.gitignore``, so downloaded payload never lands in
+commits.
+
+## How to run the skill end-to-end
+
+```bash
+# 1. Survey all six sources at once.
+igvfagent multiome-survey survey-all --limit 100 --fetch-files
+
+# 2. Re-build the unified manifest.
+igvfagent multiome-survey manifest --label v1
+
+# 3. Download a 20 GB training slice (RNA matrices + ATAC fragments + cell labels).
+igvfagent multiome-survey download \\
+    --only matrix_rna,fragments,annotations \\
+    --max-download-gb 20
+
+# 4. Refresh the on-disk inventory.
+igvfagent multiome-survey inventory
+```
+"""
+
+
+def write_sources_overview() -> Path:
+    SOURCES_OVERVIEW_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SOURCES_OVERVIEW_PATH.write_text(SOURCES_OVERVIEW_TEMPLATE, encoding="utf-8")
+    logging.info("Wrote sources overview: %s", rel_path(SOURCES_OVERVIEW_PATH))
+    return SOURCES_OVERVIEW_PATH
 
 
 def write_playbook() -> Path:
@@ -973,11 +1422,33 @@ def main(argv: list[str] | None = None) -> int:
                        help="Additional GEO query strings (repeatable).")
     s_geo.add_argument("--fetch-files", action="store_true")
 
-    s_all = sub.add_parser("survey-all", help="Run survey-igvf + survey-encode + survey-geo.")
+    s_cxg = sub.add_parser("survey-cellxgene", help="Survey CZI CELLxGENE Discover.")
+    s_cxg.add_argument("--label", default="multiome_survey")
+    s_cxg.add_argument("--fetch-files", action="store_true")
+
+    s_hca = sub.add_parser("survey-hca", help="Survey Human Cell Atlas Data Portal (Azul).")
+    s_hca.add_argument("--label", default="multiome_survey")
+    s_hca.add_argument("--fetch-files", action="store_true")
+
+    s_zen = sub.add_parser("survey-zenodo", help="Survey Zenodo for multiome datasets.")
+    s_zen.add_argument("--label", default="multiome_survey")
+    s_zen.add_argument("--per-query", type=int, default=25)
+    s_zen.add_argument("--extra-query", action="append", default=None,
+                       help="Additional Zenodo query strings (repeatable).")
+    s_zen.add_argument("--fetch-files", action="store_true")
+
+    s_all = sub.add_parser(
+        "survey-all",
+        help="Run survey-igvf + survey-encode + survey-geo + survey-cellxgene + survey-hca + survey-zenodo.",
+    )
     s_all.add_argument("--limit", type=int, default=100)
     s_all.add_argument("--label", default="multiome_survey")
     s_all.add_argument("--organism", default=None)
     s_all.add_argument("--fetch-files", action="store_true")
+    s_all.add_argument(
+        "--sources", default=",".join(SUPPORTED_SOURCES),
+        help="Comma-separated subset of sources to run (default: all).",
+    )
 
     s_man = sub.add_parser("manifest", help="Build unified manifest from latest surveys.")
     s_man.add_argument("--label", default="unified")
@@ -993,6 +1464,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("inventory", help="Scan Data/MultiomeSurvey and emit inventory CSV.")
     sub.add_parser("write-playbook", help="Emit Docs/Skills/MULTIOME_SURVEY_SKILLS.md.")
+    sub.add_parser("write-overview",
+                  help="Emit Docs/MultiomeSurvey/SOURCES_OVERVIEW.md (systemic overview).")
 
     args = parser.parse_args(argv)
     setup_logging()
@@ -1034,16 +1507,60 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  report:   {rel_path(out['report'])}")
         return 0
 
+    if args.command == "survey-cellxgene":
+        datasets, files = survey_cellxgene(label=args.label, fetch_files=args.fetch_files)
+        out = write_survey_outputs("cellxgene", args.label, datasets, files)
+        print(f"CELLxGENE: {len(datasets)} datasets, {len(files)} files")
+        print(f"  datasets: {rel_path(out['datasets_csv'])}")
+        print(f"  files:    {rel_path(out['files_csv'])}")
+        print(f"  report:   {rel_path(out['report'])}")
+        return 0
+
+    if args.command == "survey-hca":
+        datasets, files = survey_hca(label=args.label, fetch_files=args.fetch_files)
+        out = write_survey_outputs("hca", args.label, datasets, files)
+        print(f"HCA: {len(datasets)} datasets, {len(files)} files")
+        print(f"  datasets: {rel_path(out['datasets_csv'])}")
+        print(f"  files:    {rel_path(out['files_csv'])}")
+        print(f"  report:   {rel_path(out['report'])}")
+        return 0
+
+    if args.command == "survey-zenodo":
+        datasets, files = survey_zenodo(
+            label=args.label, per_query=args.per_query,
+            extra_queries=args.extra_query, fetch_files=args.fetch_files,
+        )
+        out = write_survey_outputs("zenodo", args.label, datasets, files)
+        print(f"Zenodo: {len(datasets)} datasets, {len(files)} files")
+        print(f"  datasets: {rel_path(out['datasets_csv'])}")
+        print(f"  files:    {rel_path(out['files_csv'])}")
+        print(f"  report:   {rel_path(out['report'])}")
+        return 0
+
     if args.command == "survey-all":
-        ds_i, fl_i = survey_igvf(limit=args.limit, label=args.label, fetch_files=args.fetch_files)
-        write_survey_outputs("igvf", args.label, ds_i, fl_i)
-        ds_e, fl_e = survey_encode(limit=args.limit, label=args.label, fetch_files=args.fetch_files)
-        write_survey_outputs("encode", args.label, ds_e, fl_e)
-        ds_g, fl_g = survey_geo(limit=args.limit, label=args.label,
-                                organism=args.organism, fetch_files=args.fetch_files)
-        write_survey_outputs("geo", args.label, ds_g, fl_g)
+        sources = {s.strip() for s in args.sources.split(",") if s.strip()}
+        counts: dict[str, int] = {}
+        if "igvf" in sources:
+            ds_i, fl_i = survey_igvf(limit=args.limit, label=args.label, fetch_files=args.fetch_files)
+            write_survey_outputs("igvf", args.label, ds_i, fl_i); counts["igvf"] = len(ds_i)
+        if "encode" in sources:
+            ds_e, fl_e = survey_encode(limit=args.limit, label=args.label, fetch_files=args.fetch_files)
+            write_survey_outputs("encode", args.label, ds_e, fl_e); counts["encode"] = len(ds_e)
+        if "geo" in sources:
+            ds_g, fl_g = survey_geo(limit=args.limit, label=args.label,
+                                    organism=args.organism, fetch_files=args.fetch_files)
+            write_survey_outputs("geo", args.label, ds_g, fl_g); counts["geo"] = len(ds_g)
+        if "cellxgene" in sources:
+            ds_c, fl_c = survey_cellxgene(label=args.label, fetch_files=args.fetch_files)
+            write_survey_outputs("cellxgene", args.label, ds_c, fl_c); counts["cellxgene"] = len(ds_c)
+        if "hca" in sources:
+            ds_h, fl_h = survey_hca(label=args.label, fetch_files=args.fetch_files)
+            write_survey_outputs("hca", args.label, ds_h, fl_h); counts["hca"] = len(ds_h)
+        if "zenodo" in sources:
+            ds_z, fl_z = survey_zenodo(label=args.label, fetch_files=args.fetch_files)
+            write_survey_outputs("zenodo", args.label, ds_z, fl_z); counts["zenodo"] = len(ds_z)
         build_unified_manifest(label=args.label)
-        print(f"survey-all: igvf={len(ds_i)} encode={len(ds_e)} geo={len(ds_g)} datasets")
+        print("survey-all: " + " ".join(f"{k}={v}" for k, v in counts.items()))
         return 0
 
     if args.command == "manifest":
@@ -1067,6 +1584,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "write-playbook":
         out = write_playbook()
+        print(f"wrote {rel_path(out)}")
+        return 0
+
+    if args.command == "write-overview":
+        out = write_sources_overview()
         print(f"wrote {rel_path(out)}")
         return 0
 
