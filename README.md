@@ -66,6 +66,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Variant annotation](#variant-annotation)
   - [Advanced variant analysis](#advanced-variant-analysis)
   - [Single-cell, multiome, specialized assays](#single-cell-multiome-specialized-assays)
+  - [Cross-source multiome survey](#cross-source-multiome-survey)
   - [Parse SPLiT-seq pipeline](#parse-splitseq-pipeline)
   - [Enhancer–gene linkage](#enhancergene-linkage)
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
@@ -143,6 +144,8 @@ IGVFagent/
 │   ├── single_cell_data_skills.py       ← scRNA / scATAC discovery + example analysis
 │   ├── multiome_10x_pipeline.py         ← 10x Multiome retrieval pipeline
 │   ├── multiome_research_demo.py
+│   ├── multiome_survey.py               ← cross-source survey: IGVF + ENCODE + GEO +
+│   │                                       CELLxGENE + HCA + Zenodo, unified manifest + downloader
 │   ├── portal_multiome.py  portal_scrna_10.py
 │   ├── putamen_multiome_demo_analysis.py
 │   ├── splitseq_pipeline.py             ← Parse SPLiT-seq end-to-end pipeline
@@ -545,6 +548,57 @@ python3 Scripts/igvf_specialized_data_skills.py manifest --skill all --limit 25
 python3 Scripts/igvf_specialized_data_skills.py download-plan --skill all --limit 25
 python3 Scripts/igvf_specialized_data_skills.py write-playbook
 ```
+
+### Cross-source multiome survey
+
+Surveys six independent public sources for single-cell multiome data
+(10x Multiome / SHARE-seq / single-nucleus multiome / SNARE-seq /
+Paired-Tag), classifies every file by a training-relevant `kind`
+(`matrix_rna`, `matrix_atac`, `fragments`, `peaks`, `annotations`,
+`alignments`, `index`, `raw_reads`, `other`), and produces a unified
+manifest with a size-capped downloader.
+
+| source        | what it covers                                                       |
+|---------------|----------------------------------------------------------------------|
+| **IGVF**      | IGVF Portal AnalysisSets/MeasurementSets (10x multiome + SHARE-seq). |
+| **ENCODE**    | ENCODE Experiments + Series tagged 10x multiome / SHARE-seq.          |
+| **GEO**       | NCBI Gene Expression Omnibus Series via E-utilities + FTP listing.    |
+| **CELLxGENE** | CZI CELLxGENE Discover curated H5AD collections.                      |
+| **HCA**       | Human Cell Atlas Data Portal projects (Azul `/index/projects`).        |
+| **Zenodo**    | Zenodo records with multiome keywords in title / description / files. |
+
+```bash
+# Run all six sources in one shot, then build the unified manifest
+python3 Scripts/multiome_survey.py survey-all --limit 30 --fetch-files
+python3 Scripts/multiome_survey.py manifest --label v1
+
+# Training-relevant slice only (RNA + ATAC + fragments + annotations), 20 GB cap
+python3 Scripts/multiome_survey.py download \
+    --only matrix_rna,matrix_atac,fragments,annotations \
+    --max-download-gb 20
+
+# Per-source surveys
+python3 Scripts/multiome_survey.py survey-igvf      --fetch-files
+python3 Scripts/multiome_survey.py survey-encode    --fetch-files
+python3 Scripts/multiome_survey.py survey-geo       --limit 50 --fetch-files
+python3 Scripts/multiome_survey.py survey-cellxgene --fetch-files
+python3 Scripts/multiome_survey.py survey-hca       --fetch-files
+python3 Scripts/multiome_survey.py survey-zenodo    --per-query 25 --fetch-files
+
+# Inventory on-disk downloads + skill / overview docs
+python3 Scripts/multiome_survey.py inventory
+python3 Scripts/multiome_survey.py write-playbook
+python3 Scripts/multiome_survey.py write-overview
+```
+
+A live `survey-all` (May 2026) indexed **401 datasets / 3,837 files /
+14.19 TB total** across the six sources; the digest is committed at
+`Docs/MultiomeSurvey/LATEST_RUN_SUMMARY.md`. The companion
+`Docs/MultiomeSurvey/SOURCES_OVERVIEW.md` covers what each source offers
+and points to additional repositories (Allen Brain Cell Atlas, Broad
+Single Cell Portal, Synapse, dbGaP, EGA, ArrayExpress, NeMO Archive,
+figshare, DDBJ, Terra) where multiome data also lives but isn't
+auto-queried by the skill.
 
 ### Parse SPLiT-seq pipeline
 
