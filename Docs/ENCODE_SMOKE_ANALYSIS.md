@@ -1,6 +1,6 @@
 # ENCODE Smoke Analysis
 
-Generated: 2026-05-06 13:16:38 EDT
+Generated: 2026-05-11 06:07:22 EDT
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Parameters: `{'type': 'Experiment', 'assay_title': 'ATAC-seq', 'limit': '3'}`
 HTTP status: 200
 Returned rows: 3
 Reported total: 560
-Saved response: `<repo>/Data/20260506_131633_encode_atac_seq_experiments.json`
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060717_encode_atac_seq_experiments.json`
 
 Top assays:
 - ATAC-seq: 6
@@ -38,7 +38,7 @@ Parameters: `{'type': 'Experiment', 'assay_slims': 'DNA binding', 'limit': '3'}`
 HTTP status: 200
 Returned rows: 3
 Reported total: 13733
-Saved response: `<repo>/Data/20260506_131634_encode_chip_seq_experiments.json`
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060718_encode_chip_seq_experiments.json`
 
 Top assays:
 - ChIP-seq: 2
@@ -64,7 +64,7 @@ Parameters: `{'type': 'Experiment', 'assay_slims': 'Transcription', 'limit': '3'
 HTTP status: 200
 Returned rows: 3
 Reported total: 6696
-Saved response: `<repo>/Data/20260506_131634_encode_rna_seq_experiments.json`
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060718_encode_rna_seq_experiments.json`
 
 Top assays:
 - PRO-cap: 6
@@ -87,7 +87,7 @@ Parameters: `{'type': 'Experiment', 'assay_slims': 'DNA accessibility', 'limit':
 HTTP status: 200
 Returned rows: 3
 Reported total: 4597
-Saved response: `<repo>/Data/20260506_131635_encode_dna_accessibility_experiments.json`
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060719_encode_dna_accessibility_experiments.json`
 
 Top assays:
 - DNase-seq: 6
@@ -111,7 +111,7 @@ Parameters: `{'type': 'File', 'file_format': 'bigWig', 'limit': '3'}`
 HTTP status: 200
 Returned rows: 3
 Reported total: 274659
-Saved response: `<repo>/Data/20260506_131636_encode_bigwig_files.json`
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060720_encode_bigwig_files.json`
 
 Top assays:
 - PRO-cap: 3
@@ -129,8 +129,8 @@ Region/peak calls and genomic interval files.
 Parameters: `{'type': 'File', 'file_format': 'bed', 'limit': '3'}`
 HTTP status: 200
 Returned rows: 3
-Reported total: 733220
-Saved response: `<repo>/Data/20260506_131638_encode_bed_files.json`
+Reported total: 733221
+Saved response: `/Users/zhou/Research/projects/IGVFagent/Data/20260511_060722_encode_bed_files.json`
 
 Top assays:
 - PRO-cap: 3
