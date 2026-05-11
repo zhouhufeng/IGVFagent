@@ -1,9 +1,23 @@
 # Skill: Multiome cross-source survey
 
-Surveys **IGVF Portal**, **ENCODE**, and **GEO** for single-cell multiome
-datasets (10x Multiome / SHARE-seq / single-nucleus multiome), produces a
-unified file manifest, and downloads the training-relevant files into
-``Data/MultiomeSurvey/``.
+Surveys six independent public sources for single-cell multiome data
+(10x Multiome / SHARE-seq / single-nucleus multiome / SNARE-seq /
+Paired-Tag), produces a unified file manifest, and downloads the
+training-relevant files into ``Data/MultiomeSurvey/``.
+
+| source         | what it covers                                                          |
+|----------------|--------------------------------------------------------------------------|
+| **IGVF**        | IGVF Portal AnalysisSets / MeasurementSets (10x multiome + SHARE-seq).   |
+| **ENCODE**      | ENCODE Experiments + Series tagged 10x multiome / SHARE-seq.              |
+| **GEO**         | NCBI Gene Expression Omnibus Series, via E-utilities + FTP listings.      |
+| **CELLxGENE**   | CZI CELLxGENE Discover collections (curated h5ad release).                |
+| **HCA**         | Human Cell Atlas Data Portal projects (Azul ``/index/projects``).         |
+| **Zenodo**      | Zenodo records with multiome keywords in title / description / files.     |
+
+A companion overview of *what each source offers, what it doesn't, and
+where the rest of the multiome universe lives* (Allen ABC Atlas, Broad
+Single Cell Portal, Synapse, dbGaP/EGA, BioStudies / ArrayExpress) is
+written by this skill to ``Docs/MultiomeSurvey/SOURCES_OVERVIEW.md``.
 
 ## Subcommands
 
@@ -38,13 +52,45 @@ Runs NCBI E-utilities `esearch+esummary` on the `gds` database for the
 canonical multiome queries.  Optionally scrapes the GEO FTP listing for
 each GSE to expose supplementary files.
 
+### `survey-cellxgene`
+
+```bash
+igvfagent multiome-survey survey-cellxgene --fetch-files
+```
+
+Walks every public CELLxGENE Discover collection and keeps the datasets
+whose ``assay`` label or EFO term matches multiome / SHARE-seq / SNARE-seq
+/ Paired-Tag / CITE-seq.  ``--fetch-files`` adds the H5AD/RDS download
+URLs to the files manifest.
+
+### `survey-hca`
+
+```bash
+igvfagent multiome-survey survey-hca --fetch-files
+```
+
+Calls the HCA Azul ``/index/projects`` endpoint with a
+``libraryConstructionApproach`` filter for multiome-style assays.
+``--fetch-files`` also expands ``/index/files`` per project.
+
+### `survey-zenodo`
+
+```bash
+igvfagent multiome-survey survey-zenodo --per-query 50 --fetch-files
+```
+
+Keyword-searches Zenodo for the six canonical multiome phrases.
+Captures arbitrary deposits associated with papers — useful for catching
+data that authors share outside ENCODE / GEO.
+
 ### `survey-all`
 
 ```bash
 igvfagent multiome-survey survey-all --limit 100 --fetch-files
+igvfagent multiome-survey survey-all --sources igvf,cellxgene,hca   # subset
 ```
 
-Runs all three.
+Runs every enabled source and writes a unified manifest.
 
 ### `manifest`
 
@@ -85,6 +131,9 @@ Data/
     igvf/<IGVFDS...>/<file>
     encode/<ENCSR...>/<file>
     geo/<GSE...>/<file>
+    cellxgene/<dataset_id>/<file>
+    hca/<projectId>/<file>
+    zenodo/<recordId>/<file>
     inventory.csv
   Manifests/MultiomeSurvey/
     <ts>_<label>_<source>_datasets.csv
