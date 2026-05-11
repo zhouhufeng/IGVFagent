@@ -612,7 +612,7 @@ def _xml_cli_build_prompt(messages, tools) -> str:
     user_system = "\n\n".join(c for c in system_chunks if c).strip()
     tools_block = _claude_cli_render_tools(tools) if tools else \
                   "_(no tools — produce <final_answer> directly)_"
-    framework = _CLAUDE_CLI_TOOL_PROMPT.format(tools_block=tools_block)
+    framework = _CLAUDE_CLI_TOOL_PROMPT.replace("{tools_block}", tools_block)
     convo = _claude_cli_serialize_messages(messages).strip()
     return (
         framework

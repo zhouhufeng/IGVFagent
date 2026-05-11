@@ -8,7 +8,6 @@ Use this skill when a user pastes an IGVF Portal or ENCODE accession, object URL
 python3 Scripts/data_illustration_interpretation.py explain '<igvf-portal-url>/curated-sets/IGVFDS2544COZH/'
 python3 Scripts/data_illustration_interpretation.py explain '<encode-portal-url>/search/?type=Annotation&searchTerm=encode-re2g&status!=archived'
 python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH --download --max-download-gb 2
-python3 Scripts/data_illustration_interpretation.py explain '<search-url>' --hydrate-limit 50
 ```
 
 ## Workflow

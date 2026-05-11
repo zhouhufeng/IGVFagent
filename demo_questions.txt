@@ -1,0 +1,152 @@
+# =============================================================================
+# IGVFagent — Live Demo (20 questions / commands)
+# =============================================================================
+#
+# Before starting:
+#   cd /path/to/IGVFagent
+#   source .venv/bin/activate          # or prefix commands with .venv/bin/
+#
+# Each step writes a timestamped folder under Docs/<Skill>/ and (for retrieval
+# steps) a manifest under Data/Manifests/<Skill>/. Open the generated report.md
+# in your editor between sections to show the audience the receipts.
+#
+# Timing: ~20 minutes if you talk through each step. Most commands return in
+# 5–30 seconds; the LLM `ask` calls in Act 6 take 20–60 seconds each.
+#
+# All paths below are relative to the project root.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Act 1 — What is IGVFagent? (orient the audience)
+# -----------------------------------------------------------------------------
+
+# Q1. Show the full skill catalog — 23 first-class skills in one CLI.
+igvfagent --list
+
+# Q2. Live health ping. Catalog / ENCODE green; Portal 403 is expected
+#     (it requires an auth cookie — IGVFagent surfaces this, doesn't hide it).
+igvfagent client check
+
+# Q3. The 53 tools the LLM-driven planner can call (first screenful).
+igvfagent tools | head -40
+
+
+# -----------------------------------------------------------------------------
+# Act 2 — Ask the IGVF Knowledge Graph about APOE
+# -----------------------------------------------------------------------------
+
+# Q4. Comprehensive APOE evidence pack — variants, transcripts, proteins,
+#     regulatory elements, diseases, pathways, in a single CLI call.
+igvfagent kg gene APOE --depth 1 --limit 10 --label demo_apoe
+
+# Q5. Variant-centric traversal — everything the KG knows about the APOE-E4 rsID.
+igvfagent kg variant rs429358 --limit 10 --label demo_apoe_e4
+
+# Q6. Region-centric traversal — every gene and cCRE inside the APOE locus.
+igvfagent kg region chr19:44903000-44912000 --limit 10 --label demo_apoe_locus
+
+# Show the audience the auto-generated APOE report (open in your editor):
+#   Docs/KGTraversal/<timestamp>_demo_apoe/gene_APOE_report.md
+
+
+# -----------------------------------------------------------------------------
+# Act 3 — Cross-evidence streams in one CLI
+# -----------------------------------------------------------------------------
+
+# Q7. ENCODE: K562 H3K27ac ChIP-seq experiments with one-line metadata.
+igvfagent encode retrieve --assay 'Histone ChIP-seq' --target H3K27ac \
+  --biosample K562 --assembly GRCh38 --limit 5
+
+# Q8. IGVF MPRA / STARR corpus.
+igvfagent mpra pull --source catalog --limit 10
+
+# Q9. IGVF CRISPRi / CRISPR-FACS / Perturb-seq corpus.
+igvfagent crispri pull --source catalog --limit 10
+
+# Q10. Enhancer–gene linkage at the APOE locus (rE2G / ABC / ENCODE-rE2G).
+igvfagent enhancer pull-sets --region chr19:44903000-44912000 --gene APOE --limit 10
+
+
+# -----------------------------------------------------------------------------
+# Act 4 — Variant scoring pipeline on a real list
+# -----------------------------------------------------------------------------
+
+# Q11. Annotate the bundled example variant list against Catalog evidence.
+igvfagent variant --input Data/Input/VariantList/example_variants.csv --max-rows 5
+
+# Q12. Same list with cCRE classification + FAVOR overlay.
+igvfagent ccre annotate-variants \
+  --input Data/Input/VariantList/example_variants.csv --max-rows 5
+
+# Q13. Full pipeline — Catalog + cCRE + composite + logistic + plots + report.
+igvfagent advanced-variant run \
+  --input Data/Input/VariantList/example_variants.csv --label demo_variants
+
+# Show the audience the SVG plots and the markdown report:
+#   Docs/AdvancedVariantAnalysis/<timestamp>_demo_variants_analysis_report.md
+#   Docs/AdvancedVariantAnalysis/Plots/<timestamp>_demo_variants_evidence_overlap.svg
+
+
+# -----------------------------------------------------------------------------
+# Act 5 — External corpora and literature
+# -----------------------------------------------------------------------------
+
+# Q14. NCBI GEO search — what's published on macrophage RNA-seq inflammation.
+igvfagent geo search --query "macrophage RNA-seq inflammation" --limit 5
+
+# Q15. Multi-source literature pull — PubMed / PMC / bioRxiv / arXiv /
+#      Semantic Scholar / OpenAlex, weighted toward top-tier journals.
+igvfagent ref search --query "APOE Alzheimer regulatory variant" --top 10
+
+# Q16. Plain-language explainer of a real IGVF dataset — metadata, files,
+#      how-to-use guidance, all generated automatically.
+igvfagent explain explain IGVFDS2544COZH
+
+
+# -----------------------------------------------------------------------------
+# Act 6 — Let the agent orchestrate (Plan → Action → Results → Evaluation)
+# -----------------------------------------------------------------------------
+
+# Q17. Pure LLM round trip — no tools, just the planner. Sanity check.
+igvfagent ask --backend claude_cli \
+  "List exactly three IGVF Catalog entity types and return only the list, nothing else."
+
+# Q18. Single tool call — the agent picks kg_gene, traverses, and writes a summary.
+igvfagent ask --backend claude_cli --max-iterations 3 --tool kg_gene \
+  "Give me a one-paragraph APOE summary including its top disease associations and the regulatory elements that control it. Use kg_gene with depth=1, limit=10."
+
+# Q19. Pick-your-own-tool — agent reads the variant CSV, picks the right
+#      annotation tool, and tells you which variants have the strongest evidence.
+igvfagent ask --backend claude_cli --max-iterations 5 \
+  "I have a variant list at Data/Input/VariantList/example_variants.csv. Annotate it against the IGVF Catalog evidence and tell me which variants have the strongest regulatory or coding evidence."
+
+# Q20. Multi-tool composition — KG evidence cross-checked against the literature.
+#      This is the headline demo: one prompt, the agent plans, calls the KG,
+#      calls the literature skill, and reconciles the two.
+igvfagent ask --backend claude_cli --max-iterations 8 \
+  "For gene LDLR, pull comprehensive IGVF Catalog evidence (variants, regulatory elements, disease associations) and then validate the top findings against the published literature. Cite specific papers."
+
+# Show the audience the full audit trail of the last ask:
+#   Docs/Agent/<timestamp>_<query-slug>/report.md
+#   Docs/Agent/<timestamp>_<query-slug>/transcript.json
+
+
+# =============================================================================
+# Backup / Q&A material (if the audience asks for more)
+# =============================================================================
+
+# Bonus A. ENCODE smoke summary across every assay type (one CLI, six APIs).
+igvfagent data encode-smoke --limit 5
+
+# Bonus B. Specialized IGVF assay catalog (Parse SPLiT-seq, SGE, etc.).
+igvfagent specialized smoke --skill all --limit 3
+
+# Bonus C. Super-enhancer driver-experiment discovery on GM12878.
+igvfagent se-targets discover --biosample GM12878 --assembly GRCh38 --target H3K27ac
+
+# Bonus D. Literature-guided study design recommendation for Parse SPLiT-seq.
+igvfagent ref design --data-type parse_split_seq --assay-title "Parse SPLiT-seq"
+
+# Bonus E. Proteomics version manifest (BioGRID / IntAct upstream probe).
+igvfagent proteomics versions
