@@ -18,7 +18,9 @@ tool registry, and agent loop are all owned by ``_llm.py``,
 
 from __future__ import annotations
 
+import base64
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -297,8 +299,16 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
         "backend instead with a real API key."
     )
 
+    # Claude Code CLI runs against whichever models the local `claude`
+    # binary supports. Limit the picker to the three current Claude 4.x
+    # tiers so users do not pick a retired/unsupported model id.
+    _CLAUDE_CLI_MODELS = (
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    )
     options = ["(use Claude Code's configured default)"] + \
-              list(_llm.ANTHROPIC_MODELS) + ["(custom...)"]
+              list(_CLAUDE_CLI_MODELS) + ["(custom...)"]
     prev = st.session_state.get("_claude_cli_model_choice", options[0])
     idx = options.index(prev) if prev in options else 0
     chosen = st.selectbox("Claude model override", options, index=idx,
@@ -505,25 +515,229 @@ def _sidebar() -> dict:
 
 # --------------------------- Artefact rendering ----------------------------
 
+# Anything ending in one of these is treated as a viewable artefact when
+# referenced from a markdown report body.
+_VIEWABLE_EXTS = (
+    ".png", ".jpg", ".jpeg", ".svg", ".gif",
+    ".csv", ".tsv",
+    ".md",
+    ".json", ".jsonl",
+    ".pdf",
+    ".html", ".htm",
+    ".txt", ".log",
+)
+
+
+# Pull file paths out of arbitrary text (markdown report bodies, etc.).
+# Recognizes backtick-quoted paths and bare absolute paths ending in one
+# of the known extensions.
+_PATH_IN_TICKS = re.compile(r"`([^`\n]+?\.(?:" +
+                            "|".join(ext.lstrip(".") for ext in _VIEWABLE_EXTS) +
+                            r"))`")
+_BARE_ABS_PATH = re.compile(r"(?<![\w/`])(/[^\s`\n]+?\.(?:" +
+                            "|".join(ext.lstrip(".") for ext in _VIEWABLE_EXTS) +
+                            r"))(?![\w])")
+
+
+def _extract_paths_from_text(text: str) -> "list[str]":
+    found: "list[str]" = []
+    seen: "set[str]" = set()
+    for rx in (_PATH_IN_TICKS, _BARE_ABS_PATH):
+        for m in rx.finditer(text or ""):
+            p = m.group(1).strip()
+            if p in seen:
+                continue
+            seen.add(p)
+            try:
+                if Path(p).is_file():
+                    found.append(p)
+            except OSError:
+                continue
+    return found
+
+
+def _download_button(path: str, key_hint: str = "") -> None:
+    try:
+        data = Path(path).read_bytes()
+        st.download_button(
+            label=f"⬇ Download {Path(path).name}",
+            data=data,
+            file_name=Path(path).name,
+            key=f"dl_{key_hint}_{path}",
+            use_container_width=False,
+        )
+    except Exception as e:
+        st.caption(f"(download unavailable: {e})")
+
+
+def _render_pdf(path: str) -> None:
+    """Embed a PDF inline via base64 + iframe; provide a download button."""
+    try:
+        data = Path(path).read_bytes()
+        b64 = base64.b64encode(data).decode("ascii")
+        st.markdown(
+            f'<iframe src="data:application/pdf;base64,{b64}" '
+            f'width="100%" height="640" style="border:1px solid #ddd;">'
+            f'</iframe>',
+            unsafe_allow_html=True,
+        )
+        _download_button(path, key_hint="pdf")
+    except Exception as e:
+        st.text(f"(could not embed PDF: {e})")
+        _download_button(path, key_hint="pdf_fallback")
+
+
+def _render_csv_like(path: str, sep: "str|None" = None) -> None:
+    try:
+        import pandas as pd
+        df = pd.read_csv(path, nrows=400, sep=sep, engine="python")
+        st.dataframe(df, use_container_width=True, height=300)
+        if len(df) >= 400:
+            st.caption("Preview limited to first 400 rows.")
+        _download_button(path, key_hint="csv")
+    except Exception as e:
+        st.text(f"(could not read {path}: {e})")
+        _download_button(path, key_hint="csv_fallback")
+
+
+def _render_jsonl(path: str, max_rows: int = 50) -> None:
+    try:
+        import json
+        rows: "list[Any]" = []
+        with open(path, "r", encoding="utf-8") as fh:
+            for i, line in enumerate(fh):
+                if i >= max_rows:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    rows.append({"_raw": line[:500]})
+        # Try a tabular view if rows are flat dicts.
+        try:
+            import pandas as pd
+            df = pd.json_normalize(rows)
+            st.dataframe(df, use_container_width=True, height=300)
+        except Exception:
+            st.json(rows)
+        st.caption(f"First {len(rows)} record(s).")
+        _download_button(path, key_hint="jsonl")
+    except Exception as e:
+        st.text(f"(could not read {path}: {e})")
+        _download_button(path, key_hint="jsonl_fallback")
+
+
+def _render_one(path: str, *, depth: int = 0) -> None:
+    """Render a single artefact path with the right widget."""
+    low = path.lower()
+    name = Path(path).name
+    if low.endswith((".png", ".jpg", ".jpeg", ".svg", ".gif")):
+        try:
+            st.image(path, caption=name, use_container_width=True)
+        except Exception as e:
+            st.text(f"(image unavailable: {name}) {e}")
+        return
+    if low.endswith(".pdf"):
+        _render_pdf(path)
+        return
+    if low.endswith(".csv"):
+        _render_csv_like(path, sep=",")
+        return
+    if low.endswith(".tsv"):
+        _render_csv_like(path, sep="\t")
+        return
+    if low.endswith(".jsonl"):
+        _render_jsonl(path)
+        return
+    if low.endswith(".json"):
+        try:
+            txt = Path(path).read_text()
+            if len(txt) < 200_000:
+                st.json(txt)
+            else:
+                st.caption(f"JSON >200KB; download to inspect.")
+            _download_button(path, key_hint="json")
+        except Exception as e:
+            st.text(f"(could not read {path}: {e})")
+        return
+    if low.endswith(".md"):
+        try:
+            body = Path(path).read_text()
+        except Exception as e:
+            st.text(f"(could not read {path}: {e})")
+            return
+        st.markdown(body)
+        # Recurse into paths the report references, but only one level deep
+        # to avoid loops.
+        if depth == 0:
+            referenced = _extract_paths_from_text(body)
+            if referenced:
+                st.caption(
+                    f"Linked artefacts in this report ({len(referenced)}):"
+                )
+                for ref in referenced[:12]:
+                    with st.expander(f"📎 {Path(ref).name}", expanded=False):
+                        _render_one(ref, depth=depth + 1)
+        return
+    if low.endswith((".html", ".htm")):
+        try:
+            html = Path(path).read_text()
+            if len(html) < 1_000_000:
+                st.components.v1.html(html, height=480, scrolling=True)
+            else:
+                st.caption("HTML >1MB; download to view.")
+        except Exception as e:
+            st.text(f"(could not read {path}: {e})")
+        _download_button(path, key_hint="html")
+        return
+    if low.endswith((".txt", ".log")):
+        try:
+            txt = Path(path).read_text()
+            if len(txt) < 50_000:
+                st.code(txt)
+            else:
+                st.code(txt[:50_000])
+                st.caption(f"Truncated to 50KB of {len(txt):,} bytes.")
+        except Exception as e:
+            st.text(f"(could not read {path}: {e})")
+        _download_button(path, key_hint="txt")
+        return
+    # Anything else — surface a download button when it exists on disk.
+    st.code(path)
+    if Path(path).is_file():
+        _download_button(path, key_hint="misc")
+
+
 def _render_artefacts(paths: "list[str]") -> None:
     if not paths:
         return
+    # Dedupe while preserving order.
     seen: "set[str]" = set()
     paths = [p for p in paths if not (p in seen or seen.add(p))]
-    images, markdowns, csvs, jsons, others = [], [], [], [], []
+
+    images, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
+        [], [], [], [], [], [], []
+    )
     for p in paths:
         low = p.lower()
-        if low.endswith((".png", ".svg", ".jpg", ".jpeg")):
+        if low.endswith((".png", ".svg", ".jpg", ".jpeg", ".gif")):
             images.append(p)
         elif low.endswith(".md"):
             markdowns.append(p)
         elif low.endswith((".csv", ".tsv")):
-            csvs.append(p)
+            tabular.append(p)
+        elif low.endswith(".jsonl"):
+            jsonl_files.append(p)
         elif low.endswith(".json"):
             jsons.append(p)
+        elif low.endswith(".pdf"):
+            pdfs.append(p)
         else:
             others.append(p)
 
+    # Images: gallery up to 6 inline.
     if images:
         cols = st.columns(min(2, len(images)))
         for idx, img in enumerate(images[:6]):
@@ -532,42 +746,38 @@ def _render_artefacts(paths: "list[str]") -> None:
                     img, caption=Path(img).name, use_container_width=True,
                 )
             except Exception as e:
-                cols[idx % len(cols)].text(f"(image unavailable: {Path(img).name}) {e}")
+                cols[idx % len(cols)].text(
+                    f"(image unavailable: {Path(img).name}) {e}"
+                )
         if len(images) > 6:
             st.caption(f"… and {len(images) - 6} more image(s) not shown")
 
+    # Markdown reports — render body inline AND chase any file paths the
+    # report references so the user sees the underlying CSV / JSONL / PDF
+    # / PNG without having to copy a path into a terminal.
     for md in markdowns[:6]:
         with st.expander(f"📄 {Path(md).name}", expanded=False):
-            try:
-                st.markdown(Path(md).read_text())
-            except Exception as e:
-                st.text(f"(could not read {md}: {e})")
+            _render_one(md, depth=0)
 
-    for csv in csvs[:6]:
-        with st.expander(f"📊 {Path(csv).name}", expanded=False):
-            try:
-                import pandas as pd
-                df = pd.read_csv(csv, nrows=400, sep=None, engine="python")
-                st.dataframe(df, use_container_width=True, height=300)
-                if len(df) >= 400:
-                    st.caption("Preview limited to first 400 rows.")
-            except Exception as e:
-                st.text(f"(could not read {csv}: {e})")
+    for path in pdfs[:4]:
+        with st.expander(f"📕 {Path(path).name}", expanded=False):
+            _render_one(path)
 
-    for j in jsons[:4]:
-        with st.expander(f"📦 {Path(j).name}", expanded=False):
-            st.code(j, language=None)
-            try:
-                txt = Path(j).read_text()
-                if len(txt) < 30000:
-                    st.json(txt)
-                else:
-                    st.caption(f"JSON >30KB; not inlined. Path: `{j}`")
-            except Exception:
-                pass
+    for path in tabular[:6]:
+        with st.expander(f"📊 {Path(path).name}", expanded=False):
+            _render_one(path)
+
+    for path in jsonl_files[:4]:
+        with st.expander(f"🧾 {Path(path).name}", expanded=False):
+            _render_one(path)
+
+    for path in jsons[:4]:
+        with st.expander(f"📦 {Path(path).name}", expanded=False):
+            _render_one(path)
 
     for o in others[:8]:
-        st.code(o)
+        with st.expander(f"📁 {Path(o).name or o}", expanded=False):
+            _render_one(o)
 
 
 # --------------------------- Event rendering -------------------------------
@@ -826,11 +1036,19 @@ def main() -> None:
         else:
             st.warning("_The agent finished without producing a final answer._")
 
-        # Inline artefact rendering
-        if result.artefacts:
-            with st.expander(f"📁 Artefacts ({len(result.artefacts)})",
+        # Inline artefact rendering — combine the agent's declared
+        # artefacts with any file paths mentioned in the final answer
+        # itself, so the user does not have to copy paths into a terminal
+        # to view a referenced CSV / JSONL / PDF / PNG.
+        artefacts = list(result.artefacts or [])
+        extra = _extract_paths_from_text(result.final_answer or "")
+        for p in extra:
+            if p not in artefacts:
+                artefacts.append(p)
+        if artefacts:
+            with st.expander(f"📁 Artefacts ({len(artefacts)})",
                              expanded=True):
-                _render_artefacts(result.artefacts)
+                _render_artefacts(artefacts)
 
         meta_caption = (
             f"backend `{result.backend}`  ·  model `{result.model}`  ·  "
@@ -844,7 +1062,7 @@ def main() -> None:
     st.session_state.messages.append({
         "role": "assistant",
         "content": result.final_answer,
-        "artefacts": result.artefacts,
+        "artefacts": artefacts,
         "meta": meta_caption,
     })
 
