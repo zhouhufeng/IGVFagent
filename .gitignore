@@ -62,3 +62,8 @@ Docs/*/Plots/
 
 # Local helper scripts (not part of the public deploy)
 clean_and_push.sh
+
+# Local-only deliverables (slides, paper drafts) — not pushed
+Docs/Slides/
+Docs/Paper/
+Scripts/_make_overview_slides.py

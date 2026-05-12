@@ -306,8 +306,26 @@ igvfagent --help              # full skill list
 The Streamlit UI exposes the **same** ReAct agent as `igvfagent ask`,
 with an interactive sidebar for backend / model / tool-subset selection,
 a streaming progress trace as the agent plans and calls tools, and inline
-rendering of any artefacts the tools produce (UMAP / dot-plot / volcano
-PNG/SVG figures, markdown reports, manifest CSVs).
+rendering of any artefacts the tools produce.
+
+Supported artefact viewers (rendered directly in the chat, no terminal
+round-trip):
+
+- **PNG / JPG / SVG / GIF** — inline gallery (UMAP, dot-plot, volcano, IGV-style snapshots).
+- **CSV / TSV** — first 400 rows as a sortable `st.dataframe`, plus a download button.
+- **PDF** — embedded base64 iframe (FAVOR / cCRE reports, advanced-variant exports).
+- **Markdown reports** — rendered in place; backtick-quoted file paths inside the body are auto-followed so the underlying CSV / JSONL / PDF / PNG that the report references each get their own inline viewer.
+- **JSONL** — first 50 records normalized into a DataFrame, falls back to raw JSON.
+- **JSON** — pretty-printed up to 200KB.
+- **HTML** — sandboxed `st.components.v1.html` embed.
+- **TXT / LOG** — first 50KB in a code block.
+- Anything else — download button.
+
+When the **Claude Code CLI** backend is selected, the model picker is
+restricted to the three current Claude 4.x tiers (`claude-opus-4-7`,
+`claude-sonnet-4-6`, `claude-haiku-4-5-20251001`) plus a `(custom...)`
+escape hatch — picking a retired model id is no longer possible from
+the dropdown.
 
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
