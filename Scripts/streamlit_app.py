@@ -41,6 +41,15 @@ except Exception:
     except Exception:
         __version__ = "0.1.0"
 
+# KG visualizer — optional, soft-fail if matplotlib/networkx missing.
+try:
+    from igvfagent import kg_visualizer as _kgviz  # type: ignore
+except Exception:
+    try:
+        import kg_visualizer as _kgviz  # type: ignore
+    except Exception:
+        _kgviz = None
+
 
 # --------------------------- Page config -----------------------------------
 
@@ -887,6 +896,34 @@ def main() -> None:
             f"or be slow on first call."
         )
     st.divider()
+
+    # ------------------------------------------------------------------
+    # Two tabs: Chat (the existing flow) + Knowledge Graph (new module).
+    # The KG tab is independent of the loaded LLM — it works against the
+    # local SQLite KGs that the proteomics and portal-to-kg skills build.
+    # ------------------------------------------------------------------
+    chat_tab, kg_tab = st.tabs(
+        ["💬 Chat", "🕸  Knowledge Graph"]
+    )
+
+    with kg_tab:
+        if _kgviz is None:
+            st.warning(
+                "Knowledge Graph visualizer not available — needs "
+                "`matplotlib` + `networkx` in this venv. Install with:\n\n"
+                "```\npip install matplotlib networkx\n```"
+            )
+        else:
+            try:
+                _kgviz.render_streamlit_panel(st)
+            except Exception as exc:  # pylint: disable=broad-except
+                import traceback
+                st.error(f"KG visualizer error: {exc}")
+                with st.expander("Traceback", expanded=False):
+                    st.code(traceback.format_exc())
+
+    # The rest of main() runs inside the chat tab.
+    chat_tab.__enter__()
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
