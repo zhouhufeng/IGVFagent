@@ -81,6 +81,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [GEO retrieval](#geo-retrieval)
   - [Bulk RNA-seq analysis](#bulk-rna-seq-analysis)
   - [Proteomics & PPI knowledge graph](#proteomics--ppi-knowledge-graph)
+  - [Single-cell analysis (UMAP / t-SNE / Leiden / markers)](#single-cell-analysis-umap--t-sne--leiden--markers)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -142,6 +143,8 @@ IGVFagent/
 │   ├── advanced_variant_analysis.py     ← integrated variant scoring + logistic + report
 │   │
 │   ├── single_cell_data_skills.py       ← scRNA / scATAC discovery + example analysis
+│   ├── singlecell_analysis.py           ← Scanpy pipeline: QC, PCA, UMAP, t-SNE,
+│   │                                       Leiden, markers, publication figures
 │   ├── multiome_10x_pipeline.py         ← 10x Multiome retrieval pipeline
 │   ├── multiome_research_demo.py
 │   ├── multiome_survey.py               ← cross-source survey: IGVF + ENCODE + GEO +
@@ -194,6 +197,7 @@ IGVFagent/
     │   ├── ENCODE_PIPELINE_SKILLS.md            SE_TARGET_PIPELINE_SKILLS.md
     │   ├── GEO_RETRIEVAL_SKILLS.md              RNASEQ_ANALYSIS_SKILLS.md
     │   ├── PROTEOMICS_SKILLS.md
+    │   ├── SINGLECELL_ANALYSIS_SKILLS.md
     │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
     ├── Logs/                            ← runtime logs (gitignored)
@@ -1089,6 +1093,51 @@ into per-gene coverage matrices: the 144 MultiSTEP sets resolve to
 5 antibody readouts (Light-chain, Heavy-chain, Strep-II-tag, and two
 carboxylation-sensitive Gla-domain antibodies); the 36 plain VAMP-seq
 sets cover **CYP2C19** and **G6PD**.
+
+### Single-cell analysis (UMAP / t-SNE / Leiden / markers)
+
+End-to-end Scanpy-driven single-cell workflow: **QC → normalize → HVG
+→ PCA → k-NN → UMAP → t-SNE → Leiden clustering → marker-gene DE →
+publication figures.** Closes the gap where IGVFagent could discover
+and download counts matrices but had to hand off to "use Scanpy or
+Seurat" for the actual visualization. Auto-detects input format
+(`.h5ad`, 10x `.h5`, 10x `.mtx`, CSV/TSV). Playbook:
+[`Docs/Skills/SINGLECELL_ANALYSIS_SKILLS.md`](Docs/Skills/SINGLECELL_ANALYSIS_SKILLS.md).
+
+```bash
+# 1) Full pipeline — one shot, all stages
+igvfagent sc-analyze pipeline --input counts.h5ad --label demo \
+    --min-genes 200 --min-cells 3 --max-mito 20 \
+    --n-hvg 2000 --n-pcs 50 --resolution 1.0 \
+    --sample-col sample \
+    --highlight-genes CD3D,CD8A,MS4A1,LYZ
+
+# 2) Granular steps — each saves a checkpoint processed.h5ad so the
+#    next step can resume from any prior output
+igvfagent sc-analyze qc        --input counts.h5ad --label k562 \
+    --min-genes 200 --max-mito 20
+igvfagent sc-analyze normalize --input processed.h5ad --n-hvg 2000
+igvfagent sc-analyze pca       --input processed.h5ad --n-pcs 50
+igvfagent sc-analyze umap      --input processed.h5ad --n-neighbors 15
+igvfagent sc-analyze tsne      --input processed.h5ad
+igvfagent sc-analyze cluster   --input processed.h5ad --resolution 1.0
+igvfagent sc-analyze markers   --input processed.h5ad --n-top 25
+
+# 3) Re-render any embedding coloured by a gene or metadata column
+igvfagent sc-analyze plot-embedding --input processed.h5ad \
+    --embedding umap --color leiden,APOE,TREM2,LDLR
+```
+
+Outputs land under `Docs/SingleCell/<timestamp>_<label>/` with the
+resumable `processed.h5ad`, `markers.csv`, a markdown report, and
+PNGs (QC violins, PCA scree, UMAP and t-SNE coloured by Leiden
+cluster / sample / auto-picked top markers, top-3 marker heatmap).
+The agent runtime exposes `sc_pipeline`, `sc_qc`, `sc_umap`,
+`sc_cluster`, and `sc_plot_embedding` as tools so a single
+`igvfagent ask "give me a UMAP of GSE131907 with NK markers"` will
+drive the full chain. Live smoke test on the Scanpy PBMC3k tutorial
+dataset finishes in ~20 s on 2,700 cells × 32,738 genes and recovers
+the canonical T-cell / B-cell / monocyte clusters.
 
 ## Deployment with LLM agents
 

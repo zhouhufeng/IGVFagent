@@ -68,6 +68,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "proteomics":       ("igvfagent.proteomics_skill",
                           "Proteomics & PPI: BioGRID/IntAct/HuRI/Reactome/KEGG/"
                           "IGVF integration, KG, viz, literature survey"),
+    "sc-analyze":       ("igvfagent.singlecell_analysis",
+                          "Single-cell analysis: QC, PCA, UMAP, t-SNE, Leiden, "
+                          "markers, publication figures (Scanpy-driven)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
