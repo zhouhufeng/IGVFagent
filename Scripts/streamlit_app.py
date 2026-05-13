@@ -50,6 +50,15 @@ except Exception:
     except Exception:
         _kgviz = None
 
+# Single-cell visualizer — optional, needs scanpy + anndata.
+try:
+    from igvfagent import sc_visualizer as _scviz  # type: ignore
+except Exception:
+    try:
+        import sc_visualizer as _scviz  # type: ignore
+    except Exception:
+        _scviz = None
+
 
 # --------------------------- Page config -----------------------------------
 
@@ -898,12 +907,15 @@ def main() -> None:
     st.divider()
 
     # ------------------------------------------------------------------
-    # Two tabs: Chat (the existing flow) + Knowledge Graph (new module).
-    # The KG tab is independent of the loaded LLM — it works against the
-    # local SQLite KGs that the proteomics and portal-to-kg skills build.
+    # Three tabs:
+    #   Chat              — the existing LLM-driven flow
+    #   Knowledge Graph   — interactive view of the local SQLite KGs
+    #   Single-cell       — UMAP / t-SNE / cluster / marker viewer over
+    #                       any .h5ad produced by sc-analyze
+    # The KG and Single-cell tabs are independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab = st.tabs(
-        ["💬 Chat", "🕸  Knowledge Graph"]
+    chat_tab, kg_tab, sc_tab = st.tabs(
+        ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell"]
     )
 
     with kg_tab:
@@ -919,6 +931,25 @@ def main() -> None:
             except Exception as exc:  # pylint: disable=broad-except
                 import traceback
                 st.error(f"KG visualizer error: {exc}")
+                with st.expander("Traceback", expanded=False):
+                    st.code(traceback.format_exc())
+
+    with sc_tab:
+        if _scviz is None:
+            st.warning(
+                "Single-cell visualizer not available — needs `scanpy` + "
+                "`anndata` + `matplotlib` in this venv. Install with:\n\n"
+                "```\n"
+                "pip install scanpy 'anndata>=0.10' umap-learn leidenalg "
+                "python-igraph matplotlib\n"
+                "```"
+            )
+        else:
+            try:
+                _scviz.render_streamlit_panel(st)
+            except Exception as exc:  # pylint: disable=broad-except
+                import traceback
+                st.error(f"Single-cell visualizer error: {exc}")
                 with st.expander("Traceback", expanded=False):
                     st.code(traceback.format_exc())
 
