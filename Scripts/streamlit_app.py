@@ -953,40 +953,52 @@ def main() -> None:
                 with st.expander("Traceback", expanded=False):
                     st.code(traceback.format_exc())
 
-    # The rest of main() runs inside the chat tab.
-    chat_tab.__enter__()
-
+    # ------------------------------------------------------------------
+    # Chat tab — history replay + suggestions. Rendered inside a proper
+    # `with chat_tab:` context so all child widgets land in the tab.
+    # `st.chat_input` is intentionally placed OUTSIDE the tabs at page
+    # level — Streamlit only docks it to the viewport bottom when it
+    # lives at the top of the script body, not inside a layout
+    # container like `st.tabs(...)`.
+    # ------------------------------------------------------------------
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Replay prior conversation
-    for entry in st.session_state.messages:
-        with st.chat_message(entry["role"]):
-            st.markdown(entry.get("content", ""))
-            if entry.get("artefacts"):
-                _render_artefacts(entry["artefacts"])
-            if entry.get("meta"):
-                st.caption(entry["meta"])
+    with chat_tab:
+        # Replay prior conversation
+        for entry in st.session_state.messages:
+            with st.chat_message(entry["role"]):
+                st.markdown(entry.get("content", ""))
+                if entry.get("artefacts"):
+                    _render_artefacts(entry["artefacts"])
+                if entry.get("meta"):
+                    st.caption(entry["meta"])
 
-    # Suggestions on first load
-    if not st.session_state.messages:
-        st.info(
-            "💡 Try one of these:\n"
-            "- *Give me the comprehensive APOE evidence pack including "
-            "literature corroboration and matching IGVF single-cell "
-            "datasets.*\n"
-            "- *Discover Parse SPLiT-seq datasets profiling macrophages "
-            "in mouse and write the per-pool manifest.*\n"
-            "- *Explain IGVFDS7013XXYV.*\n"
-            "- *Validate APOE, TREM2, and LDLR against published "
-            "Alzheimer / cardiovascular literature.*"
-        )
+        # Suggestions on first load
+        if not st.session_state.messages:
+            st.info(
+                "💡 Try one of these:\n"
+                "- *Give me the comprehensive APOE evidence pack including "
+                "literature corroboration and matching IGVF single-cell "
+                "datasets.*\n"
+                "- *Discover Parse SPLiT-seq datasets profiling macrophages "
+                "in mouse and write the per-pool manifest.*\n"
+                "- *Explain IGVFDS7013XXYV.*\n"
+                "- *Validate APOE, TREM2, and LDLR against published "
+                "Alzheimer / cardiovascular literature.*"
+            )
 
+    # Page-level chat input — Streamlit auto-pins this to the bottom of
+    # the viewport because it is not inside a tab / column / container.
     query = st.chat_input(
         "Ask IGVFagent — natural-language query (e.g. 'Walk the KG for APOE')"
     )
     if not query:
         return
+
+    # Everything below renders the new turn — keep it inside the chat
+    # tab so the new exchange lands above the docked input.
+    chat_tab.__enter__()
 
     # Pre-flight validation: catch obvious mismatches before we even
     # call the agent. This is what bit you on query 2 (Anthropic
