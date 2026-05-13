@@ -56,7 +56,8 @@ Docs/Proteomics/2*
 Docs/Perturbation/2*
 Docs/RNAseq/2*
 Docs/MultiomeSurvey/2*
-Docs/Demos/
+Docs/Demos/*
+!Docs/Demos/12_demo_questions.md
 
 # Plots subfolders are generated artifacts
 Docs/*/Plots/
