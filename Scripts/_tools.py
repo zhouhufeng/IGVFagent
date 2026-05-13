@@ -1250,6 +1250,156 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "perturb_catalog_summary",
+        "Landing-page stats for the Perturbation Catalogue: total "
+        "datasets / experiments, top tissues / cell types / cell lines "
+        "/ diseases / perturbation types. Use to orient before deeper "
+        "queries.",
+        {"type": "object", "properties": {}},
+        cli=["perturb-catalog", "summary"],
+    ),
+
+    _T(
+        "perturb_catalog_search",
+        "Global gene/term search across the Perturbation Catalogue. "
+        "Returns one row per perturbed gene with counts across MAVE / "
+        "CRISPR-screen / Perturb-seq and the top GSEA terms. "
+        "Headline tool when the user asks 'what perturbation data "
+        "exists for gene X?'.",
+        {
+            "type": "object",
+            "properties": {
+                "query": {**_S_STRING,
+                            "description": "Gene symbol or free-text query."},
+                "size":  {**_S_INTEGER, "default": 25},
+                "page":  {**_S_INTEGER, "default": 0},
+                "facets": {**_S_STRING,
+                            "description": "Comma-separated facet names."},
+            },
+            "required": ["query"],
+        },
+        cli=["perturb-catalog", "search"],
+        flag_map={"query": "--query", "size": "--size", "page": "--page",
+                   "facets": "--facets"},
+    ),
+
+    _T(
+        "perturb_catalog_search_modality",
+        "Modality-scoped search of the Perturbation Catalogue. Use "
+        "`modality='mave'` for VAMP-seq / DMS data, `'crispr-screen'` "
+        "for pooled CRISPR screens, `'perturb-seq'` for single-cell. "
+        "Supports filters on gene name, position range, score "
+        "name/value, tissue, cell line, disease, study year.",
+        {
+            "type": "object",
+            "properties": {
+                "modality": {**_S_STRING,
+                              "description": "mave | crispr-screen | perturb-seq"},
+                "query":    {**_S_STRING},
+                "perturbation_gene_name": {**_S_STRING,
+                              "description": "Filter to one perturbed gene."},
+                "perturbation_position":  {**_S_STRING,
+                              "description": "Position or range '100_300'."},
+                "effect_score_name":  {**_S_STRING},
+                "effect_score_value": {**_S_STRING,
+                              "description": "Score range e.g. '0.5_1.0'."},
+                "dataset_limit":  {**_S_INTEGER, "default": 25},
+                "dataset_offset": {**_S_INTEGER, "default": 0},
+                "rows_per_dataset_limit": {**_S_INTEGER, "default": 5},
+                "sort": {**_S_STRING},
+            },
+            "required": ["modality"],
+        },
+        cli=["perturb-catalog", "search-modality"],
+        flag_map={
+            "modality": "--modality", "query": "--query",
+            "perturbation_gene_name": "--perturbation-gene-name",
+            "perturbation_position": "--perturbation-position",
+            "effect_score_name": "--effect-score-name",
+            "effect_score_value": "--effect-score-value",
+            "dataset_limit": "--dataset-limit",
+            "dataset_offset": "--dataset-offset",
+            "rows_per_dataset_limit": "--rows-per-dataset-limit",
+            "sort": "--sort",
+        },
+    ),
+
+    _T(
+        "perturb_catalog_dataset",
+        "Fetch the full record for one Perturbation Catalogue dataset "
+        "by id.",
+        {
+            "type": "object",
+            "properties": {"dataset_id": {**_S_STRING}},
+            "required": ["dataset_id"],
+        },
+        cli=["perturb-catalog", "dataset"],
+        flag_map={"dataset_id": "--dataset-id"},
+    ),
+
+    _T(
+        "perturb_catalog_dataset_rows",
+        "Paginate the per-perturbation rows inside one dataset (variant- "
+        "or gRNA-level effect scores).",
+        {
+            "type": "object",
+            "properties": {
+                "modality":   {**_S_STRING,
+                                "description": "mave|crispr-screen|perturb-seq"},
+                "dataset_id": {**_S_STRING},
+                "limit":      {**_S_INTEGER, "default": 100},
+                "offset":     {**_S_INTEGER, "default": 0},
+            },
+            "required": ["modality", "dataset_id"],
+        },
+        cli=["perturb-catalog", "dataset-rows"],
+        flag_map={"modality": "--modality",
+                   "dataset_id": "--dataset-id",
+                   "limit": "--limit", "offset": "--offset"},
+    ),
+
+    _T(
+        "perturb_catalog_gsea",
+        "Perturb-seq GSEA hallmark/pathway enrichment table. Pass a "
+        "gene `query` and/or a specific `dataset_id`.",
+        {
+            "type": "object",
+            "properties": {
+                "query":      {**_S_STRING},
+                "dataset_id": {**_S_STRING},
+                "page":       {**_S_INTEGER, "default": 0},
+                "size":       {**_S_INTEGER, "default": 50},
+            },
+        },
+        cli=["perturb-catalog", "gsea"],
+        flag_map={"query": "--query", "dataset_id": "--dataset-id",
+                   "page": "--page", "size": "--size"},
+    ),
+
+    _T(
+        "perturb_catalog_pipeline",
+        "End-to-end gene-centric pull from the Perturbation Catalogue: "
+        "summary + global gene search + modality-scoped searches for "
+        "MAVE / CRISPR-screen / Perturb-seq, writing a markdown report. "
+        "The default tool when the user asks 'show me all perturbation "
+        "data for gene X'.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":         {**_S_STRING},
+                "label":        {**_S_STRING},
+                "dataset_limit": {**_S_INTEGER, "default": 10},
+                "rows_per_dataset_limit": {**_S_INTEGER, "default": 3},
+            },
+            "required": ["gene"],
+        },
+        cli=["perturb-catalog", "pipeline"],
+        flag_map={"gene": "--gene", "label": "--label",
+                   "dataset_limit": "--dataset-limit",
+                   "rows_per_dataset_limit": "--rows-per-dataset-limit"},
+    ),
+
+    _T(
         "sc_plot_embedding",
         "Re-render UMAP or t-SNE coloured by any combination of obs columns "
         "and/or gene symbols. Use when the user asks 'show me APOE on the "
