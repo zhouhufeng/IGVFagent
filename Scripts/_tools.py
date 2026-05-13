@@ -586,7 +586,11 @@ _TOOLS: "list[Tool]" = [
     _T(
         "encode_browser",
         "IGV-style multi-track SVG for a region. LABEL:PATH BED tracks + "
-        "optional SCREEN cCRE overlay.",
+        "optional SCREEN cCRE overlay. Set `re2g='auto'` (and optionally a "
+        "gene filter) to also draw enhancer→gene linkage arcs from the "
+        "IGVF Catalog (rE2G / ENCODE-rE2G / ABC). Use this for any user "
+        "request that mentions 'rE2G links', 'enhancer-gene arcs', or "
+        "'browser view of gene X with its regulatory elements'.",
         {
             "type": "object",
             "properties": {
@@ -599,13 +603,30 @@ _TOOLS: "list[Tool]" = [
                 "ccre_bed":  {**_S_STRING},
                 "width":     {**_S_INTEGER, "default": 1000},
                 "label":     {**_S_STRING},
+                "re2g":      {**_S_STRING,
+                    "description": "Pass 'auto' to pull enhancer→gene "
+                                    "links from the IGVF Catalog, or a "
+                                    "path to a BEDPE / CSV linkage file."},
+                "re2g_gene_filter": {**_S_STRING,
+                    "description": "Comma-separated gene symbols to "
+                                    "restrict arcs (e.g. 'BRCA1' or "
+                                    "'APOE,TOMM40')."},
+                "re2g_score_cut": {"type": "number", "default": 0.0,
+                    "description": "Minimum rE2G/ABC score to render."},
+                "re2g_limit":     {**_S_INTEGER, "default": 200},
+                "re2g_arcs_height": {**_S_INTEGER, "default": 140},
             },
             "required": ["region"],
         },
         cli=["encode", "browser"],
         flag_map={"region": "--region", "tracks": "--track",
                    "ccre_bed": "--ccre-bed", "width": "--width",
-                   "label": "--label"},
+                   "label": "--label",
+                   "re2g": "--re2g",
+                   "re2g_gene_filter": "--re2g-gene-filter",
+                   "re2g_score_cut": "--re2g-score-cut",
+                   "re2g_limit": "--re2g-limit",
+                   "re2g_arcs_height": "--re2g-arcs-height"},
         flag_repeat={"tracks"},
         bool_flags={"with_ccre"},
     ),

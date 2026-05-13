@@ -85,6 +85,7 @@ CACHE_DIR = DATA_DIR / "Cache" / "ENCODE"
 
 ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
 WENGLAB_DL = _resolve_endpoint("wenglab_dl")
+CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
 
 USER_AGENT = "IGVFdataAgent-ENCODE/0.1"
 
@@ -1108,6 +1109,211 @@ def _bed_in_region(bed: Path, chrom: str, start: int, end: int
     return out
 
 
+def _fetch_re2g_links(chrom: str, start: int, end: int, *,
+                       gene_filter: "Optional[list[str]]" = None,
+                       score_cut: float = 0.0,
+                       limit: int = 200) -> "list[dict]":
+    """Pull enhancer→gene (rE2G / ENCODE-rE2G / ABC / catalog) predictions
+    from the IGVF Catalog for the given region. Returns normalized rows:
+        {chrom, start, end, gene, tss, score, source}
+    """
+    out: "list[dict]" = []
+    region = f"{chrom}:{start}-{end}"
+    # IGVF Catalog returns nested element + gene dicts only with verbose=true.
+    # Without it, those fields come back as bare ID strings.
+    queries: "list[tuple[str, dict]]" = [
+        ("/api/genomic-elements/genes",
+         {"region": region, "limit": str(limit), "page": "0",
+          "verbose": "true"}),
+    ]
+    if gene_filter:
+        for g in gene_filter:
+            queries.append(("/api/genes/genomic-elements",
+                              {"gene_name": g, "limit": str(limit),
+                               "page": "0", "verbose": "true"}))
+    seen = set()
+    for path, params in queries:
+        url = CATALOG_API_BASE + path + "?" + urllib.parse.urlencode(params)
+        status, data = fetch_json(url, timeout=30)
+        if status != 200 or not isinstance(data, (list, dict)):
+            logging.warning("Catalog %s -> HTTP %s", path, status)
+            continue
+        records = data if isinstance(data, list) else (
+            data.get("results") or data.get("data") or data.get("items") or [])
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            r = _normalize_re2g_record(rec, chrom, start, end)
+            if not r:
+                continue
+            if r["score"] is not None and r["score"] < score_cut:
+                continue
+            if gene_filter:
+                gf = {g.upper() for g in gene_filter}
+                if (r.get("gene") or "").upper() not in gf:
+                    continue
+            key = (r["chrom"], r["start"], r["end"], r["gene"],
+                    round(r.get("score") or 0.0, 4))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(r)
+    return out
+
+
+def _normalize_re2g_record(rec: dict, chrom: str, start: int, end: int
+                              ) -> Optional[dict]:
+    """Tolerantly extract (element_chrom, element_start, element_end, gene,
+    tss, score, source) from a Catalog response row."""
+    def _first(obj, *keys, default=None):
+        for k in keys:
+            if isinstance(obj, dict) and obj.get(k) not in (None, ""):
+                return obj[k]
+        return default
+
+    # Element fields might live at the top level or nested under
+    # `genomic_element` / `element`. Some records also have a plain
+    # `region: "chrN:start-end"` string.
+    candidates = []
+    for k in ("genomic_element", "element"):
+        v = rec.get(k)
+        if isinstance(v, dict):
+            candidates.append(v)
+    candidates.append(rec)
+    elem = next((c for c in candidates if isinstance(c, dict)), rec)
+    e_chr = _first(elem, "chr", "chrom", "chromosome")
+    e_start = _first(elem, "start", "element_start", "region_start")
+    e_end = _first(elem, "end", "element_end", "region_end")
+    # If we have a `region`/`location` string anywhere, use it.
+    region_str = None
+    for src in (elem, rec):
+        if isinstance(src, dict):
+            cand = src.get("region") or src.get("location")
+            if isinstance(cand, str):
+                region_str = cand; break
+    if (not e_chr or e_start is None or e_end is None) and region_str:
+        m = re.match(r"^(chr\w+):(\d+)-(\d+)$", region_str)
+        if m:
+            e_chr, e_start, e_end = m.group(1), int(m.group(2)), int(m.group(3))
+    if not e_chr:
+        return None
+    try:
+        e_start = int(e_start); e_end = int(e_end)
+    except Exception:
+        return None
+    if e_chr != chrom or e_end < start or e_start > end:
+        return None
+
+    gene_obj = rec.get("gene") or rec.get("target_gene") or rec.get("genes") or {}
+    if isinstance(gene_obj, list) and gene_obj:
+        gene_obj = gene_obj[0]
+    if isinstance(gene_obj, str):
+        gene_symbol = gene_obj; gene_obj = {}
+    else:
+        gene_symbol = _first(gene_obj, "symbol", "gene_name", "name", "gene")
+    gene_tss = _first(gene_obj, "tss", "gene_tss")
+    if gene_tss is None:
+        gs = _first(gene_obj, "start", "gene_start")
+        ge = _first(gene_obj, "end", "gene_end")
+        strand = _first(gene_obj, "strand")
+        if gs is not None and ge is not None:
+            try:
+                gene_tss = int(gs) if strand != "-" else int(ge)
+            except Exception:
+                gene_tss = None
+    if gene_tss is not None:
+        try:
+            gene_tss = int(gene_tss)
+        except Exception:
+            gene_tss = None
+
+    score = _first(rec, "score", "Score", "rE2G.Score", "ABC.Score",
+                    "abc_score", "prediction_score", "value")
+    try:
+        score = float(score) if score is not None else None
+    except Exception:
+        score = None
+
+    source = (_first(rec, "source", "biosample", "biosample_term_name",
+                       "method", "model") or "Catalog rE2G")
+
+    return {"chrom": e_chr, "start": int(e_start), "end": int(e_end),
+             "gene": gene_symbol or "?", "tss": gene_tss,
+             "score": score, "source": source}
+
+
+def _load_re2g_file(path: Path) -> "list[dict]":
+    """Parse a pre-fetched linkage file: BEDPE or CSV/TSV with one of:
+        bedpe:  chrom1 start1 end1 chrom2 start2 end2 name score ...
+        csv:    chrom,start,end,gene,tss,score  (header required)
+    """
+    rows: "list[dict]" = []
+    suffix = "".join(path.suffixes).lower()
+    if suffix.endswith(".bedpe") or suffix.endswith(".bedpe.gz"):
+        opener = gzip.open if suffix.endswith(".gz") else open
+        with opener(path, "rt") as f:
+            for line in f:
+                if not line.strip() or line.startswith(("#", "track", "browser")):
+                    continue
+                cells = line.rstrip("\r\n").split("\t")
+                if len(cells) < 7:
+                    continue
+                try:
+                    e_chr = cells[0]; e_start = int(cells[1]); e_end = int(cells[2])
+                    g_chr = cells[3]; g_start = int(cells[4]); g_end = int(cells[5])
+                    name = cells[6] if len(cells) > 6 else ""
+                    score = float(cells[7]) if len(cells) > 7 else None
+                except Exception:
+                    continue
+                rows.append({"chrom": e_chr, "start": e_start, "end": e_end,
+                              "gene": name, "tss": (g_start + g_end) // 2,
+                              "score": score, "source": path.stem})
+        return rows
+    if suffix.endswith((".csv", ".tsv", ".csv.gz", ".tsv.gz")):
+        opener = gzip.open if suffix.endswith(".gz") else open
+        delim = "," if ".csv" in suffix else "\t"
+        with opener(path, "rt") as f:
+            reader = csv.DictReader(f, delimiter=delim)
+            for r in reader:
+                try:
+                    rows.append({
+                        "chrom": r.get("chrom") or r.get("chr"),
+                        "start": int(r.get("start")),
+                        "end": int(r.get("end")),
+                        "gene": r.get("gene") or r.get("gene_name") or r.get("symbol") or "?",
+                        "tss": int(r["tss"]) if r.get("tss") not in (None, "") else None,
+                        "score": (float(r["score"])
+                                   if r.get("score") not in (None, "") else None),
+                        "source": r.get("source") or path.stem,
+                    })
+                except Exception:
+                    continue
+        return rows
+    raise SystemExit(f"Unsupported linkage file format: {path.suffix}")
+
+
+def _re2g_arc_color(score: Optional[float],
+                     score_min: float, score_max: float) -> str:
+    """Map score to a viridis-ish hex; missing scores -> neutral grey."""
+    if score is None:
+        return "#9e9e9e"
+    if score_max <= score_min:
+        return "#08519C"
+    t = max(0.0, min(1.0, (score - score_min) / (score_max - score_min)))
+    palette = [(0.0, (5, 48, 97)), (0.25, (44, 123, 182)),
+                (0.5, (146, 197, 222)), (0.75, (244, 165, 130)),
+                (1.0, (165, 0, 38))]
+    for i in range(len(palette) - 1):
+        t0, c0 = palette[i]; t1, c1 = palette[i + 1]
+        if t0 <= t <= t1:
+            f = (t - t0) / max(t1 - t0, 1e-9)
+            r = int(c0[0] + f * (c1[0] - c0[0]))
+            g = int(c0[1] + f * (c1[1] - c0[1]))
+            b = int(c0[2] + f * (c1[2] - c0[2]))
+            return f"#{r:02X}{g:02X}{b:02X}"
+    return "#08519C"
+
+
 def cmd_browser(args: argparse.Namespace) -> Path:
     setup_logging(); mkdirs()
     m = re.match(r"^(chr\w+):(\d+)-(\d+)$", args.region)
@@ -1129,13 +1335,44 @@ def cmd_browser(args: argparse.Namespace) -> Path:
         tracks.append({"label": "SCREEN cCREs", "path": ccre_bed,
                         "rows": _bed_in_region(ccre_bed, chrom, start, end)})
 
+    # rE2G arcs ---------------------------------------------------------------
+    re2g_links: "list[dict]" = []
+    gene_filter = ([g.strip() for g in args.re2g_gene_filter.split(",")
+                     if g.strip()] if args.re2g_gene_filter else None)
+    if args.re2g:
+        spec = args.re2g.strip().lower()
+        if spec in ("auto", "catalog", "true", "1"):
+            re2g_links = _fetch_re2g_links(chrom, start, end,
+                                             gene_filter=gene_filter,
+                                             score_cut=args.re2g_score_cut,
+                                             limit=args.re2g_limit)
+            logging.info("Catalog rE2G: %d links pulled (gene_filter=%s, "
+                          "score_cut=%.2f)",
+                          len(re2g_links), gene_filter, args.re2g_score_cut)
+        else:
+            p = Path(args.re2g)
+            if not p.exists():
+                raise SystemExit(f"--re2g file not found: {p}")
+            file_rows = _load_re2g_file(p)
+            for r in file_rows:
+                if r["chrom"] != chrom: continue
+                if r["end"] < start or r["start"] > end: continue
+                if args.re2g_score_cut and r.get("score") is not None \
+                        and r["score"] < args.re2g_score_cut:
+                    continue
+                if gene_filter and r["gene"] not in gene_filter:
+                    continue
+                re2g_links.append(r)
+            logging.info("rE2G file %s: %d links retained", p, len(re2g_links))
+
     width = args.width
     track_h = 28
     margin_top = 50
     margin_left = 90
     margin_right = 30
     plot_w = width - margin_left - margin_right
-    height = margin_top + track_h * (len(tracks) + 1) + 40
+    arcs_h = args.re2g_arcs_height if re2g_links else 0
+    height = margin_top + arcs_h + track_h * (len(tracks) + 1) + 40
 
     def x_of(pos: int) -> float:
         return margin_left + (pos - start) / span * plot_w
@@ -1165,9 +1402,106 @@ def cmd_browser(args: argparse.Namespace) -> Path:
                       f'text-anchor="middle" font-size="9">'
                       f'{int(pos):,}</text>')
 
+    # rE2G linkage arcs --------------------------------------------------------
+    # Renders before tracks so arcs sit between coord axis and track strips.
+    if re2g_links:
+        scores = [r["score"] for r in re2g_links if r.get("score") is not None]
+        s_min = min(scores) if scores else 0.0
+        s_max = max(scores) if scores else 1.0
+        arcs_top = margin_top
+        arcs_bottom = margin_top + arcs_h
+        # Label and baseline for the arcs panel
+        parts.append(f'<text x="{margin_left - 6}" y="{arcs_bottom - 4}" '
+                      f'text-anchor="end" font-size="10" font-weight="bold" '
+                      f'fill="#08519C">rE2G links</text>')
+        parts.append(f'<line x1="{margin_left}" y1="{arcs_bottom}" '
+                      f'x2="{width - margin_right}" y2="{arcs_bottom}" '
+                      f'stroke="#bbbbbb" stroke-width="0.5"/>')
+        # Sort by score desc so high-confidence arcs paint on top
+        ordered = sorted(re2g_links,
+                          key=lambda r: (-(r.get("score") or 0.0),
+                                          abs((r["start"] + r["end"]) / 2
+                                              - (r.get("tss") or
+                                                 (r["start"] + r["end"]) / 2))))
+        # Track which gene labels we've already drawn (avoid overlap clutter)
+        gene_label_done: "set[str]" = set()
+        for r in ordered:
+            elem_mid = (r["start"] + r["end"]) / 2
+            elem_x = x_of(int(elem_mid))
+            # Gene anchor: tss if known and inside region; else clamp to edges
+            tss = r.get("tss")
+            if tss is None:
+                gene_x = elem_x  # degenerate; rendered as a tiny dot
+            elif tss < start:
+                gene_x = margin_left - 4
+            elif tss > end:
+                gene_x = width - margin_right + 4
+            else:
+                gene_x = x_of(int(tss))
+            score = r.get("score")
+            color = _re2g_arc_color(score, s_min, s_max)
+            # Arc height proportional to genomic distance (clamped to arcs panel)
+            arc_len_px = abs(gene_x - elem_x)
+            top_y = arcs_bottom - max(8.0, min(arcs_h - 6,
+                                                  10 + 0.42 * arc_len_px))
+            control_x = (elem_x + gene_x) / 2
+            stroke_w = 1.2 + (0.0 if score is None else 1.6 * (
+                (score - s_min) / max(s_max - s_min, 1e-9)))
+            opacity = 0.55 + (0.0 if score is None else 0.35 * (
+                (score - s_min) / max(s_max - s_min, 1e-9)))
+            parts.append(
+                f'<path d="M {elem_x:.1f} {arcs_bottom - 1} '
+                f'Q {control_x:.1f} {top_y:.1f} {gene_x:.1f} '
+                f'{arcs_bottom - 1}" fill="none" stroke="{color}" '
+                f'stroke-width="{stroke_w:.2f}" stroke-opacity="{opacity:.2f}"/>'
+            )
+            # Endpoint dots
+            parts.append(f'<circle cx="{elem_x:.1f}" cy="{arcs_bottom - 1}" '
+                          f'r="2.4" fill="{color}" stroke="white" '
+                          f'stroke-width="0.6"/>')
+            parts.append(f'<circle cx="{gene_x:.1f}" cy="{arcs_bottom - 1}" '
+                          f'r="2.4" fill="{color}" stroke="white" '
+                          f'stroke-width="0.6"/>')
+            # Gene label at the top of the arc (one per gene)
+            gene = r.get("gene") or ""
+            if gene and gene not in gene_label_done:
+                parts.append(
+                    f'<text x="{control_x:.1f}" y="{top_y - 3:.1f}" '
+                    f'text-anchor="middle" font-size="9" font-weight="bold" '
+                    f'fill="{color}">{gene}'
+                    + (f' · {score:.2f}' if score is not None else "")
+                    + '</text>'
+                )
+                gene_label_done.add(gene)
+        # Score legend (gradient bar) on the right
+        legend_x0 = width - margin_right - 110
+        legend_y = arcs_top + 6
+        parts.append(
+            f'<defs><linearGradient id="re2gscore" x1="0%" y1="0%" '
+            f'x2="100%" y2="0%">'
+            + ''.join(
+                f'<stop offset="{int(100*i/8)}%" stop-color="{_re2g_arc_color(s_min + (s_max-s_min)*i/8, s_min, s_max)}"/>'
+                for i in range(9))
+            + '</linearGradient></defs>'
+        )
+        parts.append(
+            f'<rect x="{legend_x0}" y="{legend_y}" width="100" height="6" '
+            f'fill="url(#re2gscore)" stroke="#666" stroke-width="0.3"/>'
+        )
+        parts.append(
+            f'<text x="{legend_x0}" y="{legend_y + 16}" font-size="8" '
+            f'fill="#333">{s_min:.2f}</text>'
+            f'<text x="{legend_x0 + 100}" y="{legend_y + 16}" font-size="8" '
+            f'text-anchor="end" fill="#333">{s_max:.2f}</text>'
+            f'<text x="{legend_x0 + 50}" y="{legend_y - 2}" font-size="9" '
+            f'text-anchor="middle" fill="#333" font-weight="bold">'
+            f'rE2G score · n={len(re2g_links)}</text>'
+        )
+
     # Track strips
+    track_y_origin = margin_top + arcs_h
     for ti, tr in enumerate(tracks):
-        y_top = margin_top + ti * track_h
+        y_top = track_y_origin + ti * track_h
         y_mid = y_top + track_h / 2
         # Label
         parts.append(f'<text x="{margin_left - 6}" y="{y_mid + 4}" '
@@ -1191,12 +1525,39 @@ def cmd_browser(args: argparse.Namespace) -> Path:
                           f'font-size="9" fill="#888">'
                           f'(no features in region)</text>')
 
+    # Vertical TSS markers for genes we have rE2G links for (in-region only)
+    tss_drawn: "set[int]" = set()
+    for r in re2g_links:
+        if r.get("tss") is None: continue
+        if not (start <= r["tss"] <= end): continue
+        if r["tss"] in tss_drawn: continue
+        tss_drawn.add(r["tss"])
+        gx = x_of(r["tss"])
+        parts.append(f'<line x1="{gx}" y1="{margin_top + arcs_h}" '
+                      f'x2="{gx}" y2="{height - 30}" stroke="#08519C" '
+                      f'stroke-width="0.5" stroke-dasharray="3,2" '
+                      f'stroke-opacity="0.55"/>')
+        parts.append(f'<text x="{gx}" y="{height - 18}" text-anchor="middle" '
+                      f'font-size="8" fill="#08519C">'
+                      f'{r.get("gene","")} TSS</text>')
+
     parts.append('</svg>')
     ts = timestamp()
     label = safe_label(args.label or f"{chrom}_{start}_{end}")
     out = PLOT_DIR / f"{ts}_browser_{label}.svg"
     out.write_text("\n".join(parts))
     print(f"Browser SVG: {out}")
+    if re2g_links:
+        # Also dump the linkage rows beside the SVG for inspection
+        csv_path = out.with_suffix(".rE2G.csv")
+        with csv_path.open("w") as f:
+            f.write("chrom,start,end,gene,tss,score,source\n")
+            for r in re2g_links:
+                f.write(f'{r["chrom"]},{r["start"]},{r["end"]},'
+                        f'{r.get("gene","")},{r.get("tss","")},'
+                        f'{r.get("score","") if r.get("score") is not None else ""},'
+                        f'{r.get("source","")}\n')
+        print(f"rE2G linkage table: {csv_path}")
     return out
 
 
@@ -2166,19 +2527,41 @@ def cmd_write_playbook(_args) -> Path:
         "(PLS / pELS / dELS / CTCF-only / DNase-H3K4me3) and emits a "
         "stacked-bar overview.",
         "",
-        "### `browser` — IGV-style multi-track SVG",
+        "### `browser` — IGV-style multi-track SVG (with optional rE2G arcs)",
         "",
         "```bash",
+        "# Basic multi-track view",
         "igvfagent encode browser \\",
         "    --region chr19:44903000-44912000 \\",
         "    --track 'H3K27ac peaks:peaks.bed' \\",
         "    --track 'ATAC peaks:atac_peaks.bed' \\",
         "    --with-ccre \\",
         "    --label apoe_locus",
+        "",
+        "# Same view with enhancer-gene linkage arcs auto-pulled from the",
+        "# IGVF Catalog (rE2G / ENCODE-rE2G / ABC predictions)",
+        "igvfagent encode browser \\",
+        "    --region chr17:43000000-43200000 \\",
+        "    --with-ccre \\",
+        "    --re2g auto \\",
+        "    --re2g-gene-filter BRCA1 \\",
+        "    --re2g-score-cut 0.20 \\",
+        "    --label brca1_re2g",
+        "",
+        "# Or render arcs from a pre-fetched BEDPE / CSV (chrom,start,end,",
+        "# gene,tss,score columns required for CSV)",
+        "igvfagent encode browser --region chr17:43000000-43200000 \\",
+        "    --re2g my_links.bedpe --label brca1_local",
         "```",
         "",
         "Each `--track LABEL:PATH` adds a horizontal track strip; "
-        "`--with-ccre` overlays SCREEN cCREs colored by class.",
+        "`--with-ccre` overlays SCREEN cCREs coloured by class. "
+        "`--re2g auto` queries the IGVF Catalog "
+        "(`/api/genomic-elements/genes` + `/api/genes/genomic-elements`) "
+        "for the region/gene, dedupes, and renders score-coloured "
+        "Bézier arcs above the tracks with the gene TSS marked as a "
+        "dashed vertical line. The accompanying `*.rE2G.csv` lists "
+        "every rendered linkage.",
         "",
         "### `bigwig-frip` — fraction-of-signal-in-peaks (needs `[hic]` extras)",
         "",
@@ -2354,7 +2737,8 @@ def main() -> None:
     s.set_defaults(func=cmd_integrate_ccre)
 
     s = sub.add_parser("browser",
-                        help="Render IGV-style multi-track SVG.")
+                        help="Render IGV-style multi-track SVG (with optional "
+                              "rE2G enhancer→gene linkage arcs).")
     s.add_argument("--region", required=True,
                     help="chr19:44903000-44912000")
     s.add_argument("--track", action="append", default=None,
@@ -2364,6 +2748,21 @@ def main() -> None:
     s.add_argument("--ccre-bed", default=None)
     s.add_argument("--width", type=int, default=1000)
     s.add_argument("--label", default="")
+    # rE2G linkage arcs
+    s.add_argument("--re2g", default=None,
+                    help="Render enhancer→gene linkage arcs. Pass 'auto' "
+                         "(or 'catalog') to query the IGVF Catalog for "
+                         "the region, or a path to a pre-fetched BEDPE / "
+                         "CSV / TSV.")
+    s.add_argument("--re2g-gene-filter", default=None,
+                    help="Comma-separated gene symbols to restrict arcs "
+                         "(e.g. 'BRCA1' or 'APOE,TOMM40').")
+    s.add_argument("--re2g-score-cut", type=float, default=0.0,
+                    help="Minimum rE2G/ABC score to render (default 0.0).")
+    s.add_argument("--re2g-limit", type=int, default=200,
+                    help="Max records to pull from the Catalog (default 200).")
+    s.add_argument("--re2g-arcs-height", type=int, default=140,
+                    help="SVG pixels reserved for the arcs panel (default 140).")
     s.set_defaults(func=cmd_browser)
 
     # ---- bigWig signal subcommands ----
