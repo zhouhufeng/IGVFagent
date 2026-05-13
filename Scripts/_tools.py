@@ -1499,9 +1499,24 @@ def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
 
 # --------------------------- Execution --------------------------------------
 
-_REPORT_RE   = re.compile(r"^(?:Report|Lit manifest|IGVF manifest|Manifest|"
-                           r"Evidence pack|Local KG|Plot|Wrote|Wrote report|"
-                           r"Wrote: |Playbook):\s*(.+?)\s*$", re.M)
+# Lines that announce an artefact path. Two patterns:
+#   1. A curated allow-list of explicit prefixes ("Report:", "Manifest:", …)
+#   2. A generic fallback: any line matching ``<Label>: <path>`` where the
+#      path ends in a known viewable extension. This catches one-off
+#      announcements like ``Browser SVG:``, ``Output:``, ``Saved:`` that
+#      individual skills print without us having to enumerate every one.
+_REPORT_RE   = re.compile(
+    r"^(?:Report|Lit manifest|IGVF manifest|Manifest|Evidence pack|"
+    r"Local KG|Plot|Plots|Wrote|Wrote report|Wrote: |Playbook|"
+    r"Browser SVG|SVG|Output|Saved|Downloaded|Pulled|"
+    r"rE2G linkage table|CSV|TSV|JSON|Figure|Figures):\s*(.+?)\s*$",
+    re.M,
+)
+_REPORT_BY_EXT_RE = re.compile(
+    r"^\s*[A-Z][\w \-/]{0,40}:\s*"
+    r"(\S+?\.(?:csv|tsv|json|jsonl|md|svg|png|jpg|jpeg|gif|pdf|html|h5ad))"
+    r"\s*$", re.M,
+)
 
 
 def _resolve_igvfagent() -> "list[str]":
@@ -1565,11 +1580,28 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
 
 def _parse_artefacts(stdout: str) -> "dict[str, list[str]]":
     artefacts: "dict[str, list[str]]" = {}
+    seen: "set[str]" = set()
+
+    def _add(key: str, value: str) -> None:
+        if value in seen:
+            return
+        seen.add(value)
+        artefacts.setdefault(key.strip().lower().replace(" ", "_"),
+                              []).append(value)
+
     for m in _REPORT_RE.finditer(stdout or ""):
         line = m.group(0)
         key, _, value = line.partition(":")
-        key = key.strip().lower().replace(" ", "_")
-        artefacts.setdefault(key, []).append(value.strip())
+        _add(key, value.strip())
+    # Generic fallback: catch any "Label: <path-with-known-ext>" line that
+    # the explicit prefix list didn't cover (e.g. ``Browser SVG``,
+    # ``Output``, ``Saved``).
+    for m in _REPORT_BY_EXT_RE.finditer(stdout or ""):
+        path = m.group(1).strip()
+        # Recover the label so the artefact bucket is human-readable.
+        line = m.group(0)
+        label, _, _ = line.partition(":")
+        _add(label, path)
     return artefacts
 
 
