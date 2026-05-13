@@ -66,18 +66,34 @@ igvfagent encode integrate-ccre --bed peaks.bed \
 
 Auto-downloads the SCREEN V4 cCRE BED on first use (cached in `Data/Cache/ENCODE/`). Annotates each peak with its cCRE class (PLS / pELS / dELS / CTCF-only / DNase-H3K4me3) and emits a stacked-bar overview.
 
-### `browser` — IGV-style multi-track SVG
+### `browser` — IGV-style multi-track SVG (with optional rE2G arcs)
 
 ```bash
+# Basic multi-track view
 igvfagent encode browser \
     --region chr19:44903000-44912000 \
     --track 'H3K27ac peaks:peaks.bed' \
     --track 'ATAC peaks:atac_peaks.bed' \
     --with-ccre \
     --label apoe_locus
+
+# Same view with enhancer-gene linkage arcs auto-pulled from the
+# IGVF Catalog (rE2G / ENCODE-rE2G / ABC predictions)
+igvfagent encode browser \
+    --region chr17:43000000-43200000 \
+    --with-ccre \
+    --re2g auto \
+    --re2g-gene-filter BRCA1 \
+    --re2g-score-cut 0.20 \
+    --label brca1_re2g
+
+# Or render arcs from a pre-fetched BEDPE / CSV (chrom,start,end,
+# gene,tss,score columns required for CSV)
+igvfagent encode browser --region chr17:43000000-43200000 \
+    --re2g my_links.bedpe --label brca1_local
 ```
 
-Each `--track LABEL:PATH` adds a horizontal track strip; `--with-ccre` overlays SCREEN cCREs colored by class.
+Each `--track LABEL:PATH` adds a horizontal track strip; `--with-ccre` overlays SCREEN cCREs coloured by class. `--re2g auto` queries the IGVF Catalog (`/api/genomic-elements/genes` + `/api/genes/genomic-elements`) for the region/gene, dedupes, and renders score-coloured Bézier arcs above the tracks with the gene TSS marked as a dashed vertical line. The accompanying `*.rE2G.csv` lists every rendered linkage.
 
 ### `bigwig-frip` — fraction-of-signal-in-peaks (needs `[hic]` extras)
 
