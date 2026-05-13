@@ -536,9 +536,17 @@ def reactome_iter_interactions(path: Path) -> Iterable[dict]:
             if len(cells) < max(a_col, b_col) + 1:
                 continue
             a, b = cells[a_col].strip(), cells[b_col].strip()
+            # Skip rows where UniProt is missing (small molecules, complexes
+            # that Reactome flags with `-` in the UniProt column).
+            if a in ("-", "") or b in ("-", ""):
+                continue
             a = a.split(":")[-1] if a else a
             b = b.split(":")[-1] if b else b
             if not a or not b:
+                continue
+            # Only accept canonical UniProt accessions (skip the numeric
+            # Reactome internal pseudo-IDs that occasionally leak through).
+            if not (a[0].isalpha() and b[0].isalpha()):
                 continue
             yield {"id_a": a, "id_b": b, "id_type": "uniprot",
                    "evidence_type": "curated",
