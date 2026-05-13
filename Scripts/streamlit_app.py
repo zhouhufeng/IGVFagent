@@ -605,6 +605,47 @@ def _render_pdf(path: str) -> None:
         _download_button(path, key_hint="pdf_fallback")
 
 
+def _render_svg(path: str) -> None:
+    """Render an SVG file inline.
+
+    Streamlit ≥1.50 dropped SVG support from ``st.image`` (which now
+    requires PIL-loadable raster formats), so SVG paths previously
+    returned a broken-image placeholder. We embed the raw SVG inside an
+    iframe via ``st.components.v1.html``, which honours the SVG's own
+    ``<style>`` / ``<defs>`` / gradients and keeps the layout
+    self-contained. Height is parsed from the SVG header so tall plots
+    (e.g. the rE2G browser view) don't get clipped.
+    """
+    try:
+        svg = Path(path).read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        st.text(f"(SVG unavailable: {Path(path).name}) {e}")
+        _download_button(path, key_hint="svg_fallback")
+        return
+    # Parse height from the outer <svg ... height="N"> attribute.
+    h = 600
+    m = re.search(r'<svg\b[^>]*\bheight="([0-9]+(?:\.[0-9]+)?)"', svg)
+    if m:
+        try:
+            h = int(float(m.group(1))) + 24
+        except Exception:
+            h = 600
+    # Make the SVG responsive within its iframe by stamping a
+    # ``max-width:100%`` style; preserve the intrinsic aspect ratio.
+    svg = re.sub(
+        r'<svg\b([^>]*)>',
+        r'<svg\1 style="max-width:100%;height:auto;display:block">',
+        svg, count=1,
+    )
+    import streamlit.components.v1 as _stc  # type: ignore
+    _stc.html(
+        '<div style="background:#fff;padding:6px">' + svg + '</div>',
+        height=h, scrolling=True,
+    )
+    st.caption(Path(path).name)
+    _download_button(path, key_hint="svg")
+
+
 def _render_csv_like(path: str, sep: "str|None" = None) -> None:
     try:
         import pandas as pd
@@ -651,7 +692,10 @@ def _render_one(path: str, *, depth: int = 0) -> None:
     """Render a single artefact path with the right widget."""
     low = path.lower()
     name = Path(path).name
-    if low.endswith((".png", ".jpg", ".jpeg", ".svg", ".gif")):
+    if low.endswith(".svg"):
+        _render_svg(path)
+        return
+    if low.endswith((".png", ".jpg", ".jpeg", ".gif")):
         try:
             st.image(path, caption=name, use_container_width=True)
         except Exception as e:
@@ -735,12 +779,14 @@ def _render_artefacts(paths: "list[str]") -> None:
     seen: "set[str]" = set()
     paths = [p for p in paths if not (p in seen or seen.add(p))]
 
-    images, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
-        [], [], [], [], [], [], []
+    images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
+        [], [], [], [], [], [], [], []
     )
     for p in paths:
         low = p.lower()
-        if low.endswith((".png", ".svg", ".jpg", ".jpeg", ".gif")):
+        if low.endswith(".svg"):
+            svgs.append(p)
+        elif low.endswith((".png", ".jpg", ".jpeg", ".gif")):
             images.append(p)
         elif low.endswith(".md"):
             markdowns.append(p)
@@ -755,7 +801,9 @@ def _render_artefacts(paths: "list[str]") -> None:
         else:
             others.append(p)
 
-    # Images: gallery up to 6 inline.
+    # Images: gallery up to 6 inline (raster formats only — st.image in
+    # Streamlit ≥1.50 no longer renders SVGs, so they take the dedicated
+    # path below).
     if images:
         cols = st.columns(min(2, len(images)))
         for idx, img in enumerate(images[:6]):
@@ -769,6 +817,13 @@ def _render_artefacts(paths: "list[str]") -> None:
                 )
         if len(images) > 6:
             st.caption(f"… and {len(images) - 6} more image(s) not shown")
+
+    # SVGs: render each via the dedicated SVG renderer (preserves
+    # <style> / <defs> / gradients via st.components.v1.html iframe).
+    for svg_path in svgs[:6]:
+        _render_svg(svg_path)
+    if len(svgs) > 6:
+        st.caption(f"… and {len(svgs) - 6} more SVG(s) not shown")
 
     # Markdown reports — render body inline AND chase any file paths the
     # report references so the user sees the underlying CSV / JSONL / PDF
