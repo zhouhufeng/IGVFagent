@@ -71,6 +71,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "sc-analyze":       ("igvfagent.singlecell_analysis",
                           "Single-cell analysis: QC, PCA, UMAP, t-SNE, Leiden, "
                           "markers, publication figures (Scanpy-driven)"),
+    "perturb-catalog":  ("igvfagent.perturbation_catalog_skill",
+                          "Perturbation Catalogue retrieval: MAVE / CRISPR-screen "
+                          "/ Perturb-seq datasets, per-row effects, GSEA, downloads"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)

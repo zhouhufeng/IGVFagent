@@ -82,6 +82,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Bulk RNA-seq analysis](#bulk-rna-seq-analysis)
   - [Proteomics & PPI knowledge graph](#proteomics--ppi-knowledge-graph)
   - [Single-cell analysis (UMAP / t-SNE / Leiden / markers)](#single-cell-analysis-umap--t-sne--leiden--markers)
+  - [Perturbation Catalogue retrieval](#perturbation-catalogue-retrieval)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -167,6 +168,8 @@ IGVFagent/
 │   ├── rnaseq_analysis_skill.py         ← bulk RNA-seq QC / PCA / DEG / DEG→cCRE linkage
 │   ├── proteomics_skill.py              ← BioGRID/IntAct/HuRI/Reactome/KEGG + IGVF protein
 │   │                                       PPI knowledge graph + per-assay viz + lit survey
+│   ├── perturbation_catalog_skill.py    ← Perturbation Catalogue: MAVE / CRISPR-screen /
+│   │                                       Perturb-seq retrieval + per-gene pipeline
 │   │
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
@@ -197,6 +200,7 @@ IGVFagent/
     │   ├── ENCODE_PIPELINE_SKILLS.md            SE_TARGET_PIPELINE_SKILLS.md
     │   ├── GEO_RETRIEVAL_SKILLS.md              RNASEQ_ANALYSIS_SKILLS.md
     │   ├── PROTEOMICS_SKILLS.md
+    │   ├── PERTURBATION_CATALOG_SKILLS.md
     │   ├── SINGLECELL_ANALYSIS_SKILLS.md
     │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
@@ -1138,6 +1142,64 @@ The agent runtime exposes `sc_pipeline`, `sc_qc`, `sc_umap`,
 drive the full chain. Live smoke test on the Scanpy PBMC3k tutorial
 dataset finishes in ~20 s on 2,700 cells × 32,738 genes and recovers
 the canonical T-cell / B-cell / monocyte clusters.
+
+### Perturbation Catalogue retrieval
+
+Pulls metadata and per-row perturbation effects from the public
+**Perturbation Catalogue** Search API, which indexes ~1,222 datasets
+across MAVE (DMS / VAMP-seq family), CRISPR screens (DepMap, Project
+Score, Project Achilles, etc.), and Perturb-seq (Replogle 2022,
+Nadig 2025, X-Atlas/Orion 2025). Playbook:
+[`Docs/Skills/PERTURBATION_CATALOG_SKILLS.md`](Docs/Skills/PERTURBATION_CATALOG_SKILLS.md).
+
+```bash
+# 1) Catalogue-wide summary
+igvfagent perturb-catalog summary
+
+# 2) Global gene search (one row per perturbed gene, all modalities)
+igvfagent perturb-catalog search --query BRCA1 --size 10
+
+# 3) Modality-scoped search with filters
+igvfagent perturb-catalog search-modality --modality mave \
+    --perturbation-gene-name TP53 \
+    --perturbation-position 100_300 \
+    --effect-score-name vamp_score \
+    --effect-score-value 0.5_1.0 \
+    --dataset-limit 25
+igvfagent perturb-catalog search-modality --modality crispr-screen \
+    --perturbation-gene-name BRCA1 --dataset-limit 25
+igvfagent perturb-catalog search-modality --modality perturb-seq \
+    --query "lung cancer" --dataset-limit 10
+
+# 4) Full dataset record + paginated per-perturbation rows
+igvfagent perturb-catalog dataset --dataset-id replogle_2022_k562_essential_normalized
+igvfagent perturb-catalog dataset-rows --modality perturb-seq \
+    --dataset-id replogle_2022_k562_essential_normalized \
+    --limit 500 --offset 0
+
+# 5) Perturb-seq GSEA hallmark/pathway table
+igvfagent perturb-catalog gsea --query BRCA1 --size 50
+
+# 6) Bulk dataset download (auto-detects .csv.gz / .json / .zip)
+igvfagent perturb-catalog download --modality perturb-seq \
+    --dataset-id replogle_2022_k562_essential_normalized
+
+# 7) End-to-end gene-centric pipeline (the headline command for
+#    "what perturbation data exists for gene X?")
+igvfagent perturb-catalog pipeline --gene BRCA1 --dataset-limit 10
+```
+
+The agent runtime registers `perturb_catalog_summary`,
+`perturb_catalog_search`, `perturb_catalog_search_modality`,
+`perturb_catalog_dataset`, `perturb_catalog_dataset_rows`,
+`perturb_catalog_gsea`, and `perturb_catalog_pipeline` as tools.
+Live smoke test on `--gene BRCA1` returns **1,191 CRISPR-screen
+datasets** (509 significant), **7 Perturb-seq datasets**, and the
+canonical BRCA1 GSEA signature (`HALLMARK_E2F_TARGETS`,
+`HALLMARK_G2M_CHECKPOINT`, `HALLMARK_MYC_TARGETS_V1`). Outputs land
+under `Docs/Perturbation/<timestamp>_<gene>/` with one JSON per
+modality plus a markdown report; bulk downloads go to
+`Data/Perturbation/Downloads/<modality>/`.
 
 ## Deployment with LLM agents
 
