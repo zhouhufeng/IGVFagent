@@ -555,22 +555,43 @@ _PATH_IN_TICKS = re.compile(r"`([^`\n]+?\.(?:" +
 _BARE_ABS_PATH = re.compile(r"(?<![\w/`])(/[^\s`\n]+?\.(?:" +
                             "|".join(ext.lstrip(".") for ext in _VIEWABLE_EXTS) +
                             r"))(?![\w])")
+# Relative paths announced inline (e.g. "Browser SVG: Docs/ENCODE/Plots/x.svg").
+# Limited to top-level dirs we actually use so we don't accidentally catch
+# inline code snippets or URL paths.
+_BARE_REL_PATH = re.compile(
+    r"(?<![\w/`])((?:Docs|Data|Scripts|tmp)/[^\s`\n]+?\.(?:" +
+    "|".join(ext.lstrip(".") for ext in _VIEWABLE_EXTS) +
+    r"))(?![\w])"
+)
+
+# Project root used to resolve relative artefact paths.
+_PROJECT_ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 
 
 def _extract_paths_from_text(text: str) -> "list[str]":
     found: "list[str]" = []
     seen: "set[str]" = set()
-    for rx in (_PATH_IN_TICKS, _BARE_ABS_PATH):
+    for rx in (_PATH_IN_TICKS, _BARE_ABS_PATH, _BARE_REL_PATH):
         for m in rx.finditer(text or ""):
             p = m.group(1).strip()
             if p in seen:
                 continue
-            seen.add(p)
-            try:
-                if Path(p).is_file():
-                    found.append(p)
-            except OSError:
-                continue
+            # Resolve relatives against the project root so a string like
+            # "Docs/ENCODE/Plots/foo.svg" is found regardless of CWD.
+            candidates = [p]
+            if not p.startswith(("/", "~")):
+                candidates.append(str(_PROJECT_ROOT / p))
+            for cand in candidates:
+                try:
+                    if Path(cand).is_file():
+                        seen.add(p)
+                        found.append(cand)
+                        break
+                except OSError:
+                    continue
     return found
 
 
