@@ -1113,6 +1113,145 @@ _TOOLS: "list[Tool]" = [
         flag_map={"label": "--label"},
     ),
 
+    _T(
+        "sc_pipeline",
+        "Full single-cell analysis pipeline: QC + filter, log-normalize, "
+        "HVG selection, PCA, k-NN graph, UMAP, t-SNE, Leiden clustering, "
+        "and marker-gene DE. Accepts .h5ad / 10x .h5 / .mtx / .csv / .tsv. "
+        "Saves processed.h5ad, markers.csv, and publication PNGs (UMAP "
+        "colored by cluster / sample / top markers). The headline tool "
+        "when a user asks for a UMAP / t-SNE / cluster analysis.",
+        {
+            "type": "object",
+            "properties": {
+                "input":            {**_S_STRING,
+                                      "description": "Counts file path "
+                                                     "(.h5ad/.h5/.mtx/.csv)."},
+                "label":            {**_S_STRING},
+                "min_genes":        {**_S_INTEGER, "default": 200},
+                "min_cells":        {**_S_INTEGER, "default": 3},
+                "max_mito":         {"type": "number", "default": 20.0},
+                "mito_prefix":      {**_S_STRING, "default": "MT-"},
+                "n_hvg":            {**_S_INTEGER, "default": 2000},
+                "n_pcs":            {**_S_INTEGER, "default": 50},
+                "n_neighbors":      {**_S_INTEGER, "default": 15},
+                "resolution":       {"type": "number", "default": 1.0},
+                "n_markers":        {**_S_INTEGER, "default": 25},
+                "sample_col":       {**_S_STRING,
+                                      "description": "Obs column to color "
+                                                     "UMAP by (sample, batch)."},
+                "highlight_genes":  {**_S_STRING,
+                                      "description": "Comma-separated gene "
+                                                     "symbols to overlay."},
+                "skip_tsne":        {**_S_BOOLEAN, "default": False},
+                "transpose":        {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["input"],
+        },
+        cli=["sc-analyze", "pipeline"],
+        flag_map={"input": "--input", "label": "--label",
+                   "min_genes": "--min-genes", "min_cells": "--min-cells",
+                   "max_mito": "--max-mito", "mito_prefix": "--mito-prefix",
+                   "n_hvg": "--n-hvg", "n_pcs": "--n-pcs",
+                   "n_neighbors": "--n-neighbors",
+                   "resolution": "--resolution",
+                   "n_markers": "--n-markers",
+                   "sample_col": "--sample-col",
+                   "highlight_genes": "--highlight-genes"},
+        bool_flags={"skip_tsne", "transpose"},
+    ),
+
+    _T(
+        "sc_qc",
+        "Standalone QC pass: load counts, filter cells (min-genes), filter "
+        "genes (min-cells), drop high-mito cells, write QC violins, save a "
+        "cleaned processed.h5ad. Use when the user wants QC numbers before "
+        "committing to a full pipeline run.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING},
+                "label":       {**_S_STRING},
+                "min_genes":   {**_S_INTEGER, "default": 200},
+                "min_cells":   {**_S_INTEGER, "default": 3},
+                "max_mito":    {"type": "number", "default": 20.0},
+                "mito_prefix": {**_S_STRING, "default": "MT-"},
+                "transpose":   {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["input"],
+        },
+        cli=["sc-analyze", "qc"],
+        flag_map={"input": "--input", "label": "--label",
+                   "min_genes": "--min-genes", "min_cells": "--min-cells",
+                   "max_mito": "--max-mito",
+                   "mito_prefix": "--mito-prefix"},
+        bool_flags={"transpose"},
+    ),
+
+    _T(
+        "sc_umap",
+        "Run k-NN + UMAP on an already-PCA'd anndata, write a UMAP figure "
+        "colored by clusters (if present) or QC. Skips PCA if X_pca exists.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING},
+                "label":       {**_S_STRING},
+                "n_pcs":       {**_S_INTEGER, "default": 40},
+                "n_neighbors": {**_S_INTEGER, "default": 15},
+            },
+            "required": ["input"],
+        },
+        cli=["sc-analyze", "umap"],
+        flag_map={"input": "--input", "label": "--label",
+                   "n_pcs": "--n-pcs", "n_neighbors": "--n-neighbors"},
+    ),
+
+    _T(
+        "sc_cluster",
+        "Leiden clustering on the k-NN graph (falls back to Louvain if "
+        "leidenalg missing). Saves UMAP colored by leiden cluster.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING},
+                "label":       {**_S_STRING},
+                "resolution":  {"type": "number", "default": 1.0},
+                "n_pcs":       {**_S_INTEGER, "default": 40},
+                "n_neighbors": {**_S_INTEGER, "default": 15},
+            },
+            "required": ["input"],
+        },
+        cli=["sc-analyze", "cluster"],
+        flag_map={"input": "--input", "label": "--label",
+                   "resolution": "--resolution",
+                   "n_pcs": "--n-pcs", "n_neighbors": "--n-neighbors"},
+    ),
+
+    _T(
+        "sc_plot_embedding",
+        "Re-render UMAP or t-SNE coloured by any combination of obs columns "
+        "and/or gene symbols. Use when the user asks 'show me APOE on the "
+        "UMAP we just made' or wants a sample/batch overlay.",
+        {
+            "type": "object",
+            "properties": {
+                "input":      {**_S_STRING},
+                "label":      {**_S_STRING},
+                "embedding":  {**_S_STRING, "default": "umap",
+                                "description": "umap | tsne | both"},
+                "color":      {**_S_STRING,
+                                "description": "Comma-separated obs cols + genes."},
+                "ncols":      {**_S_INTEGER, "default": 2},
+            },
+            "required": ["input", "color"],
+        },
+        cli=["sc-analyze", "plot-embedding"],
+        flag_map={"input": "--input", "label": "--label",
+                   "embedding": "--embedding", "color": "--color",
+                   "ncols": "--ncols"},
+    ),
+
 ]
 
 
