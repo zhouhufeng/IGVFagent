@@ -1444,28 +1444,36 @@ _TOOLS: "list[Tool]" = [
         "multiseq_pipeline",
         "End-to-end MULTI-seq workflow: load tag counts, run EM "
         "demultiplexing, generate per-tag histograms + call heatmap + "
-        "per-tag 4-panel diagnostics + markdown report. Optional "
-        "ground-truth CSV produces an accuracy table for benchmarking.",
+        "per-tag 4-panel diagnostics + markdown report. Accepts either "
+        "a local file via `input` OR an IGVF Portal accession via "
+        "`igvf_accession` (auto-pulls then runs). Optional ground-truth "
+        "CSV produces an accuracy table for benchmarking.",
         {
             "type": "object",
             "properties": {
-                "input":         {**_S_STRING},
-                "label":         {**_S_STRING},
-                "obsm_key":      {**_S_STRING},
-                "ground_truth":  {**_S_STRING,
-                                    "description": "Optional CSV with a "
-                                                   "'truth' column."},
-                "init_cos_cut":  {"type": "number", "default": 0.5},
-                "max_iter":      {**_S_INTEGER, "default": 10},
-                "prob_cut":      {"type": "number", "default": 0.5},
-                "residual_type": {**_S_STRING, "default": "rqr"},
-                "seed":          {**_S_INTEGER, "default": 1},
-                "transpose":     {**_S_BOOLEAN, "default": False},
+                "input":          {**_S_STRING,
+                                    "description": "Local tag counts "
+                                                   "(.h5ad / 10x .h5 / "
+                                                   ".csv / .tsv)."},
+                "igvf_accession": {**_S_STRING,
+                                    "description": "IGVF Portal file "
+                                                   "accession (auto-pull). "
+                                                   "Mutually exclusive "
+                                                   "with `input`."},
+                "label":          {**_S_STRING},
+                "obsm_key":       {**_S_STRING},
+                "ground_truth":   {**_S_STRING},
+                "init_cos_cut":   {"type": "number", "default": 0.5},
+                "max_iter":       {**_S_INTEGER, "default": 10},
+                "prob_cut":       {"type": "number", "default": 0.5},
+                "residual_type":  {**_S_STRING, "default": "rqr"},
+                "seed":           {**_S_INTEGER, "default": 1},
+                "transpose":      {**_S_BOOLEAN, "default": False},
             },
-            "required": ["input"],
         },
         cli=["multiseq", "pipeline"],
         flag_map={"input": "--input", "label": "--label",
+                   "igvf_accession": "--igvf-accession",
                    "obsm_key": "--obsm-key",
                    "ground_truth": "--ground-truth",
                    "init_cos_cut": "--init-cos-cut",
@@ -1474,6 +1482,49 @@ _TOOLS: "list[Tool]" = [
                    "residual_type": "--residual-type",
                    "seed": "--seed"},
         bool_flags={"transpose"},
+    ),
+
+    _T(
+        "multiseq_discover",
+        "List MULTI-seq tag-count files available on the IGVF Portal. "
+        "Defaults to content_type='cell hashing barcodes'. The output "
+        "is a ranked manifest (largest files first) the user / agent "
+        "can pick from to feed into `multiseq_pipeline`.",
+        {
+            "type": "object",
+            "properties": {
+                "content_type": {**_S_STRING,
+                                  "default": "cell hashing barcodes"},
+                "assay_title":  {**_S_STRING,
+                                  "description": "Restrict to one "
+                                                 "preferred_assay_titles."},
+                "limit":        {**_S_INTEGER, "default": 20},
+                "label":        {**_S_STRING},
+            },
+        },
+        cli=["multiseq", "discover"],
+        flag_map={"content_type": "--content-type",
+                   "assay_title": "--assay-title",
+                   "limit": "--limit", "label": "--label"},
+    ),
+
+    _T(
+        "multiseq_pull_igvf",
+        "Download a single MULTI-seq tag-count file from the IGVF "
+        "Portal by accession into Data/MultiSeq/. Returns the local "
+        "path which can be passed straight to `multiseq_pipeline`'s "
+        "`input`.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING,
+                                "description": "IGVF file accession, e.g. "
+                                               "IGVFFI7138DMIL."},
+            },
+            "required": ["accession"],
+        },
+        cli=["multiseq", "pull-igvf"],
+        flag_map={"accession": "--accession"},
     ),
 
     _T(
