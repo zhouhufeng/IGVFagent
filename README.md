@@ -83,6 +83,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Proteomics & PPI knowledge graph](#proteomics--ppi-knowledge-graph)
   - [Single-cell analysis (UMAP / t-SNE / Leiden / markers)](#single-cell-analysis-umap--t-sne--leiden--markers)
   - [Perturbation Catalogue retrieval](#perturbation-catalogue-retrieval)
+  - [MULTI-seq / Cell Hashing demultiplexing](#multi-seq--cell-hashing-demultiplexing)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -170,6 +171,8 @@ IGVFagent/
 │   │                                       PPI knowledge graph + per-assay viz + lit survey
 │   ├── perturbation_catalog_skill.py    ← Perturbation Catalogue: MAVE / CRISPR-screen /
 │   │                                       Perturb-seq retrieval + per-gene pipeline
+│   ├── multiseq_analysis_skill.py       ← MULTI-seq / Cell Hashing demultiplexing
+│   │                                       (Python port of deMULTIplex2)
 │   │
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
@@ -201,6 +204,7 @@ IGVFagent/
     │   ├── GEO_RETRIEVAL_SKILLS.md              RNASEQ_ANALYSIS_SKILLS.md
     │   ├── PROTEOMICS_SKILLS.md
     │   ├── PERTURBATION_CATALOG_SKILLS.md
+    │   ├── MULTISEQ_ANALYSIS_SKILLS.md
     │   ├── SINGLECELL_ANALYSIS_SKILLS.md
     │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
@@ -1200,6 +1204,62 @@ canonical BRCA1 GSEA signature (`HALLMARK_E2F_TARGETS`,
 under `Docs/Perturbation/<timestamp>_<gene>/` with one JSON per
 modality plus a markdown report; bulk downloads go to
 `Data/Perturbation/Downloads/<modality>/`.
+
+### MULTI-seq / Cell Hashing demultiplexing
+
+Python port of **deMULTIplex2** (Zhu et al., *Nat Methods* 2024 —
+[Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2)).
+Assigns every cell in a multiplexed scRNA-seq run to a sample of
+origin, flags doublets, and flags negatives — the missing piece
+between `sc-analyze` (counts → clusters) and downstream sample-
+stratified analysis. Playbook:
+[`Docs/Skills/MULTISEQ_ANALYSIS_SKILLS.md`](Docs/Skills/MULTISEQ_ANALYSIS_SKILLS.md).
+
+```bash
+# 1) Generate a synthetic 2,000-cell × 6-tag matrix for smoke testing
+igvfagent multiseq simulate --n-cells 2000 --n-tags 6 \
+    --doublet-rate 0.08 --negative-rate 0.05 --label smoke
+
+# 2) Demultiplex any tag-count matrix (.h5ad / 10x .h5 / .csv / .tsv)
+igvfagent multiseq demultiplex --input tag_counts.csv \
+    --label demo --prob-cut 0.5 --residual-type rqr
+
+# 3) Standalone diagnostics
+igvfagent multiseq histogram --input tag_counts.csv
+igvfagent multiseq heatmap   --input tag_counts.csv \
+    --calls classifications.csv
+
+# 4) End-to-end with optional accuracy table vs ground truth
+igvfagent multiseq pipeline --input tag_counts.csv \
+    --ground-truth ground_truth.csv --label end_to_end
+```
+
+The algorithm fits, for each sample tag *j* independently, a
+two-component negative-binomial mixture via EM:
+
+  * `fit0`  `bc_umi ~ log(tt_umi)`                (off-target background)
+  * `fit1`  `(tt_umi - bc_umi) ~ log(tt_umi)`     (background tags in positives)
+
+where `bc_umi` is the focal-tag count and `tt_umi` is the per-cell
+total tag UMI. EM is initialized from a cosine-similarity cut, fit
+via `statsmodels` NB2 (matching `MASS::glm.nb`), and iterates until
+the log-likelihood is stable (≤ 10 iter, tol 1e-3). Cells with
+posterior `P(positive) > 0.5` for one tag are **singlets**; ≥2 →
+**multiplets**; 0 → **negatives**. Randomized quantile residuals
+(Dunn & Smyth 1996) are returned per tag for downstream QC.
+
+The agent runtime exposes `multiseq_demultiplex`, `multiseq_pipeline`,
+and `multiseq_simulate` as tools. Outputs go to
+`Docs/MultiSeq/<timestamp>_<label>/` with `classifications.csv`,
+`posteriors.csv`, `residuals.csv`, `tag_coefficients.csv`, and PNGs
+(faceted log-x histograms, mean-tag-count heatmap by call group,
+per-tag 4-panel scatter diagnostics). **Live smoke test** on
+2,000 simulated cells × 6 tags with 8% doublets + 5% negatives:
+**99.85% overall accuracy**, all 159 multiplets correctly flagged,
+all 98 negatives correctly flagged. FASTQ → tag-count alignment
+(the R package's `readTags` / `alignTags` step) is **not** ported —
+hand this skill a count matrix produced by Cell Ranger's Feature
+Barcoding workflow or the original `deMULTIplex` aligner.
 
 ## Deployment with LLM agents
 

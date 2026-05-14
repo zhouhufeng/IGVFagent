@@ -74,6 +74,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "perturb-catalog":  ("igvfagent.perturbation_catalog_skill",
                           "Perturbation Catalogue retrieval: MAVE / CRISPR-screen "
                           "/ Perturb-seq datasets, per-row effects, GSEA, downloads"),
+    "multiseq":         ("igvfagent.multiseq_analysis_skill",
+                          "MULTI-seq / Cell Hashing demultiplexing "
+                          "(Python port of deMULTIplex2)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
