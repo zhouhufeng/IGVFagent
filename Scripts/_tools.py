@@ -1400,6 +1400,109 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "multiseq_demultiplex",
+        "Demultiplex a MULTI-seq / Cell Hashing tag-count matrix into "
+        "singlet / multiplet / negative calls. Python port of "
+        "deMULTIplex2 (Zhu et al. Nat Methods 2024). Fits a "
+        "two-component negative-binomial mixture per tag via EM and "
+        "writes classifications.csv + posteriors + residuals + "
+        "diagnostic plots. The headline tool when the user asks 'who "
+        "is each cell in a multiplexed run?'.",
+        {
+            "type": "object",
+            "properties": {
+                "input":         {**_S_STRING,
+                                    "description": "Tag counts: .h5ad / 10x .h5 / "
+                                                   ".csv / .tsv."},
+                "label":         {**_S_STRING},
+                "obsm_key":      {**_S_STRING,
+                                    "description": ".h5ad obsm key with the "
+                                                   "multiplexing matrix."},
+                "init_cos_cut":  {"type": "number", "default": 0.5},
+                "max_iter":      {**_S_INTEGER, "default": 10},
+                "prob_cut":      {"type": "number", "default": 0.5},
+                "residual_type": {**_S_STRING, "default": "rqr",
+                                    "description": "rqr | pearson"},
+                "seed":          {**_S_INTEGER, "default": 1},
+                "transpose":     {**_S_BOOLEAN, "default": False},
+                "skip_diagnostics": {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["input"],
+        },
+        cli=["multiseq", "demultiplex"],
+        flag_map={"input": "--input", "label": "--label",
+                   "obsm_key": "--obsm-key",
+                   "init_cos_cut": "--init-cos-cut",
+                   "max_iter": "--max-iter",
+                   "prob_cut": "--prob-cut",
+                   "residual_type": "--residual-type",
+                   "seed": "--seed"},
+        bool_flags={"transpose", "skip_diagnostics"},
+    ),
+
+    _T(
+        "multiseq_pipeline",
+        "End-to-end MULTI-seq workflow: load tag counts, run EM "
+        "demultiplexing, generate per-tag histograms + call heatmap + "
+        "per-tag 4-panel diagnostics + markdown report. Optional "
+        "ground-truth CSV produces an accuracy table for benchmarking.",
+        {
+            "type": "object",
+            "properties": {
+                "input":         {**_S_STRING},
+                "label":         {**_S_STRING},
+                "obsm_key":      {**_S_STRING},
+                "ground_truth":  {**_S_STRING,
+                                    "description": "Optional CSV with a "
+                                                   "'truth' column."},
+                "init_cos_cut":  {"type": "number", "default": 0.5},
+                "max_iter":      {**_S_INTEGER, "default": 10},
+                "prob_cut":      {"type": "number", "default": 0.5},
+                "residual_type": {**_S_STRING, "default": "rqr"},
+                "seed":          {**_S_INTEGER, "default": 1},
+                "transpose":     {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["input"],
+        },
+        cli=["multiseq", "pipeline"],
+        flag_map={"input": "--input", "label": "--label",
+                   "obsm_key": "--obsm-key",
+                   "ground_truth": "--ground-truth",
+                   "init_cos_cut": "--init-cos-cut",
+                   "max_iter": "--max-iter",
+                   "prob_cut": "--prob-cut",
+                   "residual_type": "--residual-type",
+                   "seed": "--seed"},
+        bool_flags={"transpose"},
+    ),
+
+    _T(
+        "multiseq_simulate",
+        "Generate a synthetic MULTI-seq cell × tag UMI matrix with "
+        "ground truth. Useful for smoke-testing the demultiplexer or "
+        "for the user to walk through the workflow without real data.",
+        {
+            "type": "object",
+            "properties": {
+                "n_cells":        {**_S_INTEGER, "default": 1000},
+                "n_tags":         {**_S_INTEGER, "default": 4},
+                "doublet_rate":   {"type": "number", "default": 0.05},
+                "negative_rate":  {"type": "number", "default": 0.05},
+                "pos_mean":       {"type": "number", "default": 1000.0},
+                "bg_mean":        {"type": "number", "default": 20.0},
+                "seed":           {**_S_INTEGER, "default": 7},
+                "label":          {**_S_STRING, "default": "sim"},
+            },
+        },
+        cli=["multiseq", "simulate"],
+        flag_map={"n_cells": "--n-cells", "n_tags": "--n-tags",
+                   "doublet_rate": "--doublet-rate",
+                   "negative_rate": "--negative-rate",
+                   "pos_mean": "--pos-mean", "bg_mean": "--bg-mean",
+                   "seed": "--seed", "label": "--label"},
+    ),
+
+    _T(
         "sc_plot_embedding",
         "Re-render UMAP or t-SNE coloured by any combination of obs columns "
         "and/or gene symbols. Use when the user asks 'show me APOE on the "
