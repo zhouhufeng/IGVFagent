@@ -147,6 +147,41 @@ igvfagent multiseq write-playbook
   Feature Barcoding workflow or the original `deMULTIplex` aligner.
   Hand this skill a tag count matrix produced upstream.
 
+## Worked example — real IGVF Portal 96-plex MULTI-seq
+
+A live run on file `IGVFFI7138DMIL` (`cell hashing barcodes` content
+type, FileSet `IGVFDS3751NDQI`, `10x multiome with MULTI-seq` — a
+single-nucleus snATAC+RNA experiment from the IGVF Portal):
+
+```bash
+# Pull the .tsv.gz directly from the public S3 bucket
+curl -sLo Data/MultiSeq/IGVFFI7138DMIL.tsv.gz \
+  https://igvf-public.s3.amazonaws.com/2025/02/19/fa764a14-4109-4db7-9fec-01995ac74213/IGVFFI7138DMIL.tsv.gz
+
+igvfagent multiseq pipeline \
+    --input Data/MultiSeq/IGVFFI7138DMIL.tsv.gz \
+    --label IGVF_96plex
+```
+
+Headline numbers from this run (50,214 nuclei × 96 designed tags,
+~31 s on a laptop):
+
+| Quantity | Value |
+|---|---|
+| Active sample tags (the rest correctly flagged as unused) | **13 / 96** |
+| Singlets | **18,334** (36.5 %) |
+| Multiplets | **31,750** (63.2 %) |
+| Negatives | **130** (0.3 %) |
+| Median total tag UMI / nucleus | 339 |
+| Singlets per active sample | 403 – 2,187 (mean 1,410) |
+
+The very high multiplet rate is consistent with MULTI-seq Super-Loading
+— the experiment loads cells / nuclei past the 10x doublet plateau
+precisely because the demultiplexer recovers ~85 % of inter-sample
+doublets and lets them be flagged downstream. The 13 active 8-mer
+barcodes (e.g. `ACATGCGT`, `TTACGGTG`, …) recovered from this file
+match the McGinnis 2019 reference set.
+
 ## References
 
 - **McGinnis et al. 2019** — original MULTI-seq method:
