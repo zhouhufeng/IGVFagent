@@ -1208,11 +1208,17 @@ modality plus a markdown report; bulk downloads go to
 ### MULTI-seq / Cell Hashing demultiplexing
 
 Python port of **deMULTIplex2** (Zhu et al., *Nat Methods* 2024 —
-[Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2)).
-Assigns every cell in a multiplexed scRNA-seq run to a sample of
-origin, flags doublets, and flags negatives — the missing piece
-between `sc-analyze` (counts → clusters) and downstream sample-
-stratified analysis. Playbook:
+[Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2)),
+the v2 classifier for **MULTI-seq** ([McGinnis et al., *Nat Methods*
+2019](https://www.nature.com/articles/s41592-019-0433-8) — the
+original method using lipid-tagged 8-nt sample barcodes anchored in
+the cell or nuclear membrane via two LMOs;
+[Sigma-Aldrich technical
+article](https://www.sigmaaldrich.com/US/en/technical-documents/technical-article/genomics/sequencing/multi-seq-sample-multiplexing-single-cell-analysis-sequencing)
+covers the LMO001 reagent kit and protocol). Assigns every cell in a
+multiplexed scRNA-seq run to a sample of origin, flags doublets, and
+flags negatives — the missing piece between `sc-analyze` (counts →
+clusters) and downstream sample-stratified analysis. Playbook:
 [`Docs/Skills/MULTISEQ_ANALYSIS_SKILLS.md`](Docs/Skills/MULTISEQ_ANALYSIS_SKILLS.md).
 
 ```bash
