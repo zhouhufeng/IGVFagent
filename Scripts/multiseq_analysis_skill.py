@@ -90,8 +90,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
-# Project paths
+# Project paths + endpoint resolution
 # ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import resolve as _resolve_endpoint  # noqa: E402
 
 ROOT = Path(
     os.environ.get("IGVF_PROJECT_ROOT")
@@ -102,7 +105,160 @@ DOCS_DIR = ROOT / "Docs" / "MultiSeq"
 LOG_DIR = ROOT / "Docs" / "Logs"
 PLAYBOOK_PATH = ROOT / "Docs" / "Skills" / "MULTISEQ_ANALYSIS_SKILLS.md"
 
+# IGVF Portal endpoints (resolved at runtime, env-overridable). The
+# ``portal_api`` host serves JSON; the ``portal`` host serves the
+# `@@download/` paths and exposes ``s3_uri`` for direct S3 pulls.
+PORTAL_API = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
+PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
+
 logger = logging.getLogger("multiseq")
+
+
+# ---------------------------------------------------------------------------
+# IGVF Portal integration — discover + pull MULTI-seq tag-count files
+# ---------------------------------------------------------------------------
+
+
+def _portal_get(path: str, *, timeout: int = 60) -> Any:
+    """GET JSON from the IGVF Portal API."""
+    import urllib.error, urllib.request as _ureq
+    url = PORTAL_API + path
+    logger.info("GET %s", url)
+    req = _ureq.Request(url, headers={
+        "Accept": "application/json,*/*",
+        "User-Agent": "IGVFagent-MULTIseq/0.1",
+    })
+    try:
+        with _ureq.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return {"http_error": e.code,
+                "body": e.read().decode("utf-8", "replace")[:400]}
+
+
+def _portal_download(url: str, dest: Path, *, timeout: int = 600) -> int:
+    """Stream a file URL → ``dest`` (atomic via ``.part``)."""
+    import urllib.request as _ureq
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    n = 0
+    req = _ureq.Request(url, headers={
+        "User-Agent": "IGVFagent-MULTIseq/0.1",
+    })
+    with _ureq.urlopen(req, timeout=timeout) as resp, tmp.open("wb") as f:
+        while True:
+            chunk = resp.read(1 << 20)
+            if not chunk:
+                break
+            f.write(chunk)
+            n += len(chunk)
+    tmp.replace(dest)
+    logger.info("Downloaded %s (%.1f MB)", dest.name, n / (1 << 20))
+    return n
+
+
+def discover_igvf_multiseq(*,
+                            content_type: str = "cell hashing barcodes",
+                            assay_title: Optional[str] = None,
+                            limit: int = 50) -> "list[dict]":
+    """Query IGVF Portal for derived MULTI-seq tag-count files.
+
+    The Portal stores raw MULTI-seq libraries as FASTQs under
+    ``AuxiliarySet`` records with ``file_set_type='lipid-conjugated
+    oligo sequencing'``. The *demultiplexer-ready* tag-count matrices
+    live as ``TabularFile`` records with ``content_type='cell hashing
+    barcodes'`` (or ``barcode to sample mapping`` for already-classified
+    outputs). This function lists candidates ranked by file size — the
+    largest are usually the most informative tag matrices.
+    """
+    import urllib.parse as _up
+    params: "dict[str, str]" = {
+        "type": "File",
+        "content_type": content_type,
+        "format": "json",
+        "limit": str(limit),
+    }
+    # The Portal's file-search index doesn't expose
+    # `file_set.preferred_assay_titles` directly. If the caller asks
+    # for a specific assay, do post-filter on the file-set summary.
+    d = _portal_get("/search/?" + _up.urlencode(params))
+    out: "list[dict]" = []
+    for h in (d.get("@graph") or []):
+        # Fetch the file detail to get s3_uri + file_size
+        atid = h.get("@id")
+        if not atid:
+            continue
+        fd = _portal_get(f"{atid}?format=json")
+        out.append({
+            "accession":    h.get("accession"),
+            "content_type": h.get("content_type"),
+            "file_format":  h.get("file_format"),
+            "file_size":    fd.get("file_size"),
+            "s3_uri":       fd.get("s3_uri"),
+            "href":         fd.get("href"),
+            "file_set":     (fd.get("file_set") if isinstance(fd.get("file_set"), str)
+                              else (fd.get("file_set") or {}).get("@id", "")),
+            "description":  (fd.get("description") or "")[:120],
+        })
+    # Post-filter on assay title using the parent file_set's
+    # ``preferred_assay_titles`` (the file-search index doesn't expose
+    # this directly, so we resolve it lazily).
+    if assay_title:
+        kept: "list[dict]" = []
+        for r in out:
+            fs_id = r.get("file_set") or ""
+            if not fs_id:
+                continue
+            fs = _portal_get(f"{fs_id}?format=json")
+            titles = fs.get("preferred_assay_titles") or []
+            if assay_title in titles:
+                r["assay_title"] = assay_title
+                kept.append(r)
+        out = kept
+    # Sort by file size desc (largest = richest tag-count matrices)
+    out.sort(key=lambda r: -(r.get("file_size") or 0))
+    return out
+
+
+def pull_igvf_file(accession: str, dest_dir: Optional[Path] = None) -> Path:
+    """Fetch one file from the public IGVF S3 bucket by accession.
+
+    Resolves ``s3_uri`` from the Portal detail endpoint, converts it
+    to the public ``https://igvf-public.s3.amazonaws.com/...`` URL,
+    and streams the bytes into ``Data/MultiSeq/<accession>.<ext>``.
+    """
+    dest_dir = dest_dir or DATA_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    # Try the canonical tabular-files path first, falling back to /files/
+    for prefix in ("/tabular-files/", "/files/"):
+        fd = _portal_get(f"{prefix}{accession}/?format=json")
+        if isinstance(fd, dict) and "s3_uri" in fd:
+            break
+    else:
+        raise RuntimeError(f"Could not resolve IGVF file {accession!r}")
+    s3 = fd.get("s3_uri") or ""
+    href = fd.get("href") or ""
+    if s3.startswith("s3://igvf-public/"):
+        key = s3[len("s3://igvf-public/"):]
+        url = f"https://igvf-public.s3.amazonaws.com/{key}"
+    elif href:
+        url = PORTAL_BASE + href
+    else:
+        raise RuntimeError(f"File {accession} has neither s3_uri nor href")
+    # Preserve the FULL upstream extension chain so .tsv.gz stays as
+    # `.tsv.gz` (not just `.gz`), otherwise the downstream loader can't
+    # tell whether the file is CSV-/TSV-/HDF-encoded.
+    src_path = Path(s3 or href)
+    suffixes = "".join(src_path.suffixes)
+    if not suffixes:
+        suffixes = ".bin"
+    dest = dest_dir / f"{accession}{suffixes}"
+    if dest.exists() and dest.stat().st_size > 0:
+        logger.info("Already cached: %s (%.1f MB)", dest,
+                     dest.stat().st_size / (1 << 20))
+        return dest
+    _portal_download(url, dest)
+    return dest
 
 
 # ---------------------------------------------------------------------------
@@ -851,6 +1007,42 @@ def cmd_heatmap(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_discover(args: argparse.Namespace) -> int:
+    """List MULTI-seq tag-count files available on the IGVF Portal."""
+    mkdirs(); setup_logging("discover")
+    out = _new_run_dir(args.label or "discover")
+    rows = discover_igvf_multiseq(
+        content_type=args.content_type,
+        assay_title=args.assay_title,
+        limit=args.limit,
+    )
+    (out / "candidates.json").write_text(json.dumps(rows, indent=2,
+                                                       default=str))
+    print(f"\nFound {len(rows)} candidate(s) on the IGVF Portal "
+          f"(content_type={args.content_type!r}):")
+    print(f"  {'accession':18s} {'format':6s} {'size':>12}  file_set")
+    print(f"  {'-'*18} {'-'*6} {'-'*12}  {'-'*20}")
+    for r in rows[:args.limit]:
+        sz = r.get("file_size") or 0
+        sz_str = f"{sz / 1024:.0f} KB" if sz < 1 << 20 else f"{sz / (1 << 20):.1f} MB"
+        print(f"  {(r.get('accession') or '?'):18s} "
+              f"{(r.get('file_format') or '?'):6s} "
+              f"{sz_str:>12}  "
+              f"{r.get('file_set') or '?'}")
+    print(f"\nFull manifest: {out / 'candidates.json'}")
+    print(f"\nNext: igvfagent multiseq pipeline --igvf-accession <ACC>")
+    return 0
+
+
+def cmd_pull_igvf(args: argparse.Namespace) -> int:
+    """Download a single MULTI-seq tag-count file from IGVF Portal."""
+    mkdirs(); setup_logging("pull_" + safe_label(args.accession))
+    dest = pull_igvf_file(args.accession)
+    print(f"\nDownloaded: {dest}")
+    print(f"\nNext: igvfagent multiseq pipeline --input {dest}")
+    return 0
+
+
 def cmd_simulate(args: argparse.Namespace) -> int:
     mkdirs(); setup_logging("simulate")
     out = _new_run_dir(args.label or "sim")
@@ -870,10 +1062,26 @@ def cmd_simulate(args: argparse.Namespace) -> int:
 
 def cmd_pipeline(args: argparse.Namespace) -> int:
     """Load → demultiplex → all plots → report (+ optional accuracy
-    against ground truth)."""
+    against ground truth).
+
+    Two ways to specify input:
+      ``--input <path>``                local file
+      ``--igvf-accession <ACC>``        pull from IGVF Portal first
+    """
     mkdirs(); setup_logging("pipeline_" + (args.label or "run"))
     out = _new_run_dir(args.label or "pipeline")
-    tag_mtx = load_tag_counts(Path(args.input), key=args.obsm_key,
+    if args.igvf_accession:
+        logger.info("Pulling IGVF file %s ...", args.igvf_accession)
+        input_path = pull_igvf_file(args.igvf_accession)
+        # Default the label to the accession when caller didn't set one
+        if not args.label:
+            args.label = "IGVF_" + args.igvf_accession
+            out = _new_run_dir(args.label)
+    elif args.input:
+        input_path = Path(args.input)
+    else:
+        raise SystemExit("Provide either --input or --igvf-accession.")
+    tag_mtx = load_tag_counts(input_path, key=args.obsm_key,
                                  transpose=args.transpose)
     logger.info("Tag matrix: %s, sum %.1fM UMIs", tag_mtx.shape,
                  tag_mtx.values.sum() / 1e6)
@@ -925,7 +1133,8 @@ def cmd_pipeline(args: argparse.Namespace) -> int:
     # Markdown summary
     calls = result["classifications"]
     md = ["# MULTI-seq pipeline — " + (args.label or "pipeline"), "",
-          f"- Input: `{args.input}`",
+          (f"- IGVF Portal source: `{args.igvf_accession}` → `{input_path}`"
+           if args.igvf_accession else f"- Input: `{input_path}`"),
           f"- Cells: **{len(tag_mtx):,}**, tags: **{tag_mtx.shape[1]}**",
           ""]
     type_counts = calls["droplet_type"].value_counts().to_dict()
@@ -1242,10 +1451,41 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     s.add_argument("--seed", type=int, default=7)
     s.set_defaults(func=cmd_simulate)
 
+    s = sub.add_parser("discover",
+                        help="List MULTI-seq tag-count files on the IGVF "
+                              "Portal (default content_type='cell hashing "
+                              "barcodes').")
+    s.add_argument("--content-type", default="cell hashing barcodes",
+                    help="Portal content_type (e.g. 'cell hashing barcodes',"
+                         " 'barcode to sample mapping').")
+    s.add_argument("--assay-title", default=None,
+                    help="Restrict to one preferred_assay_titles value "
+                         "(e.g. '10x multiome with MULTI-seq').")
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--label", default=None)
+    s.set_defaults(func=cmd_discover)
+
+    s = sub.add_parser("pull-igvf",
+                        help="Download one IGVF Portal tag-count file by "
+                              "accession (auto-resolves S3 URI).")
+    s.add_argument("--accession", required=True,
+                    help="IGVF file accession, e.g. IGVFFI7138DMIL.")
+    s.set_defaults(func=cmd_pull_igvf)
+
     s = sub.add_parser("pipeline",
                         help="Load → demux → plots → report (+ optional "
-                              "accuracy vs ground truth).")
-    _common_io(s)
+                              "accuracy vs ground truth). Accepts either "
+                              "a local file via --input or an IGVF Portal "
+                              "accession via --igvf-accession.")
+    s.add_argument("--input", default=None,
+                    help="Local tag counts (.h5ad / 10x .h5 / .csv / .tsv). "
+                         "Mutually exclusive with --igvf-accession.")
+    s.add_argument("--igvf-accession", default=None,
+                    help="IGVF Portal file accession — auto-pulls then "
+                         "runs the pipeline (e.g. IGVFFI7138DMIL).")
+    s.add_argument("--label", default=None)
+    s.add_argument("--obsm-key", default=None)
+    s.add_argument("--transpose", action="store_true")
     s.add_argument("--init-cos-cut", type=float, default=0.5)
     s.add_argument("--max-iter", type=int, default=10)
     s.add_argument("--prob-cut", type=float, default=0.5)
