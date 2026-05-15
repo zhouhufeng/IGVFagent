@@ -1,0 +1,7 @@
+{
+  "n_total": 2000,
+  "n_singlet_correct": 1740,
+  "n_doublet_correct": 159,
+  "n_negative_correct": 98,
+  "overall_accuracy": 0.9985
+}

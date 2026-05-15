@@ -54,7 +54,11 @@ Docs/SETargets/2*
 Docs/GEO/2*
 Docs/Proteomics/2*
 Docs/Perturbation/2*
-Docs/MultiSeq/2*
+# Docs/MultiSeq runs ARE tracked (worked examples, plots, classifications)
+# — but skip the large per-cell × per-tag posterior matrix that
+# regenerates trivially from any rerun.
+Docs/MultiSeq/**/posteriors.csv
+Docs/MultiSeq/**/posteriors.csv.gz
 Docs/RNAseq/2*
 Docs/MultiomeSurvey/2*
 Docs/Demos/*
