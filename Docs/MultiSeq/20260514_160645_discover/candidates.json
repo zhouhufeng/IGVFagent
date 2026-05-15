@@ -1,0 +1,82 @@
+[
+  {
+    "accession": "IGVFFI7138DMIL",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 1177663,
+    "s3_uri": "s3://igvf-public/2025/02/19/fa764a14-4109-4db7-9fec-01995ac74213/IGVFFI7138DMIL.tsv.gz",
+    "href": "/tabular-files/IGVFFI7138DMIL/@@download/IGVFFI7138DMIL.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS3751NDQI/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI1061BHAQ",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 686028,
+    "s3_uri": "s3://igvf-public/2025/03/27/f4e99252-83c8-43b8-82a1-da1f0dc72962/IGVFFI1061BHAQ.tsv.gz",
+    "href": "/tabular-files/IGVFFI1061BHAQ/@@download/IGVFFI1061BHAQ.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS2787RDGU/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI2466HQBG",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 540242,
+    "s3_uri": "s3://igvf-public/2025/02/19/f65800ce-78d3-404b-beb7-327de2b69b81/IGVFFI2466HQBG.tsv.gz",
+    "href": "/tabular-files/IGVFFI2466HQBG/@@download/IGVFFI2466HQBG.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS7649PCRX/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI5339CEMK",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 313820,
+    "s3_uri": "s3://igvf-public/2025/02/19/eaec8953-3c4e-4a74-b1b1-1f0b932ebac7/IGVFFI5339CEMK.tsv.gz",
+    "href": "/tabular-files/IGVFFI5339CEMK/@@download/IGVFFI5339CEMK.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS9170BNTS/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI5952NKYY",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 245963,
+    "s3_uri": "s3://igvf-public/2025/02/19/f298b0c6-5c1d-4851-af60-f77af5579e17/IGVFFI5952NKYY.tsv.gz",
+    "href": "/tabular-files/IGVFFI5952NKYY/@@download/IGVFFI5952NKYY.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS7903FOXV/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI3429KVCC",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 107329,
+    "s3_uri": "s3://igvf-public/2025/02/19/efc37389-f375-4c80-863f-39a822666f15/IGVFFI3429KVCC.tsv.gz",
+    "href": "/tabular-files/IGVFFI3429KVCC/@@download/IGVFFI3429KVCC.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS3005LSBM/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI1470AONX",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 63259,
+    "s3_uri": "s3://igvf-public/2025/02/19/e1b05952-0008-4cb4-864d-53364f513aea/IGVFFI1470AONX.tsv.gz",
+    "href": "/tabular-files/IGVFFI1470AONX/@@download/IGVFFI1470AONX.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS5901DVUG/",
+    "description": ""
+  },
+  {
+    "accession": "IGVFFI6723VKSY",
+    "content_type": "cell hashing barcodes",
+    "file_format": "tsv",
+    "file_size": 62072,
+    "s3_uri": "s3://igvf-public/2025/02/19/eef2076e-b4e5-449e-a4d0-bfd0fe45b042/IGVFFI6723VKSY.tsv.gz",
+    "href": "/tabular-files/IGVFFI6723VKSY/@@download/IGVFFI6723VKSY.tsv.gz",
+    "file_set": "/analysis-sets/IGVFDS0226SGHL/",
+    "description": ""
+  }
+]
