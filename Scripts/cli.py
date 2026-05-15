@@ -77,6 +77,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "multiseq":         ("igvfagent.multiseq_analysis_skill",
                           "MULTI-seq / Cell Hashing demultiplexing "
                           "(Python port of deMULTIplex2)"),
+    "warehouse":        ("igvfagent.warehouse_skill",
+                          "Central DuckDB warehouse — Silver tier for the "
+                          "IGVF integrated data layer"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
