@@ -45,6 +45,9 @@ Docs/Logs/*
 # Generated run outputs (timestamped) under Docs/* — re-add specific files explicitly if needed
 Docs/CRISPRi/2*
 Docs/MPRA/2*
+Docs/SHAREseq/2*
+Docs/STARRseq/2*
+Docs/FlowFISH/2*
 Docs/SingleCell/2*
 Docs/EnhancerGene/2*
 Docs/VariantAnnotation/2*

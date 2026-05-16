@@ -1764,6 +1764,288 @@ _TOOLS: "list[Tool]" = [
         flag_map={"beta": "--beta", "solver": "--solver", "label": "--label"},
     ),
 
+    # ------------------------------------------------------------------
+    # STARR-seq allelic analysis (clean-room rewrite of mpralm)
+    # Ref: gaochengwen/STARR-seq-Data-Analysis (no LICENSE; clean-room)
+    # ------------------------------------------------------------------
+    _T(
+        "starr_pull_portal",
+        "Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
+        "manifest with accession, assay_titles, n_files, status.",
+        {"type": "object", "properties": {
+            "limit": {**_S_INTEGER, "default": 50},
+            "label": {**_S_STRING},
+        }},
+        cli=["starrseq", "pull-portal"],
+        flag_map={"limit": "--limit", "label": "--label"},
+    ),
+    _T(
+        "starr_qc",
+        "STARR-seq counts QC: TPM-style scaling, low-expression filter, "
+        "RLE matrix, per-sample Spearman D-statistic outlier flag (top "
+        "5%). Mirrors count_qc.R from gaochengwen/STARR-seq-Data-Analysis.",
+        {"type": "object", "properties": {
+            "input": {**_S_STRING, "description": "Counts TSV/CSV."},
+            "label": {**_S_STRING},
+        }, "required": ["input"]},
+        cli=["starrseq", "qc"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+    _T(
+        "starr_aggregate",
+        "Collapse barcode-level STARR-seq counts to a per-(SNP, Allele) "
+        "wide table (long form -> wide).",
+        {"type": "object", "properties": {
+            "input": {**_S_STRING},
+            "label": {**_S_STRING},
+        }, "required": ["input"]},
+        cli=["starrseq", "aggregate"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+    _T(
+        "starr_activity",
+        "Per-fragment STARR-seq log activity = log(RNA TPM / DNA TPM) "
+        "across paired replicates, plus per-SNP allelic skew "
+        "(log activity ALT - REF).",
+        {"type": "object", "properties": {
+            "input": {**_S_STRING},
+            "label": {**_S_STRING},
+        }, "required": ["input"]},
+        cli=["starrseq", "activity"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+    _T(
+        "starr_allelic_test",
+        "STARR-seq allelic significance test: per-(SNP, Allele) OLS on "
+        "log2((RNA+0.5)/(DNA+0.5)) per replicate, eBayes variance "
+        "moderation (Smyth 2004 trigamma inversion) with graceful "
+        "fallback when no variance excess is detected, BH-FDR. "
+        "Clean-room rewrite of Bioconductor mpra::mpralm.",
+        {"type": "object", "properties": {
+            "input": {**_S_STRING},
+            "label": {**_S_STRING},
+        }, "required": ["input"]},
+        cli=["starrseq", "allelic-test"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+
+    # ------------------------------------------------------------------
+    # SHARE-seq joint scATAC + scRNA QC
+    # Ref: broadinstitute/epi-SHARE-seq-pipeline (MIT)
+    #      Ma et al. Cell 2020 doi:10.1016/j.cell.2020.09.056
+    # ------------------------------------------------------------------
+    _T(
+        "share_pull_portal",
+        "Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets "
+        "(`preferred_assay_titles=SHARE-seq`). Writes a TSV manifest "
+        "covering both processed AnalysisSets (h5ad + fragments BED) and "
+        "raw MeasurementSets (FASTQ + seqspec).",
+        {"type": "object", "properties": {
+            "limit": {**_S_INTEGER, "default": 50},
+            "label": {**_S_STRING},
+        }},
+        cli=["share", "pull-portal"],
+        flag_map={"limit": "--limit", "label": "--label"},
+    ),
+    _T(
+        "share_demultiplex_bcs",
+        "SHARE-seq round-1/2/3 24-mer barcode demultiplex on a gz FASTQ. "
+        "Exact match + 1-Hamming-mismatch lookup + optional +/-1 bp shift "
+        "correction. Pure stdlib; no pysam/dnaio. Mirrors correct_fastq.py "
+        "from broadinstitute/epi-SHARE-seq-pipeline.",
+        {"type": "object", "properties": {
+            "fastq": {**_S_STRING},
+            "whitelist": {**_S_STRING, "description":
+                          "24-mer whitelist (one barcode per line)."},
+            "out": {**_S_STRING},
+            "r1_offset": {**_S_INTEGER, "default": 14},
+            "r2_offset": {**_S_INTEGER, "default": 52},
+            "r3_offset": {**_S_INTEGER, "default": 90},
+            "shift_correct": {**_S_BOOLEAN, "default": False},
+            "max_reads": {**_S_INTEGER, "default": 0},
+            "label": {**_S_STRING},
+        }, "required": ["fastq", "whitelist", "out"]},
+        cli=["share", "demultiplex-bcs"],
+        flag_map={"fastq": "--fastq", "whitelist": "--whitelist",
+                  "out": "--out", "r1_offset": "--r1-offset",
+                  "r2_offset": "--r2-offset", "r3_offset": "--r3-offset",
+                  "shift_correct": "--shift-correct",
+                  "max_reads": "--max-reads", "label": "--label"},
+    ),
+    _T(
+        "share_fragment_qc",
+        "Per-barcode ATAC QC from a SHARE-seq fragments BED: total "
+        "fragments, reads in TSS +/-2kb window, reads in flanking 100bp "
+        "regions, TSS enrichment (Ma 2020 formula with 0.2 floor), reads "
+        "in peaks, FRIP. Mirrors qc_atac_compute_tss_enrichment.py + "
+        "qc_atac_compute_reads_in_peaks.py.",
+        {"type": "object", "properties": {
+            "fragments": {**_S_STRING},
+            "tss_bed": {**_S_STRING, "description": "Optional TSS BED."},
+            "peaks_bed": {**_S_STRING, "description": "Optional peaks BED."},
+            "label": {**_S_STRING},
+        }, "required": ["fragments"]},
+        cli=["share", "fragment-qc"],
+        flag_map={"fragments": "--fragments", "tss_bed": "--tss-bed",
+                  "peaks_bed": "--peaks-bed", "label": "--label"},
+    ),
+    _T(
+        "share_rna_qc",
+        "Per-barcode RNA QC from a SHARE-seq h5ad sparse gene-count "
+        "matrix: total UMIs, expressed genes, percent mitochondrial "
+        "(genes auto-detected by MT-/mt- prefix).",
+        {"type": "object", "properties": {
+            "h5ad": {**_S_STRING},
+            "label": {**_S_STRING},
+        }, "required": ["h5ad"]},
+        cli=["share", "rna-qc"],
+        flag_map={"h5ad": "--h5ad", "label": "--label"},
+    ),
+    _T(
+        "share_joint_qc",
+        "Merge SHARE-seq RNA + ATAC per-barcode tables and apply the "
+        "Ma 2020 joint cell-calling thresholds (UMIs>=min_umis AND "
+        "genes>=min_genes AND TSS>=min_tss AND fragments>=min_frags). "
+        "Mirrors joint_cell_plotting.py.",
+        {"type": "object", "properties": {
+            "rna_qc": {**_S_STRING},
+            "atac_qc": {**_S_STRING},
+            "min_umis": {**_S_INTEGER, "default": 100},
+            "min_genes": {**_S_INTEGER, "default": 200},
+            "min_tss": {"type": "number", "default": 4.0},
+            "min_frags": {**_S_INTEGER, "default": 100},
+            "label": {**_S_STRING},
+        }, "required": ["rna_qc", "atac_qc"]},
+        cli=["share", "joint-qc"],
+        flag_map={"rna_qc": "--rna-qc", "atac_qc": "--atac-qc",
+                  "min_umis": "--min-umis", "min_genes": "--min-genes",
+                  "min_tss": "--min-tss", "min_frags": "--min-frags",
+                  "label": "--label"},
+    ),
+    _T(
+        "share_multiplet_detect",
+        "Pairwise Jaccard multiplet detection on a SHARE-seq fragments "
+        "BED. Builds a per-barcode set of (chrom, start) coordinates, "
+        "samples a null Jaccard distribution from 10000 random pairs, "
+        "and flags any pair whose Jaccard exceeds the 99-th percentile "
+        "of null. Mirrors detect_multiplets.py.",
+        {"type": "object", "properties": {
+            "fragments": {**_S_STRING},
+            "min_fragments": {**_S_INTEGER, "default": 1000},
+            "max_pairs": {**_S_INTEGER, "default": 200000},
+            "null_samples": {**_S_INTEGER, "default": 10000},
+            "seed": {**_S_INTEGER, "default": 7},
+            "label": {**_S_STRING},
+        }, "required": ["fragments"]},
+        cli=["share", "multiplet-detect"],
+        flag_map={"fragments": "--fragments",
+                  "min_fragments": "--min-fragments",
+                  "max_pairs": "--max-pairs",
+                  "null_samples": "--null-samples",
+                  "seed": "--seed", "label": "--label"},
+    ),
+
+    # ------------------------------------------------------------------
+    # CRISPRi Flow-FISH screen analysis
+    # Ref: EngreitzLab/CRISPRi-FlowFISH-pipeline (MIT)
+    #      Fulco 2019 Nat Genet doi:10.1038/s41588-019-0538-0
+    #      Nasser 2021 Nature  doi:10.1038/s41586-021-03446-x
+    # ------------------------------------------------------------------
+    _T(
+        "flowfish_pull_portal",
+        "Discover IGVF Portal CRISPRi-FlowFISH MeasurementSets.",
+        {"type": "object", "properties": {
+            "limit": {**_S_INTEGER, "default": 50},
+            "label": {**_S_STRING},
+        }},
+        cli=["flowfish", "pull-portal"],
+        flag_map={"limit": "--limit", "label": "--label"},
+    ),
+    _T(
+        "flowfish_estimate_effects",
+        "Per-guide log-normal MLE on a guide x FACS-bin counts matrix. "
+        "Fits (logMean, logSD) by minimizing the bin-multinomial NLL with "
+        "L-BFGS-B and a trailing 'outside' bin EM imputation, then "
+        "carries metadata through to the raw_effects.tsv output. Clean-"
+        "room implementation of estimate_effect_sizes.R from "
+        "EngreitzLab/CRISPRi-FlowFISH-pipeline.",
+        {"type": "object", "properties": {
+            "counts": {**_S_STRING},
+            "sortparams": {**_S_STRING, "description":
+                            "TSV with Bin, LowBound, HighBound."},
+            "label": {**_S_STRING},
+        }, "required": ["counts", "sortparams"]},
+        cli=["flowfish", "estimate-effects"],
+        flag_map={"counts": "--counts", "sortparams": "--sortparams",
+                  "label": "--label"},
+    ),
+    _T(
+        "flowfish_real_space",
+        "Convert per-guide (logMean, logSD) to log-normal mean expression "
+        "(mleAvg = exp(mu*ln10 + (sigma*ln10)^2/2)), divide by the "
+        "median negative-control mleAvg to get a fold-change vs null, "
+        "clamp at +/-clamp, and rescale so null centers at 1. Clean-room "
+        "implementation of convert_to_real_space.py.",
+        {"type": "object", "properties": {
+            "input": {**_S_STRING},
+            "target_col": {**_S_STRING, "default": "target"},
+            "negative_label": {**_S_STRING, "default": "negative_control"},
+            "clamp": {"type": "number", "default": 5.0},
+            "label": {**_S_STRING},
+        }, "required": ["input"]},
+        cli=["flowfish", "real-space"],
+        flag_map={"input": "--input", "target_col": "--target-col",
+                  "negative_label": "--negative-label",
+                  "clamp": "--clamp", "label": "--label"},
+    ),
+    _T(
+        "flowfish_score_elements",
+        "Per-element collapse + significance: two tests vs negative-"
+        "control distribution (Mann-Whitney U + Welch t-test) with BH-"
+        "FDR. Flags Significant = (FDR<thr) AND (mean<1) AND (n>=min) "
+        "and Regulated = Significant AND |1-mean|>=min_effect. Clean-room "
+        "implementation of ScoreEnhancers.py (Fulco 2019).",
+        {"type": "object", "properties": {
+            "effects": {**_S_STRING},
+            "target_col": {**_S_STRING, "default": "target"},
+            "element_col": {**_S_STRING, "default": "ElementName"},
+            "negative_label": {**_S_STRING, "default": "negative_control"},
+            "min_guides": {**_S_INTEGER, "default": 5},
+            "min_negative": {**_S_INTEGER, "default": 10},
+            "fdr": {"type": "number", "default": 0.05},
+            "min_effect": {"type": "number", "default": 0.10},
+            "label": {**_S_STRING},
+        }, "required": ["effects"]},
+        cli=["flowfish", "score-elements"],
+        flag_map={"effects": "--effects", "target_col": "--target-col",
+                  "element_col": "--element-col",
+                  "negative_label": "--negative-label",
+                  "min_guides": "--min-guides",
+                  "min_negative": "--min-negative",
+                  "fdr": "--fdr", "min_effect": "--min-effect",
+                  "label": "--label"},
+    ),
+    _T(
+        "flowfish_simulate",
+        "Generate a synthetic guide x bin counts table for smoke testing "
+        "the Flow-FISH skill: 100 negative controls + N elements each "
+        "with G guides, fraction-knockdown elements pushed to a lower "
+        "log-normal mean.",
+        {"type": "object", "properties": {
+            "out_dir": {**_S_STRING},
+            "n_elements": {**_S_INTEGER, "default": 40},
+            "guides_per_element": {**_S_INTEGER, "default": 8},
+            "knockdown_frac": {"type": "number", "default": 0.30},
+            "cells_per_guide": {**_S_INTEGER, "default": 800},
+            "seed": {**_S_INTEGER, "default": 7},
+        }, "required": ["out_dir"]},
+        cli=["flowfish", "simulate"],
+        flag_map={"out_dir": "--out-dir", "n_elements": "--n-elements",
+                  "guides_per_element": "--guides-per-element",
+                  "knockdown_frac": "--knockdown-frac",
+                  "cells_per_guide": "--cells-per-guide", "seed": "--seed"},
+    ),
+
 ]
 
 
@@ -1958,4 +2240,5 @@ __all__ = [
     "Tool", "list_tools", "get_tool",
     "to_anthropic_schema", "to_openai_schema",
     "execute",
+
 ]
