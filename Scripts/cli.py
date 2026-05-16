@@ -80,6 +80,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "warehouse":        ("igvfagent.warehouse_skill",
                           "Central DuckDB warehouse — Silver tier for the "
                           "IGVF integrated data layer"),
+    "corneto":          ("igvfagent.corneto_integration_skill",
+                          "CORNETO network integration — context-specific "
+                          "subnetwork inference (CARNIVAL / Steiner)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
