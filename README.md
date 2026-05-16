@@ -85,7 +85,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Perturbation Catalogue retrieval](#perturbation-catalogue-retrieval)
   - [MULTI-seq / Cell Hashing demultiplexing](#multi-seq--cell-hashing-demultiplexing)
   - [Integrated data warehouse (DuckDB Silver tier)](#integrated-data-warehouse-duckdb-silver-tier)
-  - [CORNETO network integration](#corneto-network-integration)
+  - [Network integration (clean-room MILP — CARNIVAL + Steiner)](#network-integration-clean-room-milp--carnival--steiner)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -177,8 +177,9 @@ IGVFagent/
 │   │                                       (Python port of deMULTIplex2)
 │   ├── warehouse_skill.py               ← central DuckDB warehouse (Silver tier
 │   │                                       of the integrated data layer)
-│   ├── corneto_integration_skill.py     ← CORNETO network integration —
-│   │                                       CARNIVAL / Steiner subnetwork MILP
+│   ├── network_integration_skill.py     ← Network integration: clean-room
+│   │                                       cvxpy MILP for CARNIVAL +
+│   │                                       prize-collecting Steiner
 │   │
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
@@ -212,7 +213,7 @@ IGVFagent/
     │   ├── PERTURBATION_CATALOG_SKILLS.md
     │   ├── MULTISEQ_ANALYSIS_SKILLS.md
     │   ├── WAREHOUSE_SKILLS.md
-    │   ├── CORNETO_INTEGRATION_SKILLS.md
+    │   ├── NETWORK_INTEGRATION_SKILLS.md
     │   ├── SINGLECELL_ANALYSIS_SKILLS.md
     │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
@@ -1315,50 +1316,59 @@ protein-evidence datasets** ingested from five producers. Bulk
 `posteriors.csv` etc. are auto-excluded; the tracked outputs are
 intentionally lightweight (~14 MB on disk).
 
-### CORNETO network integration
+### Network integration (clean-room MILP — CARNIVAL + Steiner)
 
-The **integration layer** — wraps the **CORNETO** framework
-(Saez-Rodriguez lab,
-[*Nat Mach Intell* 2025](https://www.nature.com/articles/s42256-025-01069-9),
-[GitHub](https://github.com/saezlab/corneto), GPL-3.0) to infer
-**context-specific subnetworks** by mixed-integer constrained
-optimization. CORNETO unifies the math behind CARNIVAL, COSMOS,
-PCSF/Steiner-tree, OmniPath subnetwork extraction, FBA/iMAT, and
-shortest-path methods into one MILP over a signed directed prior-
-knowledge graph. Playbook:
-[`Docs/Skills/CORNETO_INTEGRATION_SKILLS.md`](Docs/Skills/CORNETO_INTEGRATION_SKILLS.md).
+The **integration layer** of the IGVF data warehouse. Implements two
+context-specific-subnetwork methods from scratch in cvxpy:
+
+  * **CARNIVAL** — given a signed prior-knowledge graph plus signed
+    perturbations + signed measurements, find the minimum-cost
+    upstream subnetwork whose vertex signs match the data.
+  * **Prize-collecting Steiner** — given per-gene prizes and a PPI,
+    find the connected subgraph maximising (prizes − edge costs).
+
+The math is the **CORNETO formulation** ([Rodriguez-Mier et al., *Nat
+Mach Intell* 2025](https://www.nature.com/articles/s42256-025-01069-9))
+re-implemented in original Apache-2 cvxpy — **no CORNETO source is
+imported or vendored.** Algorithms are not copyrightable; source code
+is. The full algorithm specification, attribution, and citation list
+live in
+[`Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md`](Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md).
+Playbook:
+[`Docs/Skills/NETWORK_INTEGRATION_SKILLS.md`](Docs/Skills/NETWORK_INTEGRATION_SKILLS.md).
 
 ```bash
-pip install 'igvfagent[corneto]'    # CORNETO + cvxpy + SCIP
+pip install 'igvfagent[network]'    # cvxpy + SCIP (free MILP)
 
-# 1) End-to-end self-test: synthetic EGFR → SOS1 → ... → MYC cascade
-igvfagent corneto demo --beta 0.05 --solver SCIP
-# → CARNIVAL recovers all 6 cascade edges in ~60 ms and writes them
-#   to the warehouse with upstream='corneto:demo'.
+# 1) End-to-end self-test: synthetic EGFR → SOS1 → … → MYC cascade
+igvfagent network demo --beta 0.05 --solver SCIP
+# → CARNIVAL recovers all 6 cascade edges and writes them to the
+#   warehouse with upstream='network:demo'.
 
 # 2) Materialise a signed PKN from the proteomics KG
-igvfagent corneto pkn-from-kg --label reactome_pkn
+igvfagent network pkn-from-kg --label reactome_pkn
 
-# 3) CARNIVAL on a Perturb-seq-style input
-#    perts.csv: gene,sign (sign in {-1,+1})
-#    degs.csv:  gene,score  (signed log2FC)
-igvfagent corneto carnival \
+# 3) CARNIVAL on Perturb-seq-style inputs
+#    perts.csv: gene,sign   (sign ∈ {-1,+1})
+#    degs.csv:  gene,score  (signed log2 fold-change)
+igvfagent network carnival \
     --perturbations perts.csv \
     --measurements  degs.csv \
     --pkn-limit 5000 --solver SCIP --label perturb_seq_demo
 
-# 4) Prize-collecting Steiner tree for VAMP-seq abundance prizes
-igvfagent corneto steiner --terminals vamp_prizes.csv --root TP53
+# 4) Prize-collecting Steiner tree (VAMP-seq abundance prizes on PPI)
+igvfagent network steiner --terminals vamp_prizes.csv \
+    --pkn-limit 5000 --edge-cost 1.0
 ```
 
-License boundary: CORNETO is GPL-3.0; this skill installs it as a
-runtime dependency and calls the public API. **No CORNETO source is
-copied into the (Apache-2-licensed) IGVFagent repo.** Selected
+License boundary: **Apache-2 throughout**. No GPL runtime dependencies.
+SCIP (PicoMILP backend) is BSD-style, free for any use. Selected
 subnetworks flow back into the central DuckDB warehouse as `edges`
-rows tagged with `upstream='corneto:carnival:<label>'` so the
-downstream embedding / foundation-model layer treats CORNETO-inferred
-edges as just another evidence stream. Three agent tools registered:
-`corneto_demo`, `corneto_carnival`, `corneto_steiner`.
+rows tagged with `upstream='network:carnival:<label>'` or
+`upstream='network:steiner:<label>'` so downstream embedding / 
+foundation-model training treats them like any other evidence stream.
+Three agent tools registered: `network_demo`, `network_carnival`,
+`network_steiner`.
 
 ## Deployment with LLM agents
 

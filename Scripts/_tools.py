@@ -1578,13 +1578,14 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
-        "corneto_carnival",
-        "CARNIVAL via CORNETO: given a signed perturbation set + signed "
-        "measurement set (e.g. perturbed genes + DEG log2FCs from "
-        "Perturb-seq), infer the minimum-cost upstream subnetwork in a "
-        "signed PPI that explains the perturbations → measurements. "
-        "The selected subnetwork is appended to the central DuckDB "
-        "warehouse with upstream='corneto:carnival:<label>'.",
+        "network_carnival",
+        "CARNIVAL — given a signed perturbation set + signed measurement "
+        "set (e.g. perturbed genes + DEG log2FCs from Perturb-seq), "
+        "infer the minimum-cost upstream subnetwork in a signed PPI that "
+        "explains the perturbations → measurements. Clean-room cvxpy "
+        "MILP; no GPL dependencies. Appends selected edges to the "
+        "warehouse with upstream='network:carnival:<label>'. Math "
+        "reference: Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md.",
         {
             "type": "object",
             "properties": {
@@ -1600,27 +1601,30 @@ _TOOLS: "list[Tool]" = [
                 "pkn_limit":      {**_S_INTEGER},
                 "taxon":          {**_S_INTEGER, "default": 9606},
                 "beta":           {"type": "number", "default": 0.2,
-                                    "description": "Sparsity / data-loss "
-                                                   "trade-off."},
+                                    "description": "L0 edge-sparsity vs "
+                                                   "data-fit trade-off."},
+                "lambda_v":       {"type": "number", "default": 0.0,
+                                    "description": "L0 vertex sparsity."},
                 "solver":         {**_S_STRING, "default": "SCIP"},
                 "label":          {**_S_STRING, "default": "run"},
             },
             "required": ["perturbations", "measurements"],
         },
-        cli=["corneto", "carnival"],
+        cli=["network", "carnival"],
         flag_map={"perturbations": "--perturbations",
                    "measurements": "--measurements",
                    "pkn": "--pkn", "pkn_limit": "--pkn-limit",
                    "taxon": "--taxon", "beta": "--beta",
+                   "lambda_v": "--lambda-v",
                    "solver": "--solver", "label": "--label"},
     ),
 
     _T(
-        "corneto_steiner",
-        "Prize-collecting Steiner tree via CORNETO. Use when you have "
-        "per-gene 'prizes' (e.g. VAMP-seq abundance change, GWAS hit "
-        "strength) and a PPI prior — finds the minimum-cost connecting "
-        "subnetwork.",
+        "network_steiner",
+        "Prize-collecting Steiner tree — given per-gene prizes (e.g. "
+        "VAMP-seq abundance change, GWAS hit strength) and a PPI prior, "
+        "find the connected subnetwork that maximises (prizes − costs). "
+        "Clean-room cvxpy MILP. Appends selected edges to the warehouse.",
         {
             "type": "object",
             "properties": {
@@ -1629,25 +1633,24 @@ _TOOLS: "list[Tool]" = [
                 "pkn":        {**_S_STRING},
                 "pkn_limit":  {**_S_INTEGER},
                 "taxon":      {**_S_INTEGER, "default": 9606},
-                "root":       {**_S_STRING,
-                                "description": "Root node id (optional)."},
+                "edge_cost":  {"type": "number", "default": 1.0},
                 "solver":     {**_S_STRING, "default": "SCIP"},
                 "label":      {**_S_STRING, "default": "run"},
             },
             "required": ["terminals"],
         },
-        cli=["corneto", "steiner"],
+        cli=["network", "steiner"],
         flag_map={"terminals": "--terminals", "pkn": "--pkn",
                    "pkn_limit": "--pkn-limit", "taxon": "--taxon",
-                   "root": "--root", "solver": "--solver",
+                   "edge_cost": "--edge-cost", "solver": "--solver",
                    "label": "--label"},
     ),
 
     _T(
-        "corneto_demo",
-        "Self-test: synthetic EGFR → MYC cascade. Proves CARNIVAL is "
-        "wired end-to-end and that the central warehouse picks up "
-        "corneto-inferred edges.",
+        "network_demo",
+        "Self-test: synthetic EGFR → MYC cascade. Proves the CARNIVAL "
+        "MILP recovers all 6 cascade edges and that the warehouse picks "
+        "up the inferred subnetwork.",
         {
             "type": "object",
             "properties": {
@@ -1656,7 +1659,7 @@ _TOOLS: "list[Tool]" = [
                 "label":  {**_S_STRING, "default": "demo"},
             },
         },
-        cli=["corneto", "demo"],
+        cli=["network", "demo"],
         flag_map={"beta": "--beta", "solver": "--solver", "label": "--label"},
     ),
 
