@@ -84,11 +84,10 @@ warehouse = [
     "pyarrow>=14",      # Parquet I/O for Gold-tier embeddings
     "faiss-cpu>=1.7",   # vector indices on the Gold layer
 ]
-# Network-integration layer (CORNETO — GPL-3.0, runtime dependency only)
-corneto = [
-    "corneto>=1.0.0a0", # CARNIVAL / Steiner / signflow constrained MILP
-    "cvxpy>=1.5",       # solver-agnostic backend
-    "pyscipopt>=5.0",   # free MILP solver (SCIP)
+# Network-integration layer (clean-room MILP — no GPL deps)
+network = [
+    "cvxpy>=1.5",        # solver-agnostic MILP modelling
+    "pyscipopt>=5.0",    # free MILP solver (SCIP)
     # optional: gurobipy (academic-free, faster)
 ]
 # Developer tooling
@@ -98,7 +97,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "igvfagent[analysis,ui,llm,hic,motif,warehouse,corneto]",
+    "igvfagent[analysis,ui,llm,hic,motif,warehouse,network]",
 ]
 
 [project.urls]
