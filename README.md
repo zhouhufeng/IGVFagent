@@ -714,6 +714,104 @@ python3 Scripts/crispri_data_skills.py analyze-local \
 python3 Scripts/crispri_data_skills.py write-playbook
 ```
 
+### SHARE-seq joint scATAC + scRNA QC
+
+Clean-room reimplementation of the QC algorithms in
+[broadinstitute/epi-SHARE-seq-pipeline](https://github.com/broadinstitute/epi-SHARE-seq-pipeline)
+(MIT, 2021). Consumes IGVF Portal SHARE-seq AnalysisSet deposits
+(`fragments.bed[.gz]` + `h5ad`) directly. See
+[`Docs/Skills/SHARESEQ_ANALYSIS_SKILLS.md`](Docs/Skills/SHARESEQ_ANALYSIS_SKILLS.md).
+
+```bash
+# Discover IGVF Portal SHARE-seq datasets
+igvfagent share pull-portal --limit 50 --label survey
+
+# Round-1/2/3 24-mer barcode demultiplex on a gz FASTQ
+igvfagent share demultiplex-bcs --fastq R2.fastq.gz \
+    --whitelist whitelist_24mer.txt --out R2.tagged.fastq.gz \
+    --shift-correct --label demo
+
+# Per-barcode ATAC QC (TSS enrichment, FRIP)
+igvfagent share fragment-qc --fragments fragments.bed.gz \
+    --tss-bed tss.bed --peaks-bed peaks.bed --label demo
+
+# Per-barcode RNA QC (UMIs, genes, %MT) from h5ad
+igvfagent share rna-qc --h5ad rna.h5ad --label demo
+
+# Joint cell call (Ma 2020 thresholds)
+igvfagent share joint-qc --rna-qc <ts>_demo_rna_qc.tsv \
+    --atac-qc <ts>_demo_atac_qc.tsv --label demo
+
+# Jaccard multiplet detection
+igvfagent share multiplet-detect --fragments fragments.bed.gz --label demo
+```
+
+### STARR-seq allelic test
+
+Clean-room rewrite of
+[gaochengwen/STARR-seq-Data-Analysis](https://github.com/gaochengwen/STARR-seq-Data-Analysis)
+(no LICENSE — every line is paraphrased from the published `mpra::mpralm`
+methods). Implements TPM counts QC + RLE + Spearman D-stat, per-(SNP,
+Allele) aggregation, log activity, and the moderated allelic test with
+Smyth-2004 trigamma-inversion eBayes + BH-FDR. See
+[`Docs/Skills/STARRSEQ_ANALYSIS_SKILLS.md`](Docs/Skills/STARRSEQ_ANALYSIS_SKILLS.md).
+
+```bash
+# Discover IGVF Portal STARR-seq MeasurementSets
+igvfagent starrseq pull-portal --limit 50 --label survey
+
+# TPM QC: filter low-expression fragments, RLE matrix, outlier samples
+igvfagent starrseq qc --input counts.tsv --label run1
+
+# Collapse barcode-level counts to per-(SNP, Allele)
+igvfagent starrseq aggregate --input barcode_counts.tsv --label run1
+
+# Per-fragment log activity + per-SNP allelic skew (descriptive)
+igvfagent starrseq activity --input aggregated.tsv --label run1
+
+# mpralm-style allelic test (OLS + eBayes + BH-FDR)
+igvfagent starrseq allelic-test --input aggregated.tsv --label run1
+```
+
+### CRISPRi Flow-FISH screen
+
+Clean-room rewrite of
+[EngreitzLab/CRISPRi-FlowFISH-pipeline](https://github.com/EngreitzLab/CRISPRi-FlowFISH-pipeline)
+(MIT, Engreitz Lab 2021), following the published methods in
+**Fulco 2019** *Nat Genet* and **Nasser 2021** *Nature*. Per-guide
+log-normal MLE on bin counts with EM treatment of an "outside" overflow
+bin, real-space conversion, per-element Mann-Whitney + Welch t-test +
+BH-FDR. See
+[`Docs/Skills/FLOWFISH_CRISPR_SKILLS.md`](Docs/Skills/FLOWFISH_CRISPR_SKILLS.md).
+
+```bash
+# Discover IGVF Portal CRISPRi-FlowFISH MeasurementSets
+igvfagent flowfish pull-portal --limit 50 --label survey
+
+# Generate a synthetic screen for smoke testing
+igvfagent flowfish simulate --out-dir /tmp/ff_smoke \
+    --n-elements 60 --guides-per-element 8 --knockdown-frac 0.30 \
+    --cells-per-guide 800 --seed 11
+
+# Per-guide log-normal MLE on bin counts
+igvfagent flowfish estimate-effects \
+    --counts /tmp/ff_smoke/counts.tsv \
+    --sortparams /tmp/ff_smoke/sortparams.tsv --label demo
+
+# Real-space + null normalization
+igvfagent flowfish real-space \
+    --input <ts>_demo_raw_effects.tsv \
+    --target-col target --negative-label negative_control \
+    --clamp 5 --label demo
+
+# Per-element collapse + significance (MWU + Welch + BH-FDR)
+igvfagent flowfish score-elements \
+    --effects <ts>_demo_real_space.tsv \
+    --target-col target --element-col ElementName \
+    --negative-label negative_control \
+    --min-guides 5 --fdr 0.05 --min-effect 0.10 --label demo
+```
+
 ### cCRE, FAVOR, IGV-style browser views
 
 ```bash
@@ -1457,6 +1555,56 @@ everything in this folder except the README and the example CSV.
   headers.
 - Never commit `.env`, browser cookie exports, OAuth tokens, API keys, or
   unreleased / pre-publication data.
+
+## References
+
+IGVFagent's analytical skills are clean-room reimplementations that learn
+from a number of public reference pipelines and methods papers. Algorithms
+are paraphrased from published descriptions and supplementary methods —
+no source code is copied verbatim — but every skill below is built on the
+shoulders of the work in these repositories. We thank the authors and
+maintainers for releasing their code openly.
+
+### Reference GitHub repositories
+
+| IGVFagent skill | Reference repository | License | What we absorb |
+|---|---|---|---|
+| **SHARE-seq** joint scATAC + scRNA QC (`share`) | [broadinstitute/epi-SHARE-seq-pipeline](https://github.com/broadinstitute/epi-SHARE-seq-pipeline) | MIT (Broad Institute, 2021) | Round-1/2/3 24-mer barcode demultiplex (1-Hamming + ±1 bp shift), `bam_to_fragments` Tn5 +4/−4 shift, TSS enrichment (Ma 2020 formula with 0.2 floor), per-barcode FRIP, joint cell calling thresholds, Jaccard multiplet detection. |
+| **STARR-seq** allelic test (`starrseq`) | [gaochengwen/STARR-seq-Data-Analysis](https://github.com/gaochengwen/STARR-seq-Data-Analysis) | No LICENSE (treated as default copyright) — every line is a clean-room rewrite. | TPM-style counts QC, Spearman D-stat outlier flagging, per-(SNP, Allele) aggregation, log activity = log(RNA/DNA), and the `mpra::mpralm`-style allelic test (paraphrased from the underlying limma + voom + eBayes methods). |
+| **CRISPRi Flow-FISH** screen (`flowfish`) | [EngreitzLab/CRISPRi-FlowFISH-pipeline](https://github.com/EngreitzLab/CRISPRi-FlowFISH-pipeline) | MIT (Engreitz Lab, 2021) | Per-guide log-normal MLE on bin-multinomial counts with EM treatment of an "outside" overflow bin, real-space conversion + negative-control rescaling, Mann-Whitney U + Welch t-test per element, BH-FDR, `Significant` / `Regulated` output convention. |
+| **MPRA** allelic activity + skew (`mpra`) | [tewhey-lab/MPRASuite](https://github.com/tewhey-lab/MPRASuite) | Apache-2.0 (Tewhey Lab) | DESeq2 NB GLM Wald test (via `pydeseq2`), summit-shift size-factor renormalization (MPRAmodel), allelic-skew paired t-test of per-replicate log2(RNA/DNA) with BH-FDR. |
+| **MPRA** QC + counts handling (`mpra`) | [WangLabTHU/esMPRA](https://github.com/WangLabTHU/esMPRA) | Ambiguous (no clean SPDX) — treated as clean-room. | Count-based replicate concordance Pearson r matrix, barcodes-per-oligo and counts-per-oligo histograms. |
+| **VAMP-seq** abundance scoresets (`proteomics vampseq-analyze`) | [FowlerLab/VAMPseq](https://github.com/FowlerLab/VAMPseq) | MIT (Fowler Lab) | Score-density distribution, residue×AA heatmap, per-residue mean (± IQR) AND per-residue median + 3-residue moving average, N×N replicate concordance matrix, abundance-class bar, nonsense-by-position QC scatter, PyMOL `.pml` overlay. |
+| **MULTI-seq / Cell Hashing** demultiplex (`multiseq`) | [Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2) | MIT (Gartner Lab) | NB-GLM tag classifier with randomized-quantile residuals, cosine-based normalization, per-tag histograms + call heatmaps. |
+| **MULTI-seq** original method | — (paper: [McGinnis 2019 *Nat Methods*](https://www.nature.com/articles/s41592-019-0433-8)) | n/a | Lipid-modified oligo (LMO) sample barcoding inspiration; used as the upstream context for our demultiplexer. |
+| **Network integration** (`network carnival`, `network steiner`) | [saezlab/CORNETO](https://github.com/saezlab/corneto) | GPL (CORNETO) — **runtime dep avoided.** Clean-room MILP reimplementation in pure `cvxpy`. | CARNIVAL signed-perturbation → signed-measurement MILP, Prize-Collecting Steiner-Tree formulation. |
+| **SPLiT-seq / Parse** pipeline (`splitseq`) | [Chipeyown/SPLiT-seq-Data-Analysis_Toolkit](https://github.com/Chipeyown/SPLiT-seq-Data-Analysis_Toolkit) | MIT (Chipeyown) | Vendored Rd1/Rd2/Rd3 96-well barcode whitelists, knee-plot cell calling, pre/post QC violins, per-Rd1-well summary heatmap, optional Scrublet doublet detection. |
+| **Genotype demultiplexing** (referenced in `multiseq`) | [single-cell-genetics/vireo](https://github.com/single-cell-genetics/vireo) · [wheaton5/souporcell](https://github.com/wheaton5/souporcell) | Apache-2.0 / MIT | Documented alternatives when natural genotype variation is available instead of barcoded tags. |
+| **Codex / agent runtime** | [openai/codex](https://github.com/openai/codex) | Apache-2.0 | Reference agent runtime; `cli.py` follows its tool-dispatch pattern. |
+
+### Methods papers cited in the skills
+
+- **Ma S et al. (2020)** "Chromatin potential identified by shared single-cell profiling of RNA and chromatin." *Cell* 183:1103–1116. doi:[10.1016/j.cell.2020.09.056](https://doi.org/10.1016/j.cell.2020.09.056) — SHARE-seq method.
+- **Fulco CP et al. (2019)** "Activity-by-contact model of enhancer-promoter regulation from thousands of CRISPR perturbations." *Nature Genetics* 51:1664–1669. doi:[10.1038/s41588-019-0538-0](https://doi.org/10.1038/s41588-019-0538-0) — Flow-FISH log-normal bin-MLE method.
+- **Nasser J et al. (2021)** "Genome-wide enhancer maps link risk variants to disease genes." *Nature* 593:238–243. doi:[10.1038/s41586-021-03446-x](https://doi.org/10.1038/s41586-021-03446-x) — Flow-FISH at scale + `Significant` / `Regulated` output convention.
+- **Arnold CD et al. (2013)** "Genome-wide quantitative enhancer activity maps identified by STARR-seq." *Science* 339:1074–1077. doi:[10.1126/science.1232542](https://doi.org/10.1126/science.1232542) — STARR-seq method.
+- **Tewhey R et al. (2016)** "Direct identification of hundreds of expression-modulating variants using a multiplexed reporter assay." *Cell* 165:1519–1529. doi:[10.1016/j.cell.2016.04.027](https://doi.org/10.1016/j.cell.2016.04.027) — Tewhey-lab MPRA method.
+- **Smyth GK (2004)** "Linear models and empirical Bayes methods for assessing differential expression in microarray experiments." *Stat Appl Genet Mol Biol* 3:Article 3. doi:[10.2202/1544-6115.1027](https://doi.org/10.2202/1544-6115.1027) — eBayes moderation reused in STARR-seq allelic test.
+- **Law CW et al. (2014)** "voom: precision weights unlock linear model analysis tools for RNA-seq read counts." *Genome Biol* 15:R29. doi:[10.1186/gb-2014-15-2-r29](https://doi.org/10.1186/gb-2014-15-2-r29) — voom mean-variance methodology.
+- **Love MI et al. (2014)** "Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2." *Genome Biol* 15:550. doi:[10.1186/s13059-014-0550-8](https://doi.org/10.1186/s13059-014-0550-8) — DESeq2 NB GLM in MPRA activity + via `pydeseq2`.
+- **McGinnis CS et al. (2019)** "MULTI-seq: sample multiplexing for single-cell RNA sequencing using lipid-tagged indices." *Nat Methods* 16:619–626. doi:[10.1038/s41592-019-0433-8](https://doi.org/10.1038/s41592-019-0433-8).
+- **Zhu Q et al. (2024)** "deMULTIplex2: robust sample demultiplexing for scRNA-seq." *Nat Methods*. — deMULTIplex2.
+
+### License & attribution policy
+
+- IGVFagent is **Apache-2.0** end-to-end (see [LICENSE](LICENSE)). We accept
+  inbound code under MIT, BSD-2, BSD-3, ISC, and Python licenses; we do
+  not redistribute GPL or AGPL source at runtime.
+- For each absorbed pipeline, the skill source file's docstring names the
+  reference repo, the upstream license, and a one-line summary of how the
+  algorithm was paraphrased.
+- If you spot a method we should attribute differently or a citation we
+  missed, please open an issue or PR — we will fix it immediately.
 
 ## License
 
