@@ -661,6 +661,16 @@ def run_qc_normalize(a, qc=DEFAULT_QC):
     sc.pp.calculate_qc_metrics(a, qc_vars=["mt"], inplace=True,
                                 percent_top=None, log1p=False)
     pre = a.n_obs
+    # Stash pre-filter distributions so cmd_plot can render the
+    # pre-vs-post QC violin overlay (Chipeyown / Fowler-lab style).
+    import numpy as np
+    a.uns["qc_pre"] = {
+        "n_genes":       np.asarray(a.obs["n_genes_by_counts"], dtype=float),
+        "total_counts":  np.asarray(a.obs["total_counts"], dtype=float),
+        "pct_counts_mt": np.asarray(a.obs["pct_counts_mt"], dtype=float),
+        "thresholds":    {k: float(v) for k, v in qc.items()},
+        "n_pre":         int(pre),
+    }
     keep = (
         (a.obs["n_genes_by_counts"] >= qc["min_genes"]) &
         (a.obs["n_genes_by_counts"] <= qc["max_genes"]) &
@@ -671,6 +681,7 @@ def run_qc_normalize(a, qc=DEFAULT_QC):
     a = a[keep].copy()
     sc.pp.filter_genes(a, min_cells=qc["min_cells"])
     logging.info("QC kept %d / %d cells", a.n_obs, pre)
+    a.uns["qc_pre"]["n_post"] = int(a.n_obs)
     a.layers["counts"] = a.X.copy()
     sc.pp.normalize_total(a, target_sum=1e4)
     sc.pp.log1p(a)
@@ -744,6 +755,12 @@ def cmd_analyze(args: argparse.Namespace) -> Path:
     qc.update({k: getattr(args, k) for k in DEFAULT_QC
                if getattr(args, k, None) is not None})
     a = run_qc_normalize(a, qc=qc)
+    if getattr(args, "detect_doublets", False):
+        info = _run_scrublet(a)
+        if info:
+            n_dbl = int(sum(info["predicted_doublet"]))
+            logging.info("Scrublet: %d / %d (%.1f%%) cells flagged as doublets",
+                          n_dbl, a.n_obs, 100 * n_dbl / max(a.n_obs, 1))
     bk = args.batch_key if args.batch_key in a.obs.columns else "sample_id"
     a = integrate_pools(a, batch_key=bk)
     a = cluster_and_embed(a, resolution=args.resolution)
@@ -775,6 +792,161 @@ def _setup_pub_style():
         "ytick.labelsize": 8, "legend.fontsize": 8, "legend.frameon": False,
         "pdf.fonttype": 42, "svg.fonttype": "none",
     })
+
+
+# ---------------------------------------------------------------------------
+# SPLiT-seq QC helpers — knee plot, pre/post violins, per-Rd1 well distribution,
+# optional doublet detection. Closes the HIGH-priority gaps surfaced by the
+# Chipeyown SDAT audit: a canonical SPLiT-seq toolkit ships these as
+# minimum-viable QC; the IGVFagent skill previously did not.
+# ---------------------------------------------------------------------------
+
+_SPLITSEQ_BARCODE_DIR = Path(__file__).resolve().parents[1] / \
+                             "Data" / "Reference" / "SPLiTseq"
+
+
+def _load_splitseq_barcodes(rd: int) -> "dict[str, str]":
+    """Load the vendored SPLiT-seq Rd{1,2,3} whitelist as {seq → well_id}.
+
+    Source: Chipeyown SDAT toolkit (MIT) — see
+    ``Data/Reference/SPLiTseq/README.md`` for attribution.
+    """
+    path = _SPLITSEQ_BARCODE_DIR / f"barcodes_rd{rd}.tsv"
+    if not path.exists():
+        return {}
+    out: "dict[str, str]" = {}
+    with path.open() as f:
+        next(f)  # header
+        for line in f:
+            cols = line.rstrip("\r\n").split("\t")
+            if len(cols) >= 4:
+                out[cols[3].upper()] = cols[0]
+    return out
+
+
+def _knee_plot(ax, total_counts):
+    """Barcode-rank vs total UMI counts (Drop-seq / 10x knee plot)."""
+    import numpy as np
+    counts = np.sort(np.asarray(total_counts, dtype=float))[::-1]
+    if len(counts) == 0:
+        ax.text(0.5, 0.5, "(no cells)", ha="center", va="center",
+                  transform=ax.transAxes)
+        return
+    ax.loglog(range(1, len(counts) + 1), counts, "-", color="#1F77B4", lw=1.2)
+    ax.set_xlabel("Cell barcode rank (log)")
+    ax.set_ylabel("Total UMI counts (log)")
+    ax.set_title("Knee plot — barcode rank vs total UMI",
+                  loc="left", weight="bold", fontsize=10)
+    ax.grid(alpha=0.25, linestyle=":")
+
+
+def _pre_post_violin(ax, pre, post, label, threshold=None):
+    """Side-by-side violin: distribution before vs after QC filtering."""
+    import numpy as np
+    parts = ax.violinplot([pre, post], positions=[0, 1], widths=0.8,
+                            showmedians=True)
+    for body, color in zip(parts["bodies"], ("#FCB16E", "#3498DB")):
+        body.set_facecolor(color); body.set_alpha(0.7)
+    ax.set_xticks([0, 1]); ax.set_xticklabels(["pre-filter", "post-filter"],
+                                                 fontsize=8)
+    ax.set_ylabel(label, fontsize=9)
+    if threshold is not None:
+        ax.axhline(threshold, color="red", ls=":", lw=0.6,
+                     label=f"threshold = {threshold:g}")
+        ax.legend(fontsize=7, loc="upper right")
+    ax.grid(alpha=0.25, axis="y", linestyle=":")
+
+
+def _rd1_well_distribution(a):
+    """Tally cells per Rd1 well by matching the first 8 bp of each cell
+    barcode against the vendored Rd1 whitelist.
+
+    Returns a dict {well_id → n_cells} for matched cells, plus a
+    metadata dict with no-match count etc.
+    """
+    rd1_map = _load_splitseq_barcodes(1)
+    if not rd1_map:
+        return {}, {"error": "Rd1 whitelist not available"}
+    matched: "dict[str, int]" = {}
+    n_match = 0
+    n_total = a.n_obs
+    for bc in a.obs_names:
+        # Cell barcodes in IGVF SPLiT-seq matrices typically look like
+        # "<Rd1><Rd2><Rd3>" (24 bp) or with dashes. Try a few shapes.
+        token = (str(bc).replace("-", "").replace("_", "")[:8]).upper()
+        if token in rd1_map:
+            well = rd1_map[token]
+            matched[well] = matched.get(well, 0) + 1
+            n_match += 1
+    return matched, {"n_total": n_total, "n_matched": n_match,
+                       "n_unmatched": n_total - n_match}
+
+
+def _per_well_heatmap(ax, matched):
+    """8 × 12 plate heatmap of cell counts per Rd1 well."""
+    import numpy as np
+    rows = "ABCDEFGH"
+    cols = list(range(1, 13))
+    M = np.zeros((8, 12), dtype=float)
+    for well, n in matched.items():
+        if not well or len(well) < 2:
+            continue
+        r = well[0]
+        if r not in rows:
+            continue
+        try:
+            c = int(well[1:])
+        except ValueError:
+            continue
+        if 1 <= c <= 12:
+            M[rows.index(r), c - 1] = n
+    im = ax.imshow(M, aspect="auto", cmap="YlGnBu")
+    ax.set_xticks(range(12)); ax.set_xticklabels(cols, fontsize=7)
+    ax.set_yticks(range(8));  ax.set_yticklabels(list(rows), fontsize=7)
+    ax.set_title("Cells per Rd1 well (8 × 12 plate)",
+                  loc="left", weight="bold", fontsize=10)
+    for i in range(8):
+        for j in range(12):
+            if M[i, j] > 0:
+                ax.text(j, i, f"{int(M[i, j]):,}", ha="center", va="center",
+                          fontsize=6,
+                          color="white" if M[i, j] > M.max() / 2 else "black")
+    return im
+
+
+def _run_scrublet(a) -> "Optional[dict]":
+    """Run Scrublet doublet detection; soft-skip if scrublet not installed.
+
+    Returns ``{'doublet_score': np.ndarray, 'predicted_doublet': np.ndarray}``
+    or None if Scrublet is unavailable / matrix is too small.
+    """
+    try:
+        import scrublet as scr  # type: ignore
+    except Exception:
+        try:
+            # Newer scanpy ships sc.pp.scrublet
+            import scanpy as sc  # type: ignore
+            sc.pp.scrublet(a, batch_key=("dataset"
+                                            if "dataset" in a.obs.columns
+                                            else None))
+            return {
+                "doublet_score":     a.obs["doublet_score"].values.copy(),
+                "predicted_doublet": a.obs["predicted_doublet"].values.copy(),
+            }
+        except Exception as e:
+            logging.info("Doublet detection skipped: %s", e)
+            return None
+    try:
+        import numpy as np
+        X = (a.layers["counts"] if "counts" in a.layers else a.X)
+        scrub = scr.Scrublet(X)
+        scores, calls = scrub.scrub_doublets(verbose=False)
+        a.obs["doublet_score"] = scores
+        a.obs["predicted_doublet"] = calls
+        return {"doublet_score": scores, "predicted_doublet": calls}
+    except Exception as e:
+        logging.warning("Scrublet failed: %s", e)
+        return None
 
 
 def cmd_plot(args: argparse.Namespace) -> Path:
@@ -858,6 +1030,108 @@ def cmd_plot(args: argparse.Namespace) -> Path:
                 facecolor="white")
     plt.close(fig)
 
+    # ---------- QC panel: knee + pre/post violins + per-Rd1 well -----------
+    # Adds the Chipeyown-style QC outputs the audit flagged as HIGH gaps:
+    # universal knee plot, pre-vs-post-filter violins, per-Rd1-well sample
+    # distribution heatmap, optional doublet detection.
+    qc_path = plot_dir / f"{ts}_{label}_qc.png"
+    qc_pre = a.uns.get("qc_pre", {}) if hasattr(a, "uns") else {}
+    fig2 = plt.figure(figsize=(15, 9))
+    gs2 = GridSpec(2, 3, figure=fig2, hspace=0.40, wspace=0.45,
+                     top=0.92, bottom=0.08, left=0.06, right=0.96)
+
+    # (a) Knee plot
+    ax = fig2.add_subplot(gs2[0, 0])
+    _knee_plot(ax, np.asarray(a.obs.get("total_counts",
+                                            a.X.sum(axis=1).A1
+                                            if hasattr(a.X, "A1")
+                                            else np.asarray(a.X.sum(axis=1)).ravel())))
+
+    # (b) (c) (d): pre vs post QC violins for the 3 canonical metrics
+    metrics = [
+        ("n_genes",       "Genes / cell",      "min_genes"),
+        ("total_counts",  "Total UMI / cell",  "min_counts"),
+        ("pct_counts_mt", "% mito",            "max_pct_mito"),
+    ]
+    for i, (key, lab, thr_key) in enumerate(metrics):
+        ax = fig2.add_subplot(gs2[0, i] if i > 0 else gs2[0, i])
+        if i == 0:
+            continue
+        pre = (qc_pre.get(key, []) if isinstance(qc_pre, dict)
+                else []) or []
+        post_col = ("n_genes_by_counts" if key == "n_genes" else key)
+        post = (np.asarray(a.obs[post_col], dtype=float)
+                 if post_col in a.obs.columns else [])
+        if len(pre) and len(post):
+            thr = qc_pre.get("thresholds", {}).get(thr_key)
+            _pre_post_violin(ax, pre, post, lab, threshold=thr)
+            ax.set_title(f"{chr(0x62 + i)}  {lab} — pre vs post filter",
+                          loc="left", weight="bold", fontsize=10)
+        else:
+            ax.text(0.5, 0.5,
+                     f"Run `process-local` to populate `qc_pre`\n"
+                     f"for the pre-vs-post overlay.",
+                     ha="center", va="center", transform=ax.transAxes,
+                     fontsize=8)
+            ax.axis("off")
+
+    # (e) Per-Rd1-well plate heatmap (SPLiT-seq native sample multiplexing)
+    ax = fig2.add_subplot(gs2[1, 0:2])
+    matched, info = _rd1_well_distribution(a)
+    if matched:
+        im = _per_well_heatmap(ax, matched)
+        fig2.colorbar(im, ax=ax, fraction=0.025, pad=0.02, label="cells")
+        ax.set_title(
+            f"e  Cells per Rd1 well "
+            f"({info['n_matched']:,}/{info['n_total']:,} cell-barcodes "
+            f"matched the 96-well whitelist)",
+            loc="left", weight="bold", fontsize=10,
+        )
+        # Write a TSV the user can join with their sample sheet
+        well_tsv = out_dir / f"{ts}_{label}_rd1_wells.tsv"
+        with well_tsv.open("w") as f:
+            f.write("well_id\tn_cells\n")
+            for w in sorted(matched, key=lambda w: (w[0], int(w[1:]))):
+                f.write(f"{w}\t{matched[w]}\n")
+        logging.info("Per-well counts: %s", well_tsv)
+    else:
+        ax.text(0.5, 0.5,
+                  f"Rd1 well distribution unavailable\n"
+                  f"({info.get('error', 'no cell-barcode prefix match')}).\n\n"
+                  f"Vendor the Chipeyown SDAT 96×96×96 barcodes at\n"
+                  f"Data/Reference/SPLiTseq/barcodes_rd1.tsv to enable.",
+                  ha="center", va="center", transform=ax.transAxes,
+                  fontsize=8)
+        ax.axis("off")
+
+    # (f) Doublet panel — optional Scrublet
+    ax = fig2.add_subplot(gs2[1, 2])
+    if "predicted_doublet" in a.obs.columns:
+        n_dbl = int((a.obs["predicted_doublet"].astype(bool)).sum())
+        pct = 100 * n_dbl / max(a.n_obs, 1)
+        ax.hist(np.asarray(a.obs["doublet_score"], dtype=float),
+                  bins=40, color="#7570B3", alpha=0.85,
+                  edgecolor="white")
+        ax.set_xlabel("Doublet score (Scrublet)")
+        ax.set_ylabel("Cells")
+        ax.set_title(f"f  Doublet detection — "
+                       f"{n_dbl:,} called ({pct:.1f}%)",
+                       loc="left", weight="bold", fontsize=10)
+        ax.grid(alpha=0.25, linestyle=":")
+    else:
+        ax.text(0.5, 0.5,
+                  "Run `sc.pp.scrublet(adata)` or install scrublet\n"
+                  "to populate predicted_doublet / doublet_score.",
+                  ha="center", va="center", transform=ax.transAxes,
+                  fontsize=8)
+        ax.axis("off")
+
+    fig2.suptitle("SPLiT-seq QC panel", fontsize=12, weight="bold", y=0.96)
+    fig2.savefig(qc_path, bbox_inches="tight", facecolor="white")
+    fig2.savefig(qc_path.with_suffix(".svg"), bbox_inches="tight",
+                   facecolor="white")
+    plt.close(fig2)
+
     # write report
     report = out_dir / f"{ts}_{label}_report.md"
     counts = a.obs["cell_type"].value_counts()
@@ -872,10 +1146,17 @@ def cmd_plot(args: argparse.Namespace) -> Path:
              "|---|---:|---:|"]
     for ct, n in counts.items():
         lines.append(f"| {ct} | {n:,} | {n / a.n_obs * 100:.2f} |")
-    lines += ["", f"![Main figure]({main_path.relative_to(out_dir)})", ""]
+    lines += ["", f"![Main figure]({main_path.relative_to(out_dir)})", "",
+                f"![QC panel]({qc_path.relative_to(out_dir)})", ""]
+    if matched:
+        lines += ["## Per-Rd1-well sample distribution",
+                    f"_(see `{(out_dir / (ts + '_' + label + '_rd1_wells.tsv')).name}` "
+                    f"for the full TSV; matched {info['n_matched']:,} of "
+                    f"{info['n_total']:,} cells to the 96-well whitelist)_", ""]
     report.write_text("\n".join(lines))
-    print(f"Plot:   {main_path}")
-    print(f"Report: {report}")
+    print(f"Plot:    {main_path}")
+    print(f"QC:      {qc_path}")
+    print(f"Report:  {report}")
     return main_path
 
 
@@ -1295,6 +1576,9 @@ def main() -> None:
     s.add_argument("--max-counts", type=int, default=None)
     s.add_argument("--max-pct-mito", type=float, default=None)
     s.add_argument("--min-cells", type=int, default=None)
+    s.add_argument("--detect-doublets", action="store_true",
+                    help="Run Scrublet (or sc.pp.scrublet) and annotate "
+                         "predicted_doublet / doublet_score on obs.")
     s.add_argument("--label", default="")
     s.set_defaults(func=cmd_analyze)
 
