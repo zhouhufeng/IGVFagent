@@ -405,16 +405,22 @@ phase trains a fusion model that aligns them.
 
 ---
 
-## 6b. Network-integration layer — CORNETO
+## 6b. Network-integration layer — clean-room MILP
 
 Embedding-based alignment (Phase 4 below) is one half of cross-source
 integration; **constrained-optimization-based network inference** is
-the other. We adopt **CORNETO** (Saez-Rodriguez lab,
+the other. The **CORNETO** framework (Saez-Rodriguez lab,
 [*Nat Mach Intell* 2025](https://www.nature.com/articles/s42256-025-01069-9))
-as the framework for the second half. CORNETO reformulates many
-separate biological-network methods (CARNIVAL, COSMOS, PCSF/Steiner,
-OmniPath subnetwork extraction, FBA/iMAT, shortest-path) as instances
-of one MILP over a signed directed graph:
+unifies many separate biological-network methods (CARNIVAL, COSMOS,
+PCSF/Steiner, OmniPath subnetwork extraction, FBA/iMAT, shortest-path)
+as instances of one MILP over a signed directed graph. IGVFagent
+**re-implements that MILP from scratch in cvxpy** in
+``Scripts/network_integration_skill.py``: same math, original Apache-2
+source, **no CORNETO runtime dependency** (CORNETO is GPL-3.0).
+Algorithm reference + attribution:
+[`Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md`](INTEGRATION_LAYER_REFERENCE.md).
+
+The MILP shape:
 
 - Binary edge/vertex activation indicators + continuous flow
 - Flow conservation + sign consistency constraints
@@ -442,16 +448,21 @@ the Phase-4 contrastive alignment: a CORNETO-inferred edge between two
 proteins under a condition is a positive pair in the latent space for
 that condition.
 
-**License**: CORNETO is GPL-3.0; IGVFagent stays Apache-2.0 by
-calling it only at runtime as a `pip`-installed dependency, never
-copying source. See ``Docs/Skills/CORNETO_INTEGRATION_SKILLS.md`` for
-the wrapper skill's design.
+**License**: IGVFagent stays Apache-2.0 by re-implementing the
+MILP rather than depending on the GPL-3.0 CORNETO source. The math
+is reused under standard practice (algorithms aren't copyrightable;
+source is). See
+``Docs/Skills/NETWORK_INTEGRATION_SKILLS.md`` for the user-facing
+playbook and
+``Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md`` for the full
+algorithmic reference and bibliography.
 
-The shipped wrapper exposes three sub-commands today:
-- `corneto demo`      — synthetic cascade end-to-end self-test
-- `corneto pkn-from-kg` — materialise signed PKN from the proteomics SQLite KG
-- `corneto carnival`  — Perturb-seq / DEG → upstream subnetwork
-- `corneto steiner`   — VAMP-seq prizes / GWAS hits → connecting subnetwork
+The shipped skill exposes five sub-commands today:
+- `network demo`         — synthetic cascade end-to-end self-test
+- `network pkn-from-kg`  — materialise signed PKN from the proteomics SQLite KG
+- `network pkn-from-sif` — sanity-check an external SIF file
+- `network carnival`     — Perturb-seq / DEG → upstream subnetwork
+- `network steiner`      — VAMP-seq prizes / GWAS hits → connecting subnetwork
 
 ## 7. Foundation-model architecture
 
