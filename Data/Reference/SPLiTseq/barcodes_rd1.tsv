@@ -1,0 +1,97 @@
+well_id	well_index	primer_type	barcode_seq
+A1	1	dt(15)VN	AACGTGAT
+A2	2	dt(15)VN	AAACATCG
+A3	3	dt(15)VN	ATGCCTAA
+A4	4	dt(15)VN	AGTGGTCA
+A5	5	dt(15)VN	ACCACTGT
+A6	6	dt(15)VN	ACATTGGC
+A7	7	dt(15)VN	CAGATCTG
+A8	8	dt(15)VN	CATCAAGT
+A9	9	dt(15)VN	CGCTGATC
+A10	10	dt(15)VN	ACAAGCTA
+A11	11	dt(15)VN	CTGTAGCC
+A12	12	dt(15)VN	AGTACAAG
+B1	13	dt(15)VN	AACAACCA
+B2	14	dt(15)VN	AACCGAGA
+B3	15	dt(15)VN	AACGCTTA
+B4	16	dt(15)VN	AAGACGGA
+B5	17	dt(15)VN	AAGGTACA
+B6	18	dt(15)VN	ACACAGAA
+B7	19	dt(15)VN	ACAGCAGA
+B8	20	dt(15)VN	ACCTCCAA
+B9	21	dt(15)VN	ACGCTCGA
+B10	22	dt(15)VN	ACGTATCA
+B11	23	dt(15)VN	ACTATGCA
+B12	24	dt(15)VN	AGAGTCAA
+C1	25	dt(15)VN	AGATCGCA
+C2	26	dt(15)VN	AGCAGGAA
+C3	27	dt(15)VN	AGTCACTA
+C4	28	dt(15)VN	ATCCTGTA
+C5	29	dt(15)VN	ATTGAGGA
+C6	30	dt(15)VN	CAACCACA
+C7	31	dt(15)VN	GACTAGTA
+C8	32	dt(15)VN	CAATGGAA
+C9	33	dt(15)VN	CACTTCGA
+C10	34	dt(15)VN	CAGCGTTA
+C11	35	dt(15)VN	CATACCAA
+C12	36	dt(15)VN	CCAGTTCA
+D1	37	dt(15)VN	CCGAAGTA
+D2	38	dt(15)VN	CCGTGAGA
+D3	39	dt(15)VN	CCTCCTGA
+D4	40	dt(15)VN	CGAACTTA
+D5	41	dt(15)VN	CGACTGGA
+D6	42	dt(15)VN	CGCATACA
+D7	43	dt(15)VN	CTCAATGA
+D8	44	dt(15)VN	CTGAGCCA
+D9	45	dt(15)VN	CTGGCATA
+D10	46	dt(15)VN	GAATCTGA
+D11	47	dt(15)VN	CAAGACTA
+D12	48	dt(15)VN	GAGCTGAA
+E1	49	random hexamer	GATAGACA
+E2	50	random hexamer	GCCACATA
+E3	51	random hexamer	GCGAGTAA
+E4	52	random hexamer	GCTAACGA
+E5	53	random hexamer	GCTCGGTA
+E6	54	random hexamer	GGAGAACA
+E7	55	random hexamer	GGTGCGAA
+E8	56	random hexamer	GTACGCAA
+E9	57	random hexamer	GTCGTAGA
+E10	58	random hexamer	GTCTGTCA
+E11	59	random hexamer	GTGTTCTA
+E12	60	random hexamer	TAGGATGA
+F1	61	random hexamer	TATCAGCA
+F2	62	random hexamer	TCCGTCTA
+F3	63	random hexamer	TCTTCACA
+F4	64	random hexamer	TGAAGAGA
+F5	65	random hexamer	TGGAACAA
+F6	66	random hexamer	TGGCTTCA
+F7	67	random hexamer	TGGTGGTA
+F8	68	random hexamer	TTCACGCA
+F9	69	random hexamer	AACTCACC
+F10	70	random hexamer	AAGAGATC
+F11	71	random hexamer	AAGGACAC
+F12	72	random hexamer	AATCCGTC
+G1	73	random hexamer	AATGTTGC
+G2	74	random hexamer	ACACGACC
+G3	75	random hexamer	ACAGATTC
+G4	76	random hexamer	AGATGTAC
+G5	77	random hexamer	AGCACCTC
+G6	78	random hexamer	AGCCATGC
+G7	79	random hexamer	AGGCTAAC
+G8	80	random hexamer	ATAGCGAC
+G9	81	random hexamer	ATCATTCC
+G10	82	random hexamer	ATTGGCTC
+G11	83	random hexamer	CAAGGAGC
+G12	84	random hexamer	CACCTTAC
+H1	85	random hexamer	CCATCCTC
+H2	86	random hexamer	CCGACAAC
+H3	87	random hexamer	CCTAATCC
+H4	88	random hexamer	CCTCTATC
+H5	89	random hexamer	CGACACAC
+H6	90	random hexamer	CGGATTGC
+H7	91	random hexamer	CTAAGGTC
+H8	92	random hexamer	GAACAGGC
+H9	93	random hexamer	GACAGTGC
+H10	94	random hexamer	GAGTTAGC
+H11	95	random hexamer	GATGAATC
+H12	96	random hexamer	GCCAAGAC
