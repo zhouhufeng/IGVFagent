@@ -78,6 +78,19 @@ motif = [
     "pyfaidx>=0.7",     # genome FASTA indexed access
     "biopython>=1.81",  # PWM + sequence utilities
 ]
+# Central data warehouse + foundation-model integration
+warehouse = [
+    "duckdb>=0.10",     # Silver-tier analytical warehouse
+    "pyarrow>=14",      # Parquet I/O for Gold-tier embeddings
+    "faiss-cpu>=1.7",   # vector indices on the Gold layer
+]
+# Network-integration layer (CORNETO — GPL-3.0, runtime dependency only)
+corneto = [
+    "corneto>=1.0.0a0", # CARNIVAL / Steiner / signflow constrained MILP
+    "cvxpy>=1.5",       # solver-agnostic backend
+    "pyscipopt>=5.0",   # free MILP solver (SCIP)
+    # optional: gurobipy (academic-free, faster)
+]
 # Developer tooling
 dev = [
     "pytest>=7",
@@ -85,7 +98,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "igvfagent[analysis,ui,llm,hic,motif]",
+    "igvfagent[analysis,ui,llm,hic,motif,warehouse,corneto]",
 ]
 
 [project.urls]

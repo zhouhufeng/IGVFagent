@@ -84,6 +84,8 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Single-cell analysis (UMAP / t-SNE / Leiden / markers)](#single-cell-analysis-umap--t-sne--leiden--markers)
   - [Perturbation Catalogue retrieval](#perturbation-catalogue-retrieval)
   - [MULTI-seq / Cell Hashing demultiplexing](#multi-seq--cell-hashing-demultiplexing)
+  - [Integrated data warehouse (DuckDB Silver tier)](#integrated-data-warehouse-duckdb-silver-tier)
+  - [CORNETO network integration](#corneto-network-integration)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -173,6 +175,10 @@ IGVFagent/
 │   │                                       Perturb-seq retrieval + per-gene pipeline
 │   ├── multiseq_analysis_skill.py       ← MULTI-seq / Cell Hashing demultiplexing
 │   │                                       (Python port of deMULTIplex2)
+│   ├── warehouse_skill.py               ← central DuckDB warehouse (Silver tier
+│   │                                       of the integrated data layer)
+│   ├── corneto_integration_skill.py     ← CORNETO network integration —
+│   │                                       CARNIVAL / Steiner subnetwork MILP
 │   │
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
@@ -205,6 +211,8 @@ IGVFagent/
     │   ├── PROTEOMICS_SKILLS.md
     │   ├── PERTURBATION_CATALOG_SKILLS.md
     │   ├── MULTISEQ_ANALYSIS_SKILLS.md
+    │   ├── WAREHOUSE_SKILLS.md
+    │   ├── CORNETO_INTEGRATION_SKILLS.md
     │   ├── SINGLECELL_ANALYSIS_SKILLS.md
     │   ├── REFERENCE_SKILLS.md
     │   └── DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md
@@ -1266,6 +1274,91 @@ all 98 negatives correctly flagged. FASTQ → tag-count alignment
 (the R package's `readTags` / `alignTags` step) is **not** ported —
 hand this skill a count matrix produced by Cell Ranger's Feature
 Barcoding workflow or the original `deMULTIplex` aligner.
+
+### Integrated data warehouse (DuckDB Silver tier)
+
+The central data warehouse — the "Silver tier" of the integrated
+data layer described in
+[`Docs/Architecture/INTEGRATED_DATA_LAYER.md`](Docs/Architecture/INTEGRATED_DATA_LAYER.md).
+Every other IGVFagent skill becomes a producer that lands QC'd rows
+into canonical entity / edge / measurement tables in a single
+**DuckDB** database at `Data/Warehouse/igvf.duckdb`, ready to feed
+downstream embedding extraction + foundation-model training.
+Playbook:
+[`Docs/Skills/WAREHOUSE_SKILLS.md`](Docs/Skills/WAREHOUSE_SKILLS.md).
+
+```bash
+# 1) Initialise the schema (entities + edges + measurements + provenance)
+igvfagent warehouse init
+
+# 2) Pull every available producer into the warehouse
+igvfagent warehouse ingest --source all
+# or one at a time:
+igvfagent warehouse ingest --source proteomics-kg
+igvfagent warehouse ingest --source perturb-catalog
+igvfagent warehouse ingest --source multiseq
+igvfagent warehouse ingest --source mavedb-vampseq
+
+# 3) Stats and cross-skill SQL queries
+igvfagent warehouse stats
+igvfagent warehouse query \
+    "SELECT gene_id, COUNT(*) AS n, AVG(score) FROM vampseq_scores GROUP BY gene_id"
+```
+
+DuckDB is chosen over SQLite / Postgres / BigQuery because it is
+embedded (no server), columnar (10–100× faster on the analytical
+joins this workload runs), reads / writes Parquet natively (so the
+Gold-tier embedding tables stay first-class), and ships with vector
+functions. Live smoke test (laptop, ~6 s): **32K PPI edges**,
+**102K MULTI-seq cells**, **24K VAMP-seq scores**, **28 IGVF
+protein-evidence datasets** ingested from five producers. Bulk
+`posteriors.csv` etc. are auto-excluded; the tracked outputs are
+intentionally lightweight (~14 MB on disk).
+
+### CORNETO network integration
+
+The **integration layer** — wraps the **CORNETO** framework
+(Saez-Rodriguez lab,
+[*Nat Mach Intell* 2025](https://www.nature.com/articles/s42256-025-01069-9),
+[GitHub](https://github.com/saezlab/corneto), GPL-3.0) to infer
+**context-specific subnetworks** by mixed-integer constrained
+optimization. CORNETO unifies the math behind CARNIVAL, COSMOS,
+PCSF/Steiner-tree, OmniPath subnetwork extraction, FBA/iMAT, and
+shortest-path methods into one MILP over a signed directed prior-
+knowledge graph. Playbook:
+[`Docs/Skills/CORNETO_INTEGRATION_SKILLS.md`](Docs/Skills/CORNETO_INTEGRATION_SKILLS.md).
+
+```bash
+pip install 'igvfagent[corneto]'    # CORNETO + cvxpy + SCIP
+
+# 1) End-to-end self-test: synthetic EGFR → SOS1 → ... → MYC cascade
+igvfagent corneto demo --beta 0.05 --solver SCIP
+# → CARNIVAL recovers all 6 cascade edges in ~60 ms and writes them
+#   to the warehouse with upstream='corneto:demo'.
+
+# 2) Materialise a signed PKN from the proteomics KG
+igvfagent corneto pkn-from-kg --label reactome_pkn
+
+# 3) CARNIVAL on a Perturb-seq-style input
+#    perts.csv: gene,sign (sign in {-1,+1})
+#    degs.csv:  gene,score  (signed log2FC)
+igvfagent corneto carnival \
+    --perturbations perts.csv \
+    --measurements  degs.csv \
+    --pkn-limit 5000 --solver SCIP --label perturb_seq_demo
+
+# 4) Prize-collecting Steiner tree for VAMP-seq abundance prizes
+igvfagent corneto steiner --terminals vamp_prizes.csv --root TP53
+```
+
+License boundary: CORNETO is GPL-3.0; this skill installs it as a
+runtime dependency and calls the public API. **No CORNETO source is
+copied into the (Apache-2-licensed) IGVFagent repo.** Selected
+subnetworks flow back into the central DuckDB warehouse as `edges`
+rows tagged with `upstream='corneto:carnival:<label>'` so the
+downstream embedding / foundation-model layer treats CORNETO-inferred
+edges as just another evidence stream. Three agent tools registered:
+`corneto_demo`, `corneto_carnival`, `corneto_steiner`.
 
 ## Deployment with LLM agents
 

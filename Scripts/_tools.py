@@ -1577,6 +1577,89 @@ _TOOLS: "list[Tool]" = [
                    "ncols": "--ncols"},
     ),
 
+    _T(
+        "corneto_carnival",
+        "CARNIVAL via CORNETO: given a signed perturbation set + signed "
+        "measurement set (e.g. perturbed genes + DEG log2FCs from "
+        "Perturb-seq), infer the minimum-cost upstream subnetwork in a "
+        "signed PPI that explains the perturbations → measurements. "
+        "The selected subnetwork is appended to the central DuckDB "
+        "warehouse with upstream='corneto:carnival:<label>'.",
+        {
+            "type": "object",
+            "properties": {
+                "perturbations":  {**_S_STRING,
+                                    "description": "CSV: gene,sign in {-1,+1}."},
+                "measurements":   {**_S_STRING,
+                                    "description": "CSV: gene,score "
+                                                   "(signed log2FC)."},
+                "pkn":            {**_S_STRING,
+                                    "description": "SIF file path; if "
+                                                   "omitted, build from "
+                                                   "the proteomics KG."},
+                "pkn_limit":      {**_S_INTEGER},
+                "taxon":          {**_S_INTEGER, "default": 9606},
+                "beta":           {"type": "number", "default": 0.2,
+                                    "description": "Sparsity / data-loss "
+                                                   "trade-off."},
+                "solver":         {**_S_STRING, "default": "SCIP"},
+                "label":          {**_S_STRING, "default": "run"},
+            },
+            "required": ["perturbations", "measurements"],
+        },
+        cli=["corneto", "carnival"],
+        flag_map={"perturbations": "--perturbations",
+                   "measurements": "--measurements",
+                   "pkn": "--pkn", "pkn_limit": "--pkn-limit",
+                   "taxon": "--taxon", "beta": "--beta",
+                   "solver": "--solver", "label": "--label"},
+    ),
+
+    _T(
+        "corneto_steiner",
+        "Prize-collecting Steiner tree via CORNETO. Use when you have "
+        "per-gene 'prizes' (e.g. VAMP-seq abundance change, GWAS hit "
+        "strength) and a PPI prior — finds the minimum-cost connecting "
+        "subnetwork.",
+        {
+            "type": "object",
+            "properties": {
+                "terminals":  {**_S_STRING,
+                                "description": "CSV: gene,prize."},
+                "pkn":        {**_S_STRING},
+                "pkn_limit":  {**_S_INTEGER},
+                "taxon":      {**_S_INTEGER, "default": 9606},
+                "root":       {**_S_STRING,
+                                "description": "Root node id (optional)."},
+                "solver":     {**_S_STRING, "default": "SCIP"},
+                "label":      {**_S_STRING, "default": "run"},
+            },
+            "required": ["terminals"],
+        },
+        cli=["corneto", "steiner"],
+        flag_map={"terminals": "--terminals", "pkn": "--pkn",
+                   "pkn_limit": "--pkn-limit", "taxon": "--taxon",
+                   "root": "--root", "solver": "--solver",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "corneto_demo",
+        "Self-test: synthetic EGFR → MYC cascade. Proves CARNIVAL is "
+        "wired end-to-end and that the central warehouse picks up "
+        "corneto-inferred edges.",
+        {
+            "type": "object",
+            "properties": {
+                "beta":   {"type": "number", "default": 0.05},
+                "solver": {**_S_STRING, "default": "SCIP"},
+                "label":  {**_S_STRING, "default": "demo"},
+            },
+        },
+        cli=["corneto", "demo"],
+        flag_map={"beta": "--beta", "solver": "--solver", "label": "--label"},
+    ),
+
 ]
 
 

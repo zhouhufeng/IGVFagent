@@ -405,6 +405,54 @@ phase trains a fusion model that aligns them.
 
 ---
 
+## 6b. Network-integration layer — CORNETO
+
+Embedding-based alignment (Phase 4 below) is one half of cross-source
+integration; **constrained-optimization-based network inference** is
+the other. We adopt **CORNETO** (Saez-Rodriguez lab,
+[*Nat Mach Intell* 2025](https://www.nature.com/articles/s42256-025-01069-9))
+as the framework for the second half. CORNETO reformulates many
+separate biological-network methods (CARNIVAL, COSMOS, PCSF/Steiner,
+OmniPath subnetwork extraction, FBA/iMAT, shortest-path) as instances
+of one MILP over a signed directed graph:
+
+- Binary edge/vertex activation indicators + continuous flow
+- Flow conservation + sign consistency constraints
+- Objective = gap-to-data + L0 sparsity (edges, vertices) + L1 flow
+
+In IGVFagent terms, the integration flow is:
+
+```
+Silver edges (BioGRID + IntAct + HuRI + Reactome PPI) ─┐
+Silver edges (rE2G + ABC + SE→target)                  ├─▶ signed PKN
+Silver edges (FAVOR variant → RE overlap)              ─┘
+                                                         │
+   Silver measurements (Perturb-seq DEG, log2FC)         ▼
+   Silver measurements (VAMP-seq abundance change)   CORNETO MILP
+   Silver measurements (CRISPRi hits)                    │
+                                                         ▼
+                              context-specific subnetwork edges
+                              tagged upstream='corneto:<method>:<label>'
+                              and written back to Silver `edges` table
+```
+
+The inferred subnetworks become **first-class edges in the warehouse**,
+queryable like any other source. They are *also* training pairs for
+the Phase-4 contrastive alignment: a CORNETO-inferred edge between two
+proteins under a condition is a positive pair in the latent space for
+that condition.
+
+**License**: CORNETO is GPL-3.0; IGVFagent stays Apache-2.0 by
+calling it only at runtime as a `pip`-installed dependency, never
+copying source. See ``Docs/Skills/CORNETO_INTEGRATION_SKILLS.md`` for
+the wrapper skill's design.
+
+The shipped wrapper exposes three sub-commands today:
+- `corneto demo`      — synthetic cascade end-to-end self-test
+- `corneto pkn-from-kg` — materialise signed PKN from the proteomics SQLite KG
+- `corneto carnival`  — Perturb-seq / DEG → upstream subnetwork
+- `corneto steiner`   — VAMP-seq prizes / GWAS hits → connecting subnetwork
+
 ## 7. Foundation-model architecture
 
 The IGVF Foundation Model is a **multi-modal contrastive transformer**
