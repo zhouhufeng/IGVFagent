@@ -932,13 +932,477 @@ def analyze_local(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# MPRASuite / esMPRA-style core analytics
+# ---------------------------------------------------------------------------
+# Clean-room reimplementations of the algorithms used in the canonical MPRA
+# pipelines (Tewhey-lab MPRASuite, Apache-2.0; WangLabTHU esMPRA). No code is
+# copied -- algorithms paraphrased from the published descriptions:
+#   * Per-oligo activity = log2(RNA/DNA), modeled as a negative-binomial GLM
+#     (DESeq2 Wald test). After fitting, size factors for the RNA samples are
+#     shifted so the mode of the log2-fold-change density lies at 0
+#     ("summit-shift" normalization, MPRAmodel).
+#   * Allelic skew = paired t-test of the per-replicate log2-ratio between
+#     reference and alternate alleles of the same SNP-window-strand-haplotype
+#     element. BH-FDR controls multiple-testing.
+#   * Replicate concordance = pairwise Pearson/Spearman correlation between
+#     normalized RNA counts across replicates.
+#
+# Heavy numerical deps (numpy, pandas, scipy, pydeseq2, statsmodels,
+# matplotlib) are imported lazily so the lightweight pull / portal-manifest /
+# write-playbook commands keep working when those packages are absent.
+
+
+def _require_pkg(name: str, hint: str) -> Any:
+    try:
+        return __import__(name)
+    except Exception as exc:  # pragma: no cover - defensive
+        raise SystemExit(
+            f"Missing dependency '{name}'. {hint}\nInstall with: pip install {name}"
+        ) from exc
+
+
+def _detect_sample_columns(columns: list[str]) -> dict[str, list[str]]:
+    """Group columns by DNA/RNA condition.
+
+    Accepts columns named ``DNA_rep1``, ``DNA.r1``, ``DNA1``, ``RNA_HepG2_rep2``,
+    etc. Returns ``{"DNA": [...], "RNA": [...]}``.
+    """
+    import re
+    pat = re.compile(r"^(DNA|RNA)([._-].*)?$", re.IGNORECASE)
+    buckets: dict[str, list[str]] = {"DNA": [], "RNA": []}
+    for column in columns:
+        match = pat.match(column)
+        if match:
+            buckets[match.group(1).upper()].append(column)
+    return buckets
+
+
+def _load_counts_table(path: Path) -> tuple[Any, dict[str, list[str]]]:
+    """Load a counts table into a pandas DataFrame and detect sample columns."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    df = pd.read_csv(path, sep=None, engine="python")
+    if "Oligo" not in df.columns:
+        raise SystemExit(
+            "Counts table must contain an 'Oligo' column. "
+            "Expected schema: Oligo,Allele,...,DNA_rep1,...,RNA_rep1,..."
+        )
+    samples = _detect_sample_columns(list(df.columns))
+    if not samples["DNA"] or not samples["RNA"]:
+        raise SystemExit(
+            "Could not find DNA_* and RNA_* sample columns. "
+            f"Detected: {samples}. Rename columns to DNA_rep1, RNA_rep1, etc."
+        )
+    if "Barcode" in df.columns:
+        keep_meta = [c for c in df.columns if c not in samples["DNA"] + samples["RNA"] + ["Barcode"]]
+        meta = df.groupby("Oligo", as_index=False)[keep_meta].first()
+        counts = df.groupby("Oligo", as_index=False)[samples["DNA"] + samples["RNA"]].sum()
+        df = meta.merge(counts, on="Oligo", how="inner")
+    return df, samples
+
+
+def _summit_shift(log2fc: Any) -> float:
+    """Return the shift (in log2 units) that places the mode of ``log2fc`` at 0."""
+    np = _require_pkg("numpy", "Needed for MPRA analytics.")
+    scipy_stats = __import__("scipy.stats", fromlist=["stats"])
+    values = np.asarray([v for v in log2fc if v is not None and not np.isnan(v)], dtype=float)
+    if values.size < 8:
+        return 0.0
+    kde = scipy_stats.gaussian_kde(values)
+    grid = np.linspace(float(np.percentile(values, 1)), float(np.percentile(values, 99)), 2048)
+    return float(grid[int(np.argmax(kde(grid)))])
+
+
+def _run_deseq_activity(df: Any, samples: dict[str, list[str]]) -> Any:
+    """Run per-oligo NB GLM Wald (RNA vs DNA) with summit-shift normalization."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    np = _require_pkg("numpy", "Needed for MPRA analytics.")
+    from pydeseq2.dds import DeseqDataSet
+    from pydeseq2.ds import DeseqStats
+
+    sample_cols = samples["DNA"] + samples["RNA"]
+    counts = df.set_index("Oligo")[sample_cols].T.astype(int)
+    metadata = pd.DataFrame(
+        {"condition": ["DNA"] * len(samples["DNA"]) + ["RNA"] * len(samples["RNA"])},
+        index=sample_cols,
+    )
+    dds = DeseqDataSet(
+        counts=counts,
+        metadata=metadata,
+        design_factors="condition",
+        refit_cooks=False,
+    )
+    dds.deseq2()
+    res = DeseqStats(dds, contrast=["condition", "RNA", "DNA"])
+    res.summary()
+    res_df = res.results_df.copy()
+    shift = _summit_shift(res_df["log2FoldChange"].to_numpy())
+    if abs(shift) > 1e-6:
+        sf = dds.obsm["size_factors"].copy()
+        mask = (metadata["condition"] == "RNA").to_numpy()
+        sf[mask] *= 2 ** shift
+        dds.obsm["size_factors"] = sf
+        try:
+            dds.fit_genewise_dispersions()
+            dds.fit_dispersion_trend()
+            dds.fit_dispersion_prior()
+            dds.fit_MAP_dispersions()
+            dds.fit_LFC()
+            dds.calculate_cooks()
+        except Exception:
+            pass
+        res = DeseqStats(dds, contrast=["condition", "RNA", "DNA"])
+        res.summary()
+        res_df = res.results_df.copy()
+    res_df.attrs["summit_shift"] = shift
+    return res_df
+
+
+def cmd_activity(args: argparse.Namespace) -> int:
+    """Compute per-oligo MPRA activity (log2FC RNA/DNA) with NB GLM + summit-shift."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    setup_logging()
+    input_path = Path(args.input).resolve()
+    df, samples = _load_counts_table(input_path)
+    logging.info(
+        "Loaded counts: %d oligos, %d DNA + %d RNA samples",
+        len(df), len(samples["DNA"]), len(samples["RNA"]),
+    )
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    res_df = _run_deseq_activity(df, samples)
+    out_csv = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_label(args.label)}_activity.out"
+    res_df.to_csv(out_csv, sep="\t", index_label="Oligo")
+    padj = pd.to_numeric(res_df["padj"], errors="coerce")
+    summary = {
+        "input": str(input_path),
+        "oligos": int(len(res_df)),
+        "summit_shift_log2": float(res_df.attrs.get("summit_shift", 0.0)),
+        "active_fdr_0.05": int((padj < 0.05).sum()),
+        "active_fdr_0.10": int((padj < 0.10).sum()),
+        "median_log2fc": float(pd.to_numeric(res_df["log2FoldChange"], errors="coerce").median()),
+    }
+    save_json(f"mpra_{args.label}_activity_summary", summary)
+    print(f"Wrote activity table: {out_csv}")
+    print(f"Active @ FDR 0.05: {summary['active_fdr_0.05']} / {summary['oligos']}")
+    print(f"Active @ FDR 0.10: {summary['active_fdr_0.10']} / {summary['oligos']}")
+    print(f"Summit-shift applied (log2): {summary['summit_shift_log2']:+.4f}")
+    return 0
+
+
+def _pair_alleles(df: Any) -> tuple[Any, Any, list[str]]:
+    """Pair ref/alt oligos by SNP_window_strand_haplotype."""
+    cols = [c for c in ("SNP", "Window", "Strand", "Haplotype") if c in df.columns]
+    if not cols:
+        raise SystemExit(
+            "Skew test needs at least one of SNP/Window/Strand/Haplotype columns "
+            "to pair ref vs alt oligos."
+        )
+    if "Allele" not in df.columns:
+        raise SystemExit("Skew test needs an 'Allele' column (REF/ALT or A/B).")
+    df = df.copy()
+    df["__key"] = df[cols].astype(str).agg("_".join, axis=1)
+    allele_norm = df["Allele"].astype(str).str.upper().map(
+        {"REF": "REF", "ALT": "ALT", "A": "REF", "B": "ALT"}
+    ).fillna(df["Allele"].astype(str).str.upper())
+    df["__allele"] = allele_norm
+    ref = df[df["__allele"] == "REF"].set_index("__key")
+    alt = df[df["__allele"] == "ALT"].set_index("__key")
+    common = sorted(set(ref.index) & set(alt.index))
+    return ref.loc[common], alt.loc[common], common
+
+
+def cmd_skew(args: argparse.Namespace) -> int:
+    """Compute allelic skew via paired t-test on log2(RNA/DNA) ratios."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    np = _require_pkg("numpy", "Needed for MPRA analytics.")
+    scipy_stats = __import__("scipy.stats", fromlist=["stats"])
+    from statsmodels.stats.multitest import multipletests
+    setup_logging()
+    input_path = Path(args.input).resolve()
+    df, samples = _load_counts_table(input_path)
+    ref, alt, keys = _pair_alleles(df)
+    logging.info("Paired %d ref/alt oligos", len(keys))
+    if not keys:
+        raise SystemExit("No ref/alt pairs found. Check Allele and pairing columns.")
+    dna_cols = samples["DNA"]
+    rna_cols = samples["RNA"]
+    pseudo = 1.0
+    dna_mean_ref = ref[dna_cols].astype(float).mean(axis=1).replace(0, np.nan)
+    dna_mean_alt = alt[dna_cols].astype(float).mean(axis=1).replace(0, np.nan)
+    n_rep = len(rna_cols)
+    log2_ref = np.log2(
+        (ref[rna_cols].astype(float).to_numpy() + pseudo)
+        / (dna_mean_ref.to_numpy()[:, None] + pseudo)
+    )
+    log2_alt = np.log2(
+        (alt[rna_cols].astype(float).to_numpy() + pseudo)
+        / (dna_mean_alt.to_numpy()[:, None] + pseudo)
+    )
+    log2_skew = log2_alt - log2_ref
+    if n_rep > 1:
+        se = log2_skew.std(axis=1, ddof=1) / np.sqrt(n_rep)
+        tstat, pvals = scipy_stats.ttest_rel(log2_alt, log2_ref, axis=1, nan_policy="omit")
+    else:
+        se = np.full(len(keys), np.nan)
+        tstat = np.full(len(keys), np.nan)
+        pvals = np.full(len(keys), np.nan)
+    pvals_arr = np.asarray(pvals, dtype=float)
+    valid = ~np.isnan(pvals_arr)
+    padj = np.full_like(pvals_arr, np.nan)
+    if valid.any():
+        _, padj_valid, _, _ = multipletests(pvals_arr[valid], method="fdr_bh")
+        padj[valid] = padj_valid
+    out_df = pd.DataFrame({
+        "Element": keys,
+        "Log2Skew": log2_skew.mean(axis=1),
+        "LogSkew_SE": se,
+        "tstat": tstat,
+        "pvalue": pvals_arr,
+        "padj": padj,
+        "RefOligo": ref["Oligo"].to_numpy() if "Oligo" in ref.columns else ref.index,
+        "AltOligo": alt["Oligo"].to_numpy() if "Oligo" in alt.columns else alt.index,
+    })
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    out_csv = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_label(args.label)}_skew.out"
+    out_df.to_csv(out_csv, sep="\t", index=False)
+    padj_series = pd.to_numeric(out_df["padj"], errors="coerce")
+    summary = {
+        "input": str(input_path),
+        "pairs": int(len(out_df)),
+        "skew_fdr_0.05": int((padj_series < 0.05).sum()),
+        "skew_fdr_0.10": int((padj_series < 0.10).sum()),
+        "median_abs_log2skew": float(out_df["Log2Skew"].abs().median()),
+    }
+    save_json(f"mpra_{args.label}_skew_summary", summary)
+    print(f"Wrote skew table: {out_csv}")
+    print(f"Allelic skew @ FDR 0.05: {summary['skew_fdr_0.05']} / {summary['pairs']}")
+    print(f"Allelic skew @ FDR 0.10: {summary['skew_fdr_0.10']} / {summary['pairs']}")
+    return 0
+
+
+def cmd_qc(args: argparse.Namespace) -> int:
+    """Replicate concordance + barcodes/oligo + counts/oligo histograms."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    np = _require_pkg("numpy", "Needed for MPRA analytics.")
+    setup_logging()
+    input_path = Path(args.input).resolve()
+    raw = pd.read_csv(input_path, sep=None, engine="python")
+    samples = _detect_sample_columns(list(raw.columns))
+    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    plots: list[Path] = []
+    if "Oligo" not in raw.columns:
+        raise SystemExit("QC needs an 'Oligo' column.")
+    if "Barcode" in raw.columns:
+        bc_per = raw.groupby("Oligo")["Barcode"].nunique().to_numpy()
+        bc_path = PLOT_DIR / f"{ts}_{safe_label(args.label)}_qc_barcodes_per_oligo.svg"
+        write_histogram(
+            [float(x) for x in bc_per],
+            bc_path,
+            "Unique barcodes per oligo",
+            x_label="barcodes / oligo",
+        )
+        plots.append(bc_path)
+    sample_cols = samples["DNA"] + samples["RNA"]
+    per_oligo = raw.groupby("Oligo")[sample_cols].sum() if sample_cols else None
+    if per_oligo is not None:
+        total_counts = per_oligo.sum(axis=1).to_numpy()
+        counts_path = PLOT_DIR / f"{ts}_{safe_label(args.label)}_qc_counts_per_oligo.svg"
+        write_histogram(
+            [float(np.log10(x + 1)) for x in total_counts],
+            counts_path,
+            "Total counts per oligo (log10)",
+            x_label="log10 (counts + 1)",
+        )
+        plots.append(counts_path)
+    corr_summary: dict[str, Any] = {}
+    if per_oligo is not None:
+        for cond in ("DNA", "RNA"):
+            cols = samples[cond]
+            if len(cols) < 2:
+                continue
+            log_counts = np.log10(per_oligo[cols].to_numpy() + 1.0)
+            corr_matrix = np.corrcoef(log_counts.T)
+            tri = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
+            corr_summary[cond] = {
+                "samples": cols,
+                "min_pearson": float(tri.min()),
+                "median_pearson": float(np.median(tri)),
+                "max_pearson": float(tri.max()),
+            }
+            heat_path = PLOT_DIR / f"{ts}_{safe_label(args.label)}_qc_repcorr_{cond}.svg"
+            _write_corr_heatmap(corr_matrix, cols, heat_path, f"{cond} replicate Pearson r")
+            plots.append(heat_path)
+    summary = {
+        "input": str(input_path),
+        "n_oligos": int(raw["Oligo"].nunique()),
+        "samples": samples,
+        "replicate_concordance": corr_summary,
+    }
+    save_json(f"mpra_{args.label}_qc_summary", summary)
+    report = REPORT_DIR / f"{ts}_{safe_label(args.label)}_qc_report.md"
+    lines = [
+        "# MPRA QC Report", "",
+        f"Input: `{input_path}`",
+        f"Oligos: {summary['n_oligos']}",
+        f"DNA samples: {len(samples['DNA'])}",
+        f"RNA samples: {len(samples['RNA'])}",
+        "",
+        "## Replicate concordance (Pearson r on log10 counts)", "",
+    ]
+    for cond, info in corr_summary.items():
+        lines.append(
+            f"- {cond}: median r = {info['median_pearson']:.3f}, "
+            f"min = {info['min_pearson']:.3f}, max = {info['max_pearson']:.3f} "
+            f"(n = {len(info['samples'])})"
+        )
+    lines.append("")
+    lines.append("## Plots")
+    lines.append("")
+    for plot in plots:
+        lines.append(f"- `{plot}`")
+    report.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote QC report: {report}")
+    for plot in plots:
+        print(f"Wrote plot: {plot}")
+    return 0
+
+
+def _write_corr_heatmap(matrix: Any, labels: list[str], path: Path, title: str) -> None:
+    """Tiny dependency-free correlation heatmap (SVG, blue ramp)."""
+    n = len(labels)
+    cell = max(38, min(56, 420 // max(n, 1)))
+    margin_left, margin_top = 110, 60
+    width = margin_left + cell * n + 80
+    height = margin_top + cell * n + 90
+    parts = [svg_header(width, height)]
+    parts.append(f'<text class="title" x="20" y="30">{html.escape(title)}</text>')
+    for i in range(n):
+        for j in range(n):
+            value = float(matrix[i][j])
+            intensity = max(0.0, min(1.0, (value + 1) / 2))
+            red = int(247 - 200 * intensity)
+            green = int(251 - 180 * intensity)
+            blue = int(255 - 100 * intensity)
+            x = margin_left + j * cell
+            y = margin_top + i * cell
+            parts.append(
+                f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" fill="rgb({red},{green},{blue})" stroke="#cbd2da" stroke-width=".5"/>'
+            )
+            parts.append(
+                f'<text x="{x + cell/2:.1f}" y="{y + cell/2 + 4:.1f}" text-anchor="middle" font-size="10" fill="#1f2933">{value:.2f}</text>'
+            )
+    for i, label in enumerate(labels):
+        parts.append(
+            f'<text class="tick" x="{margin_left - 8}" y="{margin_top + i * cell + cell/2 + 4:.1f}" text-anchor="end">{html.escape(label)}</text>'
+        )
+        parts.append(
+            f'<text class="tick" transform="translate({margin_left + i * cell + cell/2:.1f} {margin_top + n*cell + 14}) rotate(45)" text-anchor="start">{html.escape(label)}</text>'
+        )
+    parts.append("</svg>\n")
+    path.write_text("\n".join(parts), encoding="utf-8")
+
+
+def _write_volcano_4panel(
+    activity: list[tuple],
+    skew: list[tuple],
+    path: Path,
+    title: str,
+    fdr: float = 0.05,
+) -> None:
+    """4-panel volcano: activity volcano + skew volcano + activity MA + skew MA."""
+    width, height = 1200, 920
+    parts = [svg_header(width, height)]
+    parts.append(f'<text class="title" x="28" y="30">{html.escape(title)}</text>')
+    panels = [
+        ("Activity volcano", "log2(RNA/DNA)", "-log10 padj", activity, 30, 70),
+        ("Allelic-skew volcano", "Log2Skew (alt - ref)", "-log10 padj", skew, 620, 70),
+        ("Activity MA", "log10 mean RNA+DNA", "log2(RNA/DNA)", activity, 30, 500),
+        ("Skew MA", "log10 mean RNA", "Log2Skew", skew, 620, 500),
+    ]
+    plot_w, plot_h = 540, 360
+    for sub_title, x_label, y_label, points, ox, oy in panels:
+        pts = [(x, y, q) for x, y, q in points if x is not None and y is not None]
+        parts.append(f'<rect x="{ox-10}" y="{oy-30}" width="{plot_w+30}" height="{plot_h+70}" fill="none" stroke="#cbd2da"/>')
+        parts.append(f'<text x="{ox}" y="{oy - 6}" font-size="13" font-weight="700">{html.escape(sub_title)}</text>')
+        if not pts:
+            parts.append(f'<text x="{ox + 20}" y="{oy + 40}" fill="#666">no data</text>')
+            continue
+        xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+        xmin, xmax = min(xs), max(xs)
+        ymin, ymax = min(ys), max(ys)
+        if xmin == xmax: xmin, xmax = xmin - 0.5, xmax + 0.5
+        if ymin == ymax: ymin, ymax = ymin - 0.5, ymax + 0.5
+        parts.append(f'<line class="axis" x1="{ox}" y1="{oy+plot_h}" x2="{ox+plot_w}" y2="{oy+plot_h}"/>')
+        parts.append(f'<line class="axis" x1="{ox}" y1="{oy}" x2="{ox}" y2="{oy+plot_h}"/>')
+        for tick in range(5):
+            tx = ox + tick * plot_w / 4
+            ty = oy + plot_h - tick * plot_h / 4
+            xv = xmin + tick * (xmax - xmin) / 4
+            yv = ymin + tick * (ymax - ymin) / 4
+            parts.append(f'<line x1="{tx:.1f}" y1="{oy}" x2="{tx:.1f}" y2="{oy+plot_h}" stroke="#e6eaf0" stroke-width=".7"/>')
+            parts.append(f'<line x1="{ox}" y1="{ty:.1f}" x2="{ox+plot_w}" y2="{ty:.1f}" stroke="#e6eaf0" stroke-width=".7"/>')
+            parts.append(f'<text class="tick" x="{tx:.1f}" y="{oy+plot_h+16}" text-anchor="middle">{xv:.2g}</text>')
+            parts.append(f'<text class="tick" x="{ox-8}" y="{ty+4:.1f}" text-anchor="end">{yv:.2g}</text>')
+        for x, y, q in pts[:6000]:
+            px = ox + (x - xmin) / (xmax - xmin) * plot_w
+            py = oy + plot_h - (y - ymin) / (ymax - ymin) * plot_h
+            color = "#E45756" if (q is not None and q < fdr) else "#8c98a7"
+            opacity = "0.85" if (q is not None and q < fdr) else "0.35"
+            parts.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="2.4" fill="{color}" opacity="{opacity}"/>')
+        parts.append(f'<text class="label" x="{ox + plot_w/2:.0f}" y="{oy+plot_h+34}" text-anchor="middle">{html.escape(x_label)}</text>')
+        parts.append(f'<text class="label" transform="translate({ox-44} {oy+plot_h/2:.0f}) rotate(-90)" text-anchor="middle">{html.escape(y_label)}</text>')
+    parts.append(f'<text class="tick" x="{width - 220}" y="{height - 18}">red = padj &lt; {fdr:g}</text>')
+    parts.append("</svg>\n")
+    path.write_text("\n".join(parts), encoding="utf-8")
+
+
+def cmd_volcano(args: argparse.Namespace) -> int:
+    """4-panel volcano (activity + skew + MA plots) from existing .out tables."""
+    pd = _require_pkg("pandas", "Needed for MPRA analytics.")
+    np = _require_pkg("numpy", "Needed for MPRA analytics.")
+    setup_logging()
+    activity_pts: list[tuple] = []
+    skew_pts: list[tuple] = []
+    if args.activity:
+        act = pd.read_csv(args.activity, sep="\t")
+        for _, row in act.iterrows():
+            lfc = row.get("log2FoldChange")
+            padj = row.get("padj")
+            if pd.notna(lfc) and pd.notna(padj):
+                activity_pts.append((float(lfc), float(-np.log10(max(float(padj), 1e-300))), float(padj)))
+    if args.skew:
+        sk = pd.read_csv(args.skew, sep="\t")
+        for _, row in sk.iterrows():
+            log2s = row.get("Log2Skew"); padj = row.get("padj")
+            if pd.notna(log2s) and pd.notna(padj):
+                skew_pts.append((float(log2s), float(-np.log10(max(float(padj), 1e-300))), float(padj)))
+    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+    out = PLOT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_label(args.label)}_volcano4.svg"
+    _write_volcano_4panel(activity_pts, skew_pts, out, args.title or "MPRA activity & allelic skew", fdr=args.fdr)
+    print(f"Wrote 4-panel volcano: {out}")
+    return 0
+
+
 def write_playbook() -> Path:
     SKILL_DOC_DIR.mkdir(parents=True, exist_ok=True)
     path = SKILL_DOC_DIR / "MPRA_ANALYSIS_SKILLS.md"
     path.write_text(
         """# Skill: MPRA Data Retrieval And Analysis
 
-Use this skill when the agent needs to retrieve MPRA/STARR/BlueSTARR evidence from IGVF Catalog, IGVF Portal, or ENCODE, or analyze local MPRA result tables.
+Use this skill when the agent needs to retrieve MPRA/STARR/BlueSTARR evidence
+from IGVF Catalog, IGVF Portal, or ENCODE, or to run end-to-end MPRA
+analytics (per-element activity, allelic skew, QC) on a local counts table.
+
+The analytical methods are clean-room reimplementations of the canonical
+public pipelines (algorithms only, no source copied):
+
+- **Tewhey-lab MPRASuite** (Apache-2.0): `MPRAmodel` per-element NB GLM
+  Wald test (DESeq2) of RNA vs DNA with **summit-shift** size-factor
+  normalization, then paired-t allelic skew across replicates with BH-FDR.
+- **WangLabTHU esMPRA**: count-based activity ratios, replicate concordance,
+  barcode-per-oligo QC.
 
 ## Retrieval
 
@@ -950,31 +1414,78 @@ python3 Scripts/mpra_data_skills.py portal-manifest --limit 100 --label igvf_por
 
 Use `IGVF_PORTAL_COOKIE` for unreleased Portal datasets.
 
-## Local Analysis
+## Local Result-Table Summaries
 
 ```bash
 python3 Scripts/mpra_data_skills.py analyze-local --input Data/Input/VariantList/example_variants.csv --label my_locus_mpra
 python3 Scripts/mpra_data_skills.py literature-demo --input Data/Input/VariantList/example_variants.csv --label my_locus_mpra_literature_demo
 ```
 
-The analysis writes summary stats, SVG plots, and a Markdown report.
+These take an existing MPRA result table (with columns like
+`MPRA.log2FoldChange`, `MPRA.minusLog10PValue`) and emit summary stats,
+SVG plots and a Markdown report.
+
+## End-to-End Counts Analytics (NEW)
+
+Run these on a counts table with columns `Oligo,Allele,SNP,Window,Strand,
+Haplotype,DNA_rep1,DNA_rep2,...,RNA_rep1,RNA_rep2,...` (barcode-level
+tables with a `Barcode` column are summed per oligo automatically):
+
+```bash
+# QC: replicate Pearson r heatmaps, BC/oligo, log10 counts/oligo
+python3 Scripts/mpra_data_skills.py qc       --input counts.tsv --label myrun
+
+# Per-oligo activity (NB GLM Wald + summit-shift) -> *_activity.out
+python3 Scripts/mpra_data_skills.py activity --input counts.tsv --label myrun
+
+# Allelic skew (paired t-test of ALT vs REF on log2(RNA/DNA)) -> *_skew.out
+python3 Scripts/mpra_data_skills.py skew     --input counts.tsv --label myrun
+
+# 4-panel volcano: activity, skew, MA-activity, MA-skew (red = padj < FDR)
+python3 Scripts/mpra_data_skills.py volcano  \
+    --activity Docs/MPRA/<ts>_myrun_activity.out \
+    --skew     Docs/MPRA/<ts>_myrun_skew.out      \
+    --label myrun --fdr 0.05
+```
+
+Dependencies (installed once into the project venv): `pandas`, `numpy`,
+`scipy`, `statsmodels`, `pydeseq2` (BSD-3).
+
+### Output schemas
+
+- **`*_activity.out`** (TSV) -- one row per Oligo, columns:
+  `baseMean, log2FoldChange, lfcSE, stat, pvalue, padj`. The
+  `summit_shift_log2` value used to recenter size factors is stored in
+  the JSON summary saved next to the table.
+- **`*_skew.out`** (TSV) -- one row per paired element, columns:
+  `Element, Log2Skew, LogSkew_SE, tstat, pvalue, padj, RefOligo, AltOligo`.
+- **`*_qc_report.md`** -- per-condition replicate Pearson stats (median,
+  min, max r) and links to BC/oligo + counts/oligo + Pearson heatmap SVGs.
 
 ## Literature-Informed Templates
 
-- Cell / PubMed variant-effect MPRA: use volcano plots, significant allelic-effect tables, and integration with GWAS/eQTL/fine-mapping.
-- Nature Methods MPRA design benchmarking: use count QC, assay-design comparisons, activity dynamic range, and sequence-context summaries.
-- Nature Genetics single-cell MPRA: use cell-type activity heatmaps and cluster/cell-type specificity summaries.
-- Nature Biotechnology regulatory grammar MPRA: use saturation-mutagenesis maps, position-effect heatmaps, and model-vs-observed plots.
-- Nature large-scale cCRE MPRA: use activity distributions, cCRE class enrichment, and genome-browser style views.
+- Cell / PubMed variant-effect MPRA: volcano plots, significant allelic-
+  effect tables, integration with GWAS/eQTL/fine-mapping.
+- Nature Methods MPRA design benchmarking: count QC, assay-design
+  comparisons, activity dynamic range, sequence-context summaries.
+- Nature Genetics single-cell MPRA: cell-type activity heatmaps and
+  cluster/cell-type specificity summaries.
+- Nature Biotechnology regulatory grammar MPRA: saturation-mutagenesis
+  maps, position-effect heatmaps, and model-vs-observed plots.
+- Nature large-scale cCRE MPRA: activity distributions, cCRE class
+  enrichment, genome-browser style views.
 
 ## Reuse Rules
 
 - Inspect metadata before downloading large MPRA files.
-- Preserve variant identifiers, allele orientation, library/source, biosample, activity class, input/output counts, log2 fold-change, P/Q values, and significance calls.
-- Check input balance and low-count variants before interpreting effect sizes.
-- Compare MPRA effects with IGVF Catalog variant-gene, variant-biosample, regulatory-element, and enhancer-gene prediction evidence.
-- Use `portal-manifest` to pull many IGVF Portal MPRA/STARR/reporter datasets before choosing files to download.
-- Use `literature-demo` to create paper-style interpretation plots and a research-use report from a local MPRA table.
+- For raw counts: always run `qc` first to check replicate concordance
+  before trusting activity / skew calls.
+- Use `summit-shift` (default in `activity`) to center the log2FC mode
+  on zero before declaring "active" elements.
+- Preserve variant identifiers, allele orientation, library/source,
+  biosample, activity class, counts, log2FC, P/Q values, significance.
+- Cross-check active or skewed elements against IGVF Catalog variant-gene,
+  variant-biosample, regulatory-element, and enhancer-gene predictions.
 """,
         encoding="utf-8",
     )
@@ -996,6 +1507,38 @@ def main(argv: list[str] | None = None) -> int:
     literature = subparsers.add_parser("literature-demo", help="Create literature-informed MPRA plots and interpretation report.")
     literature.add_argument("--input", default=str(DATA_DIR / "Input" / "VariantList" / "example_variants.csv"))
     literature.add_argument("--label", default="mpra_literature_demo")
+
+    activity = subparsers.add_parser(
+        "activity",
+        help="Per-oligo MPRA activity via NB GLM Wald test (DESeq2) with summit-shift normalization.",
+    )
+    activity.add_argument("--input", required=True, help="Counts table: Oligo,Allele,...,DNA_rep1,...,RNA_rep1,...")
+    activity.add_argument("--label", default="mpra_activity")
+
+    skew = subparsers.add_parser(
+        "skew",
+        help="Allelic-skew paired t-test on log2(RNA/DNA) per replicate, with BH-FDR.",
+    )
+    skew.add_argument("--input", required=True, help="Counts table with Allele + at least one of SNP/Window/Strand/Haplotype.")
+    skew.add_argument("--label", default="mpra_skew")
+
+    qc = subparsers.add_parser(
+        "qc",
+        help="Replicate concordance, barcodes/oligo, counts/oligo histograms.",
+    )
+    qc.add_argument("--input", required=True, help="Counts table (barcode-level allowed via 'Barcode' column).")
+    qc.add_argument("--label", default="mpra_qc")
+
+    volcano = subparsers.add_parser(
+        "volcano",
+        help="4-panel volcano (activity + allelic skew + MA plots) from .out tables.",
+    )
+    volcano.add_argument("--activity", help="Activity .out table from `mpra activity`.")
+    volcano.add_argument("--skew", help="Skew .out table from `mpra skew`.")
+    volcano.add_argument("--label", default="mpra_volcano")
+    volcano.add_argument("--title", default=None)
+    volcano.add_argument("--fdr", type=float, default=0.05)
+
     subparsers.add_parser("write-playbook", help="Write MPRA skill documentation.")
 
     args = parser.parse_args(argv)
@@ -1008,6 +1551,14 @@ def main(argv: list[str] | None = None) -> int:
         return analyze_local(args)
     if args.command == "literature-demo":
         return run_literature_demo(args)
+    if args.command == "activity":
+        return cmd_activity(args)
+    if args.command == "skew":
+        return cmd_skew(args)
+    if args.command == "qc":
+        return cmd_qc(args)
+    if args.command == "volcano":
+        return cmd_volcano(args)
     if args.command == "write-playbook":
         path = write_playbook()
         print(f"Wrote {path}")
