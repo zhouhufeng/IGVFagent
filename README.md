@@ -7,11 +7,12 @@ Graph) and related public resources (ENCODE, FAVOR), with a built-in
 
 ![IGVF Agent architecture](Docs/Figures/IGVF_agent_archetcture.png)
 
-### 🎬 Video demo
+### 🎬 Video demos
 
-[![IGVFagent demo](https://img.youtube.com/vi/iGMLSC-riFM/maxresdefault.jpg)](https://www.youtube.com/watch?v=iGMLSC-riFM)
-
-▶ **Watch on YouTube:** <https://www.youtube.com/watch?v=iGMLSC-riFM>
+| | |
+|---|---|
+| [![Demo 1](https://img.youtube.com/vi/EQVwIEa-gVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=EQVwIEa-gVg) | [![Demo 2](https://img.youtube.com/vi/c-CyIEArEK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=c-CyIEArEK8) |
+| ▶ <https://www.youtube.com/watch?v=EQVwIEa-gVg> | ▶ <https://www.youtube.com/watch?v=c-CyIEArEK8> |
 
 ## Architecture at a glance
 
