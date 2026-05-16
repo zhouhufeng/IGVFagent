@@ -305,6 +305,94 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "mpra_activity",
+        "Per-oligo MPRA activity: negative-binomial GLM Wald test (DESeq2 "
+        "via pydeseq2) of RNA vs DNA counts, followed by summit-shift "
+        "normalization that moves the mode of the log2-fold-change density "
+        "to zero (Tewhey-lab MPRAmodel convention). Emits a .out table with "
+        "baseMean, log2FoldChange, lfcSE, stat, pvalue, padj per Oligo. "
+        "Input: a counts table with an 'Oligo' column and DNA_*/RNA_* "
+        "replicate columns; barcode-level tables (with a 'Barcode' column) "
+        "are summed per oligo automatically.",
+        {
+            "type": "object",
+            "properties": {
+                "input": {**_S_STRING, "description":
+                          "Path to counts table (CSV/TSV)."},
+                "label": {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["mpra", "activity"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+
+    _T(
+        "mpra_skew",
+        "Allelic-skew analysis: pairs ref/alt oligos by "
+        "SNP_window_strand_haplotype, computes per-replicate "
+        "log2((RNA+1)/(mean DNA+1)) for each allele, runs a paired t-test "
+        "of alt vs ref across replicates, and applies BH-FDR. Emits a .out "
+        "table with Log2Skew, LogSkew_SE, tstat, pvalue, padj per element. "
+        "Mirrors the t-test path of Tewhey-lab MPRAmodel runSkew.",
+        {
+            "type": "object",
+            "properties": {
+                "input": {**_S_STRING, "description":
+                          "Counts table with Allele plus at least one of "
+                          "SNP/Window/Strand/Haplotype."},
+                "label": {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["mpra", "skew"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+
+    _T(
+        "mpra_qc",
+        "MPRA QC suite: replicate concordance (pairwise Pearson r on log10 "
+        "counts, separately for DNA and RNA, with an N x N SVG heatmap), "
+        "unique-barcodes-per-oligo histogram (when a 'Barcode' column is "
+        "present), and total-counts-per-oligo histogram (log10). Writes a "
+        "markdown QC report alongside the SVGs.",
+        {
+            "type": "object",
+            "properties": {
+                "input": {**_S_STRING, "description":
+                          "Counts table (barcode-level supported)."},
+                "label": {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["mpra", "qc"],
+        flag_map={"input": "--input", "label": "--label"},
+    ),
+
+    _T(
+        "mpra_volcano",
+        "Render a 4-panel volcano figure (activity volcano, allelic-skew "
+        "volcano, activity MA plot, skew MA plot) from the .out tables "
+        "produced by `mpra activity` and `mpra skew`. Points with padj "
+        "below the FDR threshold are highlighted in red.",
+        {
+            "type": "object",
+            "properties": {
+                "activity": {**_S_STRING, "description":
+                              "Activity .out table from `mpra activity`."},
+                "skew":     {**_S_STRING, "description":
+                              "Skew .out table from `mpra skew`."},
+                "label":    {**_S_STRING},
+                "title":    {**_S_STRING},
+                "fdr":      {"type": "number", "default": 0.05},
+            },
+        },
+        cli=["mpra", "volcano"],
+        flag_map={"activity": "--activity", "skew": "--skew",
+                   "label": "--label", "title": "--title", "fdr": "--fdr"},
+    ),
+
+    _T(
         "crispri_pull",
         "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog.",
         {
