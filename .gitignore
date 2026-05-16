@@ -27,6 +27,16 @@ Data/Input/*
 Data/Input/VariantList/*
 !Data/Input/VariantList/README.md
 !Data/Input/VariantList/example_variants.csv
+# Reference data (small, version-controlled): SPLiT-seq barcode
+# whitelist, future canonical lookups.
+!Data/Reference/
+Data/Reference/*
+!Data/Reference/SPLiTseq/
+Data/Reference/SPLiTseq/*
+!Data/Reference/SPLiTseq/README.md
+!Data/Reference/SPLiTseq/barcodes_rd1.tsv
+!Data/Reference/SPLiTseq/barcodes_rd2.tsv
+!Data/Reference/SPLiTseq/barcodes_rd3.tsv
 
 Docs/Logs/*
 !Docs/Logs/.gitkeep
