@@ -101,9 +101,9 @@ pulled by `igvf-protein`. One PNG per assay under
 igvfagent proteomics vampseq-pull
 igvfagent proteomics vampseq-pull --gene PTEN
 
-# 2) Deep analysis — produces 6 publication-grade plots per gene
-igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep
-igvfagent proteomics vampseq-analyze    # all 6 catalogued targets
+# 2) Deep analysis — produces the Fowler-lab-style plot suite per gene
+igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep     --pdb-id 1d5r                          # optional PyMOL .pml export
+igvfagent proteomics vampseq-analyze       # all 6 catalogued targets
 
 # 3) Inventory the IGVF Portal raw VAMP-seq experiments by decoding the
 #    alias scheme (<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>).
@@ -112,7 +112,8 @@ igvfagent proteomics vampseq-inventory --label igvf_f9
 ```
 The deep analysis follows the canonical VAMP-seq pipeline distilled from
 Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
-2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP):
+2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP), augmented to
+match the public **FowlerLab/VAMPseq** analysis Rmd plot suite:
 
   1. **Distribution** — overlay missense / synonymous / nonsense densities
      anchored at WT=1, nonsense=0.
@@ -121,13 +122,32 @@ Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
   3. **Per-position mean ± IQR with domain track** — annotates which
      domain each residue belongs to (e.g. PTEN phosphatase / C2 / C-tail,
      PRKN Ubl / RING0 / RING1 / IBR / RING2).
-  4. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
+  4. **Per-position median + 3-residue moving average** — Fowler-lab
+     `ma(score, n=3)` style smoothing alongside the per-residue median.
+  5. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
      variant.
-  5. **Abundance class breakdown** — categorical bar (low / low-int /
+  6. **N × N replicate scatter matrix** — emitted when ≥ 3 replicates
+     are present (e.g. PTEN with 8 reps). Lower triangle = scatter,
+     diagonal = per-rep histogram, upper triangle = Pearson r.
+  7. **Abundance class breakdown** — categorical bar (low / low-int /
      intermediate / WT-like / hyper-abundant), matching the Matreyek
      2018 `abundance_class` convention.
-  6. **Cumulative ranked variants** — sorted score curve, with the
-     low-abundance fraction (score < 0.5) shaded.
+  8. **Cumulative ranked variants with 95 % CI band** — sorted score
+     curve, CI envelope from `lower_ci` / `upper_ci` (or normal-approx
+     from `se`), low-abundance fraction (score < 0.5) shaded.
+  9. **Nonsense-by-position scatter** — the canonical "do truncations
+     crash the score?" QC plot from Matreyek 2018 Fig 1.
+  10. **Biophysical-feature Spearman ρ panel** — emitted only when the
+      scoreset carries RSA / B-factor / hydrophobicity / Grantham /
+      PSIC conservation / ΔΔG / Tm columns (most public MaveDB
+      scoresets don't; the FowlerLab supplementary PTEN / TPMT tables
+      do).
+  11. **PyMOL .pml export** — opt-in via `--pdb-id`. Writes a ready-to-
+      source `.pml` that loads the structure, sets per-residue
+      B-factor to the median missense abundance score, and applies the
+      blue → white → red colorscale. Default PDB IDs are pinned to
+      the canonical Fowler-lab structures (PTEN → `1d5r`,
+      TPMT → `2bzg`).
 
 Catalogued MaveDB targets (URN, paper, length, domains) are in
 `MAVEDB_VAMPSEQ_CATALOG` in `proteomics_skill.py` — extend this dict to
