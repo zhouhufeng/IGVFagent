@@ -1568,6 +1568,7 @@ MAVEDB_VAMPSEQ_CATALOG = {
         "urn":    "urn:mavedb:00000013-a-1",
         "paper":  "Matreyek et al. Nat Genet 2018  PMID 29785012",
         "uniprot": "P60484",
+        "pdb_id":  "1d5r",                       # FowlerLab canonical
         "length": 403,
         "domains": [(1, 13, "PIP4-bind"),
                      (14, 185, "Phosphatase"),
@@ -1578,6 +1579,7 @@ MAVEDB_VAMPSEQ_CATALOG = {
         "urn":    "urn:mavedb:00000013-b-1",
         "paper":  "Matreyek et al. Nat Genet 2018  PMID 29785012",
         "uniprot": "P51580",
+        "pdb_id":  "2bzg",                       # FowlerLab canonical
         "length": 245,
         "domains": [(1, 245, "Methyltransferase")],
     },
@@ -1684,41 +1686,65 @@ def _parse_hgvs_pro(s: str) -> Optional[dict]:
     return {"pos": pos, "wt": wt, "alt": alt, "kind": kind}
 
 
+_BIOPHYSICAL_COLS = (
+    "rsa", "bfactor", "hydro1", "hydro2", "grantham",
+    "AA1_psic", "AA2_psic", "delta_psic", "evolutionary_coupling_avg",
+    "volume", "polarity", "tm", "ddg",
+)
+
+
 def _read_mavedb_csv(path: Path) -> "list[dict]":
-    """Stream MaveDB scoreset CSV, parse hgvs_pro, attach numeric columns."""
+    """Stream MaveDB scoreset CSV, parse hgvs_pro, attach numeric columns.
+
+    Captures per-replicate scores, normal-approx 95 % CI bounds, and any
+    biophysical feature columns (RSA, B-factor, hydrophobicity scales,
+    Grantham distance, PSIC conservation, evolutionary coupling, Tm,
+    Rosetta ΔΔG) that the upstream scoreset publishes. Used by
+    ``analyze_vampseq_scoreset`` for the Fowler-lab-style
+    feature-correlation panel.
+    """
     rows = []
+
+    def _num(x):
+        if x in (None, "", "NA"):
+            return None
+        try:
+            return float(x)
+        except Exception:
+            return None
+
     with path.open("r", encoding="utf-8", errors="replace") as fp:
         reader = csv.DictReader(fp)
         for r in reader:
             parsed = _parse_hgvs_pro(r.get("hgvs_pro", ""))
             if not parsed:
                 continue
-            score = r.get("score", "NA")
-            try:
-                score_f = float(score) if score not in ("", "NA") else None
-            except Exception:
-                score_f = None
+            score_f = _num(r.get("score"))
             if score_f is None:
                 continue
-            sd = r.get("sd", "NA")
-            se = r.get("se", "NA")
-            try: sd_f = float(sd)
-            except Exception: sd_f = None
-            try: se_f = float(se)
-            except Exception: se_f = None
+            sd_f  = _num(r.get("sd"))
+            se_f  = _num(r.get("se"))
+            lo_f  = _num(r.get("lower_ci"))
+            hi_f  = _num(r.get("upper_ci"))
+            # Normal-approx fallback when explicit CI not provided
+            if (lo_f is None or hi_f is None) and se_f is not None:
+                lo_f = score_f - 1.96 * se_f
+                hi_f = score_f + 1.96 * se_f
             try: cls = int(float(r.get("abundance_class", "0") or 0))
             except Exception: cls = -1
             reps = []
             for k in ("score1","score2","score3","score4",
                       "score5","score6","score7","score8"):
-                v = r.get(k, "NA")
-                try:
-                    if v not in ("", "NA"):
-                        reps.append(float(v))
-                except Exception:
-                    pass
+                v = _num(r.get(k))
+                if v is not None:
+                    reps.append(v)
+            # Optional biophysical features (any subset may be present)
+            biophys = {c: _num(r.get(c)) for c in _BIOPHYSICAL_COLS
+                        if c in r and _num(r.get(c)) is not None}
             rows.append({**parsed, "score": score_f, "sd": sd_f, "se": se_f,
+                          "lower_ci": lo_f, "upper_ci": hi_f,
                           "abundance_class": cls, "replicates": reps,
+                          "biophys": biophys,
                           "expts": r.get("expts","")})
     return rows
 
@@ -1734,7 +1760,8 @@ def _matplotlib():
 def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
                                domains: "list[tuple]" = (),
                                length: Optional[int] = None,
-                               label: Optional[str] = None) -> Path:
+                               label: Optional[str] = None,
+                               pdb_id: Optional[str] = None) -> Path:
     """Deep VAMP-seq analysis on a MaveDB-format scoreset.
 
     Generates:
@@ -1747,6 +1774,7 @@ def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
       7. summary.json + report.md
     """
     _, plt, LSC = _matplotlib()
+    import numpy as np  # used by several blocks below
     out = DOCS_DIR / f"{timestamp()}_{safe_label(label or gene)}_vampseq"
     plots = out / "Plots"
     plots.mkdir(parents=True, exist_ok=True)
@@ -1936,16 +1964,29 @@ def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
         plt.close(fig)
         summary["abundance_class_counts"] = {str(k): v for k, v in cls_counts.items()}
 
-    # --- 6. Cumulative ranked variants --------------------------------------
-    sorted_scores = sorted(miss)
-    if sorted_scores:
+    # --- 6. Cumulative ranked variants (with CI band) -----------------------
+    # FowlerLab repo emits per-variant CIs alongside the ranked-score plot.
+    # Pair the cumulative curve with a shaded 95 % CI band when MaveDB or
+    # the SE column let us compute it.
+    miss_rows = [r for r in rows if r["kind"] == "missense"]
+    miss_rows.sort(key=lambda r: r["score"])
+    if miss_rows:
         fig, ax = plt.subplots(figsize=(7, 4))
-        xs2 = list(range(len(sorted_scores)))
-        ax.plot(xs2, sorted_scores, color="#08519C", lw=1)
+        xs2 = list(range(len(miss_rows)))
+        ys = np.array([r["score"] for r in miss_rows])
+        ax.plot(xs2, ys, color="#08519C", lw=1, label="score")
+        # Shaded 95 % CI band (sorted-rank order)
+        if all(r.get("lower_ci") is not None and r.get("upper_ci") is not None
+               for r in miss_rows[:50]):
+            los = np.array([r["lower_ci"] or r["score"] for r in miss_rows])
+            his = np.array([r["upper_ci"] or r["score"] for r in miss_rows])
+            ax.fill_between(xs2, los, his, color="#08519C", alpha=0.18,
+                              label="95 % CI")
         ax.axhline(0.5, color="#888", linestyle=":", lw=0.6)
-        n_low = sum(1 for s in sorted_scores if s < 0.5)
-        ax.fill_between(xs2[:n_low], [0]*n_low, sorted_scores[:n_low],
-                          color="#FCBBA1", alpha=0.6, label=f"low (<0.5) n={n_low}")
+        n_low = int((ys < 0.5).sum())
+        ax.fill_between(xs2[:n_low], [0]*n_low, ys[:n_low],
+                          color="#FCBBA1", alpha=0.6,
+                          label=f"low (<0.5) n={n_low}")
         ax.set_xlabel("Variant rank"); ax.set_ylabel("Abundance score")
         ax.set_title(f"{gene} missense variants ranked by abundance")
         ax.legend(loc="lower right", fontsize=8)
@@ -1953,7 +1994,212 @@ def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
         fig.tight_layout()
         fig.savefig(plots / "cumulative.png", dpi=150)
         plt.close(fig)
-        summary["frac_low_abundance"] = n_low / len(sorted_scores)
+        summary["frac_low_abundance"] = n_low / max(len(miss_rows), 1)
+
+    # --- 7. Nonsense scores by position (Fowler-lab QC plot) ----------------
+    # The canonical "do truncations crash the score?" check — scatter every
+    # nonsense variant's score against its residue index, with WT=1 and
+    # nonsense=0 anchors. Truncations clustered near 0 = healthy library.
+    non_rows = [r for r in rows if r["kind"] == "nonsense"]
+    if non_rows:
+        fig, ax = plt.subplots(figsize=(9, 3.2))
+        ax.scatter([r["pos"] for r in non_rows],
+                     [r["score"] for r in non_rows],
+                     s=10, alpha=0.7, c="#D62728", edgecolor="white",
+                     linewidth=0.4)
+        ax.axhline(1.0, color="green", linestyle=":", lw=0.8, label="WT = 1")
+        ax.axhline(0.0, color="red", linestyle=":", lw=0.8, label="nonsense = 0")
+        ax.set_xlim(0, L)
+        ax.set_xlabel(f"{gene} residue position")
+        ax.set_ylabel("Nonsense abundance")
+        ax.set_title(f"{gene} truncation (nonsense) score by position "
+                       f"— n={len(non_rows)} stop codons")
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(alpha=0.25, linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "nonsense_by_position.png", dpi=150)
+        plt.close(fig)
+        summary["nonsense_median"] = float(np.median([r["score"]
+                                                          for r in non_rows]))
+
+    # --- 8. Per-position moving-average median (Fowler-lab style) -----------
+    # FowlerLab uses ma(score, n=3); we render a small panel alongside the
+    # mean ± IQR view rather than replacing it.
+    pos_median = [None] * L
+    by_pos2 = defaultdict(list)
+    for r in rows:
+        if r["kind"] == "missense" and 1 <= r["pos"] <= L:
+            by_pos2[r["pos"]].append(r["score"])
+    for p, vs in by_pos2.items():
+        s2 = sorted(vs)
+        pos_median[p-1] = s2[len(s2)//2]
+    xs3 = [i+1 for i in range(L) if pos_median[i] is not None]
+    ms_med = [pos_median[i] for i in range(L) if pos_median[i] is not None]
+    if ms_med:
+        # 3-residue centred moving average over the median
+        win = 3
+        ma_y = []
+        for k in range(len(ms_med)):
+            lo = max(0, k - win // 2)
+            hi = min(len(ms_med), k + win // 2 + 1)
+            ma_y.append(np.mean(ms_med[lo:hi]))
+        fig, ax = plt.subplots(figsize=(11, 3))
+        ax.plot(xs3, ms_med, color="#9ECAE1", lw=0.6, alpha=0.8,
+                 label="per-residue median")
+        ax.plot(xs3, ma_y, color="#08519C", lw=1.1,
+                 label="3-residue moving average")
+        ax.axhline(1.0, color="green", ls=":", lw=0.5, alpha=0.6)
+        ax.axhline(0.0, color="red", ls=":", lw=0.5, alpha=0.6)
+        ax.set_xlim(0, L)
+        ax.set_xlabel(f"{gene} residue position")
+        ax.set_ylabel("Per-residue missense median")
+        ax.set_title(f"{gene} — per-residue median (Fowler-lab style)")
+        ax.legend(loc="lower left", fontsize=8)
+        ax.grid(alpha=0.25, linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "per_position_median_ma.png", dpi=150)
+        plt.close(fig)
+
+    # --- 9. N×N replicate scatter matrix (when ≥3 reps) ---------------------
+    # Generalises the rep-1-vs-rep-2 plot to the full pairwise grid for
+    # scoresets that publish 3+ replicate columns. PTEN has 8.
+    rep_arrays: "list[list[float]]" = []
+    max_reps = max((len(r.get("replicates") or []) for r in rows), default=0)
+    if max_reps >= 3:
+        for k in range(max_reps):
+            rep_arrays.append([
+                r["replicates"][k]
+                for r in rows
+                if len(r.get("replicates") or []) > k
+                and r["replicates"][k] is not None
+            ])
+        # Pad: align on the row index so pairwise scatter shares cells
+        aligned = []
+        for r in rows:
+            reps = r.get("replicates") or []
+            if len(reps) >= max_reps:
+                aligned.append(reps[:max_reps])
+        if aligned and max_reps <= 8:
+            A = np.array(aligned, dtype=float)
+            n_panels = max_reps
+            fig, axes = plt.subplots(n_panels, n_panels,
+                                       figsize=(2 * n_panels, 2 * n_panels))
+            corrs = np.eye(n_panels)
+            for i in range(n_panels):
+                for j in range(n_panels):
+                    ax = axes[i][j]
+                    if i == j:
+                        ax.hist(A[:, i], bins=40, color="#08519C", alpha=0.85)
+                        ax.set_xticks([]); ax.set_yticks([])
+                        ax.set_title(f"rep{i+1}", fontsize=8)
+                    elif i > j:
+                        ax.scatter(A[:, j], A[:, i], s=2, alpha=0.3,
+                                     c="#3182BD")
+                        ax.set_xticks([]); ax.set_yticks([])
+                    else:
+                        ma_ = ~np.isnan(A[:, i]) & ~np.isnan(A[:, j])
+                        if ma_.sum() >= 3:
+                            xa, ya = A[ma_, j], A[ma_, i]
+                            mx, my = xa.mean(), ya.mean()
+                            cov = ((xa - mx) * (ya - my)).sum()
+                            sx = ((xa - mx) ** 2).sum() ** 0.5
+                            sy = ((ya - my) ** 2).sum() ** 0.5
+                            r = cov / (sx * sy) if sx * sy > 0 else 0.0
+                            corrs[i, j] = corrs[j, i] = r
+                            ax.text(0.5, 0.5, f"r = {r:.2f}",
+                                     ha="center", va="center",
+                                     transform=ax.transAxes,
+                                     fontsize=10, color="#08519C",
+                                     fontweight="bold")
+                        ax.set_xticks([]); ax.set_yticks([])
+            fig.suptitle(f"{gene} VAMP-seq replicate matrix (n_reps={max_reps})",
+                           fontsize=11)
+            fig.tight_layout()
+            fig.savefig(plots / "replicate_matrix.png", dpi=150)
+            plt.close(fig)
+            summary["replicate_matrix_min_r"] = float(corrs[np.triu_indices(
+                n_panels, k=1)].min())
+            summary["replicate_matrix_max_r"] = float(corrs[np.triu_indices(
+                n_panels, k=1)].max())
+
+    # --- 10. Biophysical-feature Spearman ρ panel ---------------------------
+    # When the scoreset publishes biophysical columns (RSA, B-factor,
+    # hydrophobicity, Grantham, PSIC conservation, ΔΔG, Tm, …), correlate
+    # each one with the abundance score — Fowler-lab Fig 3 / 4 staple.
+    feature_corr: "dict[str, float]" = {}
+    feature_n:    "dict[str, int]" = {}
+    for col in _BIOPHYSICAL_COLS:
+        pairs = [(r["biophys"][col], r["score"])
+                 for r in rows
+                 if r.get("biophys", {}).get(col) is not None
+                 and r["kind"] == "missense"]
+        if len(pairs) < 10:
+            continue
+        xs_, ys_ = np.array([p[0] for p in pairs]), \
+                    np.array([p[1] for p in pairs])
+        # Spearman ρ via rankdata to avoid scipy dependency
+        def _rank(a):
+            order = a.argsort()
+            ranks = np.empty(len(a))
+            ranks[order] = np.arange(len(a))
+            return ranks
+        rx, ry = _rank(xs_), _rank(ys_)
+        mx, my = rx.mean(), ry.mean()
+        cov = ((rx - mx) * (ry - my)).sum()
+        sx, sy = ((rx - mx) ** 2).sum() ** 0.5, ((ry - my) ** 2).sum() ** 0.5
+        rho = cov / (sx * sy) if sx * sy > 0 else 0.0
+        feature_corr[col] = float(rho)
+        feature_n[col] = len(pairs)
+    if feature_corr:
+        fig, ax = plt.subplots(figsize=(7, max(3, 0.4 * len(feature_corr))))
+        keys = list(feature_corr.keys())
+        vals = [feature_corr[k] for k in keys]
+        bar_colors = ["#D62728" if v < 0 else "#1F77B4" for v in vals]
+        ax.barh(range(len(keys)), vals, color=bar_colors)
+        ax.set_yticks(range(len(keys)))
+        ax.set_yticklabels([f"{k} (n={feature_n[k]})" for k in keys],
+                             fontsize=8)
+        ax.axvline(0, color="black", lw=0.4)
+        ax.set_xlabel("Spearman ρ vs abundance score")
+        ax.set_title(f"{gene} — biophysical feature correlation")
+        ax.set_xlim(-1, 1)
+        ax.grid(alpha=0.25, axis="x", linestyle=":")
+        fig.tight_layout()
+        fig.savefig(plots / "feature_correlations.png", dpi=150)
+        plt.close(fig)
+        summary["biophysical_spearman"] = feature_corr
+
+    # --- 11. PyMOL colorscale .pml (opt-in via pdb_id) ----------------------
+    # FowlerLab emits PDB-mapped abundance overlays; here we generate a
+    # ready-to-source .pml that loads the user-specified structure and
+    # paints the canonical blue → white → red scale onto chain B-factor
+    # set from each residue's median missense abundance score.
+    if pdb_id:
+        pml_lines = [
+            f"# IGVFagent VAMP-seq abundance overlay for {gene}",
+            f"# Source: {csv_path.name}",
+            f"load https://files.rcsb.org/download/{pdb_id}.cif, struct",
+            "hide everything",
+            "show cartoon",
+            "color grey80",
+        ]
+        # Reset b-factors using a dict of {resi: score_median}
+        pml_lines.append("alter struct, b = 0")
+        for p, vs in by_pos2.items():
+            med = float(np.median(vs))
+            pml_lines.append(
+                f"alter struct and resi {p}, b = {med:.4f}")
+        pml_lines += [
+            "rebuild",
+            "spectrum b, blue_white_red, struct, minimum=0.0, maximum=1.4",
+            "bg_color white",
+            "ray 1200, 900",
+            f"png Plots/{safe_label(gene)}_structure.png, dpi=150",
+        ]
+        (plots / f"{safe_label(gene)}_structure.pml").write_text(
+            "\n".join(pml_lines) + "\n")
+        summary["pymol_pml"] = str(plots / f"{safe_label(gene)}_structure.pml")
+        summary["pdb_id"] = pdb_id
 
     # --- Report -------------------------------------------------------------
     md = ["# VAMP-seq deep analysis — " + gene, "",
@@ -1975,9 +2221,21 @@ def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
            "- `Plots/distribution.png` — score densities by variant kind",
            "- `Plots/heatmap.png` — residue × AA abundance matrix (the iconic VAMP-seq view)",
            "- `Plots/per_position.png` — per-residue mean ± IQR with domain track",
+           "- `Plots/per_position_median_ma.png` — per-residue median + 3-residue moving average",
            "- `Plots/replicate_corr.png` — replicate-1 vs replicate-2 concordance",
            "- `Plots/abundance_class.png` — categorical class breakdown",
-           "- `Plots/cumulative.png` — variants sorted by abundance rank"]
+           "- `Plots/cumulative.png` — variants sorted by abundance rank (with 95 % CI band)",
+           "- `Plots/nonsense_by_position.png` — truncation-score QC (Fowler-lab style)"]
+    if "replicate_matrix_min_r" in summary:
+        md.append("- `Plots/replicate_matrix.png` — N×N replicate scatter "
+                  f"(r ∈ [{summary['replicate_matrix_min_r']:.2f}, "
+                  f"{summary['replicate_matrix_max_r']:.2f}])")
+    if "biophysical_spearman" in summary:
+        md.append("- `Plots/feature_correlations.png` — biophysical-feature Spearman ρ")
+    if pdb_id and summary.get("pymol_pml"):
+        md.append(f"- `{summary['pymol_pml']}` — PyMOL `.pml` overlay "
+                  f"for PDB **{pdb_id}**  "
+                  f"(open in PyMOL and source to render)")
     if cls_counts:
         md += ["", "## Abundance class counts (missense)",
                "| Class | Count |", "|---|---|"]
@@ -2320,7 +2578,9 @@ def cmd_vampseq_analyze(args: argparse.Namespace) -> int:
                 csv, gene=g,
                 domains=meta.get("domains") or (),
                 length=meta.get("length"),
-                label=args.label or g)
+                label=args.label or g,
+                pdb_id=args.pdb_id or
+                  (meta.get("pdb_id") if isinstance(meta, dict) else None))
             outs.append(str(out))
         except Exception as e:
             logger.error("Analyze failed for %s: %s", g, e)
@@ -2493,9 +2753,10 @@ pulled by `igvf-protein`. One PNG per assay under
 igvfagent proteomics vampseq-pull
 igvfagent proteomics vampseq-pull --gene PTEN
 
-# 2) Deep analysis — produces 6 publication-grade plots per gene
-igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep
-igvfagent proteomics vampseq-analyze    # all 6 catalogued targets
+# 2) Deep analysis — produces the Fowler-lab-style plot suite per gene
+igvfagent proteomics vampseq-analyze --gene PTEN --label pten_deep \
+    --pdb-id 1d5r                          # optional PyMOL .pml export
+igvfagent proteomics vampseq-analyze       # all 6 catalogued targets
 
 # 3) Inventory the IGVF Portal raw VAMP-seq experiments by decoding the
 #    alias scheme (<lab>:<GENE>-DMS-<antibody>-Tile<i>-Replicate<j>-Bin<k>).
@@ -2504,7 +2765,8 @@ igvfagent proteomics vampseq-inventory --label igvf_f9
 ```
 The deep analysis follows the canonical VAMP-seq pipeline distilled from
 Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
-2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP):
+2024, and Coyote-Maestas *Nat Commun* 2024 (MultiSTEP), augmented to
+match the public **FowlerLab/VAMPseq** analysis Rmd plot suite:
 
   1. **Distribution** — overlay missense / synonymous / nonsense densities
      anchored at WT=1, nonsense=0.
@@ -2513,13 +2775,32 @@ Matreyek et al. *Nat Genet* 2018, Suiter *eLife* 2020, Clausen *Nat Commun*
   3. **Per-position mean ± IQR with domain track** — annotates which
      domain each residue belongs to (e.g. PTEN phosphatase / C2 / C-tail,
      PRKN Ubl / RING0 / RING1 / IBR / RING2).
-  4. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
+  4. **Per-position median + 3-residue moving average** — Fowler-lab
+     `ma(score, n=3)` style smoothing alongside the per-residue median.
+  5. **Replicate concordance** — Pearson r between rep-1 and rep-2 per
      variant.
-  5. **Abundance class breakdown** — categorical bar (low / low-int /
+  6. **N × N replicate scatter matrix** — emitted when ≥ 3 replicates
+     are present (e.g. PTEN with 8 reps). Lower triangle = scatter,
+     diagonal = per-rep histogram, upper triangle = Pearson r.
+  7. **Abundance class breakdown** — categorical bar (low / low-int /
      intermediate / WT-like / hyper-abundant), matching the Matreyek
      2018 `abundance_class` convention.
-  6. **Cumulative ranked variants** — sorted score curve, with the
-     low-abundance fraction (score < 0.5) shaded.
+  8. **Cumulative ranked variants with 95 % CI band** — sorted score
+     curve, CI envelope from `lower_ci` / `upper_ci` (or normal-approx
+     from `se`), low-abundance fraction (score < 0.5) shaded.
+  9. **Nonsense-by-position scatter** — the canonical "do truncations
+     crash the score?" QC plot from Matreyek 2018 Fig 1.
+  10. **Biophysical-feature Spearman ρ panel** — emitted only when the
+      scoreset carries RSA / B-factor / hydrophobicity / Grantham /
+      PSIC conservation / ΔΔG / Tm columns (most public MaveDB
+      scoresets don't; the FowlerLab supplementary PTEN / TPMT tables
+      do).
+  11. **PyMOL .pml export** — opt-in via `--pdb-id`. Writes a ready-to-
+      source `.pml` that loads the structure, sets per-residue
+      B-factor to the median missense abundance score, and applies the
+      blue → white → red colorscale. Default PDB IDs are pinned to
+      the canonical Fowler-lab structures (PTEN → `1d5r`,
+      TPMT → `2bzg`).
 
 Catalogued MaveDB targets (URN, paper, length, domains) are in
 `MAVEDB_VAMPSEQ_CATALOG` in `proteomics_skill.py` — extend this dict to
@@ -2681,12 +2962,19 @@ def main(argv: Optional["list[str]"] = None) -> int:
 
     s = sub.add_parser("vampseq-analyze",
                         help="Deep VAMP-seq analysis: distribution, residue×AA "
-                              "heatmap, per-residue with domain track, replicate "
-                              "concordance, abundance class, ranked variants.")
+                              "heatmap, per-residue mean/median (+ moving avg), "
+                              "replicate concordance + N×N matrix, abundance "
+                              "class, ranked variants with 95 % CI, "
+                              "nonsense-by-position QC, biophysical-feature "
+                              "Spearman ρ, and an optional PyMOL .pml export.")
     s.add_argument("--gene", default=None,
                     help="Gene to analyze (PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15) "
                          "or omit to analyze all available.")
     s.add_argument("--label", default=None)
+    s.add_argument("--pdb-id", default=None,
+                    help="Optional PDB id (e.g. 1d5r for PTEN). When provided, "
+                         "writes a PyMOL .pml that loads the structure and "
+                         "applies the blue→white→red abundance colorscale.")
     s.set_defaults(func=cmd_vampseq_analyze)
 
     s = sub.add_parser("vampseq-inventory",

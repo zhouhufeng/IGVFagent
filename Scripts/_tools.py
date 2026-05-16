@@ -1102,21 +1102,34 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "proteomics_vampseq_analyze",
-        "Deep VAMP-seq analysis on a MaveDB scoreset: distribution, "
-        "residue×AA heatmap, per-residue mean with domain track, "
-        "replicate concordance, abundance class, cumulative ranked "
-        "variants. Six publication-grade plots per gene.",
+        "Deep VAMP-seq analysis on a MaveDB scoreset. Produces the "
+        "Fowler-lab-style suite of plots: score-density distribution, "
+        "residue×AA heatmap, per-residue mean (± IQR) AND per-residue "
+        "median + 3-residue moving average, replicate concordance "
+        "(rep-1 vs rep-2) AND N×N replicate matrix when ≥ 3 reps, "
+        "abundance-class bar, cumulative ranked variants WITH 95 % CI "
+        "band, nonsense-by-position QC scatter, biophysical-feature "
+        "Spearman ρ panel (when RSA / B-factor / hydrophobicity / "
+        "Grantham / PSIC columns are present), and an optional "
+        "PyMOL .pml export when `pdb_id` is supplied.",
         {
             "type": "object",
             "properties": {
-                "gene":  {**_S_STRING,
-                           "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | "
-                                          "NUDT15. Omit for all targets."},
-                "label": {**_S_STRING},
+                "gene":   {**_S_STRING,
+                            "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | "
+                                           "NUDT15. Omit for all targets."},
+                "label":  {**_S_STRING},
+                "pdb_id": {**_S_STRING,
+                            "description": "Optional PDB id (e.g. 1d5r for "
+                                           "PTEN, 2bzg for TPMT). When set, "
+                                           "emits a PyMOL .pml that overlays "
+                                           "the abundance scale on the "
+                                           "structure."},
             },
         },
         cli=["proteomics", "vampseq-analyze"],
-        flag_map={"gene": "--gene", "label": "--label"},
+        flag_map={"gene": "--gene", "label": "--label",
+                   "pdb_id": "--pdb-id"},
     ),
 
     _T(
