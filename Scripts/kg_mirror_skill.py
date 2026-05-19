@@ -70,7 +70,21 @@ from _endpoints import resolve as _resolve_endpoint  # noqa: E402
 
 ARANGO_BASE = _resolve_endpoint("arango", "IGVF_ARANGO_BASE")
 
-DEFAULT_SKIP = ("variants", "variants_variants")
+# Pathologically-sized collections that we skip by default.
+# - variants                          ~944 GB / 1.87 B docs   (planet-scale)
+# - variants_variants                 ~531 GB / 5.93 B edges  (planet-scale)
+# - genes_coding_variants_scores      ~64 GB  / 69 K docs    (bimodal: mostly
+#                                        127 B but some entries embed ~80 MB
+#                                        per-variant score matrices that
+#                                        time out the AQL cursor)
+# - genes_coding_variants_scores_grp  ~50 GB  / 69 K docs    (same problem)
+# Mirror these per-gene through the Catalog REST API instead.
+DEFAULT_SKIP = (
+    "variants",
+    "variants_variants",
+    "genes_coding_variants_scores",
+    "genes_coding_variants_scores_grp",
+)
 
 
 def setup_logging() -> Path:
