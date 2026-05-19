@@ -70,18 +70,18 @@ from _endpoints import resolve as _resolve_endpoint  # noqa: E402
 
 ARANGO_BASE = _resolve_endpoint("arango", "IGVF_ARANGO_BASE")
 
-# Pathologically-sized collections that we skip by default.
-# - variants                          ~944 GB / 1.87 B docs   (planet-scale)
-# - variants_variants                 ~531 GB / 5.93 B edges  (planet-scale)
-# - genes_coding_variants_scores      ~64 GB  / 69 K docs    (bimodal: mostly
-#                                        127 B but some entries embed ~80 MB
-#                                        per-variant score matrices that
-#                                        time out the AQL cursor)
-# - genes_coding_variants_scores_grp  ~50 GB  / 69 K docs    (same problem)
+# Pathological collections that AQL cursor cannot stream cleanly.
+# - genes_coding_variants_scores      ~64 GB  / 69 K docs   (bimodal: most
+#                                        docs are 127 B but a few embed
+#                                        ~80 MB per-variant score matrices
+#                                        that time out the AQL cursor)
+# - genes_coding_variants_scores_grp  ~50 GB  / 69 K docs   (same problem)
 # Mirror these per-gene through the Catalog REST API instead.
+# NOTE: `variants` (~944 GB / 1.87 B docs) and `variants_variants`
+# (~531 GB / 5.93 B edges) ARE included by default — they are the heavy
+# tail of the graph and the mirror is supposed to be complete. Expect
+# multi-day pulls for those; the skill is resumable.
 DEFAULT_SKIP = (
-    "variants",
-    "variants_variants",
     "genes_coding_variants_scores",
     "genes_coding_variants_scores_grp",
 )
@@ -264,13 +264,45 @@ def _flatten_row(row: Any) -> dict[str, Any]:
     return out
 
 
+_INT64_MAX = (1 << 63) - 1
+_INT64_MIN = -(1 << 63)
+
+
+def _coerce_column(values: list[Any]) -> list[Any]:
+    """Pick a Parquet-safe representation for a column.
+
+    Rules:
+      * If every non-null value is one of (bool, int, float) — keep
+        numeric, but if ANY int overflows int64, demote the whole column
+        to strings.
+      * If types are mixed (str ∪ numeric, or list ∪ dict, etc.), demote
+        to strings. PyArrow refuses to union those.
+      * Otherwise pass through unchanged.
+    """
+    types: "set[type]" = set()
+    has_overflow = False
+    for v in values:
+        if v is None:
+            continue
+        t = type(v)
+        types.add(t)
+        if t is int and not (_INT64_MIN <= v <= _INT64_MAX):
+            has_overflow = True
+    numeric_only = types.issubset({bool, int, float})
+    if has_overflow or (len(types) > 1 and not numeric_only):
+        return [None if v is None else (v if isinstance(v, str) else str(v)) for v in values]
+    return values
+
+
 def _write_shard(rows: list[dict[str, Any]], collection: str, batch_idx: int) -> Path:
     pa = _require_pkg("pyarrow", "Required to write Parquet shards.")
     pq = __import__("pyarrow.parquet", fromlist=["parquet"])
     out = _collection_dir(collection) / f"{batch_idx:05d}.parquet"
     # Union schema across all rows so missing fields become nulls
     keys = {k for r in rows for k in r.keys()}
-    table = pa.Table.from_pylist([{k: r.get(k) for k in keys} for r in rows])
+    cols: dict[str, list[Any]] = {k: [r.get(k) for r in rows] for k in keys}
+    cols = {k: _coerce_column(v) for k, v in cols.items()}
+    table = pa.Table.from_pydict(cols)
     pq.write_table(table, out, compression="zstd")
     return out
 
