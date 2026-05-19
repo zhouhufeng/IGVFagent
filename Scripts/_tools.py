@@ -1768,6 +1768,67 @@ _TOOLS: "list[Tool]" = [
     # STARR-seq allelic analysis (clean-room rewrite of mpralm)
     # Ref: gaochengwen/STARR-seq-Data-Analysis (no LICENSE; clean-room)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Local IGVF Knowledge Graph mirror (Arango -> Parquet + DuckDB)
+    # ------------------------------------------------------------------
+    _T(
+        "kg_mirror_inventory",
+        "List Arango collections in the IGVF Catalog KG with per-collection "
+        "document counts and on-disk byte sizes. Writes a CSV inventory.",
+        {"type": "object", "properties": {}},
+        cli=["kg-mirror", "inventory"],
+    ),
+    _T(
+        "kg_mirror_pull",
+        "Mirror a single Arango collection locally: stream via AQL cursor "
+        "and persist as zstd-compressed Parquet shards under "
+        "Data/Warehouse/KG/<collection>/. Resumable — re-run to continue.",
+        {"type": "object", "properties": {
+            "collection": {**_S_STRING},
+            "batch_size": {**_S_INTEGER, "default": 5000},
+            "max_rows":   {**_S_INTEGER},
+            "restart":    {**_S_BOOLEAN, "default": False},
+        }, "required": ["collection"]},
+        cli=["kg-mirror", "pull"],
+        flag_map={"collection": "--collection", "batch_size": "--batch-size",
+                   "max_rows": "--max-rows", "restart": "--restart"},
+    ),
+    _T(
+        "kg_mirror_pull_all",
+        "Mirror every Arango collection except the skip list (default skip: "
+        "variants and variants_variants — together ~1.5 TB). Small "
+        "collections first, then medium, then large. Resumable.",
+        {"type": "object", "properties": {
+            "skip":      {**_S_STRING, "default": "variants,variants_variants"},
+            "only":      {**_S_STRING},
+            "include_giants": {**_S_BOOLEAN, "default": False},
+            "max_collection_bytes": {**_S_INTEGER},
+            "batch_size": {**_S_INTEGER, "default": 5000},
+            "max_rows":   {**_S_INTEGER},
+            "restart":    {**_S_BOOLEAN, "default": False},
+        }},
+        cli=["kg-mirror", "pull-all"],
+        flag_map={"skip": "--skip", "only": "--only",
+                   "include_giants": "--include-giants",
+                   "max_collection_bytes": "--max-collection-bytes",
+                   "batch_size": "--batch-size", "max_rows": "--max-rows",
+                   "restart": "--restart"},
+    ),
+    _T(
+        "kg_mirror_register",
+        "Register the on-disk Parquet shards as DuckDB views in "
+        "Data/Warehouse/igvf_kg_mirror.duckdb (one view per collection, "
+        "named kg_<collection>).",
+        {"type": "object", "properties": {}},
+        cli=["kg-mirror", "register"],
+    ),
+    _T(
+        "kg_mirror_verify",
+        "Print row counts for every kg_* view in the local DuckDB warehouse.",
+        {"type": "object", "properties": {}},
+        cli=["kg-mirror", "verify"],
+    ),
+
     _T(
         "starr_pull_portal",
         "Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
