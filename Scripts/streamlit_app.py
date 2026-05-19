@@ -737,19 +737,24 @@ def _resolve_md_image_path(raw: str, base_dir: Path) -> "str|None":
     return None
 
 
-def _render_markdown_with_images(body: str, *, base_dir: Path) -> None:
-    """Render a markdown body, but replace `![](path)` refs with real
-    Streamlit image widgets so they actually show up in the browser.
+def _render_markdown_with_images(body: str, *, base_dir: Path) -> "set[str]":
+    """Render a markdown body, but replace ``![alt](path)`` refs with
+    real Streamlit image widgets so they actually show up in the browser.
 
-    Splits the body at each image reference and emits alternating
-    ``st.markdown`` text chunks and ``st.image`` / ``_render_svg``
-    widgets. Falls through to a plain markdown render if no image refs
-    are present (the common case).
+    Returns the **set of resolved file paths the helper rendered inline**
+    so callers can dedup against their own "linked artefacts" list
+    without accidentally stripping images we did NOT render (e.g. SVGs
+    that the report mentions only as backtick-wrapped bullet items, with
+    no ``![](...)`` markdown image syntax).
+
+    Falls through to a plain ``st.markdown`` render if no image refs are
+    present (the common case).
     """
+    rendered_inline: "set[str]" = set()
     matches = list(_MD_IMG_RE.finditer(body))
     if not matches:
         st.markdown(body)
-        return
+        return rendered_inline
     cursor = 0
     for m in matches:
         # Emit any text before this image
@@ -765,9 +770,11 @@ def _render_markdown_with_images(body: str, *, base_dir: Path) -> None:
             st.markdown(f"![{alt}]({resolved})")
         elif resolved.lower().endswith(".svg"):
             _render_svg(resolved)
+            rendered_inline.add(resolved)
         else:
             try:
                 st.image(resolved, caption=alt, use_container_width=True)
+                rendered_inline.add(resolved)
             except Exception as e:
                 st.text(f"(image unavailable: {alt}) {e}")
                 _download_button(resolved, key_hint=f"mdimg_{m.start()}")
@@ -777,6 +784,7 @@ def _render_markdown_with_images(body: str, *, base_dir: Path) -> None:
         tail = body[cursor:]
         if tail.strip():
             st.markdown(tail)
+    return rendered_inline
 
 
 def _render_one(path: str, *, depth: int = 0) -> None:
@@ -824,24 +832,39 @@ def _render_one(path: str, *, depth: int = 0) -> None:
         # Render the body with `![alt](path)` image references rewritten
         # to real Streamlit image widgets (Streamlit's markdown cannot
         # HTTP-fetch local file paths, so the browser shows a broken icon
-        # for every `![alt](Plots/foo.png)` style ref in a report).
-        _render_markdown_with_images(body, base_dir=Path(path).parent)
-        # Recurse into other paths the report references (CSV/JSONL/etc.).
+        # for every `![alt](Plots/foo.png)` style ref in a report). The
+        # helper returns the set of file paths it actually rendered
+        # inline; we use that for dedup so images that the report
+        # mentions only as bullet items (backtick-wrapped paths, NO
+        # `![](...)` syntax) still appear in the linked-artefacts panel.
+        rendered_inline = _render_markdown_with_images(body, base_dir=Path(path).parent)
+        # Render every other referenced artefact (CSV/JSONL/PDF/etc. AND
+        # any image we did NOT already render inline).
         if depth == 0:
             referenced = _extract_paths_from_text(body)
-            # Filter out images we already rendered inline.
-            referenced = [r for r in referenced
-                          if not r.lower().endswith((".png", ".jpg",
-                                                       ".jpeg", ".gif",
-                                                       ".svg"))]
+            referenced = [r for r in referenced if r not in rendered_inline]
             if referenced:
-                st.caption(
-                    f"Other linked artefacts in this report "
-                    f"({len(referenced)}):"
-                )
-                for ref in referenced[:12]:
-                    with st.expander(f"📎 {Path(ref).name}", expanded=False):
-                        _render_one(ref, depth=depth + 1)
+                # Images get their own dedicated rendering so they're not
+                # buried inside an expander.
+                imgs_to_render = [
+                    r for r in referenced
+                    if r.lower().endswith((".png", ".jpg", ".jpeg",
+                                            ".gif", ".svg"))
+                ]
+                non_imgs = [r for r in referenced if r not in imgs_to_render]
+                if imgs_to_render:
+                    st.caption(
+                        f"Linked images in this report ({len(imgs_to_render)}):"
+                    )
+                    for img in imgs_to_render:
+                        _render_one(img, depth=depth + 1)
+                if non_imgs:
+                    st.caption(
+                        f"Other linked artefacts in this report ({len(non_imgs)}):"
+                    )
+                    for ref in non_imgs[:12]:
+                        with st.expander(f"📎 {Path(ref).name}", expanded=False):
+                            _render_one(ref, depth=depth + 1)
         return
     if low.endswith((".html", ".htm")):
         try:
