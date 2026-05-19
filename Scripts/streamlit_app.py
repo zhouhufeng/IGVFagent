@@ -709,6 +709,76 @@ def _render_jsonl(path: str, max_rows: int = 50) -> None:
         _download_button(path, key_hint="jsonl_fallback")
 
 
+
+
+# Match standard markdown image syntax: ![alt text](path)
+# Captures: group(1) = alt, group(2) = path
+_MD_IMG_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
+
+
+def _resolve_md_image_path(raw: str, base_dir: Path) -> "str|None":
+    """Resolve a path from a markdown ![alt](raw) reference.
+
+    Tries: (a) absolute path verbatim, (b) relative to the markdown
+    file's directory (so a report under Docs/MPRA can reference
+    `Plots/foo.png` and we find Docs/MPRA/Plots/foo.png), (c) relative
+    to the project root (so `Docs/MPRA/Plots/foo.png` works too).
+    """
+    if raw.startswith(("http://", "https://", "data:")):
+        return raw  # leave network/data URIs alone
+    for cand in (Path(raw),
+                  base_dir / raw,
+                  _PROJECT_ROOT / raw):
+        try:
+            if cand.is_file():
+                return str(cand)
+        except OSError:
+            continue
+    return None
+
+
+def _render_markdown_with_images(body: str, *, base_dir: Path) -> None:
+    """Render a markdown body, but replace `![](path)` refs with real
+    Streamlit image widgets so they actually show up in the browser.
+
+    Splits the body at each image reference and emits alternating
+    ``st.markdown`` text chunks and ``st.image`` / ``_render_svg``
+    widgets. Falls through to a plain markdown render if no image refs
+    are present (the common case).
+    """
+    matches = list(_MD_IMG_RE.finditer(body))
+    if not matches:
+        st.markdown(body)
+        return
+    cursor = 0
+    for m in matches:
+        # Emit any text before this image
+        if m.start() > cursor:
+            text = body[cursor:m.start()]
+            if text.strip():
+                st.markdown(text)
+        alt = m.group(1) or Path(m.group(2)).name
+        resolved = _resolve_md_image_path(m.group(2), base_dir)
+        if resolved is None:
+            st.caption(f"_(missing image: {m.group(2)})_")
+        elif resolved.startswith(("http://", "https://", "data:")):
+            st.markdown(f"![{alt}]({resolved})")
+        elif resolved.lower().endswith(".svg"):
+            _render_svg(resolved)
+        else:
+            try:
+                st.image(resolved, caption=alt, use_container_width=True)
+            except Exception as e:
+                st.text(f"(image unavailable: {alt}) {e}")
+                _download_button(resolved, key_hint=f"mdimg_{m.start()}")
+        cursor = m.end()
+    # Tail
+    if cursor < len(body):
+        tail = body[cursor:]
+        if tail.strip():
+            st.markdown(tail)
+
+
 def _render_one(path: str, *, depth: int = 0) -> None:
     """Render a single artefact path with the right widget."""
     low = path.lower()
@@ -751,14 +821,23 @@ def _render_one(path: str, *, depth: int = 0) -> None:
         except Exception as e:
             st.text(f"(could not read {path}: {e})")
             return
-        st.markdown(body)
-        # Recurse into paths the report references, but only one level deep
-        # to avoid loops.
+        # Render the body with `![alt](path)` image references rewritten
+        # to real Streamlit image widgets (Streamlit's markdown cannot
+        # HTTP-fetch local file paths, so the browser shows a broken icon
+        # for every `![alt](Plots/foo.png)` style ref in a report).
+        _render_markdown_with_images(body, base_dir=Path(path).parent)
+        # Recurse into other paths the report references (CSV/JSONL/etc.).
         if depth == 0:
             referenced = _extract_paths_from_text(body)
+            # Filter out images we already rendered inline.
+            referenced = [r for r in referenced
+                          if not r.lower().endswith((".png", ".jpg",
+                                                       ".jpeg", ".gif",
+                                                       ".svg"))]
             if referenced:
                 st.caption(
-                    f"Linked artefacts in this report ({len(referenced)}):"
+                    f"Other linked artefacts in this report "
+                    f"({len(referenced)}):"
                 )
                 for ref in referenced[:12]:
                     with st.expander(f"📎 {Path(ref).name}", expanded=False):
@@ -822,54 +901,51 @@ def _render_artefacts(paths: "list[str]") -> None:
         else:
             others.append(p)
 
-    # Images: gallery up to 6 inline (raster formats only — st.image in
-    # Streamlit ≥1.50 no longer renders SVGs, so they take the dedicated
-    # path below).
+    # Images: render every PNG/JPG/JPEG/GIF inline.
+    # Previously we capped at 6 per category, which silently hid plot-heavy
+    # runs (encode_pipeline / multiome / mpra literature-demo all emit
+    # 6-12+ figures). Show them all in a 2-column gallery.
     if images:
-        cols = st.columns(min(2, len(images)))
-        for idx, img in enumerate(images[:6]):
+        cols = st.columns(2)
+        for idx, img in enumerate(images):
             try:
-                cols[idx % len(cols)].image(
+                cols[idx % 2].image(
                     img, caption=Path(img).name, use_container_width=True,
                 )
             except Exception as e:
-                cols[idx % len(cols)].text(
+                cols[idx % 2].text(
                     f"(image unavailable: {Path(img).name}) {e}"
                 )
-        if len(images) > 6:
-            st.caption(f"… and {len(images) - 6} more image(s) not shown")
+                _download_button(img, key_hint=f"img_fb_{idx}")
 
-    # SVGs: render each via the dedicated SVG renderer (preserves
-    # <style> / <defs> / gradients via st.components.v1.html iframe).
-    for svg_path in svgs[:6]:
+    # SVGs: render every one via the dedicated SVG renderer.
+    for svg_path in svgs:
         _render_svg(svg_path)
-    if len(svgs) > 6:
-        st.caption(f"… and {len(svgs) - 6} more SVG(s) not shown")
 
     # Markdown reports — render body inline AND chase any file paths the
     # report references so the user sees the underlying CSV / JSONL / PDF
     # / PNG without having to copy a path into a terminal.
-    for md in markdowns[:6]:
+    for md in markdowns:
         with st.expander(f"📄 {Path(md).name}", expanded=False):
             _render_one(md, depth=0)
 
-    for path in pdfs[:4]:
+    for path in pdfs:
         with st.expander(f"📕 {Path(path).name}", expanded=False):
             _render_one(path)
 
-    for path in tabular[:6]:
+    for path in tabular:
         with st.expander(f"📊 {Path(path).name}", expanded=False):
             _render_one(path)
 
-    for path in jsonl_files[:4]:
+    for path in jsonl_files:
         with st.expander(f"🧾 {Path(path).name}", expanded=False):
             _render_one(path)
 
-    for path in jsons[:4]:
+    for path in jsons:
         with st.expander(f"📦 {Path(path).name}", expanded=False):
             _render_one(path)
 
-    for o in others[:8]:
+    for o in others:
         with st.expander(f"📁 {Path(o).name or o}", expanded=False):
             _render_one(o)
 
@@ -1044,7 +1120,8 @@ def main() -> None:
         # Replay prior conversation
         for entry in st.session_state.messages:
             with st.chat_message(entry["role"]):
-                st.markdown(entry.get("content", ""))
+                _render_markdown_with_images(entry.get("content", ""),
+                                              base_dir=_PROJECT_ROOT)
                 if entry.get("artefacts"):
                     _render_artefacts(entry["artefacts"])
                 if entry.get("meta"):
@@ -1183,12 +1260,16 @@ def main() -> None:
             return
 
         # Final answer (or error). On error stops, render as st.error so
-        # the message is impossible to miss; otherwise render markdown.
+        # the message is impossible to miss; otherwise render markdown
+        # with image-aware chunking so any `![alt](path)` refs the LLM
+        # included end up as real widgets, not broken-image icons.
         if result.stop_reason != "complete" and result.final_answer:
             st.error("Agent run ended before completion. See details below.")
-            st.markdown(result.final_answer)
+            _render_markdown_with_images(result.final_answer,
+                                          base_dir=_PROJECT_ROOT)
         elif result.final_answer:
-            st.markdown(result.final_answer)
+            _render_markdown_with_images(result.final_answer,
+                                          base_dir=_PROJECT_ROOT)
         else:
             st.warning("_The agent finished without producing a final answer._")
 
