@@ -881,10 +881,11 @@ All API responses are cached under `Data/Cache/References/<source>/` with a
 
 The full IGVF Catalog Knowledge Graph in Arango is ~2 TB across 58
 collections (25 document + 33 edge). The `kg-mirror` skill streams every
-collection except the two planet-scale ones (`variants` ~944 GB doc and
-`variants_variants` ~531 GB edge) via the read-only AQL cursor API and
-persists each as zstd-compressed Parquet shards, then registers a DuckDB
-warehouse with one view per collection. Lets `igvfagent kg ...` and the
+collection except the two planet-scale `variants` tables and the two wide-doc
+`genes_coding_variants_scores*` tables (which embed ~80 MB per-variant
+score matrices that consistently time out the AQL cursor). Streams via
+the read-only AQL cursor API, persists each as zstd-compressed Parquet
+shards, then registers a DuckDB warehouse with one view per collection. Lets `igvfagent kg ...` and the
 downstream skills run offline against the cached copy. See
 [`Docs/Skills/KG_MIRROR_SKILL.md`](Docs/Skills/KG_MIRROR_SKILL.md).
 
