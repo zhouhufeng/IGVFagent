@@ -877,6 +877,45 @@ All API responses are cached under `Data/Cache/References/<source>/` with a
 14-day TTL; re-querying is free. Reports under
 `Docs/References/<timestamp>_<subcommand>_<label>/`.
 
+### Local IGVF KG mirror (Arango → DuckDB)
+
+The full IGVF Catalog Knowledge Graph in Arango is ~2 TB across 58
+collections (25 document + 33 edge). The `kg-mirror` skill streams every
+collection except the two planet-scale ones (`variants` ~944 GB doc and
+`variants_variants` ~531 GB edge) via the read-only AQL cursor API and
+persists each as zstd-compressed Parquet shards, then registers a DuckDB
+warehouse with one view per collection. Lets `igvfagent kg ...` and the
+downstream skills run offline against the cached copy. See
+[`Docs/Skills/KG_MIRROR_SKILL.md`](Docs/Skills/KG_MIRROR_SKILL.md).
+
+```bash
+# Requires Arango read credentials in .env:
+#   IGVF_ARANGO_USER=guest
+#   IGVF_ARANGO_PASSWORD=guestigvfcatalog
+
+# 1. Inventory the upstream KG
+igvfagent kg-mirror inventory
+
+# 2. Mirror everything except the two planet-scale variants tables (default)
+igvfagent kg-mirror pull-all
+
+# 3. Or pull one collection at a time (resumable — state on disk)
+igvfagent kg-mirror pull --collection genes
+igvfagent kg-mirror pull --collection coding_variants --batch-size 10000
+
+# 4. Cap to small/medium collections only (≤ 10 GB each)
+igvfagent kg-mirror pull-all --max-collection-bytes 10000000000
+
+# 5. Register Parquet shards as DuckDB views
+igvfagent kg-mirror register
+igvfagent kg-mirror verify
+```
+
+Storage layout:
+- `Data/Warehouse/KG/<collection>/<NNNN>.parquet` — ZSTD-compressed shards
+- `Data/Warehouse/KG/_state/<collection>.json` — resume cursor
+- `Data/Warehouse/igvf_kg_mirror.duckdb` — one `kg_<collection>` view each
+
 ### Knowledge Graph traversal
 
 The orchestrator-friendly **comprehensive context** tool. Starts from a
@@ -1581,6 +1620,7 @@ maintainers for releasing their code openly.
 | **SPLiT-seq / Parse** pipeline (`splitseq`) | [Chipeyown/SPLiT-seq-Data-Analysis_Toolkit](https://github.com/Chipeyown/SPLiT-seq-Data-Analysis_Toolkit) | MIT (Chipeyown) | Vendored Rd1/Rd2/Rd3 96-well barcode whitelists, knee-plot cell calling, pre/post QC violins, per-Rd1-well summary heatmap, optional Scrublet doublet detection. |
 | **Genotype demultiplexing** (referenced in `multiseq`) | [single-cell-genetics/vireo](https://github.com/single-cell-genetics/vireo) · [wheaton5/souporcell](https://github.com/wheaton5/souporcell) | Apache-2.0 / MIT | Documented alternatives when natural genotype variation is available instead of barcoded tags. |
 | **Codex / agent runtime** | [openai/codex](https://github.com/openai/codex) | Apache-2.0 | Reference agent runtime; `cli.py` follows its tool-dispatch pattern. |
+| **Local IGVF KG mirror** (`kg-mirror`) | [arangodb/arangodb](https://github.com/arangodb/arangodb) (Arango DB hosting the upstream KG) + [duckdb/duckdb](https://github.com/duckdb/duckdb) (local mirror) | Apache-2.0 (Arango community) + MIT (DuckDB) | Read-only AQL cursor streaming of every collection except `variants` + `variants_variants`; persist as ZSTD-Parquet shards under `Data/Warehouse/KG/`; register as DuckDB views in `Data/Warehouse/igvf_kg_mirror.duckdb` for offline querying. |
 
 ### Methods papers cited in the skills
 
