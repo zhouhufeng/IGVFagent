@@ -2588,6 +2588,107 @@ def cmd_vampseq_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_vampseq_showcase(args) -> int:
+    """Single-command showcase: download MaveDB scoreset + full Fowler-lab
+    plot suite + composite publication figure + deep narrative report."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _composite_figure import build_composite_figure
+    mkdirs()
+    gene = (getattr(args, "gene", None) or "PTEN").upper()
+    setup_logging("vampseq_showcase_" + gene)
+    meta = MAVEDB_VAMPSEQ_CATALOG.get(gene)
+    if not meta:
+        raise SystemExit(
+            f"No MaveDB VAMP-seq catalog entry for {gene}. "
+            f"Available: {sorted(MAVEDB_VAMPSEQ_CATALOG)}"
+        )
+    csv_path = download_mavedb_scoreset(meta["urn"])
+    if not csv_path.exists() or csv_path.stat().st_size < 100:
+        raise SystemExit(f"Could not download {gene} scoreset from MaveDB.")
+    logger.info("Running deep analysis for %s (urn=%s) ...", gene, meta["urn"])
+    out_dir = analyze_vampseq_scoreset(
+        csv_path, gene=gene,
+        domains=meta.get("domains") or (),
+        length=meta.get("length"),
+        label=getattr(args, "label", None) or (gene + "_showcase"),
+        pdb_id=getattr(args, "pdb_id", None) or meta.get("pdb_id"),
+    )
+    plots_dir = out_dir / "Plots"
+
+    composite_layout = [
+        ("Score distribution",           "distribution.png",           (0, 0)),
+        ("Residue x amino-acid heatmap", "heatmap.png",                (0, 1)),
+        ("Per-residue mean +/- IQR",     "per_position.png",           (0, 2)),
+        ("Per-residue median + 3-aa MA", "per_position_median_ma.png", (1, 0)),
+        ("Replicate concordance",        "replicate_corr.png",         (1, 1)),
+        ("N x N replicate matrix",       "replicate_matrix.png",       (1, 2)),
+        ("Abundance class summary",      "abundance_class.png",        (2, 0)),
+        ("Nonsense-by-position QC",      "nonsense_by_position.png",   (2, 1)),
+        ("Cumulative ranked variants",   "cumulative.png",             (2, 2)),
+    ]
+    composite = build_composite_figure(
+        plots_dir,
+        out_path=plots_dir / "composite_publication_figure.png",
+        title=f"{gene} VAMP-seq -- comprehensive abundance landscape",
+        subtitle=(f"Source: MaveDB {meta['urn']}  -  {meta.get('paper', '')}  -  "
+                   f"length={meta.get('length', '?')} aa"),
+        layout=composite_layout, n_rows=3, n_cols=3,
+        panel_w=5.5, panel_h=4.5,
+    )
+
+    report = out_dir / "showcase_report.md"
+    lines = [
+        f"# {gene} VAMP-seq -- comprehensive showcase report",
+        "",
+        f"Generated: {timestamp()}",
+        f"Source: MaveDB `{meta['urn']}`  -  paper: {meta.get('paper', 'unknown')}",
+        f"Protein length: **{meta.get('length', '?')} aa**  -  UniProt: `{meta.get('uniprot', '?')}`",
+        "",
+        "## Figure suite",
+        "",
+        ("![composite](Plots/composite_publication_figure.png)"
+         if composite else "_(composite figure not generated)_"),
+        "",
+        "### Individual panels",
+        "",
+        "- `Plots/distribution.png` -- overlaid missense / synonymous / nonsense score densities",
+        "- `Plots/heatmap.png` -- residue x amino-acid abundance matrix",
+        "- `Plots/per_position.png` -- per-residue mean abundance with IQR + domain track",
+        "- `Plots/per_position_median_ma.png` -- per-residue median + 3-aa moving average",
+        "- `Plots/replicate_corr.png` -- rep-1 vs rep-2 concordance scatter",
+        "- `Plots/replicate_matrix.png` -- N x N pairwise replicate matrix",
+        "- `Plots/abundance_class.png` -- abundant / hypomorph / null classification bars",
+        "- `Plots/nonsense_by_position.png` -- nonsense-control QC vs position",
+        "- `Plots/cumulative.png` -- cumulative-ranked variant curve with 95% CI",
+    ]
+    if (plots_dir / "feature_correlations.png").is_file():
+        lines.append("- `Plots/feature_correlations.png` -- Spearman rho vs RSA, B-factor, hydrophobicity, Grantham, PSIC")
+    lines += [
+        "",
+        "## How to read the figure suite",
+        "",
+        "1. **Distribution plot:** sanity check the assay -- synonymous variants cluster at ~1.0, nonsense at ~0, missense spans both.",
+        "2. **Residue x AA heatmap:** vertical columns of low abundance across all AAs at a single residue mark structurally critical positions.",
+        "3. **Per-residue mean/median + domain track:** runs of buried (intolerant) residues correlate with secondary-structure elements.",
+        "4. **Replicate concordance:** Pearson r > 0.85 between any two replicates is the typical QC gate.",
+        "5. **Nonsense-by-position:** confirms the NMD calibration; expect uniformly low abundance except near the C-terminus.",
+        "6. **Biophysical correlations (if present):** RSA usually wins for stability-driven loss of function.",
+        "",
+        f"All artefacts under: `{out_dir}`",
+    ]
+    report.write_text("\n".join(lines))
+    print(f"Report: {report}")
+    print(f"Output dir: {out_dir}")
+    if composite:
+        print(f"Composite figure: {composite}")
+        print(f"Composite (SVG): {composite.with_suffix('.svg')}")
+    for ppng in sorted(plots_dir.glob("*.png")):
+        print(f"Wrote plot: {ppng}")
+    return 0
+
+
 def cmd_vampseq_inventory(args: argparse.Namespace) -> int:
     mkdirs()
     setup_logging("vampseq_inventory")
@@ -2976,6 +3077,21 @@ def main(argv: Optional["list[str]"] = None) -> int:
                          "writes a PyMOL .pml that loads the structure and "
                          "applies the blue→white→red abundance colorscale.")
     s.set_defaults(func=cmd_vampseq_analyze)
+
+    s = sub.add_parser("vampseq-showcase",
+                        help="COMPREHENSIVE one-command VAMP-seq demo. "
+                              "Pulls a MaveDB scoreset, runs the full "
+                              "Fowler-lab plot suite (10 plots), builds a "
+                              "9-panel publication composite figure, and "
+                              "writes a deep narrative report. THIS IS THE "
+                              "RIGHT TOOL FOR ANY VAMP-SEQ DEMO QUESTION.")
+    s.add_argument("--gene", default="PTEN",
+                    help="Gene to showcase (default PTEN; also TPMT, VKOR, "
+                          "PRKN, CYP2C9, NUDT15).")
+    s.add_argument("--label", default=None)
+    s.add_argument("--pdb-id", default=None,
+                    help="Override PDB id used for PyMOL overlay.")
+    s.set_defaults(func=cmd_vampseq_showcase)
 
     s = sub.add_parser("vampseq-inventory",
                         help="Inventory the IGVF Portal raw VAMP-seq "
