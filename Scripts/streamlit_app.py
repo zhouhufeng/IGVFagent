@@ -59,6 +59,15 @@ except Exception:
     except Exception:
         _scviz = None
 
+# Network visualizer — optional, needs networkx + matplotlib + pyvis.
+try:
+    from igvfagent import network_visualizer as _nwviz  # type: ignore
+except Exception:
+    try:
+        import network_visualizer as _nwviz  # type: ignore
+    except Exception:
+        _nwviz = None
+
 
 # --------------------------- Page config -----------------------------------
 
@@ -869,10 +878,20 @@ def _render_one(path: str, *, depth: int = 0) -> None:
     if low.endswith((".html", ".htm")):
         try:
             html = Path(path).read_text()
-            if len(html) < 1_000_000:
-                st.components.v1.html(html, height=480, scrolling=True)
+            if len(html) < 1_500_000:
+                # Heuristic: pyvis / vis.js / cytoscape / d3 network HTML
+                # files look like network graphs and want a taller iframe.
+                lower_html = html[:5000].lower()
+                is_network_html = any(
+                    marker in lower_html
+                    for marker in ("vis-network", "vis.js", "cytoscape",
+                                   'class="vis-network"', "force-directed",
+                                   "d3.forcesimulation")
+                )
+                height = 820 if is_network_html else 480
+                st.components.v1.html(html, height=height, scrolling=True)
             else:
-                st.caption("HTML >1MB; download to view.")
+                st.caption("HTML >1.5MB; download to view.")
         except Exception as e:
             st.text(f"(could not read {path}: {e})")
         _download_button(path, key_hint="html")
@@ -1089,8 +1108,9 @@ def main() -> None:
     #                       any .h5ad produced by sc-analyze
     # The KG and Single-cell tabs are independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab, sc_tab = st.tabs(
-        ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell"]
+    chat_tab, kg_tab, sc_tab, nw_tab = st.tabs(
+        ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell",
+         "🔗 Network"]
     )
 
     with kg_tab:
@@ -1125,6 +1145,22 @@ def main() -> None:
             except Exception as exc:  # pylint: disable=broad-except
                 import traceback
                 st.error(f"Single-cell visualizer error: {exc}")
+                with st.expander("Traceback", expanded=False):
+                    st.code(traceback.format_exc())
+
+    with nw_tab:
+        if _nwviz is None:
+            st.warning(
+                "Network visualizer not available — needs `networkx`, "
+                "`matplotlib`, `pyvis`, and `pandas` in this venv. Install with:\n\n"
+                "```\npip install networkx matplotlib pyvis pandas\n```"
+            )
+        else:
+            try:
+                _nwviz.render_streamlit_panel(st)
+            except Exception as exc:  # pylint: disable=broad-except
+                import traceback
+                st.error(f"Network visualizer error: {exc}")
                 with st.expander("Traceback", expanded=False):
                     st.code(traceback.format_exc())
 
