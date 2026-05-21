@@ -2038,6 +2038,58 @@ _TOOLS: "list[Tool]" = [
     # ------------------------------------------------------------------
     # Local IGVF Knowledge Graph mirror (Arango -> Parquet + DuckDB)
     # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
+    # MaveDB → genomic coordinates mapping (clean-room reimpl of
+    # ave-dcd/dcd_mapping, MIT)
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "mavedb_map_scoreset",
+        "★ MAP MAVEDB SCORESET VARIANTS TO GENOMIC COORDINATES ★. Takes "
+        "either a MaveDB URN or a gene symbol (looked up in the curated "
+        "VAMP-seq catalog: PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15), parses "
+        "every variant's HGVSp, resolves chr/pos/ref/alt via the public "
+        "Ensembl REST API, and emits TSV + VCF + summary JSON. Clean-room "
+        "reimplementation of ave-dcd/dcd_mapping (MIT) without UTA / "
+        "SeqRepo / BLAT — uses only Ensembl REST + an on-disk JSON cache. "
+        "For amino acids with multiple alt codons, emits one row per "
+        "candidate single-nt change with `candidate_idx` + `n_candidates`. "
+        "USE THIS to make MAVE / VAMP-seq scores cross-referenceable "
+        "with ClinVar, gnomAD, GWAS catalogues.",
+        {
+            "type": "object",
+            "properties": {
+                "urn":     {**_S_STRING, "description":
+                            "MaveDB URN (e.g. urn:mavedb:00000013-a-1)."},
+                "gene":    {**_S_STRING, "description":
+                            "HGNC gene symbol (PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15)."},
+                "species": {**_S_STRING, "default": "human"},
+                "label":   {**_S_STRING},
+            },
+        },
+        cli=["mavedb", "map-scoreset"],
+        flag_map={"urn": "--urn", "gene": "--gene", "species": "--species",
+                   "label": "--label"},
+    ),
+    _T(
+        "mavedb_showcase",
+        "★ ONE-COMMAND MAVEDB DEMO ★. Downloads the canonical "
+        "MaveDB scoreset for a gene, maps every variant to genomic "
+        "coordinates, writes TSV + VCF + summary JSON + a 2-panel "
+        "composite figure (per-protein-position variant coverage + "
+        "mapping-outcome bar) + a narrative report. USE THIS for any "
+        "'show me MAVE mapping for <gene>' demo question.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":    {**_S_STRING, "default": "PTEN"},
+                "species": {**_S_STRING, "default": "human"},
+                "label":   {**_S_STRING},
+            },
+        },
+        cli=["mavedb", "showcase"],
+        flag_map={"gene": "--gene", "species": "--species", "label": "--label"},
+    ),
+
     _T(
         "kg_mirror_inventory",
         "List Arango collections in the IGVF Catalog KG with per-collection "
