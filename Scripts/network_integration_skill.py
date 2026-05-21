@@ -926,6 +926,30 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     s.add_argument("--verbose", action="store_true")
     s.set_defaults(func=cmd_steiner)
 
+    s = sub.add_parser("viz",
+                        help="Publication-grade visualization for any "
+                              "signed-SIF (CARNIVAL / Steiner / external). "
+                              "Emits force-directed graph + pathway "
+                              "enrichment + degree histogram + edge "
+                              "breakdown + composite figure + optional "
+                              "interactive HTML.")
+    s.add_argument("--sif", required=True)
+    s.add_argument("--prizes", default=None)
+    s.add_argument("--pathways", default=None)
+    s.add_argument("--perturbation", action="append", default=None)
+    s.add_argument("--measurement", action="append", default=None)
+    s.add_argument("--layout", default="spring",
+                    choices=["spring", "kamada", "circular", "shell"])
+    s.add_argument("--html", action="store_true")
+    s.add_argument("--label", default=None)
+    s.add_argument("--title", default=None)
+    def _viz(args):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from network_viz import cmd_visualize
+        return cmd_visualize(args)
+    s.set_defaults(func=_viz)
+
     s = sub.add_parser("write-playbook",
                         help="Write Docs/Skills/NETWORK_INTEGRATION_SKILLS.md")
     s.set_defaults(func=cmd_write_playbook)
