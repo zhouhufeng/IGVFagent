@@ -1629,6 +1629,7 @@ maintainers for releasing their code openly.
 | **Genotype demultiplexing** (referenced in `multiseq`) | [single-cell-genetics/vireo](https://github.com/single-cell-genetics/vireo) · [wheaton5/souporcell](https://github.com/wheaton5/souporcell) | Apache-2.0 / MIT | Documented alternatives when natural genotype variation is available instead of barcoded tags. |
 | **Codex / agent runtime** | [openai/codex](https://github.com/openai/codex) | Apache-2.0 | Reference agent runtime; `cli.py` follows its tool-dispatch pattern. |
 | **Local IGVF KG mirror** (`kg-mirror`) | [arangodb/arangodb](https://github.com/arangodb/arangodb) (Arango DB hosting the upstream KG) + [duckdb/duckdb](https://github.com/duckdb/duckdb) (local mirror) | Apache-2.0 (Arango community) + MIT (DuckDB) | Read-only AQL cursor streaming of every collection except `variants` + `variants_variants`; persist as ZSTD-Parquet shards under `Data/Warehouse/KG/`; register as DuckDB views in `Data/Warehouse/igvf_kg_mirror.duckdb` for offline querying. |
+| **GO + Pathway enrichment validation** (`enrich ora / gsea / go / pathways / showcase`) | [zqfang/GSEApy](https://github.com/zqfang/GSEApy) | BSD-3-Clause (Z. Fang) | Enrichr-proxy ORA over GO_BP/MF/CC + Reactome 2022 + KEGG 2021 Human + WikiPathways 2024 Human + MSigDB Hallmark 2020 (hypergeometric + BH within library); Subramanian-style preranked GSEA (weighted-KS, permutation FDR) for ranked gene-score tables. Used as the validation layer over DEGs, CRISPR hits, and the gene-side of enhancer-gene linkages. |
 
 ### Methods papers cited in the skills
 
@@ -1642,6 +1643,14 @@ maintainers for releasing their code openly.
 - **Love MI et al. (2014)** "Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2." *Genome Biol* 15:550. doi:[10.1186/s13059-014-0550-8](https://doi.org/10.1186/s13059-014-0550-8) — DESeq2 NB GLM in MPRA activity + via `pydeseq2`.
 - **McGinnis CS et al. (2019)** "MULTI-seq: sample multiplexing for single-cell RNA sequencing using lipid-tagged indices." *Nat Methods* 16:619–626. doi:[10.1038/s41592-019-0433-8](https://doi.org/10.1038/s41592-019-0433-8).
 - **Zhu Q et al. (2024)** "deMULTIplex2: robust sample demultiplexing for scRNA-seq." *Nat Methods*. — deMULTIplex2.
+- **Subramanian A et al. (2005)** "Gene set enrichment analysis: a knowledge-based approach for interpreting genome-wide expression profiles." *PNAS* 102:15545–15550. doi:[10.1073/pnas.0506580102](https://doi.org/10.1073/pnas.0506580102) — preranked GSEA backing `enrich gsea`.
+- **Ashburner M et al. (2000)** "Gene ontology: tool for the unification of biology." *Nat Genet* 25:25–29. doi:[10.1038/75556](https://doi.org/10.1038/75556) — Gene Ontology Consortium; underlying ontology for `enrich go`.
+- **Fabregat A et al. (2018)** "The Reactome Pathway Knowledgebase." *Nucleic Acids Res* 46:D649–D655. doi:[10.1093/nar/gkx1132](https://doi.org/10.1093/nar/gkx1132) — Reactome library used in `enrich pathways`.
+- **Kanehisa M & Goto S (2000)** "KEGG: Kyoto Encyclopedia of Genes and Genomes." *Nucleic Acids Res* 28:27–30. doi:[10.1093/nar/28.1.27](https://doi.org/10.1093/nar/28.1.27) — KEGG library used in `enrich pathways`.
+- **Slenter DN et al. (2018)** "WikiPathways: a multifaceted pathway database bridging metabolomics to other omics research." *Nucleic Acids Res* 46:D661–D667. doi:[10.1093/nar/gkx1064](https://doi.org/10.1093/nar/gkx1064) — WikiPathways library used in `enrich pathways`.
+- **Liberzon A et al. (2015)** "The Molecular Signatures Database (MSigDB) hallmark gene set collection." *Cell Syst* 1:417–425. doi:[10.1016/j.cels.2015.12.004](https://doi.org/10.1016/j.cels.2015.12.004) — MSigDB Hallmark library used in `enrich pathways`.
+- **Kuleshov MV et al. (2016)** "Enrichr: a comprehensive gene set enrichment analysis web server 2016 update." *Nucleic Acids Res* 44:W90–W97. doi:[10.1093/nar/gkw377](https://doi.org/10.1093/nar/gkw377) — Enrichr proxy backing `enrich ora`.
+- **Fang Z, Liu X, Peltz G (2023)** "GSEApy: a comprehensive package for performing gene set enrichment analysis in Python." *Bioinformatics* 39:btac757. doi:[10.1093/bioinformatics/btac757](https://doi.org/10.1093/bioinformatics/btac757) — gseapy library powering `enrich`.
 
 ### License & attribution policy
 

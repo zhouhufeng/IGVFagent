@@ -93,6 +93,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "network":          ("igvfagent.network_integration_skill",
                           "Network integration — clean-room MILP for "
                           "context-specific subnetworks (CARNIVAL / Steiner)"),
+    "enrich":           ("igvfagent.enrichment_skill",
+                          "GO + Pathway enrichment validation (ORA via Enrichr; "
+                          "GSEA preranked) over GO_BP/MF/CC + Reactome + KEGG "
+                          "+ WikiPathways + MSigDB Hallmark"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)

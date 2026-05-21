@@ -2549,6 +2549,149 @@ _TOOLS: "list[Tool]" = [
                   "cells_per_guide": "--cells-per-guide", "seed": "--seed"},
     ),
 
+    # ──────────────────────────────────────────────────────────────────
+    # GO + Pathway enrichment (validation layer)
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "enrich_ora",
+        "★ OVER-REPRESENTATION ENRICHMENT (ORA) FOR A GENE LIST ★. Runs "
+        "hypergeometric / Fisher enrichment of a discrete gene list "
+        "against GO_BP, GO_MF, GO_CC, Reactome 2022, KEGG 2021 Human, "
+        "WikiPathways 2024 Human, and MSigDB Hallmark 2020 via gseapy "
+        "→ Enrichr. Emits a per-library TSV, a composite figure "
+        "(top-K bar charts + bubble overview) and a JSON summary with "
+        "top-10 terms. USE THIS to validate a DEG list, CRISPR-screen "
+        "hits, or the gene-side of an enhancer-gene linkage by asking "
+        "which biological processes / pathways are over-represented.",
+        {
+            "type": "object",
+            "properties": {
+                "genes":      {**_S_STRING, "description":
+                                "Path to a gene list (one per line, or "
+                                "CSV/TSV with a 'gene' column)."},
+                "background": {**_S_STRING, "description":
+                                "Optional background gene list."},
+                "libs":       {**_S_STRING, "default": "all",
+                                "description":
+                                "'all' / 'go' / 'pathways' or comma-list of "
+                                "friendly lib names (GO_BP, GO_MF, GO_CC, "
+                                "Reactome, KEGG, WikiPathways, MSigDB_Hallmark) "
+                                "or raw Enrichr lib ids."},
+                "organism":   {**_S_STRING, "default": "human"},
+                "label":      {**_S_STRING},
+                "top_k":      {**_S_INTEGER, "default": 8},
+            },
+            "required": ["genes"],
+        },
+        cli=["enrich", "ora"],
+        flag_map={"genes": "--genes", "background": "--background",
+                   "libs": "--libs", "organism": "--organism",
+                   "label": "--label", "top_k": "--top-k"},
+    ),
+    _T(
+        "enrich_gsea",
+        "★ PRERANKED GSEA FOR A RANKED GENE-SCORE TABLE ★. Subramanian-"
+        "style enrichment (no arbitrary cutoff) of a ranked gene list "
+        "against GO + Reactome + KEGG + WikiPathways + MSigDB Hallmark "
+        "via gseapy.prerank. Input: TSV/CSV with a 'gene' column and a "
+        "'score' (or 'stat' / 'log2fc' / 'rank' / 't' / 'wald') column. "
+        "Emits NES + FDR table, composite NES bubble figure, JSON "
+        "summary. USE THIS when you have continuous statistics for "
+        "every gene (e.g. limma t-stats, DESeq2 Wald) instead of a "
+        "discrete hit list.",
+        {
+            "type": "object",
+            "properties": {
+                "ranked":       {**_S_STRING, "description":
+                                  "Path to a TSV/CSV with 'gene' + 'score' "
+                                  "columns."},
+                "libs":         {**_S_STRING, "default": "all"},
+                "organism":     {**_S_STRING, "default": "human"},
+                "min_size":     {**_S_INTEGER, "default": 10},
+                "max_size":     {**_S_INTEGER, "default": 1000},
+                "permutations": {**_S_INTEGER, "default": 1000},
+                "label":        {**_S_STRING},
+                "top_k":        {**_S_INTEGER, "default": 8},
+            },
+            "required": ["ranked"],
+        },
+        cli=["enrich", "gsea"],
+        flag_map={"ranked": "--ranked", "libs": "--libs",
+                   "organism": "--organism", "min_size": "--min-size",
+                   "max_size": "--max-size",
+                   "permutations": "--permutations",
+                   "label": "--label", "top_k": "--top-k"},
+    ),
+    _T(
+        "enrich_go",
+        "★ GENE-ONTOLOGY ORA (BP + MF + CC) ★. Convenience wrapper around "
+        "enrich_ora restricted to the three Gene Ontology branches "
+        "(GO_Biological_Process_2023, GO_Molecular_Function_2023, "
+        "GO_Cellular_Component_2023). USE THIS when the validation "
+        "question is specifically 'which GO terms are over-represented' "
+        "rather than 'which canonical pathways'.",
+        {
+            "type": "object",
+            "properties": {
+                "genes":      {**_S_STRING},
+                "background": {**_S_STRING},
+                "organism":   {**_S_STRING, "default": "human"},
+                "label":      {**_S_STRING},
+                "top_k":      {**_S_INTEGER, "default": 8},
+            },
+            "required": ["genes"],
+        },
+        cli=["enrich", "go"],
+        flag_map={"genes": "--genes", "background": "--background",
+                   "organism": "--organism", "label": "--label",
+                   "top_k": "--top-k"},
+    ),
+    _T(
+        "enrich_pathways",
+        "★ CANONICAL-PATHWAY ORA (Reactome + KEGG + WikiPathways + "
+        "MSigDB Hallmark) ★. Convenience wrapper around enrich_ora "
+        "restricted to the four canonical pathway databases. USE THIS "
+        "when the validation question is 'which signalling / metabolic "
+        "pathways are enriched' rather than 'which GO terms'.",
+        {
+            "type": "object",
+            "properties": {
+                "genes":      {**_S_STRING},
+                "background": {**_S_STRING},
+                "organism":   {**_S_STRING, "default": "human"},
+                "label":      {**_S_STRING},
+                "top_k":      {**_S_INTEGER, "default": 8},
+            },
+            "required": ["genes"],
+        },
+        cli=["enrich", "pathways"],
+        flag_map={"genes": "--genes", "background": "--background",
+                   "organism": "--organism", "label": "--label",
+                   "top_k": "--top-k"},
+    ),
+    _T(
+        "enrich_showcase",
+        "★ ONE-COMMAND ENRICHMENT DEMO ★. Runs ORA on a curated 47-gene "
+        "cell-cycle / G2-M-checkpoint list (CCN*, CDK*, CDKN*, MCM*, "
+        "AURK*, PLK*, BUB*, etc.) and writes a composite figure + "
+        "narrative report. Positive-control validation that the skill "
+        "is healthy — expected strong 'Cell Cycle' / 'G2-M Checkpoint' "
+        "enrichment across Reactome, KEGG, MSigDB Hallmark, and all "
+        "three GO branches.",
+        {
+            "type": "object",
+            "properties": {
+                "libs":     {**_S_STRING, "default": "all"},
+                "organism": {**_S_STRING, "default": "human"},
+                "label":    {**_S_STRING},
+                "top_k":    {**_S_INTEGER, "default": 8},
+            },
+        },
+        cli=["enrich", "showcase"],
+        flag_map={"libs": "--libs", "organism": "--organism",
+                   "label": "--label", "top_k": "--top-k"},
+    ),
+
 ]
 
 
