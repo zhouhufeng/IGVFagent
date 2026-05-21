@@ -774,7 +774,8 @@ rerun.
 For these cases, fall back to the upstream `dcd-mapping` PyPI package
 (MIT) which handles all of the above via UTA + SeqRepo + BLAT.
 """)
-    return path
+    print(f"Wrote: {path}")
+    return 0
 
 
 def main(argv=None) -> int:
