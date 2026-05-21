@@ -268,19 +268,27 @@ _INT64_MAX = (1 << 63) - 1
 _INT64_MIN = -(1 << 63)
 
 
+_FLOAT64_EXACT_INT = (1 << 53)  # 2^53 = max integer exactly representable in IEEE 754 double
+
+
 def _coerce_column(values: list[Any]) -> list[Any]:
     """Pick a Parquet-safe representation for a column.
 
-    Rules:
-      * If every non-null value is one of (bool, int, float) — keep
-        numeric, but if ANY int overflows int64, demote the whole column
-        to strings.
-      * If types are mixed (str ∪ numeric, or list ∪ dict, etc.), demote
-        to strings. PyArrow refuses to union those.
-      * Otherwise pass through unchanged.
+    Rules (apply in order; demote to string if any triggers):
+      1. ANY int overflows int64 (i.e. |v| > 2^63 - 1).
+      2. Column mixes (int, float). PyArrow promotes the column to
+         float64, which can ONLY exactly represent integers up to
+         |v| <= 2^53. If any int is bigger than that, the conversion
+         loses precision and Arrow raises ArrowInvalid. So when a
+         mixed-numeric column carries any |int| > 2^53, demote to str.
+      3. Column mixes a non-numeric type with anything else (str ∪
+         numeric, list ∪ scalar, etc.). PyArrow can't union those.
+    Otherwise leave the values untouched and let PyArrow infer.
     """
     types: "set[type]" = set()
     has_overflow = False
+    has_big_int_with_float = False
+    has_float = False
     for v in values:
         if v is None:
             continue
@@ -288,8 +296,16 @@ def _coerce_column(values: list[Any]) -> list[Any]:
         types.add(t)
         if t is int and not (_INT64_MIN <= v <= _INT64_MAX):
             has_overflow = True
+        if t is float:
+            has_float = True
+    # Pre-scan for big ints that would lose precision when promoted to float64
+    if has_float:
+        for v in values:
+            if isinstance(v, int) and not isinstance(v, bool) and abs(v) > _FLOAT64_EXACT_INT:
+                has_big_int_with_float = True
+                break
     numeric_only = types.issubset({bool, int, float})
-    if has_overflow or (len(types) > 1 and not numeric_only):
+    if has_overflow or has_big_int_with_float or (len(types) > 1 and not numeric_only):
         return [None if v is None else (v if isinstance(v, str) else str(v)) for v in values]
     return values
 
@@ -335,19 +351,35 @@ def _pull_collection(client: ArangoClient, collection: str, *,
                       batch_size: int = 5000,
                       max_rows: int | None = None,
                       restart: bool = False,
-                      max_retries: int = 6) -> dict[str, Any]:
+                      max_retries: int = 6,
+                      grow_after_n_successes: int = 8) -> dict[str, Any]:
     state = _read_state(collection)
     if restart:
         state = {"collection": collection, "rows_written": 0, "batches": 0,
                   "last_completed_batch": -1, "status": "restart"}
     next_batch = state["last_completed_batch"] + 1
     skip = state["rows_written"]
+    # Target batch size is what the user asked for; effective is what we are
+    # currently using (may be smaller after a server-side timeout). Elastic
+    # recovery: after N consecutive successful batches, double effective
+    # until we reach target again.
+    target_batch = batch_size
     effective_batch = _pick_initial_batch_size(client, collection, batch_size)
     if effective_batch != batch_size:
         logging.info("Auto-sized batch for %s: %d -> %d (avg doc size constraint)",
                       collection, batch_size, effective_batch)
-    logging.info("Pulling %s (resuming at row %d, batch %d, batch_size=%d)",
-                  collection, skip, next_batch, effective_batch)
+    # Restore effective_batch from state if smaller than computed, so we
+    # don't immediately re-trigger the same 5xx. But never let stale state
+    # drop us BELOW the target's auto-sized floor on a fresh start.
+    saved = state.get("effective_batch_size")
+    if saved and isinstance(saved, int) and saved < effective_batch:
+        effective_batch = saved
+        logging.info("Resuming with reduced batch size from state: %d (target=%d)",
+                      effective_batch, target_batch)
+    consecutive_successes = 0
+    logging.info("Pulling %s (resuming at row %d, batch %d, "
+                  "effective_batch=%d, target=%d)",
+                  collection, skip, next_batch, effective_batch, target_batch)
 
     started = time.time()
     rows_total = 0
@@ -378,6 +410,7 @@ def _pull_collection(client: ArangoClient, collection: str, *,
             backoff = min(60.0, 2.0 ** retries)
             if exc.code in (502, 503, 504, 429) and effective_batch > 100:
                 effective_batch = max(100, effective_batch // 2)
+                consecutive_successes = 0
                 logging.warning("HTTP %s for %s skip=%d retry=%d — shrinking batch to %d, sleeping %.1fs",
                                  exc.code, collection, skip, retries, effective_batch, backoff)
             else:
@@ -419,6 +452,14 @@ def _pull_collection(client: ArangoClient, collection: str, *,
         rate = rows_total / max(elapsed, 1e-3)
         logging.info("  batch %d: +%d rows -> %s (cumulative %d, %.1f rows/s)",
                       next_batch - 1, len(rows), shard.name, skip, rate)
+        consecutive_successes += 1
+        if consecutive_successes >= grow_after_n_successes and effective_batch < target_batch:
+            new_batch = min(target_batch, effective_batch * 2)
+            if new_batch != effective_batch:
+                logging.info("  ↑ grew effective batch %d -> %d (after %d consecutive successes)",
+                              effective_batch, new_batch, consecutive_successes)
+                effective_batch = new_batch
+                consecutive_successes = 0
         if len(rows) < page_size:
             state["status"] = "done"
             _write_state(state)
