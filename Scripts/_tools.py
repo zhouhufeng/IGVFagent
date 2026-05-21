@@ -532,6 +532,129 @@ _TOOLS: "list[Tool]" = [
                    "label": "--label"},
     ),
     _T(
+        "multiome_da_peaks",
+        "Differential accessibility on TF-IDF-normalized peaks via "
+        "Wilcoxon rank-genes. Pairs naturally with peak2gene — peak2gene "
+        "gives enhancer→gene candidates; da-peaks tells you WHICH peaks "
+        "are differentially open between user-defined clusters / "
+        "cell-types.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING, "description":
+                                 "ATAC h5ad (peaks will be TF-IDF normalized)."},
+                "cluster_key": {**_S_STRING, "default": "leiden_wnn"},
+                "top_n":       {**_S_INTEGER, "default": 50},
+                "label":       {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["multiome", "da-peaks"],
+        flag_map={"input": "--input", "cluster_key": "--cluster-key",
+                   "top_n": "--top-n", "label": "--label"},
+    ),
+    _T(
+        "multiome_atac_spectral",
+        "Jaccard-Laplacian spectral embedding alternative to LSI for "
+        "ATAC peak matrices (snapATAC2-style). Robust to depth "
+        "differences without explicit depth-correction drop. Good for "
+        "datasets where TF-IDF + LSI gives a strong depth axis.",
+        {
+            "type": "object",
+            "properties": {
+                "input":          {**_S_STRING},
+                "n_components":   {**_S_INTEGER, "default": 30},
+                "n_neighbors":    {**_S_INTEGER, "default": 20},
+                "max_cells":      {**_S_INTEGER, "default": 5000},
+                "seed":           {**_S_INTEGER, "default": 7},
+                "label":          {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["multiome", "atac-spectral"],
+        flag_map={"input": "--input", "n_components": "--n-components",
+                   "n_neighbors": "--n-neighbors", "max_cells": "--max-cells",
+                   "seed": "--seed", "label": "--label"},
+    ),
+    _T(
+        "multiome_chromvar",
+        "Clean-room chromVAR-style TF motif activity per cell. For each "
+        "(cell, motif) pair, computes raw deviations from expected "
+        "accessibility, then bias-corrects via K=50 GC-content + log-mean-"
+        "accessibility-matched background motif sets, yielding a per-cell "
+        "z-score for every motif. Output: cells × motifs z-score TSV.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING, "description":
+                                 "ATAC h5ad (peak × cell)."},
+                "motif_hits":  {**_S_STRING, "description":
+                                 "Peak × motif binary TSV."},
+                "gc_content":  {**_S_STRING, "description":
+                                 "Optional per-peak GC content TSV."},
+                "k_background": {**_S_INTEGER, "default": 50},
+                "seed":        {**_S_INTEGER, "default": 7},
+                "label":       {**_S_STRING},
+            },
+            "required": ["input", "motif_hits"],
+        },
+        cli=["multiome", "chromvar"],
+        flag_map={"input": "--input", "motif_hits": "--motif-hits",
+                   "gc_content": "--gc-content",
+                   "k_background": "--k-background",
+                   "seed": "--seed", "label": "--label"},
+    ),
+    _T(
+        "multiome_css",
+        "Cluster Similarity Spectrum batch correction (He 2020 Genome "
+        "Biol). Per-batch HVG → per-batch Leiden → per-batch cluster "
+        "centroids → represent each cell as its vector of correlations "
+        "to all batch×cluster centroids. Apache/BSD-friendly alternative "
+        "to GPL Harmony.",
+        {
+            "type": "object",
+            "properties": {
+                "input":       {**_S_STRING},
+                "batch_key":   {**_S_STRING},
+                "n_hvg":       {**_S_INTEGER, "default": 2000},
+                "n_pca":       {**_S_INTEGER, "default": 50},
+                "n_neighbors": {**_S_INTEGER, "default": 20},
+                "resolution":  {"type": "number", "default": 1.0},
+                "label":       {**_S_STRING},
+            },
+            "required": ["input", "batch_key"],
+        },
+        cli=["multiome", "css"],
+        flag_map={"input": "--input", "batch_key": "--batch-key",
+                   "n_hvg": "--n-hvg", "n_pca": "--n-pca",
+                   "n_neighbors": "--n-neighbors",
+                   "resolution": "--resolution", "label": "--label"},
+    ),
+    _T(
+        "multiome_multivi",
+        "MultiVI deep joint VAE (Ashuach 2023) via scvi-tools. "
+        "Optional dep — install with `pip install scvi-tools` to enable. "
+        "Joint generative model over RNA (ZINB) + ATAC (Bernoulli on "
+        "binarized peaks) yielding a shared latent z, with batch-key-"
+        "conditioned encoder/decoder.",
+        {
+            "type": "object",
+            "properties": {
+                "rna_h5ad":  {**_S_STRING},
+                "atac_h5ad": {**_S_STRING},
+                "batch_key": {**_S_STRING, "default": "batch"},
+                "epochs":    {**_S_INTEGER, "default": 50},
+                "label":     {**_S_STRING},
+            },
+            "required": ["rna_h5ad", "atac_h5ad"],
+        },
+        cli=["multiome", "multivi"],
+        flag_map={"rna_h5ad": "--rna-h5ad", "atac_h5ad": "--atac-h5ad",
+                   "batch_key": "--batch-key", "epochs": "--epochs",
+                   "label": "--label"},
+    ),
+
+    _T(
         "multiome_showcase",
         "★ ONE-COMMAND 10x MULTIOME QC SHOWCASE ★. Runs qc-atac + "
         "(optional) joint-qc + builds a 6-panel composite figure "

@@ -403,7 +403,8 @@ def cmd_lsi(args: argparse.Namespace) -> int:
     `RunSVD` + `DepthCor` convention.
     """
     np = _require("numpy")
-    sp = _require("scipy.sparse")
+    import importlib
+    sp = importlib.import_module("scipy.sparse")
     pd = _require("pandas")
     anndata = _require("anndata")
     from sklearn.decomposition import TruncatedSVD
@@ -777,6 +778,402 @@ def cmd_showcase(args: argparse.Namespace) -> int:
 
 # ─── Playbook ───────────────────────────────────────────────────────────────
 
+# ════════════════════════════════════════════════════════════════════════════
+# QUADBIO-ABSORBED EXTENSIONS
+#
+# Clean-room reimplementations of additional analytical methods covered in
+# quadbio/scMultiome_analysis_python_vignette (Treutlein lab, ETH Zürich,
+# no LICENSE — clean-room only). All math paraphrased from the published
+# algorithm descriptions; no source from the vignette is copied.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def cmd_da_peaks(args: argparse.Namespace) -> int:
+    """Differential accessibility on TF-IDF normalized peaks via Wilcoxon.
+
+    Pairs naturally with `multiome peak2gene` — peak2gene gives you
+    enhancer→gene candidates; da-peaks tells you WHICH peaks are
+    differentially open between groups.
+    """
+    sc = _require("scanpy")
+    mu = _require("muon")
+    anndata = _require("anndata")
+    pd = _require("pandas")
+    setup_logging()
+    adata = anndata.read_h5ad(args.input)
+    if args.cluster_key not in adata.obs.columns:
+        raise SystemExit(
+            f"--cluster-key {args.cluster_key!r} not found in adata.obs. "
+            f"Available: {list(adata.obs.columns)[:20]}"
+        )
+    logging.info("Running mu.atac.pp.tfidf …")
+    mu.atac.pp.tfidf(adata, scale_factor=1e4)
+    logging.info("Wilcoxon rank-genes per %s …", args.cluster_key)
+    sc.tl.rank_genes_groups(adata, groupby=args.cluster_key,
+                              method="wilcoxon",
+                              use_raw=False, layer=None)
+    rgg = adata.uns["rank_genes_groups"]
+    groups = list(rgg["names"].dtype.names)
+    rows = []
+    for g in groups:
+        for i in range(min(args.top_n, len(rgg["names"][g]))):
+            rows.append({
+                "group": g,
+                "peak": rgg["names"][g][i],
+                "logfc": float(rgg["logfoldchanges"][g][i]),
+                "score": float(rgg["scores"][g][i]),
+                "pvalue": float(rgg["pvals"][g][i]),
+                "padj":   float(rgg["pvals_adj"][g][i]),
+            })
+    df = pd.DataFrame(rows)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out = REPORT_DIR / f"{ts}_{safe_label(args.label)}_da_peaks.tsv"
+    df.to_csv(out, sep="\t", index=False)
+    print(f"Differential-accessibility table: {out}")
+    print(f"  groups: {len(groups)} | top peaks per group: {args.top_n} | "
+          f"rows: {len(df):,}")
+    return 0
+
+
+def cmd_atac_spectral(args: argparse.Namespace) -> int:
+    """Jaccard-similarity Laplacian spectral embedding on an ATAC matrix.
+
+    Alternative to TF-IDF + LSI. The snapATAC2-style approach builds a
+    Jaccard similarity graph between cells over binarized peaks,
+    computes the symmetric normalized Laplacian, and takes the top
+    eigenvectors. Robust to depth differences without an explicit
+    "drop dim 1" step.
+
+    Implementation:
+        peaks: cell × peak sparse matrix (binarized at >0)
+        S    = Jaccard(cells) = (X @ X.T) / (deg + deg.T - X @ X.T)
+        L    = I - D^(-1/2) S D^(-1/2)
+        emb  = top-k eigenvectors of (I - L) (= D^(-1/2) S D^(-1/2))
+    """
+    np = _require("numpy")
+    import importlib
+    sp = importlib.import_module("scipy.sparse")
+    anndata = _require("anndata")
+    setup_logging()
+    adata = anndata.read_h5ad(args.input)
+    X = adata.X
+    if not sp.issparse(X):
+        X = sp.csr_matrix(X)
+    # Binarize
+    Xb = (X > 0).astype("float64")
+    # Sub-sample to keep things tractable on a laptop
+    n_cells = Xb.shape[0]
+    if args.max_cells and n_cells > args.max_cells:
+        rng = np.random.default_rng(int(args.seed))
+        idx = rng.choice(n_cells, size=args.max_cells, replace=False)
+        Xb = Xb[idx]
+        cell_idx = adata.obs_names[idx]
+    else:
+        cell_idx = adata.obs_names
+
+    # cell × cell intersection
+    inter = (Xb @ Xb.T).toarray()
+    deg = inter.diagonal()
+    union = deg[:, None] + deg[None, :] - inter
+    union[union == 0] = 1.0
+    jacc = inter / union
+    np.fill_diagonal(jacc, 0.0)
+
+    # k-nearest-neighbour sparsification
+    k = int(args.n_neighbors)
+    if k > 0:
+        rows = []
+        cols = []
+        vals = []
+        for i in range(jacc.shape[0]):
+            top = np.argpartition(-jacc[i], min(k, jacc.shape[0] - 1))[:k]
+            for j in top:
+                if jacc[i, j] > 0:
+                    rows.append(i); cols.append(j); vals.append(jacc[i, j])
+        S = sp.csr_matrix((vals, (rows, cols)), shape=jacc.shape)
+        # Symmetrize
+        S = 0.5 * (S + S.T)
+    else:
+        S = sp.csr_matrix(jacc)
+
+    d = np.asarray(S.sum(axis=1)).flatten()
+    d[d == 0] = 1.0
+    D_inv_sqrt = sp.diags(1.0 / np.sqrt(d))
+    L_norm = D_inv_sqrt @ S @ D_inv_sqrt
+
+    from scipy.sparse.linalg import eigsh
+    n_comp = int(args.n_components)
+    try:
+        vals_eig, vecs = eigsh(L_norm, k=n_comp + 1, which="LM")
+        # Sort descending, drop the trivial top eigenvector
+        order = np.argsort(-vals_eig)
+        vecs = vecs[:, order][:, 1:n_comp + 1]
+    except Exception as exc:
+        raise SystemExit(f"eigsh failed: {exc}")
+
+    # Stitch back into AnnData (handle sub-sample case)
+    if args.max_cells and n_cells > args.max_cells:
+        full_emb = np.zeros((adata.n_obs, n_comp))
+        cell_set = {bc: i for i, bc in enumerate(cell_idx)}
+        for j, bc in enumerate(adata.obs_names):
+            if bc in cell_set:
+                full_emb[j] = vecs[cell_set[bc]]
+        adata.obsm["X_spectral"] = full_emb
+    else:
+        adata.obsm["X_spectral"] = vecs
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out = REPORT_DIR / f"{ts}_{safe_label(args.label)}_spectral.h5ad"
+    adata.write_h5ad(out)
+    print(f"Spectral-embedded ATAC AnnData: {out}")
+    print(f"  X_spectral shape: {adata.obsm['X_spectral'].shape}")
+    return 0
+
+
+def cmd_chromvar(args: argparse.Namespace) -> int:
+    """Clean-room chromVAR-style TF motif activity per cell.
+
+    For each (cell, motif M):
+       raw_dev   = (sum accessibility over peaks with motif M) - expected
+       expected  = fraction-of-peaks-with-M × cell's total accessibility
+       z_score   = (raw_dev - mean(raw_dev over K GC-matched background
+                                    motif sets)) / std(raw_dev background)
+
+    Inputs:
+      --input        peak × cell h5ad (binarized inside)
+      --motif-hits   peak × motif TSV (0/1 binary; columns are motif IDs)
+      --gc-content   optional per-peak GC content TSV (gc_content column);
+                     if absent, computed as 0.5 (no GC bias correction)
+
+    Output: cell × motif z-score matrix as obsm['X_motif_zscore'] + a
+    standalone TSV.
+    """
+    np = _require("numpy")
+    import importlib
+    sp = importlib.import_module("scipy.sparse")
+    pd = _require("pandas")
+    anndata = _require("anndata")
+    setup_logging()
+    adata = anndata.read_h5ad(args.input)
+    X = adata.X
+    if not sp.issparse(X):
+        X = sp.csr_matrix(X)
+    Xb = (X > 0).astype("float64")
+    n_cells, n_peaks = Xb.shape
+
+    # Motif hits: peak × motif (binary)
+    hits = pd.read_csv(args.motif_hits, sep="\t", index_col=0)
+    common = sorted(set(hits.index) & set(adata.var_names))
+    if len(common) < 0.5 * len(adata.var_names):
+        logging.warning("Only %d / %d peaks have motif annotations",
+                          len(common), len(adata.var_names))
+    hits = hits.loc[common]
+    # Align peaks
+    peak_to_idx = {p: i for i, p in enumerate(adata.var_names)}
+    peak_idx = [peak_to_idx[p] for p in common]
+    Xb_aligned = Xb[:, peak_idx]
+    H = sp.csr_matrix(hits.values.astype("float64"))
+
+    # GC content
+    if args.gc_content and Path(args.gc_content).is_file():
+        gc = pd.read_csv(args.gc_content, sep="\t", index_col=0)
+        gc = gc.loc[common, "gc_content"].fillna(0.5).values
+    else:
+        gc = np.full(len(common), 0.5)
+    log_mean_acc = np.log1p(np.asarray(Xb_aligned.sum(axis=0)).flatten())
+
+    # Raw deviations: cell × motif
+    cell_total = np.asarray(Xb_aligned.sum(axis=1)).flatten()
+    peak_total = np.asarray(Xb_aligned.sum(axis=0)).flatten()
+    grand_total = peak_total.sum() or 1.0
+    # observed: how often motif M appears in cell c's accessible peaks
+    obs = Xb_aligned @ H  # cell × motif
+    if sp.issparse(obs):
+        obs = obs.toarray()
+    # expected: cell_total × (motif total / grand total)
+    motif_freq = np.asarray(H.sum(axis=0)).flatten() / grand_total
+    expected = cell_total[:, None] * motif_freq[None, :] * len(common)
+    raw_dev = obs - expected
+
+    # Background: K=50 GC-matched motif sets per motif
+    K = int(args.k_background)
+    rng = np.random.default_rng(int(args.seed))
+    # Bin peaks by (GC quantile, log_mean_acc quantile) for matched sampling
+    gc_bin = pd.qcut(gc, q=10, labels=False, duplicates="drop")
+    acc_bin = pd.qcut(log_mean_acc, q=10, labels=False, duplicates="drop")
+    bin_key = gc_bin * 100 + acc_bin
+    bin_idx = pd.Series(np.arange(len(common))).groupby(bin_key).apply(list).to_dict()
+    z_scores = np.zeros_like(raw_dev)
+    n_motifs = H.shape[1]
+    logging.info("Computing chromVAR deviations: %d cells × %d motifs × K=%d backgrounds",
+                  n_cells, n_motifs, K)
+    for m in range(n_motifs):
+        motif_peaks = np.where(H[:, m].toarray().flatten() > 0)[0]
+        if len(motif_peaks) == 0:
+            continue
+        bg_devs = np.zeros((K, n_cells))
+        for k in range(K):
+            sampled = []
+            for p in motif_peaks:
+                b = bin_key[p] if p < len(bin_key) else 0
+                pool = bin_idx.get(b, motif_peaks.tolist())
+                sampled.append(int(rng.choice(pool)))
+            sampled = np.array(sampled)
+            H_bg = sp.csr_matrix(
+                (np.ones(len(sampled)), (sampled, np.zeros(len(sampled), dtype=int))),
+                shape=(len(common), 1),
+            )
+            obs_bg = Xb_aligned @ H_bg
+            obs_bg = obs_bg.toarray().flatten() if sp.issparse(obs_bg) else obs_bg.flatten()
+            motif_freq_bg = len(sampled) / grand_total
+            expected_bg = cell_total * motif_freq_bg * len(common)
+            bg_devs[k] = obs_bg - expected_bg
+        bg_mean = bg_devs.mean(axis=0)
+        bg_std = bg_devs.std(axis=0)
+        bg_std[bg_std == 0] = 1.0
+        z_scores[:, m] = (raw_dev[:, m] - bg_mean) / bg_std
+
+    adata.obsm["X_motif_zscore"] = z_scores
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out_h5 = REPORT_DIR / f"{ts}_{safe_label(args.label)}_chromvar.h5ad"
+    out_tsv = REPORT_DIR / f"{ts}_{safe_label(args.label)}_motif_zscore.tsv"
+    adata.write_h5ad(out_h5)
+    z_df = pd.DataFrame(z_scores, index=adata.obs_names, columns=hits.columns)
+    z_df.to_csv(out_tsv, sep="\t")
+    print(f"chromVAR motif z-scores: {out_h5}")
+    print(f"  per-cell TSV: {out_tsv}")
+    print(f"  shape: cells={n_cells}, motifs={n_motifs}")
+    return 0
+
+
+def cmd_css(args: argparse.Namespace) -> int:
+    """Cluster Similarity Spectrum batch correction (He 2020).
+
+    Per-batch HVG → per-batch Leiden clustering → cluster centroids
+    (in PCA space) → represent each cell as its vector of correlations
+    to all batch×cluster centroids. The correlation matrix IS the
+    corrected embedding.
+
+    Apache-2.0 / BSD-3 alternative to GPL-licensed Harmony.
+    """
+    np = _require("numpy")
+    pd = _require("pandas")
+    sc = _require("scanpy")
+    anndata = _require("anndata")
+    setup_logging()
+    adata = anndata.read_h5ad(args.input)
+    if args.batch_key not in adata.obs.columns:
+        raise SystemExit(
+            f"--batch-key {args.batch_key!r} not in adata.obs. "
+            f"Available: {list(adata.obs.columns)[:20]}"
+        )
+    if "X_pca" not in adata.obsm:
+        logging.info("Running PCA first …")
+        if adata.X.max() > 50:
+            sc.pp.normalize_total(adata, target_sum=1e4)
+            sc.pp.log1p(adata)
+        sc.pp.highly_variable_genes(adata, n_top_genes=int(args.n_hvg),
+                                      flavor="seurat")
+        adata = adata[:, adata.var.highly_variable].copy()
+        sc.pp.scale(adata, max_value=10)
+        sc.tl.pca(adata, n_comps=int(args.n_pca))
+
+    batches = adata.obs[args.batch_key].unique()
+    logging.info("CSS: %d batches", len(batches))
+    centroids = []
+    centroid_labels = []
+    for b in batches:
+        idx = adata.obs[args.batch_key] == b
+        sub = adata[idx].copy()
+        # Per-batch Leiden
+        sc.pp.neighbors(sub, n_neighbors=int(args.n_neighbors),
+                          use_rep="X_pca")
+        sc.tl.leiden(sub, resolution=float(args.resolution),
+                       key_added="leiden_css")
+        # Cluster centroids in PCA space
+        for c in sub.obs["leiden_css"].unique():
+            mask = sub.obs["leiden_css"] == c
+            centroid = sub.obsm["X_pca"][mask].mean(axis=0)
+            centroids.append(centroid)
+            centroid_labels.append(f"{b}_{c}")
+    centroids = np.array(centroids)  # (n_centroids, n_pca)
+
+    # For each cell: pearson correlation to all centroids
+    pca = adata.obsm["X_pca"]
+    pca_centered = pca - pca.mean(axis=1, keepdims=True)
+    cent_centered = centroids - centroids.mean(axis=1, keepdims=True)
+    num = pca_centered @ cent_centered.T
+    pca_norm = np.linalg.norm(pca_centered, axis=1, keepdims=True)
+    cent_norm = np.linalg.norm(cent_centered, axis=1, keepdims=True)
+    css_emb = num / (pca_norm @ cent_norm.T + 1e-9)
+    adata.obsm["X_css"] = css_emb
+    adata.uns["css_centroid_labels"] = centroid_labels
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out = REPORT_DIR / f"{ts}_{safe_label(args.label)}_css.h5ad"
+    adata.write_h5ad(out)
+    print(f"CSS batch-corrected AnnData: {out}")
+    print(f"  X_css shape: {css_emb.shape}  ({len(centroid_labels)} centroids)")
+    return 0
+
+
+def cmd_multivi(args: argparse.Namespace) -> int:
+    """MultiVI deep joint VAE via scvi-tools (Ashuach 2023).
+
+    scvi-tools is BSD-3 but a heavy install (~hundreds MB of torch).
+    This command requires `pip install scvi-tools`; we don't pin it as
+    a hard dependency.
+    """
+    try:
+        import scvi
+    except ImportError:
+        raise SystemExit(
+            "scvi-tools not installed. Install with: "
+            "pip install scvi-tools"
+        )
+    anndata = _require("anndata")
+    mu = _require("muon")
+    setup_logging()
+    rna = anndata.read_h5ad(args.rna_h5ad)
+    atac = anndata.read_h5ad(args.atac_h5ad)
+    common = sorted(set(rna.obs_names) & set(atac.obs_names))
+    if len(common) < 50:
+        raise SystemExit(f"Too few shared barcodes ({len(common)}).")
+    rna = rna[common].copy()
+    atac = atac[common].copy()
+
+    # Concatenate features for MultiVI
+    rna.var["modality"] = "Gene Expression"
+    atac.var["modality"] = "Peaks"
+    mdata = mu.MuData({"rna": rna, "atac": atac})
+    scvi.model.MULTIVI.setup_mudata(
+        mdata,
+        modalities={"rna_layer": "rna", "protein_layer": "atac"},
+        batch_key=args.batch_key if args.batch_key in mdata.obs.columns else None,
+    )
+    mvi = scvi.model.MULTIVI(
+        mdata,
+        n_genes=(rna.var.modality == "Gene Expression").sum(),
+        n_regions=(atac.var.modality == "Peaks").sum(),
+    )
+    logging.info("Training MultiVI for %d epochs", args.epochs)
+    mvi.train(max_epochs=int(args.epochs))
+
+    mdata.obsm["X_multivi"] = mvi.get_latent_representation()
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out = REPORT_DIR / f"{ts}_{safe_label(args.label)}_multivi.h5mu"
+    mdata.write(out)
+    print(f"MultiVI joint embedding: {out}")
+    print(f"  X_multivi shape: {mdata.obsm['X_multivi'].shape}")
+    return 0
+
+
+
 def write_playbook() -> Path:
     SKILL_DOC_DIR.mkdir(parents=True, exist_ok=True)
     path = SKILL_DOC_DIR / "MULTIOME_10X_ANALYZE.md"
@@ -919,6 +1316,62 @@ def add_subparsers(sub) -> None:
     p.add_argument("--max-pairs", type=int, default=200000)
     p.add_argument("--label", default="multiome_peak2gene")
     p.set_defaults(func=cmd_peak_to_gene)
+
+
+    # ── Quadbio extensions ────────────────────────────────────────────
+    p = sub.add_parser("da-peaks",
+        help="Differential accessibility on TF-IDF peaks via Wilcoxon.")
+    p.add_argument("--input", required=True,
+                    help="ATAC h5ad with peaks (will be TF-IDF normalized).")
+    p.add_argument("--cluster-key", default="leiden_wnn",
+                    help="adata.obs column to compare across.")
+    p.add_argument("--top-n", type=int, default=50)
+    p.add_argument("--label", default="multiome_da_peaks")
+    p.set_defaults(func=cmd_da_peaks)
+
+    p = sub.add_parser("atac-spectral",
+        help="Jaccard-Laplacian spectral embedding alternative to LSI.")
+    p.add_argument("--input", required=True)
+    p.add_argument("--n-components", type=int, default=30)
+    p.add_argument("--n-neighbors", type=int, default=20)
+    p.add_argument("--max-cells", type=int, default=5000)
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--label", default="multiome_spectral")
+    p.set_defaults(func=cmd_atac_spectral)
+
+    p = sub.add_parser("chromvar",
+        help="Clean-room chromVAR-style TF motif activity per cell.")
+    p.add_argument("--input", required=True,
+                    help="ATAC h5ad with peaks.")
+    p.add_argument("--motif-hits", required=True,
+                    help="Peak × motif binary TSV.")
+    p.add_argument("--gc-content", default=None,
+                    help="Optional per-peak GC content TSV.")
+    p.add_argument("--k-background", type=int, default=50)
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--label", default="multiome_chromvar")
+    p.set_defaults(func=cmd_chromvar)
+
+    p = sub.add_parser("css",
+        help="Cluster Similarity Spectrum batch correction (He 2020).")
+    p.add_argument("--input", required=True)
+    p.add_argument("--batch-key", required=True,
+                    help="adata.obs column with batch IDs.")
+    p.add_argument("--n-hvg", type=int, default=2000)
+    p.add_argument("--n-pca", type=int, default=50)
+    p.add_argument("--n-neighbors", type=int, default=20)
+    p.add_argument("--resolution", type=float, default=1.0)
+    p.add_argument("--label", default="multiome_css")
+    p.set_defaults(func=cmd_css)
+
+    p = sub.add_parser("multivi",
+        help="MultiVI deep joint VAE (scvi-tools, optional dep).")
+    p.add_argument("--rna-h5ad", required=True)
+    p.add_argument("--atac-h5ad", required=True)
+    p.add_argument("--batch-key", default="batch")
+    p.add_argument("--epochs", type=int, default=50)
+    p.add_argument("--label", default="multiome_multivi")
+    p.set_defaults(func=cmd_multivi)
 
     p = sub.add_parser("showcase",
         help="One-command ATAC QC + joint QC + 6-panel composite figure.")
