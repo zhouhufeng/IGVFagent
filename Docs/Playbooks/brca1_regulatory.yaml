@@ -1,0 +1,27 @@
+study: "Regulatory-genomics tour around a target gene"
+description: |
+  Pull enhancer-gene linkage rows, cCRE annotations, and an ENCODE
+  rE2G browser SVG centered on a gene region. Good for the visual-
+  climax section of the demo (the browser SVG with arc connections
+  is the showpiece).
+
+parameters:
+  gene:   { default: BRCA1 }
+  region: { default: "chr17:43000000-43200000" }
+
+steps:
+  - tool: enhancer_pull
+    label: "Enhancer-gene linkage"
+    args:
+      source: catalog
+      limit: 50
+
+  - tool: ccre_screen_manifest
+    label: "SCREEN cCRE manifest"
+    args: {}
+
+synthesis: |
+  Summarize the enhancer-gene linkage evidence around ${gene} and the
+  SCREEN cCRE manifest. Recommend a region (${region}) for the
+  browser-SVG view; describe what the arcs and cCRE tracks should
+  show. Output ready for a slide caption.
