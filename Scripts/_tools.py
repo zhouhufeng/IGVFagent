@@ -1221,6 +1221,33 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "proteomics_vampseq_showcase",
+        "★ ONE-COMMAND COMPREHENSIVE VAMP-SEQ DEMO ★. Auto-downloads the "
+        "MaveDB scoreset for a target gene (PTEN by default; also TPMT, "
+        "VKOR, PRKN, CYP2C9, NUDT15), runs the full Fowler-lab 10-plot "
+        "suite (score distribution, residue×AA heatmap, per-residue "
+        "mean+IQR + median+moving-avg, replicate concordance + N×N "
+        "matrix, abundance-class bar, nonsense-by-position QC, "
+        "cumulative ranked variants with 95% CI, biophysical-feature "
+        "correlations) AND a publication-grade 9-panel composite figure "
+        "AND a deep narrative report explaining how to read every plot. "
+        "USE THIS TOOL for any 'show me VAMP-seq', 'analyze VAMP-seq for "
+        "<gene>', 'demonstrate variant abundance' question — do NOT call "
+        "proteomics_vampseq_pull + proteomics_vampseq_analyze separately.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":  {**_S_STRING,
+                          "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | NUDT15"},
+                "label": {**_S_STRING},
+                "pdb_id": {**_S_STRING},
+            },
+        },
+        cli=["proteomics", "vampseq-showcase"],
+        flag_map={"gene": "--gene", "label": "--label", "pdb_id": "--pdb-id"},
+    ),
+
+    _T(
         "proteomics_vampseq_inventory",
         "Decode IGVF Portal raw VAMP-seq MeasurementSets into a "
         "tile × bin × replicate × antibody coverage matrix per target gene "
@@ -1583,6 +1610,43 @@ _TOOLS: "list[Tool]" = [
                    "residual_type": "--residual-type",
                    "seed": "--seed"},
         bool_flags={"transpose"},
+    ),
+
+    _T(
+        "multiseq_showcase",
+        "★ ONE-COMMAND COMPREHENSIVE MULTI-SEQ DEMO ★. Generates synthetic "
+        "tag matrix by default (2000 cells × 6 tags), OR pulls an IGVF "
+        "Portal tag-count file via --igvf-accession, OR consumes a local "
+        "--input matrix. Runs the deMULTIplex2 EM classifier "
+        "(NB-GLM-based singlet/doublet/negative call), emits per-tag UMI "
+        "histograms + call-group heatmap + per-tag posterior diagnostics "
+        "(8+ plots), builds a publication composite figure, and writes a "
+        "deep narrative report (including accuracy vs ground truth when "
+        "available — typical synthetic run hits ≥85% singlet recovery). "
+        "USE THIS TOOL for any 'show me MULTI-seq', 'demonstrate cell "
+        "hashing', 'demultiplex MULTI-seq tags' question — do NOT call "
+        "multiseq_pipeline + multiseq_histogram + multiseq_heatmap "
+        "separately.",
+        {
+            "type": "object",
+            "properties": {
+                "input":           {**_S_STRING},
+                "igvf_accession":  {**_S_STRING},
+                "label":           {**_S_STRING},
+                "n_cells":         {**_S_INTEGER, "default": 2000},
+                "n_tags":          {**_S_INTEGER, "default": 6},
+                "doublet_rate":    {"type": "number", "default": 0.08},
+                "negative_rate":   {"type": "number", "default": 0.05},
+                "seed":            {**_S_INTEGER, "default": 1},
+            },
+        },
+        cli=["multiseq", "showcase"],
+        flag_map={
+            "input": "--input", "igvf_accession": "--igvf-accession",
+            "label": "--label", "n_cells": "--n-cells", "n_tags": "--n-tags",
+            "doublet_rate": "--doublet-rate", "negative_rate": "--negative-rate",
+            "seed": "--seed",
+        },
     ),
 
     _T(
