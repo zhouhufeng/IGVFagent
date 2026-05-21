@@ -103,7 +103,7 @@ RESERVED: "dict[str, str]" = {}
 INTROSPECTION = ("backends", "tools", "models")
 
 # Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
-TOP_LEVEL = ("ask", "ui")
+TOP_LEVEL = ("ask", "ui", "playbook", "eval")
 
 
 def _print_help() -> None:
@@ -124,6 +124,8 @@ def _print_help() -> None:
     print("Top-level commands:")
     print(f"  {'ask':{width}}  Natural-language ReAct agent (LLM-driven)")
     print(f"  {'ui':{width}}  Launch the Streamlit browser UI")
+    print(f"  {'playbook':{width}}  Run a deterministic YAML playbook (Docs/Playbooks/)")
+    print(f"  {'eval':{width}}  Backend-comparison eval harness")
     print()
     print("Introspection:")
     print(f"  {'backends':{width}}  List configured LLM provider backends")
@@ -206,6 +208,10 @@ def _run_top_level(skill: str, args: "list[str]") -> int:
         return _run_ask(args)
     if skill == "ui":
         return _run_ui(args)
+    if skill == "playbook":
+        return _run_playbook(args)
+    if skill == "eval":
+        return _run_eval(args)
     return 2
 
 
@@ -280,6 +286,196 @@ def _run_ask(args: "list[str]") -> int:
         return 1
 
     return 0 if result.stop_reason == "complete" else 2
+
+
+def _run_playbook(args: "list[str]") -> int:
+    """Top-level: run a deterministic YAML playbook of tool calls."""
+    import argparse, json, sys, time
+    parser = argparse.ArgumentParser(
+        prog="igvfagent playbook",
+        description="Execute a pinned YAML playbook of tool calls "
+                    "deterministically. Same artefacts across LLM backends; "
+                    "only the final synthesis prose may vary.",
+    )
+    parser.add_argument("playbook",
+                         help="Path to YAML playbook (or short name under "
+                              "Docs/Playbooks/, e.g. `apoe_evidence_pack`).")
+    parser.add_argument("--param", action="append", default=[],
+                         help="Override a playbook parameter: key=value "
+                              "(repeat for multiple).")
+    parser.add_argument("--backend", default=None)
+    parser.add_argument("--model", default=None)
+    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--no-synthesize", action="store_true",
+                         help="Skip the final LLM synthesis step.")
+    parser.add_argument("--no-persist", action="store_true",
+                         help="Don't write the run summary to Docs/.")
+    parser.add_argument("--quiet", action="store_true")
+    parsed = parser.parse_args(args)
+
+    try:
+        from igvfagent import _playbook
+    except ImportError:
+        import _playbook  # type: ignore[no-redef]
+    from pathlib import Path as _P
+
+    # Resolve playbook path: explicit file path OR short name under Docs/Playbooks/
+    pb_arg = parsed.playbook
+    pb_path = _P(pb_arg)
+    if not pb_path.is_file():
+        for cand in [
+            _P("Docs/Playbooks") / pb_arg,
+            _P("Docs/Playbooks") / f"{pb_arg}.yaml",
+            _P("Docs/Playbooks") / f"{pb_arg}.yml",
+        ]:
+            if cand.is_file():
+                pb_path = cand
+                break
+    if not pb_path.is_file():
+        print(f"Playbook not found: {pb_arg}", file=sys.stderr)
+        print("Available playbooks under Docs/Playbooks/:")
+        d = _P("Docs/Playbooks")
+        if d.is_dir():
+            for f in sorted(d.glob("*.y*ml")):
+                print(f"  {f.stem}")
+        return 2
+
+    params = _playbook.parse_param_args(parsed.param)
+
+    def _on_step(rec):
+        if parsed.quiet:
+            return
+        flag = "✅" if rec["exit_code"] == 0 else "❌"
+        print(f"  [{rec['idx']+1}] {flag} {rec['tool']}  exit={rec['exit_code']}  "
+              f"artefacts={rec['n_artefacts']}  {rec['elapsed_sec']:.1f}s")
+
+    if not parsed.quiet:
+        print(f"▶ Running playbook: {pb_path}")
+        if params:
+            print(f"  params: {params}")
+    result = _playbook.run_playbook(
+        pb_path, params=params,
+        backend=parsed.backend, model=parsed.model,
+        synthesize=not parsed.no_synthesize,
+        max_tokens=parsed.max_tokens, temperature=parsed.temperature,
+        on_step=_on_step,
+    )
+    if not parsed.quiet:
+        print(f"\n✓ {len(result['steps'])} steps, "
+              f"{len(result['artefacts'])} artefacts, "
+              f"{result['elapsed_sec']:.1f}s")
+
+    # Persist a run summary alongside the agent transcripts
+    if not parsed.no_persist:
+        from datetime import datetime
+        out_dir = _P("Docs/Playbooks/Runs")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stem = pb_path.stem
+        json_path = out_dir / f"{ts}_{stem}_run.json"
+        md_path = out_dir / f"{ts}_{stem}_run.md"
+        json_path.write_text(json.dumps(result, indent=2, default=str))
+        lines = [f"# Playbook run: {result.get('study')}", "",
+                 f"Playbook: `{pb_path}`",
+                 f"Params: `{json.dumps(result.get('params') or {})}`",
+                 f"Elapsed: {result['elapsed_sec']:.1f}s", "",
+                 "## Steps", "",
+                 "| # | tool | exit | artefacts | sec |",
+                 "|---|---|---:|---:|---:|"]
+        for s in result["steps"]:
+            lines.append(f"| {s['idx']+1} | `{s['tool']}` | {s['exit_code']} | "
+                          f"{s['n_artefacts']} | {s['elapsed_sec']} |")
+        lines += ["", "## Artefacts", ""]
+        for a in result["artefacts"]:
+            lines.append(f"- `{a}`")
+        if result.get("final_answer"):
+            lines += ["", "## Synthesis", "", result["final_answer"]]
+        md_path.write_text("\n".join(lines))
+        if not parsed.quiet:
+            print(f"  summary: {md_path}")
+            print(f"  json:    {json_path}")
+    return 0
+
+
+def _run_eval(args: "list[str]") -> int:
+    """Top-level: backend-comparison eval harness."""
+    import argparse, json, sys, time
+    parser = argparse.ArgumentParser(
+        prog="igvfagent eval",
+        description="Run the same query through multiple (backend, model) "
+                    "pairs and report pairwise divergence. Useful for "
+                    "deciding which questions are any-backend-safe.",
+    )
+    parser.add_argument("query", nargs="+",
+                         help="The question to compare across backends.")
+    parser.add_argument("--backends", required=True,
+                         help="Comma-separated backends (e.g. anthropic,ollama).")
+    parser.add_argument("--models", default=None,
+                         help="Comma-separated models, one per backend. "
+                              "If omitted, each backend uses its default.")
+    parser.add_argument("--runs", type=int, default=1,
+                         help="Replicates per (backend, model) pair.")
+    parser.add_argument("--max-iterations", type=int, default=8)
+    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--label", default=None)
+    parser.add_argument("--quiet", action="store_true")
+    parsed = parser.parse_args(args)
+
+    try:
+        from igvfagent import _eval
+    except ImportError:
+        import _eval  # type: ignore[no-redef]
+    from pathlib import Path as _P
+    from datetime import datetime
+
+    backends = [b.strip() for b in parsed.backends.split(",") if b.strip()]
+    models_arg = parsed.models or ""
+    models = [m.strip() or None for m in models_arg.split(",")] if models_arg else [None] * len(backends)
+    if len(models) == 1 and len(backends) > 1:
+        models = models * len(backends)
+    if len(backends) != len(models):
+        print(f"--backends ({len(backends)}) and --models ({len(models)}) must align",
+              file=sys.stderr)
+        return 2
+    pairs = list(zip(backends, models))
+    question = " ".join(parsed.query)
+
+    print(f"▶ Eval: '{question}'")
+    print(f"  pairs: {pairs}")
+    print(f"  runs/pair: {parsed.runs}")
+
+    records = _eval.run_eval(
+        question, pairs=pairs, runs=parsed.runs,
+        max_iterations=parsed.max_iterations,
+        max_tokens=parsed.max_tokens,
+        quiet=parsed.quiet,
+    )
+    diffs = _eval.diff_matrix(records)
+
+    out_dir = _P("Docs/Eval")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    label = parsed.label or "eval"
+    md_path = out_dir / f"{ts}_{label}_eval.md"
+    json_path = out_dir / f"{ts}_{label}_eval.json"
+    _eval.write_eval_report(question, records, diffs, md_path)
+    json_path.write_text(json.dumps(
+        {"question": question, "records": records, "diffs": diffs}, indent=2,
+        default=str))
+
+    print(f"\n✓ Report: {md_path}")
+    print(f"  JSON:   {json_path}")
+    print()
+    print(f"  {len(records)} runs, {len(diffs)} pairwise comparisons")
+    if diffs:
+        avg_jac = sum(d["jaccard_artefacts"] for d in diffs) / len(diffs)
+        avg_cos = sum(d["cos_final_answer"] for d in diffs) / len(diffs)
+        print(f"  avg Jaccard(artefacts) = {avg_jac:.3f}")
+        print(f"  avg cos(final_answer)   = {avg_cos:.3f}")
+    return 0
+
+
 
 
 def _run_ui(args: "list[str]") -> int:

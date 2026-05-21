@@ -1,0 +1,27 @@
+study: "MULTI-seq / Cell Hashing demultiplexing demo"
+description: |
+  Synthetic-data demonstration of the deMULTIplex2 EM classifier.
+  Single tool call produces 8+ diagnostic plots, a composite figure,
+  and an accuracy report against ground truth.
+
+parameters:
+  n_cells:       { default: 2000 }
+  n_tags:        { default: 6 }
+  doublet_rate:  { default: 0.08 }
+  negative_rate: { default: 0.05 }
+
+steps:
+  - tool: multiseq_showcase
+    label: "MULTI-seq showcase (synthetic)"
+    args:
+      n_cells: ${n_cells}
+      n_tags: ${n_tags}
+      doublet_rate: ${doublet_rate}
+      negative_rate: ${negative_rate}
+      label: multiseq_playbook
+
+synthesis: |
+  Report the demultiplexing classification breakdown (singlet /
+  multiplet / negative percentages) and the accuracy-vs-ground-truth
+  recovery rates. Reference the composite figure path. Briefly note
+  what the tag-by-call heatmap shows.
