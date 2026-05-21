@@ -65,6 +65,8 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",
                           "Literature retrieval / validation / study design"),
+    "mavedb":           ("igvfagent.mavedb_mapping_skill",
+                          "MaveDB scoreset → genomic coords (chr/pos/ref/alt)"),
     "encode":           ("igvfagent.encode_pipeline",
                           "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline"),
     "se-targets":       ("igvfagent.se_target_pipeline",
