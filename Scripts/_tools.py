@@ -1785,6 +1785,44 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "network_viz",
+        "★ PUBLICATION-GRADE NETWORK VISUALIZATION ★. Given a signed-SIF "
+        "subnetwork file (from `network carnival`, `network steiner`, "
+        "`network demo`, or any external CARNIVAL-style output), produces "
+        "a force-directed graph (PNG + SVG) with signed edges (green = "
+        "activation, red = inhibition), node coloring by role "
+        "(perturbation / measurement / inferred up/down), node sizing by "
+        "prize, plus a pathway-enrichment bar chart, degree distribution, "
+        "edge-sign breakdown, and a 4-panel publication composite figure. "
+        "Also emits an interactive vis.js HTML (with --html) and a per-"
+        "node summary CSV. USE THIS TOOL whenever the user asks to "
+        "'visualize', 'plot', 'render', or 'show' a network result.",
+        {
+            "type": "object",
+            "properties": {
+                "sif":      {**_S_STRING, "description":
+                              "Path to signed-SIF input."},
+                "prizes":   {**_S_STRING, "description":
+                              "Optional per-node CSV (node, prize, sign, role)."},
+                "pathways": {**_S_STRING, "description":
+                              "Optional node->pathway CSV for enrichment."},
+                "layout":   {**_S_STRING, "default": "spring",
+                              "enum": ["spring", "kamada", "circular", "shell"]},
+                "html":     {**_S_BOOLEAN, "default": False},
+                "label":    {**_S_STRING},
+                "title":    {**_S_STRING},
+            },
+            "required": ["sif"],
+        },
+        cli=["network", "viz"],
+        flag_map={
+            "sif": "--sif", "prizes": "--prizes", "pathways": "--pathways",
+            "layout": "--layout", "html": "--html",
+            "label": "--label", "title": "--title",
+        },
+    ),
+
+    _T(
         "network_steiner",
         "Prize-collecting Steiner tree — given per-gene prizes (e.g. "
         "VAMP-seq abundance change, GWAS hit strength) and a PPI prior, "

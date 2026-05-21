@@ -1,0 +1,8 @@
+node,in_degree,out_degree,total_degree,sign,prize,role,pathways
+SOS1,1,1,2,0,0.0,,
+RAS,1,1,2,0,0.0,,
+RAF,1,1,2,0,0.0,,
+MEK,1,1,2,0,0.0,,
+ERK,1,1,2,0,0.0,,
+EGFR,0,1,1,0,0.0,perturbation,
+MYC,1,0,1,0,0.0,measurement,
