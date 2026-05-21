@@ -7,6 +7,10 @@ Graph) and related public resources (ENCODE, FAVOR), with a built-in
 
 ![IGVF Agent architecture](Docs/Figures/IGVF_agent_archetcture.png)
 
+![IGVFagent architecture and skill topology](Docs/Figures/IGVFagent_architecture_flow.png)
+
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 30 skills grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back. Generator: [`Scripts/_figures/make_arch_figure.py`](Scripts/_figures/make_arch_figure.py); also available as [SVG](Docs/Figures/IGVFagent_architecture_flow.svg) and [PDF](Docs/Figures/IGVFagent_architecture_flow.pdf)._
+
 ### 🎬 Video demos
 
 | | |
