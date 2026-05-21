@@ -888,6 +888,20 @@ def main(argv: list[str] | None = None) -> int:
     process.add_argument("--download-manifest", required=True, type=Path)
     process.add_argument("--label", default="igvf_10x_multiome_local")
 
+    # 10x multiome analysis subcommands (qc-atac, joint-qc, lsi, wnn,
+    # peak2gene, showcase, write-analyze-playbook) from
+    # Scripts/multiome_10x_analyze.py — clean-room implementations of the
+    # methods in 10XGenomics/analysis_guides (no LICENSE) + Stuart-lab
+    # Signac (MIT) extensions.
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from multiome_10x_analyze import add_subparsers as _add_analyze
+        _add_analyze(subparsers)
+    except Exception as _exc:  # pylint: disable=broad-except
+        logging.getLogger(__name__).warning(
+            "multiome analysis subparsers unavailable: %s", _exc)
+
     subparsers.add_parser("write-playbook", help="Write the reusable 10x multiome skill document.")
 
     args = parser.parse_args(argv)
@@ -905,6 +919,12 @@ def main(argv: list[str] | None = None) -> int:
         for name, path in paths.items():
             print(f"{name}: {path}")
         return 0
+    # Analyze subcommands (qc-atac / joint-qc / lsi / wnn / peak2gene /
+    # showcase / write-analyze-playbook) attach themselves via
+    # set_defaults(func=...).
+    func = getattr(args, "func", None)
+    if func is not None:
+        return int(func(args) or 0)
     return 1
 
 

@@ -392,6 +392,171 @@ _TOOLS: "list[Tool]" = [
                    "label": "--label", "title": "--title", "fdr": "--fdr"},
     ),
 
+    # ──────────────────────────────────────────────────────────────────
+    # 10x Multiome analytics — clean-room reimplementations of methods in
+    # 10XGenomics/analysis_guides + Stuart-lab Signac (MIT) extensions.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "multiome_qc_atac",
+        "★ Per-barcode ATAC QC from a fragments TSV/BED ★. Computes "
+        "fragments per barcode, TSS enrichment (Signac TSSEnrichment "
+        "formula: center reads / max(0.2, flank reads), ±100 bp center "
+        "/ ±900-1000 bp flank), nucleosome signal (mono-nucleosome / "
+        "NFR fragment-length ratio), and FRIP (reads in peaks). Use "
+        "this BEFORE joint-qc.",
+        {
+            "type": "object",
+            "properties": {
+                "fragments": {**_S_STRING, "description":
+                              "Path to fragments TSV/BED (.gz OK)."},
+                "tss_bed":   {**_S_STRING, "description":
+                              "Optional TSS BED for TSS enrichment."},
+                "peaks_bed": {**_S_STRING, "description":
+                              "Optional peaks BED for FRIP."},
+                "label":     {**_S_STRING},
+            },
+            "required": ["fragments"],
+        },
+        cli=["multiome", "qc-atac"],
+        flag_map={"fragments": "--fragments", "tss_bed": "--tss-bed",
+                   "peaks_bed": "--peaks-bed", "label": "--label"},
+    ),
+    _T(
+        "multiome_joint_qc",
+        "Merge ATAC + RNA per-barcode QC tables and apply Signac-"
+        "convention joint thresholds (RNA: 1k-25k UMIs, ≥200 genes, "
+        "≤20%% MT; ATAC: 1.8k-100k frags, TSS>1, nucleosome<2, "
+        "FRIP>0.15). Outputs a per-barcode QC TSV with 'qc' label "
+        "(both / RNA only / ATAC only / neither).",
+        {
+            "type": "object",
+            "properties": {
+                "rna_qc":   {**_S_STRING},
+                "atac_qc":  {**_S_STRING},
+                "min_umis": {**_S_INTEGER, "default": 1000},
+                "max_umis": {**_S_INTEGER, "default": 25000},
+                "min_genes": {**_S_INTEGER, "default": 200},
+                "max_pct_mt": {"type": "number", "default": 0.20},
+                "min_frags": {**_S_INTEGER, "default": 1800},
+                "max_frags": {**_S_INTEGER, "default": 100000},
+                "min_tss":  {"type": "number", "default": 1.0},
+                "max_nuc":  {"type": "number", "default": 2.0},
+                "min_frip": {"type": "number", "default": 0.15},
+                "label":    {**_S_STRING},
+            },
+            "required": ["rna_qc", "atac_qc"],
+        },
+        cli=["multiome", "joint-qc"],
+        flag_map={"rna_qc": "--rna-qc", "atac_qc": "--atac-qc",
+                   "min_umis": "--min-umis", "max_umis": "--max-umis",
+                   "min_genes": "--min-genes", "max_pct_mt": "--max-pct-mt",
+                   "min_frags": "--min-frags", "max_frags": "--max-frags",
+                   "min_tss": "--min-tss", "max_nuc": "--max-nuc",
+                   "min_frip": "--min-frip", "label": "--label"},
+    ),
+    _T(
+        "multiome_lsi",
+        "TF-IDF normalization + truncated SVD on a peak × cell matrix. "
+        "Drops dim 1 (correlates with sequencing depth) per Signac "
+        "RunSVD + DepthCor convention. Writes the embedding to "
+        "obsm['X_lsi'] of the input h5ad and saves a new h5ad.",
+        {
+            "type": "object",
+            "properties": {
+                "input": {**_S_STRING},
+                "n_components": {**_S_INTEGER, "default": 50},
+                "seed":  {**_S_INTEGER, "default": 7},
+                "label": {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["multiome", "lsi"],
+        flag_map={"input": "--input", "n_components": "--n-components",
+                   "seed": "--seed", "label": "--label"},
+    ),
+    _T(
+        "multiome_wnn",
+        "Joint weighted-nearest-neighbor embedding via muon (BSD-3). "
+        "Equivalent to Seurat 5 FindMultiModalNeighbors. Requires both "
+        "AnnData inputs to share per-cell barcodes; ATAC must have "
+        "obsm['X_lsi'] (run `multiome lsi` first). Optionally clusters "
+        "the joint graph with Leiden.",
+        {
+            "type": "object",
+            "properties": {
+                "rna_h5ad":  {**_S_STRING},
+                "atac_h5ad": {**_S_STRING},
+                "n_pca":     {**_S_INTEGER, "default": 50},
+                "n_neighbors": {**_S_INTEGER, "default": 20},
+                "min_dist":  {"type": "number", "default": 0.3},
+                "cluster":   {**_S_BOOLEAN, "default": False},
+                "resolution": {"type": "number", "default": 1.0},
+                "seed":      {**_S_INTEGER, "default": 7},
+                "label":     {**_S_STRING},
+            },
+            "required": ["rna_h5ad", "atac_h5ad"],
+        },
+        cli=["multiome", "wnn"],
+        flag_map={"rna_h5ad": "--rna-h5ad", "atac_h5ad": "--atac-h5ad",
+                   "n_pca": "--n-pca", "n_neighbors": "--n-neighbors",
+                   "min_dist": "--min-dist", "cluster": "--cluster",
+                   "resolution": "--resolution", "seed": "--seed",
+                   "label": "--label"},
+    ),
+    _T(
+        "multiome_peak2gene",
+        "Peak-to-gene correlation. For each peak, identify genes whose "
+        "TSS is within --window bp (default 500 kb) and compute "
+        "Pearson/Spearman correlation between peak accessibility and "
+        "gene expression across cells. BH-FDR adjusted p-values. Sign "
+        "of correlation indicates enhancer-like (positive) vs "
+        "repressor-like (negative) association.",
+        {
+            "type": "object",
+            "properties": {
+                "rna_h5ad":  {**_S_STRING},
+                "atac_h5ad": {**_S_STRING},
+                "tss_bed":   {**_S_STRING},
+                "window":    {**_S_INTEGER, "default": 500000},
+                "method":    {**_S_STRING, "default": "pearson",
+                               "enum": ["pearson", "spearman"]},
+                "max_pairs": {**_S_INTEGER, "default": 200000},
+                "label":     {**_S_STRING},
+            },
+            "required": ["rna_h5ad", "atac_h5ad", "tss_bed"],
+        },
+        cli=["multiome", "peak2gene"],
+        flag_map={"rna_h5ad": "--rna-h5ad", "atac_h5ad": "--atac-h5ad",
+                   "tss_bed": "--tss-bed", "window": "--window",
+                   "method": "--method", "max_pairs": "--max-pairs",
+                   "label": "--label"},
+    ),
+    _T(
+        "multiome_showcase",
+        "★ ONE-COMMAND 10x MULTIOME QC SHOWCASE ★. Runs qc-atac + "
+        "(optional) joint-qc + builds a 6-panel composite figure "
+        "(fragments/cell, TSS enrichment, nucleosome signal, FRIP, "
+        "reads in TSS, reads in peaks — each with Signac thresholds "
+        "as red dashed lines) + writes a narrative report. THIS IS "
+        "THE RIGHT TOOL FOR ANY 10x MULTIOME QC DEMO QUESTION.",
+        {
+            "type": "object",
+            "properties": {
+                "fragments": {**_S_STRING},
+                "tss_bed":   {**_S_STRING},
+                "peaks_bed": {**_S_STRING},
+                "rna_qc":    {**_S_STRING, "description":
+                               "Optional RNA QC TSV (output of share rna-qc)."},
+                "label":     {**_S_STRING},
+            },
+            "required": ["fragments"],
+        },
+        cli=["multiome", "showcase"],
+        flag_map={"fragments": "--fragments", "tss_bed": "--tss-bed",
+                   "peaks_bed": "--peaks-bed", "rna_qc": "--rna-qc",
+                   "label": "--label"},
+    ),
+
     _T(
         "crispri_pull",
         "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog.",
