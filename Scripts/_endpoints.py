@@ -41,6 +41,22 @@ _DEFAULTS = {
     "cellxgene_api":   "68747470733a2f2f6170692e63656c6c7867656e652e637a69736369656e63652e636f6d",
     "hca_azul":        "68747470733a2f2f736572766963652e617a756c2e646174612e68756d616e63656c6c61746c61732e6f7267",
     "zenodo_api":      "68747470733a2f2f7a656e6f646f2e6f7267",
+    # MaveDB scoreset host (proteomics_skill + mavedb_mapping_skill).
+    "mavedb_api":      "68747470733a2f2f6170692e6d61766564622e6f7267",
+    # Ensembl REST API (mavedb_mapping_skill — protein→genomic mapping).
+    "ensembl_rest":    "68747470733a2f2f726573742e656e73656d626c2e6f7267",
+    # IGVF public S3 bucket for proteomics warehouse mirrors.
+    "igvf_s3":         "68747470733a2f2f696776662d7075626c69632e73332e616d617a6f6e6177732e636f6d",
+    # RCSB files for PDB / mmCIF structure overlays (proteomics PyMOL templates).
+    "rcsb_files":      "68747470733a2f2f66696c65732e726373622e6f7267",
+    # LLM-provider base URLs used by ``Scripts/_llm.py``. API keys are
+    # always read from per-backend environment variables; only the host
+    # endpoint is materialized here.
+    "llm_openai":      "68747470733a2f2f6170692e6f70656e61692e636f6d2f7631",
+    "llm_groq":        "68747470733a2f2f6170692e67726f712e636f6d2f6f70656e61692f7631",
+    "llm_together":    "68747470733a2f2f6170692e746f6765746865722e78797a2f7631",
+    "llm_deepinfra":   "68747470733a2f2f6170692e64656570696e6672612e636f6d2f76312f6f70656e6169",
+    "llm_hf_inference":"68747470733a2f2f6170692d696e666572656e63652e68756767696e67666163652e636f2f7631",
 }
 
 
