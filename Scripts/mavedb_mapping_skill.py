@@ -173,7 +173,8 @@ def parse_hgvsc(s: str) -> "tuple[int, str, str] | None":
 
 # ─── Ensembl REST API client ────────────────────────────────────────────────
 
-ENSEMBL_BASE = "https://rest.ensembl.org"
+from _endpoints import resolve as _resolve_endpoint
+ENSEMBL_BASE = _resolve_endpoint("ensembl_rest", "ENSEMBL_REST_BASE")
 
 
 def _cache_path(slug: str) -> Path:

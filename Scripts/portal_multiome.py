@@ -52,7 +52,13 @@ SELECTION_CSV = MANIFEST_DIR / "portal_multiome_selection.csv"
 DOWNLOAD_LOG = MANIFEST_DIR / "portal_multiome_download_log.csv"
 ANALYSIS_JSON = DOWNLOAD_DIR / "analysis_summary.json"
 
-PORTAL_BASE = os.environ.get("IGVF_PORTAL_BASE", "https://api.data.igvf.org").rstrip("/")
+try:
+    from _endpoints import resolve as _resolve_endpoint
+except ImportError:  # pragma: no cover — when imported as a package module
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _endpoints import resolve as _resolve_endpoint
+PORTAL_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_BASE")
 USER_AGENT = "IGVFagent-portal-multiome/0.1"
 
 # Standard cell-cycle marker symbols (Tirosh et al. Science 2016).
