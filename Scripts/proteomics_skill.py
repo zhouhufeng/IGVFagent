@@ -82,6 +82,9 @@ REACTOME_BASE = _resolve_endpoint("reactome_dl", "REACTOME_BASE")
 KEGG_BASE = _resolve_endpoint("kegg_rest", "KEGG_BASE")
 UNIPROT_IDMAP_BASE = _resolve_endpoint("uniprot_idmap", "UNIPROT_IDMAP_BASE")
 PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
+IGVF_S3_BASE = _resolve_endpoint("igvf_s3", "IGVF_S3_BASE")
+MAVEDB_API_BASE = _resolve_endpoint("mavedb_api", "MAVEDB_API_BASE")
+RCSB_FILES_BASE = _resolve_endpoint("rcsb_files", "RCSB_FILES_BASE")
 
 logger = logging.getLogger("proteomics")
 
@@ -737,7 +740,7 @@ def igvf_protein_download() -> dict:
         dl = ""
         if s3_uri.startswith("s3://igvf-public/"):
             key = s3_uri[len("s3://igvf-public/"):]
-            dl = f"https://igvf-public.s3.amazonaws.com/{key}"
+            dl = f"{IGVF_S3_BASE}/{key}"
         elif href:
             dl = f"{PORTAL_API_BASE}{href}"
         if not dl:
@@ -1637,7 +1640,7 @@ def download_mavedb_scoreset(urn: str, dest_dir: Optional[Path] = None) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     safe = urn.replace(":", "-").replace("/", "_")
     dest = dest_dir / f"{safe}.csv"
-    url = f"https://api.mavedb.org/api/v1/score-sets/{urn}/scores"
+    url = f"{MAVEDB_API_BASE}/api/v1/score-sets/{urn}/scores"
     if not dest.exists() or dest.stat().st_size < 100:
         logger.info("MaveDB: downloading %s -> %s", urn, dest.name)
         try:
@@ -2178,7 +2181,7 @@ def analyze_vampseq_scoreset(csv_path: Path, *, gene: str,
         pml_lines = [
             f"# IGVFagent VAMP-seq abundance overlay for {gene}",
             f"# Source: {csv_path.name}",
-            f"load https://files.rcsb.org/download/{pdb_id}.cif, struct",
+            f"load {RCSB_FILES_BASE}/download/{pdb_id}.cif, struct",
             "hide everything",
             "show cartoon",
             "color grey80",

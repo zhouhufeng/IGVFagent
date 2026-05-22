@@ -376,12 +376,19 @@ def _chat_openai_compat(messages, *, model, tools, max_tokens, temperature,
 
 # Each entry: backend label -> default base_url + default api_key env var.
 # Override any of these via ``IGVF_LLM_BASE_URL`` / ``IGVF_LLM_API_KEY_ENV``.
+try:
+    from _endpoints import resolve as _resolve_endpoint
+except ImportError:  # pragma: no cover
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    from _endpoints import resolve as _resolve_endpoint
+
 _BACKENDS = {
     "anthropic": None,                                     # special-cased
-    "openai":    {"base_url": "https://api.openai.com/v1",
+    "openai":    {"base_url": _resolve_endpoint("llm_openai", "OPENAI_BASE_URL"),
                    "api_key_env": "OPENAI_API_KEY"},
-    "codex":     {"base_url": os.environ.get("IGVF_CODEX_BASE_URL",
-                                                "https://api.openai.com/v1"),
+    "codex":     {"base_url": _resolve_endpoint("llm_openai", "IGVF_CODEX_BASE_URL"),
                    "api_key_env": "OPENAI_API_KEY"},
     "ollama":    {"base_url": os.environ.get("OLLAMA_HOST_BASE",
                                                 "http://localhost:11434/v1"),
@@ -395,16 +402,15 @@ _BACKENDS = {
                                                 "http://localhost:3000/v1"),
                    "api_key_env": "IGVF_LLM_API_KEY",
                    "api_key_default": "EMPTY"},
-    "groq":      {"base_url": "https://api.groq.com/openai/v1",
+    "groq":      {"base_url": _resolve_endpoint("llm_groq", "GROQ_BASE_URL"),
                    "api_key_env": "GROQ_API_KEY"},
-    "together":  {"base_url": "https://api.together.xyz/v1",
+    "together":  {"base_url": _resolve_endpoint("llm_together", "TOGETHER_BASE_URL"),
                    "api_key_env": "TOGETHER_API_KEY"},
-    "deepinfra": {"base_url": "https://api.deepinfra.com/v1/openai",
+    "deepinfra": {"base_url": _resolve_endpoint("llm_deepinfra", "DEEPINFRA_BASE_URL"),
                    "api_key_env": "DEEPINFRA_API_KEY"},
     "huggingface": {
-        "base_url": os.environ.get(
-            "IGVF_LLM_BASE_URL",
-            "https://api-inference.huggingface.co/v1"),
+        "base_url": (os.environ.get("IGVF_LLM_BASE_URL")
+                       or _resolve_endpoint("llm_hf_inference", "HF_BASE_URL")),
         "api_key_env": "HF_TOKEN",
     },
     # User-provided OpenAI-compatible endpoint
