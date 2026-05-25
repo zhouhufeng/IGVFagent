@@ -2842,6 +2842,151 @@ _TOOLS: "list[Tool]" = [
         cli=["portal", "endpoint-params"],
         flag_map={"collection": ""},
     ),
+    # ──────────────────────────────────────────────────────────────────
+    # IGVF Catalog (Knowledge Graph) canonical-query layer (clean-room
+    # reimpl of IGVF-DACC/igvf-catalog-mcp, MIT)
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "catalog_get_entity",
+        "★ IGVF CATALOG UNIVERSAL ENTITY LOOKUP ★. Resolves any IGVF "
+        "Catalog ID — gene symbol (APOE), ENSG, HGNC:n, ENTREZ:n, "
+        "rsID (rs429358), SPDI (NC_000019.10:...), HGVS, CA-id, ENSP, "
+        "UniProt (P02649), MONDO:n / EFO:n / GO:n / HPO / DOID / UBERON "
+        "/ CL / CHEBI / OBA, drugbank (DB...), CHEMBL..., CPX-n "
+        "(Complex Portal), R-HSA-n (Reactome), GCST... (GWAS Catalog) "
+        "— and returns the full node JSON. Auto-detects entity type "
+        "from the ID format; --hint overrides.",
+        {
+            "type": "object",
+            "properties": {
+                "id":    {**_S_STRING, "description":
+                          "Any IGVF Catalog ID (auto-detected)."},
+                "hint":  {**_S_STRING, "description":
+                          "Override entity-type detection."},
+                "limit": {**_S_INTEGER, "default": 1},
+            },
+            "required": ["id"],
+        },
+        cli=["catalog", "get-entity"],
+        flag_map={"id": "", "hint": "--hint", "limit": "--limit"},
+    ),
+    _T(
+        "catalog_search_region",
+        "★ IGVF CATALOG REGION FAN-OUT SEARCH ★. Parallel query of "
+        "genes + variants + genomic-elements within a region. Accepts "
+        "'chr19:44,907,000-44,910,000', '19:44.9M-44.92M', "
+        "'chr1:1K-2K'. Returns three lists (one per type) with "
+        "per-type pagination metadata. USE THIS to enumerate "
+        "everything the Catalog knows about a locus.",
+        {
+            "type": "object",
+            "properties": {
+                "region":   {**_S_STRING, "description":
+                              "chr1:1000-2000, 1:1K-2K, 19:44.9M-44.92M."},
+                "include":  {**_S_STRING, "default":
+                              "genes,variants,genomic-elements"},
+                "organism": {**_S_STRING, "default": "Homo sapiens"},
+                "limit":    {**_S_INTEGER, "default": 25},
+                "page":     {**_S_INTEGER, "default": 0},
+            },
+            "required": ["region"],
+        },
+        cli=["catalog", "search-region"],
+        flag_map={"region": "", "include": "--include",
+                   "organism": "--organism", "limit": "--limit",
+                   "page": "--page"},
+    ),
+    _T(
+        "catalog_find_associations",
+        "★ IGVF CATALOG EDGE QUERY BY SEMANTIC RELATIONSHIP ★. Walks "
+        "every edge in a semantic category (genetic / regulatory / "
+        "physical / functional / pharmacological / ld / coding / "
+        "transcription / all) for an entity, aggregating hits across "
+        "multiple edge endpoints in one call. Accepts the catalog "
+        "filter DSL (label=eqtl;method=GTEx,FANTOM5;p_value=lte:5e-8) "
+        "with automatic p_value → log10pvalue conversion.",
+        {
+            "type": "object",
+            "properties": {
+                "entity_id":     {**_S_STRING, "description":
+                                  "Any IGVF Catalog ID (auto-detected)."},
+                "relationship":  {**_S_STRING, "description":
+                                  "genetic / regulatory / physical / "
+                                  "functional / pharmacological / ld / "
+                                  "coding / transcription / all"},
+                "filters":       {**_S_STRING, "description":
+                                  "DSL e.g. 'label=eqtl;p_value=lte:5e-8'."},
+                "limit":         {**_S_INTEGER, "default": 25},
+                "page":          {**_S_INTEGER, "default": 0},
+                "verbose":       {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["entity_id", "relationship"],
+        },
+        cli=["catalog", "find-associations"],
+        flag_map={"entity_id": "", "relationship": "--relationship",
+                   "filters": "--filters", "limit": "--limit",
+                   "page": "--page", "verbose": "--verbose"},
+    ),
+    _T(
+        "catalog_find_ld",
+        "★ IGVF CATALOG LD PROXIES ★. Dedicated query of `/api/variants/"
+        "variant-ld` for an index variant, with r² / D' / ancestry "
+        "filters and a strong/moderate/weak/negligible bucket summary "
+        "plus per-ancestry breakdown.",
+        {
+            "type": "object",
+            "properties": {
+                "variant_id":         {**_S_STRING, "description":
+                                        "rsID / SPDI / HGVS / CA-ID."},
+                "r2_threshold":       {"type": "number"},
+                "d_prime_threshold":  {"type": "number"},
+                "ancestry":           {**_S_STRING, "description":
+                                        "Comma list AFR,AMR,EAS,EUR,SAS."},
+                "limit":              {**_S_INTEGER, "default": 100},
+                "verbose":            {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["variant_id"],
+        },
+        cli=["catalog", "find-ld"],
+        flag_map={"variant_id": "", "r2_threshold": "--r2-threshold",
+                   "d_prime_threshold": "--d-prime-threshold",
+                   "ancestry": "--ancestry", "limit": "--limit",
+                   "verbose": "--verbose"},
+    ),
+    _T(
+        "catalog_resolve_id",
+        "★ IGVF CATALOG ID CROSS-REFERENCE PROJECTION ★. Translates one "
+        "ID into all of its cross-references — rsID ↔ SPDI ↔ HGVS ↔ "
+        "CA-ID for variants; symbol ↔ ENSG ↔ HGNC ↔ Entrez ↔ synonyms "
+        "for genes; UniProt ↔ ENSP for proteins; etc. USE THIS as a "
+        "preflight when an analysis needs identifiers in a specific "
+        "namespace.",
+        {
+            "type": "object",
+            "properties": {
+                "id": {**_S_STRING, "description":
+                        "Any IGVF Catalog ID."},
+            },
+            "required": ["id"],
+        },
+        cli=["catalog", "resolve-id"],
+        flag_map={"id": ""},
+    ),
+    _T(
+        "catalog_list_sources",
+        "Enumerate IGVF Catalog edge endpoints by semantic category, "
+        "or probe one endpoint for its observed sources / methods.",
+        {
+            "type": "object",
+            "properties": {
+                "category": {**_S_STRING},
+                "endpoint": {**_S_STRING},
+            },
+        },
+        cli=["catalog", "list-sources"],
+        flag_map={"category": "--category", "endpoint": "--endpoint"},
+    ),
+
     _T(
         "portal_list_types",
         "List the canonical IGVF CamelCase ItemTypes and their "
