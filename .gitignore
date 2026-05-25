@@ -91,3 +91,8 @@ clean_and_push.sh
 Docs/Slides/
 Docs/Paper/
 Scripts/_make_overview_slides.py
+
+# Claude Code per-developer state — keep .claude/skills/ tracked but
+# exclude per-machine settings + the parallel-worktree directory.
+.claude/settings.local.json
+.claude/worktrees/
