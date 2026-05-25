@@ -97,6 +97,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "GO + Pathway enrichment validation (ORA via Enrichr; "
                           "GSEA preranked) over GO_BP/MF/CC + Reactome + KEGG "
                           "+ WikiPathways + MSigDB Hallmark"),
+    "portal":           ("igvfagent.portal_query_skill",
+                          "IGVF Portal canonical-query layer — faceted search, "
+                          "report.tsv, batch-download, endpoint-param introspection "
+                          "(clean-room reimpl of IGVF-DACC/igvf-portal-mcp)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
