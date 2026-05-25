@@ -101,6 +101,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "IGVF Portal canonical-query layer — faceted search, "
                           "report.tsv, batch-download, endpoint-param introspection "
                           "(clean-room reimpl of IGVF-DACC/igvf-portal-mcp)"),
+    "catalog":          ("igvfagent.catalog_query_skill",
+                          "IGVF Catalog (KG) canonical-query layer — universal "
+                          "get-entity, search-region, find-associations (semantic), "
+                          "find-ld, resolve-id, list-sources "
+                          "(clean-room reimpl of IGVF-DACC/igvf-catalog-mcp)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
