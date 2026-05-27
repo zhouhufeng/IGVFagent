@@ -3288,7 +3288,13 @@ def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
                 argv.extend([flag, _coerce_value(v)])
             continue
         flag = tool.flag_map.get(name, "--" + name.replace("_", "-"))
-        argv.extend([flag, _coerce_value(value)])
+        # Convention: ``flag_map={name: ""}`` means the argument is
+        # positional. Skip emitting an empty-string flag token before
+        # the value — that would make argparse choke with exit_code=2.
+        if flag == "":
+            argv.append(_coerce_value(value))
+        else:
+            argv.extend([flag, _coerce_value(value)])
     return argv
 
 
