@@ -106,6 +106,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "get-entity, search-region, find-associations (semantic), "
                           "find-ld, resolve-id, list-sources "
                           "(clean-room reimpl of IGVF-DACC/igvf-catalog-mcp)"),
+    "chipatlas":        ("igvfagent.chipatlas_skill",
+                          "ChIP-Atlas (Ohta/Oki) reprocessed ChIP/ATAC/DNase/Bisulfite "
+                          "peak archive — browse + per-experiment files + assembled "
+                          "BEDs + Target-Genes + WABI Enrichment "
+                          "(clean-room reimpl of inutano/chip-atlas)"),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
