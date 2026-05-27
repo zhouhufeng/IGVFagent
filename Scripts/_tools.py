@@ -2972,6 +2972,204 @@ _TOOLS: "list[Tool]" = [
         cli=["catalog", "resolve-id"],
         flag_map={"id": ""},
     ),
+    # ──────────────────────────────────────────────────────────────────
+    # ChIP-Atlas (Ohta/Oki — chip-atlas.org)
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "chipatlas_list_antigens",
+        "★ CHIP-ATLAS ANTIGEN BROWSER ★. Lists every antigen (histone "
+        "mark / TF / ATAC-Seq / DNase-Seq / Bisulfite-Seq class) that "
+        "ChIP-Atlas has reprocessed experiments for, scoped to a "
+        "(genome × agClass × cellClass) slice, with per-antigen "
+        "experiment counts. USE THIS to answer 'does ChIP-Atlas have X "
+        "ChIP-seq in cell-type Y, and how many?' before pulling files.",
+        {
+            "type": "object",
+            "properties": {
+                "genome":     {**_S_STRING, "description":
+                                "hg38 / hg19 / mm10 / mm9 / rn6 / dm6 / dm3 / "
+                                "ce11 / ce10 / sacCer3"},
+                "ag_class":   {**_S_STRING, "description":
+                                "Histone / 'TFs and others' / 'RNA polymerase' / "
+                                "ATAC-Seq / DNase-seq / Bisulfite-Seq / etc."},
+                "cell_class": {**_S_STRING, "default": "All cell types"},
+                "limit":      {**_S_INTEGER, "default": 40},
+            },
+            "required": ["genome", "ag_class"],
+        },
+        cli=["chipatlas", "list-antigens"],
+        flag_map={"genome": "--genome", "ag_class": "--ag-class",
+                   "cell_class": "--cell-class", "limit": "--limit"},
+    ),
+    _T(
+        "chipatlas_search",
+        "★ CHIP-ATLAS FREE-TEXT EXPERIMENT SEARCH ★. Search across "
+        "hundreds of thousands of reprocessed public ChIP-seq / "
+        "ATAC-seq / DNase-seq / Bisulfite-seq SRX experiments by any "
+        "term (TF name, cell line, condition, GSE/PRJNA). Returns SRX "
+        "accessions + antigen + cell-type + title. USE THIS when the "
+        "user wants 'find me CTCF ChIP-seq in K562' or any similar "
+        "name/keyword query, before drilling into per-experiment files.",
+        {
+            "type": "object",
+            "properties": {
+                "query":  {**_S_STRING, "description":
+                            "Free-text query, e.g. 'CTCF K562'."},
+                "genome": {**_S_STRING, "description": "Optional genome filter."},
+                "limit":  {**_S_INTEGER, "default": 25},
+            },
+            "required": ["query"],
+        },
+        cli=["chipatlas", "search"],
+        flag_map={"query": "--query", "genome": "--genome", "limit": "--limit"},
+    ),
+    _T(
+        "chipatlas_get_experiment",
+        "★ CHIP-ATLAS EXPERIMENT METADATA ★. Full metadata for one "
+        "SRX/DRX/ERX accession — antigen, cell type, taxon, processing "
+        "stats. USE THIS to inspect a specific experiment that "
+        "chipatlas_search returned.",
+        {
+            "type": "object",
+            "properties": {
+                "experiment_id": {**_S_STRING,
+                                    "description": "SRX/DRX/ERX accession."},
+            },
+            "required": ["experiment_id"],
+        },
+        cli=["chipatlas", "get-experiment"],
+        flag_map={"experiment_id": ""},
+    ),
+    _T(
+        "chipatlas_download_experiment",
+        "★ CHIP-ATLAS PER-EXPERIMENT FILE PULL ★. For a given SRX + "
+        "genome, download (or just enumerate the URLs of) the "
+        "per-experiment files at the requested kinds. Kinds: bw "
+        "(BigWig signal), bb (all-peaks BigBed), bb05/bb10/bb20 "
+        "(BigBed at -log10(q)=5/10/20 thresholds), bed05/bed10/bed20 "
+        "(plain BED equivalents). Pass urls_only=true to skip the "
+        "actual download.",
+        {
+            "type": "object",
+            "properties": {
+                "experiment_id": {**_S_STRING},
+                "genome":        {**_S_STRING},
+                "kinds":         {**_S_STRING, "default": "bw,bb05",
+                                   "description":
+                                   "Comma-list (bw / bb / bb05 / bb10 / bb20 / "
+                                   "bed05 / bed10 / bed20)."},
+                "urls_only":     {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["experiment_id", "genome"],
+        },
+        cli=["chipatlas", "download-experiment"],
+        flag_map={"experiment_id": "", "genome": "--genome",
+                   "kinds": "--kinds", "urls_only": "--urls-only"},
+    ),
+    _T(
+        "chipatlas_assemble_bed",
+        "★ CHIP-ATLAS ASSEMBLED ALL-PEAKS BED ★. POST a "
+        "(genome × agClass × antigen × cellClass × cellSubclass × qval) "
+        "tuple to ChIP-Atlas's /download endpoint to get the URL of an "
+        "assembled all-peaks BED that unions every reprocessed peak "
+        "call matching the slice. Pass fetch=true to also stream the "
+        "BED to disk. USE THIS to get a single TF-in-cellClass peakset "
+        "without manually concatenating per-experiment files.",
+        {
+            "type": "object",
+            "properties": {
+                "genome":        {**_S_STRING},
+                "ag_class":      {**_S_STRING},
+                "antigen":       {**_S_STRING},
+                "cell_class":    {**_S_STRING, "default": "All cell types"},
+                "cell_subclass": {**_S_STRING},
+                "qval":          {**_S_STRING, "default": "05"},
+                "fetch":         {**_S_BOOLEAN, "default": False},
+                "max_bytes":     {**_S_INTEGER},
+            },
+            "required": ["genome", "ag_class"],
+        },
+        cli=["chipatlas", "assemble-bed"],
+        flag_map={"genome": "--genome", "ag_class": "--ag-class",
+                   "antigen": "--antigen", "cell_class": "--cell-class",
+                   "cell_subclass": "--cell-subclass", "qval": "--qval",
+                   "fetch": "--fetch", "max_bytes": "--max-bytes"},
+    ),
+    _T(
+        "chipatlas_target_genes",
+        "★ CHIP-ATLAS PRE-COMPUTED TARGET-GENES TABLES ★. Discover "
+        "(list=true) which antigens have pre-computed Target-Genes "
+        "tables for a genome, or fetch one for a specific antigen at a "
+        "given TSS-proximity distance (default 5000 bp). Each row "
+        "contains a target gene with its mean peak score across all "
+        "experiments. USE THIS to get TF→target-gene scoring without "
+        "running your own peak overlap.",
+        {
+            "type": "object",
+            "properties": {
+                "genome":   {**_S_STRING},
+                "list":     {**_S_BOOLEAN, "default": False},
+                "antigen":  {**_S_STRING},
+                "distance": {**_S_INTEGER, "default": 5000},
+                "limit":    {**_S_INTEGER, "default": 50},
+            },
+            "required": ["genome"],
+        },
+        cli=["chipatlas", "target-genes"],
+        flag_map={"genome": "--genome", "list": "--list",
+                   "antigen": "--antigen", "distance": "--distance",
+                   "limit": "--limit"},
+    ),
+    _T(
+        "chipatlas_showcase",
+        "★ CHIP-ATLAS ONE-COMMAND DEMO ★. End-to-end probe of the "
+        "ChIP-Atlas surface: genomes, top histone antigens for a "
+        "cell-class slice, bulk allPeaks_light HEAD probe, per-"
+        "experiment BigBed HEAD probe, and the count of antigens with "
+        "Target-Genes tables. All HEAD/JSON only — no GB-scale downloads.",
+        {
+            "type": "object",
+            "properties": {
+                "genome":         {**_S_STRING, "default": "hg38"},
+                "cell_class":     {**_S_STRING, "default": "Pluripotent stem cell"},
+                "canonical_srx":  {**_S_STRING, "default": "SRX150531"},
+            },
+        },
+        cli=["chipatlas", "showcase"],
+        flag_map={"genome": "--genome", "cell_class": "--cell-class",
+                   "canonical_srx": "--canonical-srx"},
+    ),
+    _T(
+        "chipatlas_submit_enrichment",
+        "★ CHIP-ATLAS WABI ENRICHMENT JOB ★. Submit a gene-list or "
+        "BED-region over-representation job to the NIG/DDBJ WABI queue. "
+        "mode='genes' asks 'which TFs are enriched at the regulatory "
+        "regions of my gene list?'; mode='regions' asks 'which TFs are "
+        "enriched at my BED regions?'. Returns a job id you then pass "
+        "to chipatlas_poll_enrichment.",
+        {
+            "type": "object",
+            "properties": {
+                "mode":       {**_S_STRING, "description": "'genes' or 'regions'"},
+                "genome":     {**_S_STRING},
+                "query":      {**_S_STRING,
+                                "description": "File path OR literal text content."},
+                "background": {**_S_STRING},
+                "ag_class":   {**_S_STRING, "default": "TFs and others"},
+                "cell_class": {**_S_STRING, "default": "All cell types"},
+                "qval":       {**_S_STRING, "default": "05"},
+                "distance":   {**_S_INTEGER, "default": 5000},
+                "label":      {**_S_STRING},
+            },
+            "required": ["mode", "genome", "query"],
+        },
+        cli=["chipatlas", "submit-enrichment"],
+        flag_map={"mode": "--mode", "genome": "--genome", "query": "--query",
+                   "background": "--background", "ag_class": "--ag-class",
+                   "cell_class": "--cell-class", "qval": "--qval",
+                   "distance": "--distance", "label": "--label"},
+    ),
+
     _T(
         "catalog_list_sources",
         "Enumerate IGVF Catalog edge endpoints by semantic category, "
