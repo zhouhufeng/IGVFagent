@@ -1,0 +1,21 @@
+{
+  "paper": {
+    "authors": "Mitra S et al.",
+    "journal": "Nat Genet",
+    "year": 2024,
+    "doi": "10.1038/s41588-024-01689-8",
+    "pmid": null,
+    "pmcid": "PMC11018525"
+  },
+  "data_source": { "type": "igvf_portal_multiome" },
+  "skill_output_dir": "Multiome10x",
+  "label": "mitra2024_scarlink",
+  "primary_artefact": "manifest.json",
+  "checks": [
+    {
+      "name": "Multiome manifest artefact written",
+      "type": "artefact",
+      "filename": "manifest.json"
+    }
+  ]
+}
