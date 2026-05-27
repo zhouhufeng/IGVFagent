@@ -34,16 +34,39 @@ DOCS = ROOT / "Docs"
 
 
 def latest_run_dir(skill_dir_name: str, label: str) -> Path | None:
-    """Find the most recent ``Docs/<skill>/2*_<label>*/`` directory."""
+    """Find the most recent ``Docs/<skill>/2*_<label>*/`` directory.
+
+    Two conventions are supported:
+
+    1. Per-run directory: ``Docs/<skill>/<ts>_<label>/`` containing
+       ``summary.json``, TSVs, plots, etc. (the convention used by
+       the newer skills: mavedb, multiome, chipatlas, portal, catalog).
+    2. Flat-file convention: ``Docs/<skill>/<ts>_<label>_*`` files
+       sitting directly under the skill dir (older skills like the
+       legacy ``mpra pull``). For these we return the skill dir itself
+       and the artefact checks must match by glob pattern.
+    """
     base = DOCS / skill_dir_name
     if not base.is_dir():
         return None
-    candidates = sorted(
+    # Convention 1: dir match
+    dirs = sorted(
         (p for p in base.glob(f"2*_*{label}*") if p.is_dir()),
         key=lambda p: p.name,
         reverse=True,
     )
-    return candidates[0] if candidates else None
+    if dirs:
+        return dirs[0]
+    # Convention 2: flat-file match
+    flat = sorted(
+        (p for p in base.glob(f"2*_*{label}*") if p.is_file()),
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    if flat:
+        # Return the skill dir; checks use the label to glob for files.
+        return base
+    return None
 
 
 def read_artefact(d: Path, filename: str) -> Any:
@@ -100,15 +123,38 @@ def check_set_member(value: Any, spec: dict) -> tuple[bool, str]:
     return False, f"value {value!r} not in allowed set {allowed}"
 
 
-def check_artefact_exists(d: Path, spec: dict) -> tuple[bool, str]:
-    """Existence check: a named file must be present in the run dir."""
+def check_artefact_exists(d: Path, spec: dict,
+                           extra_search_dirs: "list[Path]" = ()) -> tuple[bool, str]:
+    """Existence check: a named file must be present in the run dir.
+
+    ``filename`` may be a bare name (matched as ``d/<name>``) or a glob
+    pattern with ``*`` (matched against the run dir and against any
+    extra search dirs — useful for older skills that scatter artefacts
+    across ``Docs/<skill>/``, ``Data/Manifests/<skill>/``, and ``Data/``).
+    """
     fname = spec.get("filename") or spec.get("artefact")
     if not fname:
         return False, "no filename declared"
-    p = d / fname
-    if p.is_file() and p.stat().st_size > 0:
-        return True, f"{fname} present ({p.stat().st_size:,} bytes)"
-    return False, f"{fname} missing or empty"
+    candidates: list[Path] = [d] + [Path(x) for x in (extra_search_dirs or [])]
+    if "*" in fname or "?" in fname:
+        for c in candidates:
+            if not c.is_dir():
+                continue
+            hits = sorted(c.glob(fname),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+            non_empty = [p for p in hits if p.stat().st_size > 0]
+            if non_empty:
+                p = non_empty[0]
+                rel = p.relative_to(ROOT) if p.is_absolute() else p
+                return True, f"{fname} matched → {rel} ({p.stat().st_size:,} bytes)"
+        return False, (f"glob {fname!r} matched no non-empty files in any of "
+                         f"{[str(c.relative_to(ROOT) if c.is_absolute() else c) for c in candidates]}")
+    for c in candidates:
+        p = c / fname
+        if p.is_file() and p.stat().st_size > 0:
+            rel = p.relative_to(ROOT) if p.is_absolute() else p
+            return True, f"{fname} present ({p.stat().st_size:,} bytes) at {rel}"
+    return False, f"{fname} not found in {[str(c.relative_to(ROOT) if c.is_absolute() else c) for c in candidates]}"
 
 
 def get_path(obj: Any, dotted: str) -> Any:
@@ -165,6 +211,10 @@ def score_benchmark(paper_dir: Path) -> dict:
     primary_artefact = spec.get("primary_artefact", "summary.json")
     payload = read_artefact(run_dir, primary_artefact)
 
+    # Extra search roots for skills that scatter artefacts. expected.json
+    # may declare ``extra_search_dirs: ["Data/Manifests/MPRA", "Data"]`` etc.
+    extras = [ROOT / x for x in (spec.get("extra_search_dirs") or [])]
+
     for chk in spec.get("checks", []):
         ctype = chk.get("type")
         name = chk.get("name", "(unnamed)")
@@ -176,7 +226,7 @@ def score_benchmark(paper_dir: Path) -> dict:
                 v = get_path(payload, chk["path"])
                 ok, msg = check_set_member(v, chk)
             elif ctype == "artefact":
-                ok, msg = check_artefact_exists(run_dir, chk)
+                ok, msg = check_artefact_exists(run_dir, chk, extras)
             elif ctype == "row_count_tsv":
                 rows = read_artefact(run_dir, chk["filename"])
                 v = len(rows) if isinstance(rows, list) else None
