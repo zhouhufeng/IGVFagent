@@ -1,0 +1,19 @@
+{
+  "paper": {
+    "authors": "Zou A, Ohta T, Oki S",
+    "journal": "Nucleic Acids Res",
+    "year": 2024,
+    "doi": "10.1093/nar/gkae358"
+  },
+  "data_source": { "type": "chipatlas", "genome": "hg38", "antigen": "GATA1", "cell_class": "Blood" },
+  "skill_output_dir": "ChIPAtlas",
+  "label": "zou2024_chipatlas_gata1",
+  "primary_artefact": "assemble.json",
+  "checks": [
+    {
+      "name": "assemble-bed response written",
+      "type": "artefact",
+      "filename": "assemble.json"
+    }
+  ]
+}

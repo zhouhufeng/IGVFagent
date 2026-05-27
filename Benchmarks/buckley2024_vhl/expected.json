@@ -1,0 +1,42 @@
+{
+  "paper": {
+    "authors": "Buckley M et al.",
+    "journal": "Nat Genet",
+    "year": 2024,
+    "doi": "10.1038/s41588-024-01800-z",
+    "pmid": "38969834"
+  },
+  "data_source": { "type": "mavedb", "urn": "urn:mavedb:00001183-a-1" },
+  "skill_output_dir": "MaveDB",
+  "label": "buckley2024_vhl",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "MaveDB CSV downloaded + parsed (rows in)",
+      "type": "range",
+      "path": "n_rows_in",
+      "min": 1500,
+      "max": 6000,
+      "expected": 2268
+    },
+    {
+      "name": "Canonical gene resolved as VHL",
+      "type": "in_set",
+      "path": "gene",
+      "allowed": ["VHL"]
+    },
+    {
+      "name": "VCF artefact written",
+      "type": "artefact",
+      "filename": "VHL_mapped.vcf"
+    },
+    {
+      "name": "Per-variant TSV written + non-empty",
+      "type": "row_count_tsv",
+      "filename": "VHL_mapped.tsv",
+      "min": 500,
+      "max": 20000,
+      "expected": 2000
+    }
+  ]
+}
