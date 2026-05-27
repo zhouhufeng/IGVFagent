@@ -1,0 +1,20 @@
+{
+  "paper": {
+    "authors": "Deng C et al.",
+    "journal": "Science",
+    "year": 2024,
+    "doi": "10.1126/science.adh0559",
+    "pmid": "38781390"
+  },
+  "data_source": { "type": "geo", "accession": "GSE236018" },
+  "skill_output_dir": "MPRA",
+  "label": "deng2024_cortex_mpra",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "MPRA activity summary written",
+      "type": "artefact",
+      "filename": "summary.json"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "paper": {
+    "authors": "Agarwal V et al.",
+    "journal": "Nature",
+    "year": 2025,
+    "doi": "10.1038/s41586-024-08430-9",
+    "pmid": "39814879"
+  },
+  "data_source": { "type": "igvf_portal_mpra" },
+  "skill_output_dir": "MPRA",
+  "label": "agarwal2025_lentimpra",
+  "primary_artefact": "manifest.json",
+  "checks": [
+    {
+      "name": "MPRA portal manifest written",
+      "type": "artefact",
+      "filename": "manifest.json"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "paper": {
+    "authors": "Martyn GE et al.",
+    "journal": "Cell",
+    "year": 2025,
+    "doi": "10.1016/j.cell.2025.03.034",
+    "pmid": "40245860"
+  },
+  "data_source": { "type": "igvf_portal_flowfish" },
+  "skill_output_dir": "FlowFISH",
+  "label": "martyn2025_variant_flowfish",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "FlowFISH portal manifest written",
+      "type": "artefact",
+      "filename": "manifest.json"
+    }
+  ]
+}

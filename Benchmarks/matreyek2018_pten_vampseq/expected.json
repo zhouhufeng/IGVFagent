@@ -1,0 +1,42 @@
+{
+  "paper": {
+    "authors": "Matreyek KA et al.",
+    "journal": "Nat Genet",
+    "year": 2018,
+    "doi": "10.1038/s41588-018-0122-z",
+    "pmid": "29785012"
+  },
+  "data_source": { "type": "mavedb", "urn": "urn:mavedb:00000013-a-1" },
+  "skill_output_dir": "MaveDB",
+  "label": "matreyek2018_pten_vampseq",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "MaveDB CSV downloaded + parsed (rows in)",
+      "type": "range",
+      "path": "n_rows_in",
+      "min": 1000,
+      "max": 20000,
+      "expected": 8000
+    },
+    {
+      "name": "Canonical gene resolved as PTEN",
+      "type": "in_set",
+      "path": "gene",
+      "allowed": ["PTEN"]
+    },
+    {
+      "name": "Per-variant TSV written + non-empty",
+      "type": "row_count_tsv",
+      "filename": "PTEN_mapped.tsv",
+      "min": 1000,
+      "max": 50000,
+      "expected": 8000
+    },
+    {
+      "name": "VCF artefact written",
+      "type": "artefact",
+      "filename": "PTEN_mapped.vcf"
+    }
+  ]
+}

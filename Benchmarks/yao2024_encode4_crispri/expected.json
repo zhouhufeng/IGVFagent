@@ -1,0 +1,28 @@
+{
+  "paper": {
+    "authors": "Yao D et al.",
+    "journal": "Nat Methods",
+    "year": 2024,
+    "doi": "10.1038/s41592-024-02216-7",
+    "pmid": "38504114"
+  },
+  "data_source": { "type": "encode", "assay": "CRISPR screen" },
+  "skill_output_dir": "ENCODE",
+  "label": "yao2024_encode4",
+  "primary_artefact": "manifest.json",
+  "checks": [
+    {
+      "name": "ENCODE CRISPR-screen manifest written",
+      "type": "artefact",
+      "filename": "manifest.json"
+    },
+    {
+      "name": "At least 50 ENCODE CRISPR screens enumerated",
+      "type": "range",
+      "path": "n_experiments",
+      "min": 50,
+      "max": 5000,
+      "expected": 108
+    }
+  ]
+}

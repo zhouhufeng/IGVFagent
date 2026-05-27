@@ -1,0 +1,19 @@
+{
+  "paper": {
+    "authors": "Weinstock JS et al.",
+    "journal": "Cell Genomics",
+    "year": 2024,
+    "doi": "10.1016/j.xgen.2024.100693"
+  },
+  "data_source": { "type": "perturb_catalogue", "modality": "crispr-screen" },
+  "skill_output_dir": "Perturbation",
+  "label": "weinstock2024_cd4_crispr",
+  "primary_artefact": "search.json",
+  "checks": [
+    {
+      "name": "CRISPR-screen search result written",
+      "type": "artefact",
+      "filename": "search.json"
+    }
+  ]
+}
