@@ -57,6 +57,12 @@ _DEFAULTS = {
     "llm_together":    "68747470733a2f2f6170692e746f6765746865722e78797a2f7631",
     "llm_deepinfra":   "68747470733a2f2f6170692e64656570696e6672612e636f6d2f76312f6f70656e6169",
     "llm_hf_inference":"68747470733a2f2f6170692d696e666572656e63652e68756767696e67666163652e636f2f7631",
+    # ChIP-Atlas (Tazro Ohta / DBCLS — chip-atlas.org). Three hosts: the
+    # Sinatra browse/search/POST endpoints, the bulk static archive, and
+    # the WABI Enrichment / Diff job queue at NIG.
+    "chipatlas_api":   "68747470733a2f2f636869702d61746c61732e6f7267",
+    "chipatlas_data":  "68747470733a2f2f636869702d61746c61732e6462636c732e6a702f64617461",
+    "chipatlas_wabi":  "68747470733a2f2f64746e312e6464626a2e6e69672e61632e6a702f776162692f6368697061746c6173",
 }
 
 
