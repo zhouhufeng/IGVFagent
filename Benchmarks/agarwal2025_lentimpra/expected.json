@@ -9,12 +9,23 @@
   "data_source": { "type": "igvf_portal_mpra" },
   "skill_output_dir": "MPRA",
   "label": "agarwal2025_lentimpra",
-  "primary_artefact": "manifest.json",
+  "primary_artefact": "2*_agarwal2025_lentimpra_portal_many_summary.json",
+  "extra_search_dirs": ["Data/Manifests/MPRA", "Data"],
   "checks": [
     {
-      "name": "MPRA portal manifest written",
+      "name": "MPRA portal manifest CSV written",
       "type": "artefact",
-      "filename": "manifest.json"
+      "filename": "2*_agarwal2025_lentimpra_*_manifest.csv"
+    },
+    {
+      "name": "MPRA portal report MD written",
+      "type": "artefact",
+      "filename": "2*_agarwal2025_lentimpra_*_report.md"
+    },
+    {
+      "name": "MPRA discovery summary JSON written",
+      "type": "artefact",
+      "filename": "2*_agarwal2025_lentimpra_*_summary.json"
     }
   ]
 }
