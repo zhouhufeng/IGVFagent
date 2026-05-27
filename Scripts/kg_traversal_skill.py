@@ -262,13 +262,64 @@ def fetch_gene_relations(symbol: str, limit: int) -> dict[str, list[dict]]:
     return out
 
 
+_SPDI_RE = re.compile(r"^NC_\d+\.\d+:\d+:[ACGTN]*:[ACGTN]*$")
+_RSID_RE = re.compile(r"^rs\d+$")
+_CA_RE   = re.compile(r"^CA\d+$")
+_HGVS_RE = re.compile(r"^(?:NM|NR|NC|NP|ENS[TPG])[A-Z]?\d+(?:\.\d+)?:[gcpnmrn]\..+$",
+                        re.IGNORECASE)
+
+
+def resolve_to_spdi(vid: str) -> tuple[str, str]:
+    """Resolve any variant identifier to its canonical SPDI form.
+
+    Returns ``(spdi, input_form)``. The IGVF Catalog edge endpoints
+    (``/api/variants/summary``, ``/predictions``, etc.) only reliably
+    accept the canonical SPDI as the ``variant_id`` parameter — passing
+    an rsID may return a *different* variant from ``/summary`` (the API
+    treats it as a substring/fuzzy match), and passing an rsID to
+    ``/predictions`` 400s. So we always pre-resolve before the fan-out.
+
+    Heuristic:
+      1. If ``vid`` already matches the SPDI pattern, return it as-is.
+      2. Else call ``/api/variants?<rsid|ca_id|hgvs>=vid`` and pull
+         ``_id`` from the first record.
+      3. If the lookup yields no record, fall back to the raw input
+         (caller will see empty results, which is informative).
+    """
+    s = vid.strip()
+    if _SPDI_RE.match(s):
+        return (s, "spdi")
+    if _RSID_RE.match(s):
+        param = "rsid"
+    elif _CA_RE.match(s):
+        param = "ca_id"
+    elif _HGVS_RE.match(s):
+        param = "hgvs"
+    else:
+        # Unknown form — best-effort, let the API decide.
+        return (s, "unknown")
+    status, data = catalog_get("/api/variants", **{param: s, "limit": 1})
+    rows = listify(data) if status == 200 else []
+    if not rows:
+        logging.warning("resolve_to_spdi(%s): no record via %s",
+                          s, param)
+        return (s, param)
+    spdi = rows[0].get("_id") or s
+    logging.info("resolved %s (%s) -> %s", s, param, spdi)
+    return (spdi, param)
+
+
 def fetch_variant_relations(vid: str, limit: int = 25,
                               skip: tuple[str, ...] = ()) -> dict[str, list[dict]]:
+    # Resolve to canonical SPDI before any edge call. This single change
+    # turns every VARIANT_RELATIONS endpoint from "Variant not found"
+    # into real data for any rsID / CA-ID / HGVS input.
+    spdi, _form = resolve_to_spdi(vid)
     out: dict[str, list[dict]] = {}
     for rel, (path, tpl) in VARIANT_RELATIONS.items():
         if rel in skip:
             continue
-        params = _format_params(tpl, vid=vid)
+        params = _format_params(tpl, vid=spdi)
         params["limit"] = limit
         status, data = catalog_get(path, **params)
         out[rel] = listify(data) if status == 200 else []
