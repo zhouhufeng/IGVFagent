@@ -508,7 +508,7 @@ def _sidebar() -> dict:
 
         st.divider()
         st.subheader("Run parameters")
-        max_iter = st.slider("Max iterations", 1, 20, 8)
+        max_iter = st.slider("Max iterations", 1, 60, 12)
         max_tokens = st.slider("Max tokens / turn", 256, 16384, 4096, 256)
         temperature = st.slider("Temperature", 0.0, 1.5, 0.0, 0.05)
 
