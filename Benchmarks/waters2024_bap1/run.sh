@@ -7,12 +7,11 @@ cd "$ROOT"
 
 LABEL="waters2024_bap1"
 
-# TODO_VERIFY: the per-exon BAP1 SGE scoreset URNs (urn:mavedb:00000662-a-*)
-# need to be looked up individually on MaveDB — the live `score-sets/<urn>/scores`
-# endpoint requires the exact scoreset URN, not the experiment URN. Inspect
-# `https://www.mavedb.org/#/experiments/urn:mavedb:00000662-0` to find the
-# 17 per-exon scoreset URNs and re-run.
-URN="${BAP1_URN:-urn:mavedb:00000662-a-1}"
+# Waters 2024 BAP1 SGE scoreset URN — VERIFIED 2026-05-28 via the
+# MaveDB POST /api/v1/score-sets/search endpoint. The unified scoreset
+# (urn:mavedb:00000662-0-1) covers all 17 per-exon sub-experiments and
+# has the full 18,108 SNVs the paper reports. PMID 38969833.
+URN="${BAP1_URN:-urn:mavedb:00000662-0-1}"
 
 if ! curl -sf "https://api.mavedb.org/api/v1/score-sets/${URN}/scores" > /dev/null; then
     echo "[$LABEL] URN ${URN} not yet verified — see TODO_VERIFY note above."
