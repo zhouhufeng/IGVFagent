@@ -2,6 +2,8 @@
 
 Twelve recent Nature / Cell / Science / Nat Genet / Nat Methods / Nat Commun papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison.
 
+**Five benchmarks now complete with per-paper Concordance / Verdict / Honest caveats** — see the table below.
+
 ![Suite dashboard](figures/dashboard.png)
 
 ## ✅ Completed benchmarks (with results)
@@ -13,12 +15,12 @@ Twelve recent Nature / Cell / Science / Nat Genet / Nat Methods / Nat Commun pap
 | 2 | **Buckley 2024** VHL SGE *Nat Genet* | `mavedb` (new SGE path) | **2,268 / 2,268** variants recovered, 4-bucket scheme | [`buckley2024_vhl/`](buckley2024_vhl/README.md) |
 | 3 | **Zou 2024** ChIP-Atlas 3.0 *Nucleic Acids Res* | `chipatlas` | **815 TFs catalogued** for hg38/Blood, **GATA1 rank #7** (121 experiments) | [`zou2024_chipatlas_gata1/`](zou2024_chipatlas_gata1/README.md) |
 | 4 | **Agarwal 2025** lentiMPRA K562/HepG2/WTC11 *Nature* | `mpra` (`pull`) | **3/3 discovery artefacts** written; portal manifest + summary JSON | [`agarwal2025_lentimpra/`](agarwal2025_lentimpra/README.md) |
+| 5 | **Yao 2024** ENCODE4 noncoding CRISPRi *Nat Methods* | `encode` (new FCE path) | **368 CRISPR-screen FCEs enumerated**; Engreitz 65 %, K562 dominant, GATA1 +24/+58 kb spot-check ✓ | [`yao2024_encode4_crispri/`](yao2024_encode4_crispri/README.md) |
 
 ## 🟡 Scaffolded (URN + workflow set up, awaiting full execution)
 
 | # | Paper | Skill | What needs to happen |
 |---|---|---|---|
-| 5 | **Yao 2024** ENCODE4 noncoding CRISPRi *Nat Methods* | `encode` + `crispri` | Pull ENCODE CRISPR-screen manifest; analyze K562 GATA1 locus |
 | 6 | **Mitra 2024** SCARlink multiome *Nat Genet* | `multiome` | Pull IGVF multiome AnalysisSets; run `peak2gene` |
 | 7 | **Joung 2025** TF Perturb-seq fibroblasts *Nat Genet* | `perturb-catalog` + `sc-analyze` | Catalogue query; full pipeline needs GSE273694 download |
 | 8 | **Zheng 2024** in-vivo Perturb-seq cortex *Cell* | `perturb-catalog` + `sc-analyze` | needs local GSE249416 h5ad |
@@ -112,8 +114,9 @@ While building these benchmarks I uncovered + fixed seven real bugs in IGVFagent
 | `kg gene` hangs for 15+ minutes on dead sockets | 30 s timeout + retry + fail-fast | `f5f50b8` |
 | Python `urllib` 10–40 s IPv6 fallback to IPv4 | monkeypatch `socket.getaddrinfo` to prefer IPv4 | `593f4e5` |
 | **`mavedb_mapping_skill` couldn't read SGE scoresets** (Waters / Buckley) | **new `map_sge_scoreset()` + `parse_hgvsc_full()` + Ensembl /map/cdna/ path** | **`c6f42fd`** |
+| **`encode retrieve` couldn't enumerate ENCODE4 CRISPR-screen / MPRA FCEs** (Yao 2024) | **add `encode_type` config + FCE assay-title entries (`CRISPR screen` · `Flow-FISH CRISPR screen` · `MPRA`)** | this commit |
 
-The SGE extension is the most consequential of these — it unlocks every SGE scoreset on MaveDB (~50 + growing) for IGVFagent's coordinate-mapping pipeline.
+The SGE extension and the FCE extension are the two most consequential of these — together they unlock every SGE scoreset on MaveDB (~50 + growing) and every ENCODE4 functional-characterization screen (~900 + growing) for IGVFagent's enumeration and coordinate-mapping pipelines.
 
 ## How to add a new benchmark
 
