@@ -324,12 +324,38 @@ def _chat_openai_compat(messages, *, model, tools, max_tokens, temperature,
     timeout = float(os.environ.get("IGVF_LLM_TIMEOUT", default_timeout))
     client = openai.OpenAI(api_key=api_key, base_url=base_url,
                             timeout=timeout)
+    # OpenAI renamed ``max_tokens`` to ``max_completion_tokens`` for the
+    # GPT-5 family and the o1/o3/o4 reasoning models. Classic chat-
+    # completions models (gpt-4o*, gpt-4*, gpt-3.5*) still take
+    # ``max_tokens``. Other OpenAI-compatible servers (Groq, Together,
+    # DeepInfra, Ollama, vLLM, TGI, …) universally accept ``max_tokens``
+    # regardless of model name. So we only emit ``max_completion_tokens``
+    # for the new OpenAI generations.
+    model_lc = (model or "").lower()
+    uses_new_param = (
+        backend_label in ("openai", "codex", "custom")
+        and (model_lc.startswith("gpt-5")
+             or model_lc.startswith("o1")
+             or model_lc.startswith("o3")
+             or model_lc.startswith("o4"))
+    )
     payload: dict = {
         "model":       model,
         "messages":    _to_openai_messages(messages),
-        "max_tokens":  max_tokens,
         "temperature": temperature,
     }
+    if uses_new_param:
+        payload["max_completion_tokens"] = max_tokens
+        # The whole reasoning-class family (gpt-5*, o1*, o3*, o4*) rejects
+        # any temperature other than the default 1.0. Coerce silently
+        # rather than 400-erroring the user; the dispatcher's tool-call
+        # argument coercion is what matters for reproducibility, not the
+        # sampling-distribution flatness of the LLM's own free-form text.
+        if (model_lc.startswith(("gpt-5", "o1", "o3", "o4"))
+                and temperature != 1.0):
+            payload["temperature"] = 1.0
+    else:
+        payload["max_tokens"] = max_tokens
     if tools:
         payload["tools"] = to_openai_tools(tools)
         payload["tool_choice"] = "auto"
