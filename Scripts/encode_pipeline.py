@@ -164,6 +164,34 @@ ENCODE_ASSAYS: "dict[str, dict[str, Any]]" = {
         "needs_target":    False,
         "primary_files":   ["bigWig", "bed"],
     },
+    # ---- Functional-characterization screens (ENCODE4) ----
+    # CRISPR screens live under the FunctionalCharacterizationExperiment
+    # endpoint, NOT under Experiment. Yao 2024 (Nat Methods 21:1980)
+    # multicenter noncoding-CRISPRi screens are the headline use case.
+    "CRISPR screen": {
+        "facets":          ["proliferation CRISPR screen",
+                              "FACS CRISPR screen",
+                              "Flow-FISH CRISPR screen",
+                              "CRISPR screen"],
+        "needs_target":    False,
+        "encode_type":     "FunctionalCharacterizationExperiment",
+        "primary_files":   ["tsv", "bed", "bedpe"],
+        "key_metrics":     ["guides per element", "MAGeCK score"],
+    },
+    "Flow-FISH CRISPR screen": {
+        "facets":          ["Flow-FISH CRISPR screen"],
+        "needs_target":    False,
+        "encode_type":     "FunctionalCharacterizationExperiment",
+        "primary_files":   ["tsv", "bed", "bedpe"],
+        "key_metrics":     ["element effect size", "guide count"],
+    },
+    "MPRA": {
+        "facets":          ["MPRA"],
+        "needs_target":    False,
+        "encode_type":     "FunctionalCharacterizationExperiment",
+        "primary_files":   ["tsv", "bed"],
+        "key_metrics":     ["activity", "log2FC"],
+    },
 }
 
 HISTONE_MARK_NOTES = {
@@ -297,10 +325,14 @@ def search_experiments(assay: str, *, biosample: Optional[str] = None,
                          limit: int = 50) -> "list[dict]":
     """Search ENCODE for experiments matching the requested assay group."""
     cfg = _assay_cfg(assay)
+    # ENCODE4 functional-characterization screens (CRISPR / MPRA) live
+    # under FunctionalCharacterizationExperiment, not the canonical
+    # Experiment endpoint. Honor an opt-in override.
+    encode_type = cfg.get("encode_type", "Experiment")
     rows: "list[dict]" = []
     for facet in cfg["facets"]:
         params: "dict[str, Any]" = {
-            "type":         "Experiment",
+            "type":         encode_type,
             "format":       "json",
             "limit":        limit,
             "status":       status,
