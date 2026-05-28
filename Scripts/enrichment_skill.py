@@ -117,12 +117,45 @@ def safe_label(s: str) -> str:
 
 # ─── Gene-list IO ───────────────────────────────────────────────────────────
 
-def read_gene_list(path: Path) -> list[str]:
-    """Read a gene list from one-gene-per-line text, or a CSV/TSV with a
+def read_gene_list(path: Path | str) -> list[str]:
+    """Read a gene list from a path, OR parse inline text directly.
+
+    Acceptable inputs for ``path``:
+      * an existing file path → read the file
+      * a comma- / newline- / space- / semicolon-separated literal
+        string of gene symbols (e.g. "BRCA1,BRCA2,ATM,CHEK2") → parse
+        directly. Useful when an LLM tool-call passes the gene list
+        inline instead of materialising a file.
+
+    File contents may be one-gene-per-line text, or a CSV/TSV with a
     ``gene`` / ``symbol`` / ``Gene`` column. Whitespace-stripped,
-    deduplicated, original casing preserved."""
-    p = Path(path)
+    deduplicated, original casing preserved.
+    """
+    # Inline-string detection: the value isn't a real path AND contains
+    # a separator that suggests a gene list. Don't trigger on a bare
+    # word (could be a missing-file typo); require at least one
+    # delimiter or whitespace.
+    raw = str(path)
+    p = Path(raw)
     if not p.exists():
+        looks_like_inline_list = (
+            ("," in raw or ";" in raw or "\n" in raw or " " in raw.strip())
+            and not raw.startswith(("/", "./", "../", "~"))
+            and "/" not in raw
+        )
+        if looks_like_inline_list:
+            # Split on common separators
+            import re as _re
+            tokens = [t.strip() for t in _re.split(r"[,\s;]+", raw) if t.strip()]
+            seen: set = set()
+            out: list[str] = []
+            for t in tokens:
+                if t not in seen:
+                    seen.add(t); out.append(t)
+            if out:
+                logging.info("Parsed %d gene symbols from inline string "
+                              "(path %r does not exist)", len(out), raw[:60])
+                return out
         raise SystemExit(f"Gene list not found: {p}")
     text = p.read_text()
     # CSV/TSV with header?
