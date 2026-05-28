@@ -110,26 +110,94 @@ def request_headers(json_only: bool = True) -> dict[str, str]:
     return h
 
 
-def fetch_json(url: str, timeout: int = 60) -> tuple[int, Any]:
-    logging.info("GET %s", url)
-    req = urllib.request.Request(url, headers=request_headers(), method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            content = resp.read()
-            try:
-                return resp.status, json.loads(content)
-            except json.JSONDecodeError:
-                return resp.status, {"text_response": content.decode(errors="replace"),
-                                      "url": url}
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
+def fetch_json(url: str, timeout: int | None = None,
+                 retries: int = 2, retry_backoff: float = 2.0
+                 ) -> tuple[int, Any]:
+    """GET a URL with a hard total timeout, JSON-or-text parsing, and
+    auto-retry with exponential backoff on transient failures.
+
+    The previous implementation passed ``timeout=60`` straight to
+    ``urlopen``, but Python's stdlib treats that as a *per-read*
+    inactivity timeout — if the server trickles even a few bytes
+    before stalling, the call hangs forever. We hit this against
+    api.catalogkg.igvf.org during a server-side slowdown: a ``kg gene
+    APOE --call-* …`` run sat on one socket for > 30 min without
+    raising. The fix:
+
+      * `timeout` here is a *connection + per-read* ceiling, defaults
+        to 30 s (env-tunable via ``IGVF_KG_HTTP_TIMEOUT``). Lower than
+        the previous 60 s on purpose: a healthy Catalog response is
+        sub-second; anything > 30 s means upstream trouble and we
+        should fail-fast rather than hang.
+      * `retries` controls re-attempts on timeout / network errors
+        (default 2 retries → 3 total attempts).
+      * Exponential backoff between retries (2 s, 4 s, 8 s).
+      * Returns ``(0, {"network_error": ...})`` after the last retry
+        fails, so callers see a clean error code instead of hanging.
+
+    Override via env:
+      IGVF_KG_HTTP_TIMEOUT   default 30 (seconds)
+      IGVF_KG_HTTP_RETRIES   default 2
+    """
+    if timeout is None:
         try:
-            data = json.loads(body)
-        except json.JSONDecodeError:
-            data = {"http_error_body": body, "url": url}
-        return e.code, data
-    except urllib.error.URLError as e:
-        return 0, {"network_error": str(e.reason), "url": url}
+            timeout = int(os.environ.get("IGVF_KG_HTTP_TIMEOUT", "30"))
+        except ValueError:
+            timeout = 30
+    try:
+        retries = int(os.environ.get("IGVF_KG_HTTP_RETRIES",
+                                        str(retries)))
+    except ValueError:
+        pass
+
+    logging.info("GET %s", url)
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(url, headers=request_headers(),
+                                       method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                content = resp.read()
+                try:
+                    return resp.status, json.loads(content)
+                except json.JSONDecodeError:
+                    return resp.status, {
+                        "text_response": content.decode(errors="replace"),
+                        "url": url}
+        except urllib.error.HTTPError as e:
+            # 5xx + 408 + 429 are retryable; 4xx (except 408/429) are not.
+            if e.code in (408, 429) or (500 <= e.code < 600):
+                last_err = e
+                if attempt < retries:
+                    wait = retry_backoff * (2 ** attempt)
+                    logging.warning("  HTTP %d on attempt %d/%d; "
+                                      "retrying in %.0fs",
+                                      e.code, attempt + 1, retries + 1, wait)
+                    time.sleep(wait)
+                    continue
+                # Fall through after final retry to return the body
+            body = e.read().decode(errors="replace")
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                data = {"http_error_body": body, "url": url}
+            return e.code, data
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            last_err = e
+            reason = (getattr(e, "reason", None) or str(e))
+            if attempt < retries:
+                wait = retry_backoff * (2 ** attempt)
+                logging.warning("  network error %r on attempt %d/%d; "
+                                  "retrying in %.0fs",
+                                  reason, attempt + 1, retries + 1, wait)
+                time.sleep(wait)
+                continue
+            logging.error("  network error %r after %d attempts; giving up",
+                            reason, retries + 1)
+            return 0, {"network_error": str(reason), "url": url,
+                        "attempts": retries + 1}
+    # Unreachable, but keep mypy/pyright happy
+    return 0, {"network_error": str(last_err), "url": url}
 
 
 def catalog_get(path: str, **params) -> tuple[int, Any]:
