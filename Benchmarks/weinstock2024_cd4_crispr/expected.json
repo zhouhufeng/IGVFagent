@@ -1,11 +1,28 @@
 {
   "paper": {
-    "authors": "Weinstock JS et al.",
+    "authors": "Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A, Battle A, Pritchard JK",
     "journal": "Cell Genomics",
+    "volume": 4,
+    "issue": 11,
+    "article_number": 100671,
     "year": 2024,
-    "doi": "10.1016/j.xgen.2024.100693"
+    "month": "November",
+    "doi": "10.1016/j.xgen.2024.100671",
+    "pmid": "39395408",
+    "pmc": "PMC11605694",
+    "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 — fixed during execution."
   },
-  "data_source": { "type": "perturb_catalogue", "modality": "crispr-screen" },
+  "data_source": {
+    "type": "perturb_catalogue",
+    "modality": "crispr-screen"
+  },
+  "secondary_data_source": {
+    "type": "geo",
+    "primary_subseries": "GSE171674",
+    "primary_subseries_title": "Systematic discovery and perturbation of regulatory genes in human T cells reveals the architecture of immune networks [CRISPR]",
+    "superseries": "GSE171737",
+    "superseries_note": "GSE171737 is the joint Marson + Pritchard SuperSeries (337 samples, 4 sub-series). GSE171674 is the Weinstock-specific CRISPR sub-series."
+  },
   "skill_output_dir": "Perturbation",
   "label": "weinstock2024_cd4_crispr",
   "primary_artefact": "search.json",

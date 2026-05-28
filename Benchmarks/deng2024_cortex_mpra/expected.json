@@ -1,12 +1,22 @@
 {
   "paper": {
-    "authors": "Deng C et al.",
+    "authors": "Deng C, Whalen S et al.",
     "journal": "Science",
     "year": 2024,
     "doi": "10.1126/science.adh0559",
-    "pmid": "38781390"
+    "pmid": "38781390",
+    "pmc": "PMC12085231"
   },
-  "data_source": { "type": "geo", "accession": "GSE236018" },
+  "data_source": {
+    "type": "synapse",
+    "accession": "syn21392931",
+    "project_name": "NeuREs",
+    "consortium": "PsychENCODE",
+    "mpra_subfolder": "syn51090452",
+    "mpra_subfolder_name": "MPRA_CapstoneII",
+    "access_policy": "PsychENCODE Data-Use Agreement; SYNAPSE_AUTH_TOKEN PAT required for file download (anonymous-read works for metadata + tree walk)"
+  },
+  "data_source_note": "Original scaffold listed GEO GSE236018 — that's a renal fibrosis paper, NOT Deng 2024. Corrected during execution; Deng deposits exclusively to Synapse / PsychENCODE.",
   "skill_output_dir": "MPRA",
   "label": "deng2024_cortex_mpra",
   "primary_artefact": "summary.json",
