@@ -20,9 +20,47 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 cd "$ROOT"
 
-# Source .env files (repo or home) so the API key reaches the agent.
+# Source .env files (repo, home, or both) so the API key reaches the agent.
 [ -f "$ROOT/.env" ] && { set -a; source "$ROOT/.env"; set +a; }
 [ -f "$HOME/.env" ] && { set -a; source "$HOME/.env"; set +a; }
+
+# Find a working `igvfagent` executable. Tries, in order:
+#   1. $ROOT/.venv/bin/igvfagent          (script's own repo .venv)
+#   2. .venv/bin/igvfagent in any worktree under $ROOT/.claude/worktrees/
+#   3. system `igvfagent` on PATH
+#   4. .venv/bin/python -m igvfagent      (as a last resort)
+find_igvfagent() {
+    if [ -x "$ROOT/.venv/bin/igvfagent" ]; then
+        echo "$ROOT/.venv/bin/igvfagent"; return 0
+    fi
+    if [ -d "$ROOT/.claude/worktrees" ]; then
+        for d in "$ROOT/.claude/worktrees"/*/; do
+            if [ -x "$d.venv/bin/igvfagent" ]; then
+                echo "$d.venv/bin/igvfagent"; return 0
+            fi
+        done
+    fi
+    if command -v igvfagent >/dev/null 2>&1; then
+        echo "$(command -v igvfagent)"; return 0
+    fi
+    if [ -x "$ROOT/.venv/bin/python" ]; then
+        echo "$ROOT/.venv/bin/python -m igvfagent"; return 0
+    fi
+    return 1
+}
+
+IGVFAGENT_BIN="$(find_igvfagent)" || {
+    printf 'error: cannot find an `igvfagent` executable.\n' >&2
+    printf '  searched:\n' >&2
+    printf '    %s/.venv/bin/igvfagent\n' "$ROOT" >&2
+    printf '    %s/.claude/worktrees/*/.venv/bin/igvfagent\n' "$ROOT" >&2
+    printf '    $(command -v igvfagent)\n' >&2
+    printf '\nTo fix:\n' >&2
+    printf '  cd %s/.claude/worktrees/festive-volhard-60dea7/\n' "$ROOT" >&2
+    printf '  bash Scripts/igvfagent_repl.sh\n' >&2
+    printf '\n(or `pip install -e .` into a .venv at the repo root)\n' >&2
+    exit 2
+}
 
 BACKEND="${IGVF_LLM_BACKEND:-openai}"
 MODEL="${IGVF_LLM_MODEL:-gpt-5}"
@@ -35,7 +73,8 @@ printf '\n┌──────────────────────�
 printf '│ IGVFagent terminal dialog                                    │\n'
 printf '│ backend: %-10s · model: %-30s │\n' "$BACKEND" "$MODEL"
 printf '│ max_iter: %-3d · max_tok: %-5d · temp: %-3s · :help for menu │\n' "$MAX_ITER" "$MAX_TOK" "$TEMP"
-printf '└──────────────────────────────────────────────────────────────┘\n\n'
+printf '└──────────────────────────────────────────────────────────────┘\n'
+printf '  exec: %s\n\n' "$IGVFAGENT_BIN"
 
 while true; do
     # Read a multi-line-friendly prompt (single line, ends on Enter)
@@ -86,7 +125,7 @@ EOF
     esac
     # Fire the agent — every turn is an independent run; if you want
     # cross-turn memory, use the Streamlit UI which keeps a session.
-    .venv/bin/igvfagent ask \
+    $IGVFAGENT_BIN ask \
         --backend "$BACKEND" \
         --model "$MODEL" \
         --max-iterations "$MAX_ITER" \
