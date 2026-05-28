@@ -5,9 +5,9 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 LABEL="buckley2024_vhl"
 
-# TODO_VERIFY: look up the canonical VHL SGE scoreset URN on
-# https://www.mavedb.org and override via VHL_URN env var, or edit below.
-URN="${VHL_URN:-urn:mavedb:00001183-a-1}"
+# Buckley 2024 VHL SGE scoreset URN — VERIFIED 2026-05-28 via the
+# MaveDB POST /api/v1/score-sets/search endpoint. PMID 38969834.
+URN="${VHL_URN:-urn:mavedb:00000675-a-1}"
 
 if ! curl -sf "https://api.mavedb.org/api/v1/score-sets/${URN}/scores" > /dev/null; then
     echo "[$LABEL] URN ${URN} not yet verified — see TODO_VERIFY note above."
