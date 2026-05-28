@@ -120,7 +120,11 @@ is not yet a registered LLM tool).
 
 ## License + provenance
 
-* **Paper data**: GEO GSE171737 — public.
+* **Paper data**: GEO **GSE171674** (Weinstock's CRISPR sub-series of
+  the joint Marson + Pritchard SuperSeries GSE171737) — public.
 * **Code**: IGVFagent Apache-2.0; network skill is a clean-room MILP reimpl over `cvxpy` (no CORNETO GPL runtime dep).
-* **Citation**: Weinstock JS et al. *Cell Genomics* **4**: 100693 (2024).
-  doi:10.1016/j.xgen.2024.100693
+* **Citation**: Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A,
+  Battle A, Pritchard JK. *Cell Genomics* **4**: 100671 (Nov 2024).
+  doi:10.1016/j.xgen.2024.100671 · PMID 39395408 · PMC11605694
+  *(Earlier benchmark scaffolds had the DOI mis-spelled as `100693`
+  — fixed in this commit.)*

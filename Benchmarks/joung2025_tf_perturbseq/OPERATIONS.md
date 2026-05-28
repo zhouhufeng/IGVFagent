@@ -61,15 +61,19 @@ for r in d.get('results', [])[:5]:
 
 The full reproducibility test would:
 
-1. Download GSE273694 from GEO or SCP2169 from Single-Cell Portal.
+1. Download SCP2169 from the Broad Single-Cell Portal (the paper's
+   pre-publication-release distribution — GEO GSE237056 is **under
+   embargo until 2027-12-31**, per `geo series --gse GSE237056`).
 2. Run `sc-analyze pipeline` on the h5ad to recover the per-perturbation
    pseudobulk DE results.
 3. Verify that KLF4 + KLF5 cluster together by trans-effect signature.
 
 ```bash
 mkdir -p Data/Benchmarks/joung2025_tf_perturbseq
-# Download h5ad from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE273694
-# or https://singlecell.broadinstitute.org/single_cell/study/SCP2169
+# SCP2169 (public, registered-account download):
+#   https://singlecell.broadinstitute.org/single_cell/study/SCP2169
+# Embargoed GEO mirror (release scheduled 2027-12-31):
+#   https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE237056
 mv ~/Downloads/joung2025.h5ad Data/Benchmarks/joung2025_tf_perturbseq/
 
 .venv/bin/igvfagent sc-analyze pipeline \
@@ -126,7 +130,9 @@ UI sidebar: max iterations = 15, temperature = 0.0.
 
 ## License + provenance
 
-* **Paper data**: GEO GSE273694, SCP2169 — public.
+* **Paper data**: SCP2169 (Broad Single-Cell Portal — public) +
+  GEO GSE237056 (embargoed until 2027-12-31 per NCBI's standard
+  publication-mandated hold).
 * **Code**: IGVFagent Apache-2.0.
 * **Citation**: Joung J et al. *Nat Genet* **57**: 828–838 (2025).
   doi:10.1038/s41588-025-02283-2
