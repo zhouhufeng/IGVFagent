@@ -2,9 +2,15 @@
 
 For shared prerequisites, see `Benchmarks/OPERATIONS_GUIDE.md`.
 
-> **Local input required.** Download per-oligo DNA + RNA counts from
-> GSE236018 first; `run.sh` exits 77 with instructions until the file
-> is at the expected path.
+> **Online discovery works out of the box** (see "Quick run" below).
+> The optional analytical step needs per-oligo DNA + RNA fastqs from
+> the PsychENCODE Synapse deposit **`syn21392931`** (NeuREs / NOT
+> GEO — the scaffold's original GSE236018 was wrong; that's a renal
+> fibrosis paper, see `geo series --gse GSE236018` for confirmation).
+> The new `igvfagent synapse` skill (Scripts/synapse_skill.py)
+> reaches the deposit directly once you've accepted the PsychENCODE
+> Data-Use Agreement at https://psychencode.synapse.org/DataAccess
+> and exported `SYNAPSE_AUTH_TOKEN`.
 
 ## Required inputs
 
@@ -17,24 +23,36 @@ The optional `top_targets.txt` is a one-gene-per-line list of the most
 strongly-activated MPRA target genes; if present, the run will also
 fire `enrich ora` on it for the cortex enrichment spot-check.
 
-## How to obtain the inputs
+## How to obtain the inputs (Synapse path, NOT GEO)
 
 ```bash
+# 1. Accept the PsychENCODE Data-Use Agreement (free, registered account):
+#    https://psychencode.synapse.org/DataAccess
+# 2. Create a Personal Access Token (PAT) with view + download scopes at:
+#    https://www.synapse.org/#!PersonalAccessTokens
+# 3. Export the PAT in your shell:
+export SYNAPSE_AUTH_TOKEN="eyJ0eXAiOiJKV1Qi..."
+
+# 4. Discover the Deng 2024 deposit structure (anonymous-OK metadata):
+.venv/bin/igvfagent synapse entity --syn syn21392931 --annotations
+.venv/bin/igvfagent synapse walk --syn syn21392931 --max-depth 3
+.venv/bin/igvfagent synapse children --syn syn51090452  # MPRA_CapstoneII
+
+# 5. Identify the paired DNA + RNA fastq pairs you want (see the
+#    children manifest). Files are organised as:
+#      da-organoid-{dna,rna}-rep1..4_R{1_R3,2}.fastq.gz
+#      da-primary-{dna,rna}-rep1..4_R{1_R3,2}.fastq.gz
+#    plus per-donor bulk RNA: A2/A3/A5_*/S1_*/S2 _{1,2}.fq.gz
+
+# 6. Download (per-file; PAT auto-applied):
 mkdir -p Data/Benchmarks/deng2024_cortex_mpra
-cd Data/Benchmarks/deng2024_cortex_mpra
+.venv/bin/igvfagent synapse download --syn synXXXX \
+    --out-dir Data/Benchmarks/deng2024_cortex_mpra
 
-# GSE236018 supplementary files
-# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE236018
-# Look for files named *_oligo_counts.tsv.gz or *_DNA_RNA_counts.tsv.gz
-
-# Once downloaded:
-gunzip GSE236018_cortex_oligo_counts.tsv.gz
-mv GSE236018_cortex_oligo_counts.tsv cortex_mpra_counts.tsv
-
-# Optional: pull the paper's "active enhancer" target-gene list
-# (the paper's Supplementary Table 2 lists target genes for the
-# most-active enhancers — copy into top_targets.txt)
-cd ../../..
+# 7. Process the fastqs through MPRAflow / barcode-counter to get the
+#    per-oligo count table cortex_mpra_counts.tsv (paper Methods step).
+#    Place at the path below for run.sh's local-step branch:
+mv <processed>.tsv Data/Benchmarks/deng2024_cortex_mpra/cortex_mpra_counts.tsv
 ```
 
 ## Quick run
@@ -144,7 +162,11 @@ UI sidebar: max iterations = 18, temperature = 0.0.
 
 ## License + provenance
 
-* **Paper data**: GEO GSE236018 + PsychENCODE — public.
-* **Code**: IGVFagent Apache-2.0.
-* **Citation**: Deng C et al. *Science* **384**: eadh0559 (2024).
-  doi:10.1126/science.adh0559 · PMID:38781390
+* **Paper data**: Synapse / PsychENCODE Knowledge Portal —
+  `syn21392931` (NeuREs project, DOI `10.7303/syn21392931`).
+  PsychENCODE Data-Use Agreement required for download; metadata
+  + tree-walk are anonymously readable.
+* **Code**: IGVFagent Apache-2.0; `synapse_skill.py` is a clean-room
+  REST client (urllib only, no `synapseclient` dep).
+* **Citation**: Deng C, Whalen S et al. *Science* **384**: eadh0559
+  (2024). doi:10.1126/science.adh0559 · PMID:38781390 · PMC12085231
