@@ -1498,6 +1498,10 @@ def main(argv: list[str] | None = None) -> int:
     pull = subparsers.add_parser("pull", help="Pull MPRA metadata/evidence.")
     pull.add_argument("--source", default="catalog", choices=["catalog", "portal", "encode", "all"])
     pull.add_argument("--limit", type=int, default=25)
+    pull.add_argument("--label", default="mpra_pull",
+                       help="Output label; defaults to 'mpra_pull'. "
+                             "Accepted (and used by save_json) so the tool "
+                             "dispatcher's --label flag isn't a hard error.")
     portal = subparsers.add_parser("portal-manifest", help="Pull many IGVF Portal MPRA/STARR/reporter datasets into a manifest with plots.")
     portal.add_argument("--limit", type=int, default=100)
     portal.add_argument("--label", default="igvf_portal_mpra_many")
