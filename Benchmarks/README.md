@@ -21,7 +21,7 @@ Twelve recent Nature / Cell / Science / Nat Genet / Nat Methods / Nat Commun pap
 | 8 | **Zheng 2024** in-vivo Perturb-seq cortex *Cell* | `geo` (+ `sc-analyze`) | **GSE249416 metadata + 9-file inventory recovered**; Foxg1 Perturb-seq R objects reachable; analytical step pending h5ad conversion | [`zheng2024_invivo_perturbseq/`](zheng2024_invivo_perturbseq/README.md) |
 | 9 | **Martyn 2025** Variant-FlowFISH *Cell* | `flowfish` (full chain) | **End-to-end clean-room pipeline runs**: simulate → estimate-effects → real-space → score-elements; 20 elements → 7 Significant; 5,780 IGVF + 281 ENCODE Flow-FISH MeasurementSets enumerated | [`martyn2025_variant_flowfish/`](martyn2025_variant_flowfish/README.md) |
 | 10 | **Joung 2025** TF Perturb-seq fibroblasts *Nat Genet* | `perturb-catalog` | **Modality scale confirmed** (15 Perturb-seq datasets); paper's primary GEO accession GSE237056 under embargo until 2027-12-31; SCP2169 needs a future Synapse/SCP skill | [`joung2025_tf_perturbseq/`](joung2025_tf_perturbseq/README.md) |
-| 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` | **Discovery layer verified** (15 IGVF + 125 ENCODE + 10 MAVE-catalogue MPRA-class entries); `mpra activity` + `mpra volcano` chain ready; count-table step blocked on Synapse `syn21392931` (PsychENCODE) | [`deng2024_cortex_mpra/`](deng2024_cortex_mpra/README.md) |
+| 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` + new `synapse` | **Full Synapse deposit recovered**: 166-node walk of NeuREs (`syn21392931`); 96 paired DNA+RNA files in MPRA_CapstoneII enumerated; all 12 paper-asserted annotations recovered; download step waits only on user-side PsychENCODE DUA + PAT | [`deng2024_cortex_mpra/`](deng2024_cortex_mpra/README.md) |
 
 ## How the benchmark suite is organised
 
@@ -136,9 +136,10 @@ While building these benchmarks I uncovered + fixed seven real bugs in IGVFagent
 | `kg gene` hangs for 15+ minutes on dead sockets | 30 s timeout + retry + fail-fast | `f5f50b8` |
 | Python `urllib` 10–40 s IPv6 fallback to IPv4 | monkeypatch `socket.getaddrinfo` to prefer IPv4 | `593f4e5` |
 | **`mavedb_mapping_skill` couldn't read SGE scoresets** (Waters / Buckley) | **new `map_sge_scoreset()` + `parse_hgvsc_full()` + Ensembl /map/cdna/ path** | **`c6f42fd`** |
-| **`encode retrieve` couldn't enumerate ENCODE4 CRISPR-screen / MPRA FCEs** (Yao 2024) | **add `encode_type` config + FCE assay-title entries (`CRISPR screen` · `Flow-FISH CRISPR screen` · `MPRA`)** | this commit |
+| **`encode retrieve` couldn't enumerate ENCODE4 CRISPR-screen / MPRA FCEs** (Yao 2024) | **add `encode_type` config + FCE assay-title entries (`CRISPR screen` · `Flow-FISH CRISPR screen` · `MPRA`)** | `a7a0936` |
+| **No Synapse / PsychENCODE reach** (Deng 2024) | **new `synapse` skill** — clean-room REST client (urllib + json, no `synapseclient` dep); `entity / children / walk / search / download` subcommands; anonymous-read for public folders + Bearer-token (`SYNAPSE_AUTH_TOKEN`) for controlled-access cohorts | this commit |
 
-The SGE extension and the FCE extension are the two most consequential of these — together they unlock every SGE scoreset on MaveDB (~50 + growing) and every ENCODE4 functional-characterization screen (~900 + growing) for IGVFagent's enumeration and coordinate-mapping pipelines.
+The SGE, FCE, and Synapse extensions are the three most consequential — together they unlock every SGE scoreset on MaveDB (~50 + growing), every ENCODE4 functional-characterization screen (~900 + growing), and every Synapse-deposited cohort (PsychENCODE, AMP-AD, AMP-PD, IGVF-controlled donor-consent restricted lines, BrainSpan v2) for IGVFagent's discovery + retrieval pipelines.
 
 ## How to add a new benchmark
 

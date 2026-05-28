@@ -111,6 +111,13 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "peak archive — browse + per-experiment files + assembled "
                           "BEDs + Target-Genes + WABI Enrichment "
                           "(clean-room reimpl of inutano/chip-atlas)"),
+    "synapse":          ("igvfagent.synapse_skill",
+                          "Sage Bionetworks Synapse retrieval — entity / "
+                          "children / walk / search / download. "
+                          "Anonymous for public deposits; PAT-authenticated "
+                          "for PsychENCODE, AMP-AD, AMP-PD, and IGVF-controlled "
+                          "Synapse cohorts (set SYNAPSE_AUTH_TOKEN). "
+                          "Pure urllib + json, no synapseclient dep."),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
