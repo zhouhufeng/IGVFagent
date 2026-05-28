@@ -9,20 +9,38 @@
   "data_source": { "type": "encode", "assay": "CRISPR screen" },
   "skill_output_dir": "ENCODE",
   "label": "yao2024_encode4",
-  "primary_artefact": "manifest.json",
+  "primary_artefact": "experiments.csv",
+  "manifest_glob": "*_yao2024_encode4_experiments.csv",
   "checks": [
     {
       "name": "ENCODE CRISPR-screen manifest written",
       "type": "artefact",
-      "filename": "manifest.json"
+      "glob": "*_yao2024_encode4_experiments.csv"
     },
     {
-      "name": "At least 50 ENCODE CRISPR screens enumerated",
-      "type": "range",
-      "path": "n_experiments",
-      "min": 50,
+      "name": "At least 108 CRISPR-screen FCEs enumerated (Yao 2024 baseline)",
+      "type": "csv_row_count",
+      "glob": "*_yao2024_encode4_experiments.csv",
+      "min": 108,
       "max": 5000,
-      "expected": 108
+      "expected_at_paper_cutoff": 108,
+      "live_snapshot_at_2026_05": 368
+    },
+    {
+      "name": "K562 dominant biosample",
+      "type": "csv_value_present",
+      "glob": "*_yao2024_encode4_experiments.csv",
+      "column": "biosample",
+      "value": "K562",
+      "min_rows": 100
+    },
+    {
+      "name": "Flow-FISH CRISPR screen dominant readout (paper Fig 1)",
+      "type": "csv_value_present",
+      "glob": "*_yao2024_encode4_experiments.csv",
+      "column": "assay_title",
+      "value": "Flow-FISH CRISPR screen",
+      "min_rows": 100
     }
   ]
 }
