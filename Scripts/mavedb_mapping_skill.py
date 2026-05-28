@@ -171,6 +171,62 @@ def parse_hgvsc(s: str) -> "tuple[int, str, str] | None":
     return (int(m.group(1)), m.group(2), m.group(3)) if m else None
 
 
+# Richer HGVS-c parser used by the SGE (cDNA-coordinate) mapping path.
+# Recognises every common subtype in MaveDB SGE scoresets:
+#   c.123A>G            CDS
+#   c.-70G>A            5'UTR (negative numbering)
+#   c.*120C>T           3'UTR (asterisk prefix)
+#   c.123+5G>A          intronic (positive offset)
+#   c.123-5T>C          intronic (negative offset)
+#   ENST00000460680.6:c.123A>G   (transcript-prefixed)
+_HGVS_C_FULL = re.compile(
+    r"^(?:[^:]+:)?c\."
+    r"(?:"
+    r"  (?P<star_pos>\*\d+)"           # 3'UTR: c.*120
+    r"|"
+    r"  (?P<sign>-?)(?P<pos>\d+)"      # 5'UTR (sign='-') or coding/intronic
+    r"  (?P<offset>[\+\-]\d+)?"        # optional intronic offset
+    r")"
+    r"(?P<ref>[ACGT])>(?P<alt>[ACGT])$",
+    re.VERBOSE,
+)
+
+
+def parse_hgvsc_full(s: str) -> "tuple[int, str, str, str] | None":
+    """Parse the full HGVS-c grammar used by SGE scoresets.
+
+    Returns ``(cdna_pos, ref, alt, region)`` where ``region`` is one of
+    ``"5UTR"`` (sign='-' on a base position), ``"3UTR"`` (asterisk offset),
+    ``"intronic"`` (numeric offset like ``+5`` / ``-2``), or ``"CDS"``
+    (plain positive integer position).
+
+    For ``5UTR`` the returned ``cdna_pos`` is the *negative* coordinate
+    (e.g. ``-70`` for ``c.-70G>A``). For ``3UTR`` the returned position
+    is the 3'-UTR offset (positive). For ``intronic`` the position is
+    the closest CDS coordinate; offset is dropped (we cannot map
+    intronic SNVs to genomic coordinates without per-intron length data).
+    """
+    if not s:
+        return None
+    m = _HGVS_C_FULL.match(s.strip())
+    if not m:
+        return None
+    ref = m.group("ref")
+    alt = m.group("alt")
+    star_pos = m.group("star_pos")
+    if star_pos is not None:
+        # 3'UTR: c.*120C>T → cdna_pos = 120 (UTR offset; not a CDS coord)
+        return (int(star_pos[1:]), ref, alt, "3UTR")
+    pos = int(m.group("pos"))
+    sign = m.group("sign")
+    offset = m.group("offset") or ""
+    if sign == "-":
+        return (-pos, ref, alt, "5UTR")
+    if offset and (offset.startswith("+") or offset.startswith("-")):
+        return (pos, ref, alt, "intronic")
+    return (pos, ref, alt, "CDS")
+
+
 # ─── Ensembl REST API client ────────────────────────────────────────────────
 
 from _endpoints import resolve as _resolve_endpoint
@@ -256,6 +312,29 @@ def map_protein_to_genomic(protein_id: str, aa_start: int, aa_end: int) -> list[
     data = _ensembl_get(
         f"/map/translation/{protein_id}/{aa_start}..{aa_end}?",
         cache_key=f"map_p_{protein_id}_{aa_start}_{aa_end}",
+    )
+    return data.get("mappings", [])
+
+
+def map_cdna_to_genomic(transcript_id: str, cdna_pos: int) -> "list[dict]":
+    """Map a cDNA position to genomic coordinates via Ensembl REST.
+
+    Uses ``/map/cdna/{transcript}/{pos}..{pos}``. The Ensembl convention:
+    ``cdna_pos`` here is the CDS-relative coordinate (1-based, 1 = first
+    base of the coding sequence). 5'UTR / 3'UTR / intronic positions
+    need different endpoints (``/map/cds/``, ``/map/region/``) and are
+    out of scope — the caller must pre-classify the region via
+    :func:`parse_hgvsc_full` and skip non-CDS rows.
+
+    Returns the raw Ensembl ``mappings`` list — each entry has
+    ``seq_region_name``, ``start``, ``end``, ``strand``, ``coord_system``.
+    Empty list = no mapping (typically: position outside the transcript).
+    """
+    if cdna_pos < 1:
+        return []
+    data = _ensembl_get(
+        f"/map/cdna/{transcript_id}/{cdna_pos}..{cdna_pos}?",
+        cache_key=f"map_cdna_{transcript_id}_{cdna_pos}",
     )
     return data.get("mappings", [])
 
@@ -383,6 +462,159 @@ def map_variant(
 
 
 # ─── Scoreset-level orchestration ───────────────────────────────────────────
+
+def map_sge_scoreset(
+    raw_rows: "list[dict]",
+    *,
+    gene: str,
+    species: str = "human",
+    progress: bool = True,
+    skip_intronic: bool = False,
+    skip_utr: bool = False,
+) -> "tuple[list[dict], dict]":
+    """Map an SGE (Saturation Genome Editing) scoreset that encodes
+    variants via ``hgvs_nt`` (cDNA coordinates) rather than ``hgvs_pro``
+    (protein positions).
+
+    SGE scoresets such as Waters 2024 BAP1, Buckley 2024 VHL, and
+    Findlay-lab BRCA1 mutate at the **DNA** level, so they carry no
+    HGVS-p notation — all per-row info lives in ``hgvs_nt`` of the form
+    ``ENST00000460680.6:c.<pos><ref>><alt>``. The classical
+    :func:`map_scoreset` path (which uses ``hgvs_pro``) cannot read
+    these rows; this function is its SGE-aware sibling.
+
+    ``raw_rows`` is the raw MaveDB scoreset as a list of dicts (one per
+    CSV row); each row must have an ``hgvs_nt`` key and at least one
+    numeric scoring column (``score`` / ``z`` / ``LFC`` / etc.) preserved
+    verbatim from the CSV. The output rows preserve every original
+    score column so downstream consumers can compute their own
+    LOF/GOF/Neutral classifications without re-fetching the scoreset.
+
+    For each row, ``parse_hgvsc_full`` classifies the region:
+
+    * **CDS** (``c.123A>G``) — mapped to chr/pos/ref/alt via Ensembl
+      ``/map/cdna/`` with strand-aware ref/alt complementation when
+      the transcript is on the reverse strand.
+    * **5'UTR** (``c.-70G>A``) — emitted with ``mapping_type="utr_5"``
+      and no genomic coords (Ensembl's ``/map/cdna/`` only handles CDS).
+      Pass ``skip_utr=True`` to drop them entirely.
+    * **3'UTR** (``c.*120C>T``) — same treatment as 5'UTR.
+    * **intronic** (``c.123+5G>A``) — emitted with ``mapping_type="intronic"``
+      and no genomic coords (would need per-intron base coordinates
+      we'd have to compute from the GTF). Pass ``skip_intronic=True``
+      to drop.
+
+    Returns ``(mapped_rows, summary)`` with the same shape as
+    :func:`map_scoreset` so the downstream VCF writer / showcase
+    figure / report code can consume either output uniformly.
+    """
+    setup_logging()
+    logging.info("[SGE] Looking up Ensembl canonical transcript for %s", gene)
+    xrefs = get_gene_xrefs(gene, species=species)
+    if not xrefs:
+        raise SystemExit(f"No Ensembl gene xref for {gene}.")
+    gene_id = xrefs[0]["id"]
+    canonical = get_canonical_transcript(gene_id)
+    if not canonical:
+        raise SystemExit(f"No canonical transcript for {gene_id}.")
+    transcript_id = canonical["id"]
+    transcript_name = canonical.get("display_name") or transcript_id
+    protein_id = (canonical.get("Translation") or {}).get("id")
+    logging.info("  [SGE] gene_id=%s transcript=%s (%s) protein=%s",
+                  gene_id, transcript_id, transcript_name, protein_id)
+
+    mapped: "list[dict]" = []
+    by_region: Counter[str] = Counter()
+    by_type: Counter[str] = Counter()
+    total = len(raw_rows)
+    n_skipped = n_error = 0
+
+    for i, row in enumerate(raw_rows):
+        if progress and i % 500 == 0:
+            logging.info("  [SGE] %d / %d variants processed", i, total)
+        hgvs_nt = row.get("hgvs_nt", "")
+        parsed = parse_hgvsc_full(hgvs_nt)
+        if not parsed:
+            n_skipped += 1
+            by_type["unparseable_hgvs_nt"] += 1
+            continue
+        cdna_pos, ref, alt, region = parsed
+        by_region[region] += 1
+
+        # 5'UTR / 3'UTR / intronic — emit a partial row (or skip entirely)
+        if region in ("5UTR", "3UTR", "intronic"):
+            mapping_type = {"5UTR": "utr_5", "3UTR": "utr_3",
+                              "intronic": "intronic"}[region]
+            should_skip = ((region in ("5UTR", "3UTR") and skip_utr) or
+                              (region == "intronic" and skip_intronic))
+            if should_skip:
+                continue
+            mapped.append({**row,
+                "mapping_type": mapping_type, "region": region,
+                "chr": None, "pos_genomic": None,
+                "ref": None, "alt_nt": None,
+                "transcript_id": transcript_id,
+                "cdna_pos": cdna_pos, "hgvs_nt": hgvs_nt,
+                "notes": f"{region} variant; Ensembl /map/cdna/ "
+                          f"only handles CDS — chr/pos not assigned",
+            })
+            by_type[mapping_type] += 1
+            continue
+
+        # CDS — call Ensembl /map/cdna/
+        try:
+            mappings = map_cdna_to_genomic(transcript_id, cdna_pos)
+        except Exception as exc:
+            mapped.append({**row,
+                "mapping_type": "error", "region": "CDS",
+                "transcript_id": transcript_id,
+                "cdna_pos": cdna_pos, "hgvs_nt": hgvs_nt,
+                "notes": f"Ensembl /map/cdna/ failed: {exc}"})
+            n_error += 1
+            by_type["error"] += 1
+            continue
+        if not mappings:
+            mapped.append({**row,
+                "mapping_type": "cds_unmapped", "region": "CDS",
+                "transcript_id": transcript_id,
+                "cdna_pos": cdna_pos, "hgvs_nt": hgvs_nt,
+                "notes": "no mapping returned by /map/cdna/"})
+            by_type["cds_unmapped"] += 1
+            continue
+        m = mappings[0]
+        chrom = "chr" + str(m.get("seq_region_name", ""))
+        pos = int(m.get("start", 0))
+        strand = int(m.get("strand", 1))
+        # SGE edits hit the DNA strand: when the transcript is on
+        # strand=-1, the cDNA letters (ref/alt) are the *complement* of
+        # the genomic reference letter at this position.
+        if strand == -1:
+            ref_g = _complement(ref)
+            alt_g = _complement(alt)
+        else:
+            ref_g, alt_g = ref, alt
+        mapped.append({**row,
+            "mapping_type": "cds", "region": "CDS",
+            "chr": chrom, "pos_genomic": pos,
+            "ref": ref_g, "alt_nt": alt_g,
+            "strand": strand,
+            "transcript_id": transcript_id, "cdna_pos": cdna_pos,
+            "hgvs_nt": hgvs_nt,
+            "notes": "SGE cDNA→genomic via Ensembl /map/cdna/"})
+        by_type["cds"] += 1
+
+    summary = {
+        "gene": gene, "transcript_id": transcript_id,
+        "transcript_name": transcript_name,
+        "protein_id": protein_id, "gene_ensembl_id": gene_id,
+        "scoreset_mode": "SGE (hgvs_nt cDNA coordinates)",
+        "n_rows_in": total, "n_mapped_rows_out": len(mapped),
+        "n_skipped": n_skipped, "n_errors": n_error,
+        "region_counts": dict(by_region),
+        "type_counts": dict(by_type),
+    }
+    return mapped, summary
+
 
 def map_scoreset(
     rows: "list[dict]",
@@ -574,9 +806,33 @@ def cmd_map_scoreset(args: argparse.Namespace) -> int:
 
     csv_path = download_mavedb_scoreset(urn)
     rows = _read_mavedb_csv(csv_path)
-    logging.info("Loaded %d rows from MaveDB %s", len(rows), urn)
-    mapped, summary = map_scoreset(rows, gene=gene, species=args.species,
-                                     progress=True)
+    logging.info("Loaded %d hgvs_pro-parseable rows from MaveDB %s", len(rows), urn)
+
+    # Auto-detect SGE-style scoresets — these have all-NA hgvs_pro so
+    # _read_mavedb_csv returns 0 rows, but hgvs_nt has the real
+    # variant annotations. Re-read the CSV in SGE mode if the
+    # VAMP-seq parser came up empty.
+    if not rows:
+        logging.info("VAMP-seq parser returned 0 rows; "
+                      "checking for SGE (hgvs_nt) scoreset format")
+        raw_rows: "list[dict]" = []
+        with csv_path.open("r", encoding="utf-8", errors="replace") as fp:
+            for r in csv.DictReader(fp):
+                if (r.get("hgvs_nt") or "").strip() not in ("", "NA"):
+                    raw_rows.append(r)
+        if not raw_rows:
+            raise SystemExit(
+                f"MaveDB {urn}: neither hgvs_pro nor hgvs_nt rows found. "
+                f"Inspect {csv_path} manually.")
+        logging.info("SGE mode: %d rows have hgvs_nt populated", len(raw_rows))
+        mapped, summary = map_sge_scoreset(
+            raw_rows, gene=gene, species=args.species,
+            progress=True,
+            skip_intronic=getattr(args, "skip_intronic", False),
+            skip_utr=getattr(args, "skip_utr", False))
+    else:
+        mapped, summary = map_scoreset(
+            rows, gene=gene, species=args.species, progress=True)
     # Write outputs
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
