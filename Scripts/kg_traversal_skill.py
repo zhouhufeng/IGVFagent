@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _endpoints import resolve as _resolve_endpoint
+from _endpoints import resolve as _resolve_endpoint  # _endpoints applies the IPv4-preferred DNS fix on import
 
 ROOT = Path(
     os.environ.get("IGVF_PROJECT_ROOT")
