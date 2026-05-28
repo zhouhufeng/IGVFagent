@@ -12,6 +12,17 @@ LABEL="deng2024_cortex_mpra"
 # modality in context). MAVE = catalogue's MPRA-family modality.
 .venv/bin/igvfagent perturb-catalog summary
 
+# Step 3 (online, NEW): Synapse retrieval — Deng's primary deposit lives
+# at syn21392931 (PsychENCODE NeuREs study). Pulls anonymous metadata +
+# enumerates the MPRA_CapstoneII sub-folder which contains the paper's
+# DNA+RNA count fastqs. The download step needs SYNAPSE_AUTH_TOKEN
+# once the PsychENCODE Data-Use Agreement is accepted.
+.venv/bin/igvfagent synapse entity --syn syn21392931 --annotations
+.venv/bin/igvfagent synapse walk --syn syn21392931 --max-depth 3 \
+    --max-children 50 --label "${LABEL}_neures"
+.venv/bin/igvfagent synapse children --syn syn51090452 \
+    --label "${LABEL}_mpra_capstone2"
+
 # Step 3 (local): activity + volcano if the published count table is on disk.
 # Deng 2024 deposits via PsychENCODE Synapse (syn21392931); the per-oligo
 # DNA + RNA count table needs to be fetched manually + placed at INPUT.

@@ -108,6 +108,62 @@ for ext in ("png", "svg"):
 plt.close(fig)
 print("  ✓ fig2_variant_impact")
 
+# ---- Fig 3 (NEW): Synapse NeuREs file inventory (live, via new synapse skill) ----
+synapse_manifests = sorted(
+    list((ROOT / "Data/Manifests/Synapse").glob("*deng2024*mpra*children.csv"))
+    + list((ROOT / "Data/Manifests/Synapse").glob("*deng2024*capstone*children.csv"))
+)
+if synapse_manifests:
+    syn_rows = list(csv.DictReader(synapse_manifests[-1].open()))
+    print(f"Loaded {len(syn_rows)} Synapse MPRA_CapstoneII children")
+
+    def bucket(name):
+        n = name.lower()
+        if "primary" in n and "dna" in n: return "Primary cortex — DNA"
+        if "primary" in n and "rna" in n: return "Primary cortex — RNA"
+        if "organoid" in n and "dna" in n: return "Cerebral organoid — DNA"
+        if "organoid" in n and "rna" in n: return "Cerebral organoid — RNA"
+        if (n.startswith(("a", "s"))
+              and (n.endswith(".fq.gz") or n.endswith(".fastq.gz"))):
+            return "Per-donor bulk RNA"
+        return "Other"
+
+    counter = Counter(bucket(r["name"]) for r in syn_rows)
+    labels = [k for k, _ in counter.most_common()]
+    counts = [v for _, v in counter.most_common()]
+    fig, ax = plt.subplots(figsize=(9, 4.5), facecolor="white")
+    y = np.arange(len(labels))[::-1]
+    color_map = {
+        "Primary cortex — DNA": COL_GREEN,
+        "Primary cortex — RNA": COL_HIGHLIGHT,
+        "Cerebral organoid — DNA": "#7FB069",
+        "Cerebral organoid — RNA": "#D08B5B",
+        "Per-donor bulk RNA": COL_PRIMARY,
+        "Other": "#aaaaaa",
+    }
+    colors = [color_map.get(l, COL_PRIMARY) for l in labels]
+    ax.barh(y, counts, color=colors, edgecolor="white", linewidth=0.5)
+    for i, (l, c) in enumerate(zip(labels, counts)):
+        ax.text(c + 0.3, y[i], f"  n={c}",
+                va="center", fontsize=10, fontweight="bold")
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel("File count")
+    ax.set_title(f"Deng 2024 lentiMPRA Synapse deposit "
+                  f"({len(syn_rows)} files in MPRA_CapstoneII, syn51090452)\n"
+                  "Paired primary cortex + cerebral organoid DNA/RNA design",
+                  fontweight="bold", fontsize=11)
+    ax.set_xlim(0, max(counts) * 1.20)
+    ax.grid(axis="x", ls=":", alpha=0.4)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    fig.tight_layout()
+    for ext in ("png", "svg"):
+        fig.savefig(FIG_DIR / f"fig4_synapse_inventory.{ext}",
+                      dpi=200, facecolor="white")
+    plt.close(fig)
+    print("  ✓ fig4_synapse_inventory")
+
 # ---- Fig 3: IGVF Portal MPRA-class entries (live) ----
 if rows:
     fig, ax = plt.subplots(figsize=(9, 4), facecolor="white")
