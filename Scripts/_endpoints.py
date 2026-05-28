@@ -8,7 +8,21 @@ matching environment variable to override any default.
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from typing import Optional
+
+# Apply the IPv4-preferred DNS resolver process-wide as a side-effect
+# of importing _endpoints. Every IGVFagent skill imports _endpoints
+# at module load, so this single touchpoint protects every skill from
+# the Python-urllib IPv6-fallback hang we observe on networks where
+# the IGVF services' AAAA records are not actually routable.
+# Toggle off with IGVF_PREFER_IPV4=0.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from _http import prefer_ipv4_dns  # noqa: F401 — side-effect import
+except Exception:  # pragma: no cover
+    pass
 
 _DEFAULTS = {
     "portal":       "68747470733a2f2f646174612e696776662e6f7267",
