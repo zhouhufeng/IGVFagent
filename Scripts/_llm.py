@@ -357,7 +357,30 @@ def _chat_openai_compat(messages, *, model, tools, max_tokens, temperature,
     else:
         payload["max_tokens"] = max_tokens
     if tools:
-        payload["tools"] = to_openai_tools(tools)
+        serialized = to_openai_tools(tools)
+        # OpenAI's Chat Completions API caps the ``tools`` array at 128
+        # entries (post-GPT-5 generation). IGVFagent has > 128 registered
+        # tools today, so we trim — preferring star-prefixed (★) tools
+        # first because those are the hand-curated LLM-tool-selection
+        # core; the rest fill the remaining slots deterministically.
+        OPENAI_TOOLS_MAX = 128
+        if (backend_label in ("openai", "codex", "custom")
+                and len(serialized) > OPENAI_TOOLS_MAX):
+            def _is_starred(entry: dict) -> bool:
+                desc = (entry.get("function", {}) or {}).get("description", "") or ""
+                return desc.startswith("★") or desc.startswith("★ ")
+            starred = [e for e in serialized if _is_starred(e)]
+            unstarred = [e for e in serialized if not _is_starred(e)]
+            trimmed = (starred + unstarred)[:OPENAI_TOOLS_MAX]
+            logging.warning(
+                "OpenAI 128-tool cap: trimmed %d -> %d (%d starred kept, "
+                "%d unstarred kept, %d dropped)",
+                len(serialized), len(trimmed),
+                sum(1 for e in trimmed if _is_starred(e)),
+                sum(1 for e in trimmed if not _is_starred(e)),
+                len(serialized) - len(trimmed))
+            serialized = trimmed
+        payload["tools"] = serialized
         payload["tool_choice"] = "auto"
     if stop:
         payload["stop"] = stop
