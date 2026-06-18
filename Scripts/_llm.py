@@ -75,7 +75,7 @@ class Message:
 
 
 _DEFAULT_MODELS = {
-    "anthropic":  "claude-sonnet-4-5",
+    "anthropic":  "claude-opus-4-8",
     "openai":     "gpt-4o-mini",
     "codex":      "gpt-5-codex",
     "ollama":     "qwen3:8b",
@@ -239,6 +239,24 @@ def _to_openai_messages(messages: Iterable[dict]) -> "list[dict]":
 
 # --------------------------- Backend implementations ------------------------
 
+# Anthropic models that no longer accept temperature/top_p/top_k. Sending any
+# sampling param to these returns a 400 ("temperature is deprecated for this
+# model."). Covers Opus 4.7/4.8, Fable 5, Mythos 5, and any later release.
+_NO_SAMPLING_PARAM_MODELS = (
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-mythos-preview",
+)
+
+
+def _accepts_sampling_params(model: str) -> bool:
+    """False for models that reject temperature/top_p/top_k (Opus 4.7+, Fable/Mythos 5)."""
+    m = (model or "").lower()
+    return not any(tag in m for tag in _NO_SAMPLING_PARAM_MODELS)
+
+
 def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
                      stop, **kwargs) -> Message:
     try:
@@ -259,8 +277,15 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         "model":       model,
         "messages":    msgs,
         "max_tokens":  max_tokens,
-        "temperature": temperature,
     }
+    # Sampling params (temperature/top_p/top_k) were removed on Opus 4.7+,
+    # Fable 5, and Mythos 5 — sending them returns a 400. Only forward them
+    # to models that still accept them.
+    if _accepts_sampling_params(model):
+        payload["temperature"] = temperature
+    else:
+        for _p in ("top_p", "top_k"):
+            kwargs.pop(_p, None)
     if system:
         payload["system"] = system
     if tools:
@@ -932,13 +957,9 @@ OLLAMA_LIBRARY = [
 # dropdowns. Real model availability is checked separately (e.g.
 # Anthropic API access requires the key + tier).
 ANTHROPIC_MODELS = [
-    "claude-opus-4-5",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4",
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
     "claude-haiku-4-5",
-    "claude-3-7-sonnet-latest",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-latest",
 ]
 
 OPENAI_MODELS = [

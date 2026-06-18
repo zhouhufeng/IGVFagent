@@ -16,6 +16,11 @@ venv/
 *.cookies
 *.cookie
 *.token
+# API keys and any other secret material — never commit anything under the
+# secrets folder (tolerate the existing "Secretes" spelling + the correct one)
+Docs/Secretes/
+Docs/Secrets/
+**/APIkeys.txt
 
 # Runtime outputs. Keep folder placeholders and READMEs tracked.
 Data/*
