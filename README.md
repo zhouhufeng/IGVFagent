@@ -5,11 +5,13 @@ from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge
 Graph) and related public resources (ENCODE, FAVOR), with a built-in
 **Plan → Action → Results → Evaluation** orchestration loop.
 
-![IGVF Agent architecture](Docs/Figures/IGVF_agent_archetcture.png)
+![IGVF Agent — system overview](Docs/Figures/IGVFagent_system_overview.png)
 
-![IGVFagent architecture and skill topology](Docs/Figures/IGVFagent_architecture_flow.png)
+_End-to-end view: a knowledge graph and multi-omics data resources feed an orchestration-layer AI agent (Plan → Act → Observe → Refine) backed by short/long-term memory, an execution layer, post-processing, and human-in-the-loop review — producing downstream outputs such as variant prioritization, perturb-seq analysis, enhancer–gene mapping, and fine-mapping._
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 30 skills grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back. Generator: [`Scripts/_figures/make_arch_figure.py`](Scripts/_figures/make_arch_figure.py); also available as [SVG](Docs/Figures/IGVFagent_architecture_flow.svg) and [PDF](Docs/Figures/IGVFagent_architecture_flow.pdf)._
+![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
+
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 30 skills grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
 
 ### 🎬 Video demos
 
