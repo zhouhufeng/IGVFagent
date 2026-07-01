@@ -118,6 +118,13 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "for PsychENCODE, AMP-AD, AMP-PD, and IGVF-controlled "
                           "Synapse cohorts (set SYNAPSE_AUTH_TOKEN). "
                           "Pure urllib + json, no synapseclient dep."),
+    "figshare":         ("igvfagent.figshare_skill",
+                          "figshare retrieval — article / files / download / "
+                          "search. Resolves numeric id, DOI, article URL, or "
+                          "private /s/<token> share link (as printed in paper "
+                          "Data Availability statements). Downloads with md5 "
+                          "verify. Pure urllib + json; the general-purpose "
+                          "counterpart to Zenodo for research-data deposits."),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
