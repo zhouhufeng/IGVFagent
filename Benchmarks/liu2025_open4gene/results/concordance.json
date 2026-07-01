@@ -1,0 +1,19 @@
+{
+  "validation_vs_R": {
+    "n_pairs": 10,
+    "zero_beta_corr": 1.0,
+    "zero_beta_max_abs_diff": 0.0,
+    "zero_beta_max_rel_diff": 0.0
+  },
+  "paper_table": {
+    "total_links": 171877,
+    "unique_peaks": 125699,
+    "unique_genes": 12943,
+    "n_celltypes": 20,
+    "allcell_links": 128075,
+    "paper_headline_peaks": 125699,
+    "peaks_match": true,
+    "zero_beta_median_allcell": 0.7177,
+    "zero_beta_frac_positive": 0.961
+  }
+}
