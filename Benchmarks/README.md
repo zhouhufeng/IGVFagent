@@ -1,6 +1,6 @@
 # IGVFagent Reproducibility Benchmark Suite
 
-Fourteen recent Nature / Cell / Science / Nat Genet / Nat Methods / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison.
+Sixteen recent Nature / Cell / Science / Nat Genet / Nat Methods / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison. The two newest — **Travaglini 2020 lung** (`sc-analyze`) and **Trevino 2021 cortex multiome** (`multiome peak2gene`) — are **full local reproductions**: they download the public data and run IGVFagent's real single-cell / multiome analytical chain, then score concordance against the authors' own results.
 
 **All primary benchmarks carry Concordance / Verdict / Honest caveats READMEs** (the suite-verified Matreyek 2018 smoke-test is the reference case). See the dashboard table below for each paper's headline result and link to its per-paper page.
 
@@ -24,6 +24,8 @@ Fourteen recent Nature / Cell / Science / Nat Genet / Nat Methods / medRxiv pape
 | 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` + new `synapse` | **Full Synapse deposit recovered**: 166-node walk of NeuREs (`syn21392931`); 96 paired DNA+RNA files in MPRA_CapstoneII enumerated; all 12 paper-asserted annotations recovered; download step waits only on user-side PsychENCODE DUA + PAT | [`deng2024_cortex_mpra/`](deng2024_cortex_mpra/README.md) |
 | 12 | **Gschwind 2023 / Sheth 2024** ENCODE-rE2G & scE2G *bioRxiv* | `portal` + `synapse` + new `e2g_benchmark_eval` | **ENCODE-rE2G base AUPRC 0.634 reproduces the published 0.634 exactly** vs the K562 CRISPR ground truth; ranking rE2G-extended (0.758) > rE2G-base (0.634) > scE2G (0.53–0.59) > ARC-E2G ≈ ABC (0.49); scE2G beats the ABC baseline as claimed | [`e2g_crispr_benchmark/`](e2g_crispr_benchmark/README.md) |
 | 13 | **Liu 2025** kidney multiome scorecard *Science* | new `open4gene` port + `figshare` | **Port reproduces R `pscl::hurdle` zero-component β to r=1.0, Δ=0**; paper's published links pulled via `figshare` (article 26299093), **unique peaks 125,699 matches the paper headline exactly** | [`liu2025_open4gene/`](liu2025_open4gene/README.md) |
+| 14 | **Travaglini 2020** Human Lung Cell Atlas *Nature* | `sc-analyze` (**full local repro**) | **49 Leiden clusters vs 46 author cell types**; AMI 0.81, homogeneity 0.89; 9/10 canonical lung markers peak in expected cell type; **8/8 checks** | [`travaglini2020_lung/`](travaglini2020_lung/README.md) |
+| 15 | **Trevino 2021** developing cortex multiome *Cell* | `multiome peak2gene` (**full local repro**) | **cis peak→gene links for all 26 lineage genes; 93 % positive** (enhancer→gene activation), TSS-proximal; reproduces the paper's genome-wide linkage signal; **4/4 checks** | [`trevino2021_cortex_multiome/`](trevino2021_cortex_multiome/README.md) |
 
 ## How the benchmark suite is organised
 
