@@ -50,10 +50,31 @@ def _load_helpers():
     try:
         from igvfagent import _llm as llm
         from igvfagent import _tools as tools
+        from igvfagent import _router as router
+        from igvfagent import _localstore as localstore
     except Exception:
         import _llm as llm  # type: ignore[no-redef]
         import _tools as tools  # type: ignore[no-redef]
-    return llm, tools
+        import _router as router  # type: ignore[no-redef]
+        import _localstore as localstore  # type: ignore[no-redef]
+    return llm, tools, router, localstore
+
+
+def _grow_local_store(localstore, name: str, arguments: dict,
+                      result: dict) -> None:
+    """Feed one tool call into the growing local KG/DB (core default).
+
+    Never let a store failure break the run; disable with IGVF_LOCALSTORE=0.
+    """
+    if os.environ.get("IGVF_LOCALSTORE", "1") == "0":
+        return
+    try:
+        localstore.record_tool_call(
+            name, arguments or {},
+            stdout=result.get("stdout", "") or "",
+            artifacts=result.get("artifacts") or {})
+    except Exception as e:  # pragma: no cover
+        logger.warning("localstore growth skipped for %s: %s", name, e)
 
 
 # --------------------------- Project paths ----------------------------------
@@ -130,6 +151,11 @@ def _print_callback(event: AgentEvent) -> None:
     if k == "run_start":
         print(f"▶ run_start  backend={p.get('backend')} model={p.get('model')}  "
               f"tools={p.get('n_tools')}")
+        c = p.get("consistency") or {}
+        if c:
+            print(f"  · consistency  seed={c.get('seed')} "
+                  f"prompt={c.get('system_prompt_sha1')} "
+                  f"toolset={c.get('tool_set_sha1')} ({c.get('n_tools_exposed')} tools)")
     elif k == "llm_call_start":
         print(f"  · llm  iter={p['iteration']}/{p['max_iterations']}  "
               f"messages={p['n_messages']}")
@@ -147,8 +173,12 @@ def _print_callback(event: AgentEvent) -> None:
             u = p["usage"]
             print(f"    [usage] in={u.get('input_tokens',0)} "
                   f"out={u.get('output_tokens',0)}")
+    elif k == "route":
+        print(f"  ⇒ route[{p.get('shape')}] -> {p['tool']}"
+              f"({_short_args(p.get('arguments'))})  [deterministic]")
     elif k == "tool_call_start":
-        print(f"  · tool {p['name']}({_short_args(p.get('arguments'))})")
+        tag = " [routed]" if p.get("routed") else ""
+        print(f"  · tool {p['name']}({_short_args(p.get('arguments'))}){tag}")
     elif k == "tool_call_end":
         flag = "ok" if p.get("exit_code") == 0 else f"exit={p.get('exit_code')}"
         artefacts = p.get("artifacts") or {}
@@ -356,6 +386,8 @@ def run(
     max_iterations: int = 8,
     max_tokens: int = 4096,
     temperature: float = 0.0,
+    seed: Optional[int] = None,
+    enable_router: bool = True,
     system_prompt: Optional[str] = None,
     extra_context: Optional[str] = None,
     tools_subset: Optional["list[str]"] = None,
@@ -367,7 +399,7 @@ def run(
     Returns an :class:`AgentResult` with the final text, full transcript,
     and any artefact paths the wrapped skills announced.
     """
-    llm, tools_mod = _load_helpers()
+    llm, tools_mod, router, localstore = _load_helpers()
 
     all_tools = tools_mod.list_tools()
     if tools_subset:
@@ -376,6 +408,40 @@ def run(
     tool_dicts = [t.to_dict() for t in all_tools]
 
     sys_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+
+    # Resolve the decoding seed once (default IGVF_LLM_SEED, else 0) so the
+    # same value is used for every LLM call in this run and recorded below.
+    if seed is None:
+        _env_seed = os.environ.get("IGVF_LLM_SEED", "0")
+        try:
+            seed = int(_env_seed) if _env_seed != "" else 0
+        except ValueError:
+            seed = 0
+
+    # Consistency fingerprint: the three inputs that must match for two runs
+    # (on any backends) to be comparable — system prompt, decoding seed, and
+    # the *canonical* tool set the LLM actually sees (identical across backends).
+    canonical = llm.canonical_tools(tool_dicts) or tool_dicts
+    canon_names = [t.get("name", "") for t in canonical]
+    canon_name_set = set(canon_names)
+
+    # Deterministic router: fixed first tool call(s) for unambiguous query
+    # shapes, identical across backends. Only keep routed calls whose tool is
+    # actually exposed (survived the canonical cap).
+    routed_plan: "list[dict]" = []
+    if enable_router:
+        routed_plan = [r for r in router.route(query)
+                       if r.get("tool") in canon_name_set]
+
+    consistency = {
+        "system_prompt_sha1": hashlib.sha1(sys_prompt.encode()).hexdigest()[:12],
+        "seed": seed,
+        "n_tools_exposed": len(canon_names),
+        "tool_set_sha1": hashlib.sha1(
+            ",".join(sorted(canon_names)).encode()).hexdigest()[:12],
+        "routed_shapes": [r["shape"] for r in routed_plan],
+    }
+
     user_text = query if not extra_context else f"{query}\n\n{extra_context}"
     messages: "list[dict]" = [{"role": "user", "content": user_text}]
 
@@ -390,8 +456,59 @@ def run(
 
     _emit(callback, "run_start", {
         "backend": chosen_backend or "(auto)", "model": chosen_model or "(auto)",
-        "n_tools": len(tool_dicts), "max_iterations": max_iterations,
+        "n_tools": len(canon_names), "max_iterations": max_iterations,
+        "consistency": consistency,
     })
+
+    # --- Deterministic pre-plan: execute routed tool calls first -----------
+    # These run identically on every backend, seeding the conversation before
+    # the LLM takes over. We synthesize an assistant tool_use turn + tool
+    # result so the message history is valid for both Anthropic and OpenAI.
+    if routed_plan:
+        synth_calls = []
+        for i, r in enumerate(routed_plan):
+            call_id = f"route_{i}"
+            _emit(callback, "route", {"shape": r["shape"], "tool": r["tool"],
+                                       "arguments": r["arguments"]})
+            _emit(callback, "tool_call_start", {
+                "id": call_id, "name": r["tool"], "arguments": r["arguments"],
+                "routed": True,
+            })
+            try:
+                result = tools_mod.execute(r["tool"], r["arguments"])
+                tool_calls_made += 1
+            except Exception as e:  # noqa
+                result = {"name": r["tool"], "exit_code": 1, "stdout": "",
+                          "stderr": str(e), "artifacts": {}}
+            for paths in (result.get("artifacts") or {}).values():
+                artefacts.extend(paths)
+            _emit(callback, "tool_call_end", {
+                "id": call_id, "name": r["tool"],
+                "exit_code": result.get("exit_code"),
+                "artifacts": result.get("artifacts") or {},
+                "routed": True,
+            })
+            _grow_local_store(localstore, r["tool"], r["arguments"], result)
+            synth_calls.append((call_id, r, result))
+
+        # assistant turn announcing the routed calls
+        assistant_tc = [{"id": cid, "name": r["tool"], "arguments": r["arguments"]}
+                        for cid, r, _ in synth_calls]
+        routed_note = ("(router) deterministic tool selection for query shape(s): "
+                       + ", ".join(r["shape"] for _, r, _ in synth_calls))
+        transcript.append({"role": "assistant", "content": routed_note,
+                            "tool_calls": assistant_tc, "routed": True})
+        messages.append({"role": "assistant", "content": routed_note,
+                         "tool_calls": assistant_tc})
+        for cid, r, result in synth_calls:
+            summary = _format_tool_result_for_llm(result)
+            transcript.append({"role": "tool", "tool_call_id": cid,
+                               "name": r["tool"], "content": summary,
+                               "exit_code": result.get("exit_code"),
+                               "artifacts": result.get("artifacts") or {},
+                               "routed": True})
+            messages.append({"role": "tool", "tool_call_id": cid,
+                             "content": summary})
 
     for iters in range(1, max_iterations + 1):
         _emit(callback, "llm_call_start", {
@@ -402,7 +519,7 @@ def run(
             msg = llm.chat(
                 messages=[{"role": "system", "content": sys_prompt}, *messages],
                 backend=backend, model=model, tools=tool_dicts,
-                max_tokens=max_tokens, temperature=temperature,
+                max_tokens=max_tokens, temperature=temperature, seed=seed,
             )
         except Exception as e:
             err_msg = str(e)
@@ -481,6 +598,7 @@ def run(
                 "artifacts": result.get("artifacts") or {},
                 "stdout_len": len(result.get("stdout") or ""),
             })
+            _grow_local_store(localstore, tc.name, tc.arguments or {}, result)
 
             tool_summary = _format_tool_result_for_llm(result)
             transcript.append({
@@ -515,6 +633,7 @@ def run(
                 "backend": chosen_backend, "model": chosen_model,
                 "iterations": iters, "tool_calls_made": tool_calls_made,
                 "stop_reason": stop_reason, "artefacts": artefacts,
+                "consistency": consistency,
             },
         )
 
