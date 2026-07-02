@@ -118,6 +118,27 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "for PsychENCODE, AMP-AD, AMP-PD, and IGVF-controlled "
                           "Synapse cohorts (set SYNAPSE_AUTH_TOKEN). "
                           "Pure urllib + json, no synapseclient dep."),
+    "sceps":            ("igvfagent.sceps_skill",
+                          "scEPS single-cell disease-neighborhood statistics — "
+                          "clean-room reimpl of Genentech/sceps. Integrates GWAS "
+                          "(MAGMA Z) + single-cell atlas; per-neighborhood "
+                          "variance-component d-statistic (GWAS vs matched "
+                          "control genes). Subcommands: estimate. Runs under the "
+                          "scEPS env (scanpy/anndata/statsmodels)."),
+    "open4gene":        ("igvfagent.open4gene_skill",
+                          "Open4Gene peak-to-gene linkage — clean-room reimpl of "
+                          "hbliu/Open4Gene (Liu et al. Science 2025). Hurdle model "
+                          "(logit zero + zero-truncated NB count) linking snATAC "
+                          "peaks to snRNA genes across multiome cells, per cell "
+                          "type, with covariates. Subcommands: link. statsmodels-"
+                          "based; validated vs the R pscl::hurdle reference."),
+    "figshare":         ("igvfagent.figshare_skill",
+                          "figshare retrieval — article / files / download / "
+                          "search. Resolves numeric id, DOI, article URL, or "
+                          "private /s/<token> share link (as printed in paper "
+                          "Data Availability statements). Downloads with md5 "
+                          "verify. Pure urllib + json; the general-purpose "
+                          "counterpart to Zenodo for research-data deposits."),
 }
 
 # All reserved namespaces are now wired. Kept as a (currently empty)
