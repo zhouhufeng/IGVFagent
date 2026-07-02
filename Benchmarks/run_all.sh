@@ -50,6 +50,8 @@ case "$MODE" in
             weinstock2024_cd4_crispr
             martyn2025_variant_flowfish
             zou2024_chipatlas_gata1
+            travaglini2020_lung            # full local repro: sc-analyze (CELLxGENE h5ad)
+            trevino2021_cortex_multiome    # full local repro: multiome peak2gene (GSE162170)
         )
         ;;
 esac
