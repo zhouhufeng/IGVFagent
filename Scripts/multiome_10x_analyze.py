@@ -79,8 +79,12 @@ def safe_label(s: str) -> str:
 
 
 def _require(name: str, hint: str = "") -> Any:
+    # importlib.import_module returns the requested submodule (e.g. "scipy.stats"),
+    # whereas __import__ returns the top-level package ("scipy") — which silently
+    # breaks attribute access like scipy.stats.spearmanr.
+    import importlib
     try:
-        return __import__(name)
+        return importlib.import_module(name)
     except ImportError as exc:
         raise SystemExit(
             f"Missing dependency '{name}'. {hint}\nInstall with: pip install {name}"

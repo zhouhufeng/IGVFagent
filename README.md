@@ -93,6 +93,10 @@ In short — **two ways to drive every skill, one shared contract**:
   - [MULTI-seq / Cell Hashing demultiplexing](#multi-seq--cell-hashing-demultiplexing)
   - [Integrated data warehouse (DuckDB Silver tier)](#integrated-data-warehouse-duckdb-silver-tier)
   - [Network integration (clean-room MILP — CARNIVAL + Steiner)](#network-integration-clean-room-milp--carnival--steiner)
+  - [ChIP-Atlas reprocessed peak archive](#chip-atlas-reprocessed-peak-archive)
+  - [MaveDB mapping (incl. SGE cDNA path)](#mavedb-mapping-incl-sge-cdna-path)
+  - [Synapse / Sage Bionetworks retrieval](#synapse--sage-bionetworks-retrieval)
+- [Reproducibility benchmark suite](#reproducibility-benchmark-suite)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
   - [Claude API](#claude-api)
@@ -122,6 +126,19 @@ In short — **two ways to drive every skill, one shared contract**:
 - cCRE (SCREEN) discovery and FAVOR-based variant annotation, plus IGV-like
   browser views.
 - Data illustration and interpretation across IGVF and ENCODE search URLs.
+- **ChIP-Atlas (Ohta/Oki) reprocessed peak archive** — browse/search/download
+  ChIP-seq / ATAC-seq / DNase-seq / Bisulfite peaks across 10 genomes, fetch
+  pre-computed Target-Genes tables, and submit TF-enrichment jobs.
+- **MaveDB → genomic-coordinate mapping**, including a dedicated **SGE
+  (Saturation Genome Editing) cDNA-coordinate path** that handles the full
+  HGVS-c grammar (CDS / intronic / 5′UTR / 3′UTR) used by SGE scoresets.
+- **Synapse / Sage Bionetworks retrieval** — anonymous metadata walk + search
+  and PAT-authenticated download for controlled-access deposits (PsychENCODE,
+  AMP-AD/PD, ROSMAP) that IGVF distributes off-Portal.
+- **Reproducibility benchmark suite** — twelve recent Nature / Cell / Science /
+  Nat Genet / Nat Methods / Nat Commun papers reproduced directly from public
+  data, each scored against machine-readable ground-truth checks
+  (see [`Benchmarks/`](Benchmarks/README.md)).
 
 ## Repository layout
 
@@ -188,8 +205,18 @@ IGVFagent/
 │   │                                       cvxpy MILP for CARNIVAL +
 │   │                                       prize-collecting Steiner
 │   │
+│   ├── enrichment_skill.py              ← GO / pathway ORA + preranked GSEA (gseapy)
+│   ├── chipatlas_skill.py              ← ChIP-Atlas reprocessed peak archive client
+│   ├── mavedb_mapping_skill.py         ← MaveDB → genomic coords (+ SGE cDNA path)
+│   ├── synapse_skill.py                ← Synapse / Sage Bionetworks retrieval
+│   │                                       (anonymous walk/search + PAT download)
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
+│
+├── Benchmarks/                          ← 12-paper reproducibility suite
+│   ├── README.md                        ← suite dashboard + per-paper results
+│   ├── OPERATIONS_GUIDE.md  run_all.sh  concordance.py
+│   └── <paper-id>/                       ← run.sh + expected.json + figures + README
 │
 ├── Data/                                ← inputs + cached responses (gitignored)
 │   ├── Input/VariantList/example_variants.csv
@@ -1507,6 +1534,95 @@ igvfagent network steiner --terminals vamp_prizes.csv \
 ```
 
 License boundary: **Apache-2 throughout**. No GPL runtime dependencies.
+
+### ChIP-Atlas reprocessed peak archive
+
+Browse and pull from the [ChIP-Atlas](https://chip-atlas.org) (Ohta/Oki/DBCLS)
+reprocessed archive of public ChIP-seq / ATAC-seq / DNase-seq / Bisulfite-seq
+peaks — a clean-room, stdlib-only client over the public HTTP surface. Ten
+genomes, four −log10(q) thresholds, per-experiment BigWig/BigBed/BED, assembled
+all-peaks BEDs, pre-computed Target-Genes tables, and queued TF-enrichment jobs.
+Playbook: [`Docs/Skills/CHIPATLAS_SKILL.md`](Docs/Skills/CHIPATLAS_SKILL.md).
+
+```bash
+igvfagent chipatlas list-antigens   --genome hg38 --cell-type Blood
+igvfagent chipatlas search          --genome hg38 --antigen GATA1 --cell-type Blood
+igvfagent chipatlas target-genes    --antigen H3K4me3 --distance 5000
+igvfagent chipatlas submit-enrichment --genes my_genes.txt --genome hg38
+```
+
+### MaveDB mapping (incl. SGE cDNA path)
+
+Map [MaveDB](https://www.mavedb.org) multiplexed-assay scoresets to genomic
+coordinates via the Ensembl REST API (no UTA / SeqRepo / BLAT dependency). In
+addition to the protein-coordinate VAMP-seq path, a dedicated **SGE (Saturation
+Genome Editing) path** parses the full HGVS-c grammar used by SGE scoresets
+(CDS, intronic, 5′UTR, 3′UTR) and emits VCF-4.2 with score-bearing INFO fields.
+This is the path the **Waters 2024 BAP1** and **Buckley 2024 VHL** benchmarks
+exercise. Playbook: [`Docs/Skills/MAVEDB_MAPPING_SKILL.md`](Docs/Skills/MAVEDB_MAPPING_SKILL.md).
+
+```bash
+igvfagent mavedb map-scoreset --urn urn:mavedb:00000097-0-1   # PTEN VAMP-seq
+igvfagent mavedb map-scoreset --urn <BAP1-SGE-urn> --sge      # SGE cDNA path
+```
+
+### Synapse / Sage Bionetworks retrieval
+
+Discover and download from [Synapse](https://www.synapse.org) — a clean-room
+client over the public REST API (no `synapseclient` dependency). Anonymous read
+of entity metadata, child listing, recursive walks, and full-text search; PAT-
+authenticated download (`SYNAPSE_AUTH_TOKEN`) for controlled-access deposits
+(PsychENCODE, AMP-AD/PD, ROSMAP) that IGVF distributes off-Portal. This skill
+powers the **Deng 2024 cortex lentiMPRA** benchmark. Playbook:
+[`Docs/Skills/SYNAPSE_RETRIEVAL_SKILLS.md`](Docs/Skills/SYNAPSE_RETRIEVAL_SKILLS.md).
+
+```bash
+igvfagent synapse entity   --syn syn21392931                 # metadata (anon)
+igvfagent synapse walk     --syn syn21392931 --max-depth 3   # recursive walk
+igvfagent synapse search   --query "lentiMPRA cortex" --limit 20
+igvfagent synapse download --syn synXXXXXXXX --out-dir Data/Input   # needs PAT
+```
+
+## Reproducibility benchmark suite
+
+IGVFagent ships a **12-paper reproducibility benchmark suite** in
+[`Benchmarks/`](Benchmarks/README.md): recent Nature / Cell / Science /
+Nat Genet / Nat Methods / Nat Commun papers whose published analyses IGVFagent
+reproduces **directly from public data**. Each benchmark is a self-contained
+directory — data sources, a deterministic `run.sh`, machine-readable
+`expected.json` checks, regenerable figures, and a paper-vs-IGVFagent
+`README.md` with a *Concordance / Verdict / Honest caveats* structure. A
+stdlib-only scorer (`concordance.py`) turns each run into pass/fail checks.
+
+| # | Paper | Skill exercised | Headline result |
+|---|---|---|---|
+| ⭐ | **Matreyek 2018** PTEN VAMP-seq *Nat Genet* | `mavedb` | 4/4 concordance checks pass (8,000 variants) |
+| 1 | **Waters 2024** BAP1 SGE *Nat Genet* | `mavedb` (SGE path) | LOF +1.1 %, GOF +7.7 % vs paper |
+| 2 | **Buckley 2024** VHL SGE *Nat Genet* | `mavedb` (SGE path) | 2,268 / 2,268 variants recovered |
+| 3 | **Zou 2024** ChIP-Atlas 3.0 *Nucleic Acids Res* | `chipatlas` | 815 TFs catalogued; GATA1 rank #7 |
+| 4 | **Agarwal 2025** lentiMPRA *Nature* | `mpra` | 3/3 discovery artefacts written |
+| 5 | **Yao 2024** ENCODE4 CRISPRi *Nat Methods* | `encode` (FCE path) | 368 CRISPR-screen FCEs enumerated |
+| 6 | **Mitra 2024** SCARlink multiome *Nat Genet* | `multiome` | 505 multiome AnalysisSets; 4/4 content types |
+| 7 | **Weinstock 2024** CD4 CRISPR *Cell Genomics* | `perturb-catalog` + `geo` | 1,197 CRISPR-screen datasets; 99.7 % CRISPRn |
+| 8 | **Zheng 2024** in-vivo Perturb-seq *Cell* | `geo` + `sc-analyze` | GSE249416 metadata + 9-file inventory |
+| 9 | **Martyn 2025** Variant-FlowFISH *Cell* | `flowfish` | end-to-end chain: 20 elements → 7 Significant |
+| 10 | **Joung 2025** TF Perturb-seq *Nat Genet* | `perturb-catalog` | modality scale confirmed (15 datasets) |
+| 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` + `synapse` | 166-node Synapse walk; 12/12 annotations recovered |
+
+Nine of the eleven primary benchmarks run end-to-end as pure online calls;
+**Zheng 2024** and **Deng 2024** have working online steps but need a
+user-fetched local file (a GEO `.qs` conversion and a PsychENCODE Synapse
+deposit, respectively) to complete their analytical chains.
+
+```bash
+# Verify the suite works (~60 s)
+bash Benchmarks/matreyek2018_pten_vampseq/run.sh
+.venv/bin/python Benchmarks/concordance.py --benchmark matreyek2018_pten_vampseq
+
+# Run all online benchmarks and score them
+bash Benchmarks/run_all.sh --online-only
+.venv/bin/python Benchmarks/concordance.py --all
+```
 SCIP (PicoMILP backend) is BSD-style, free for any use. Selected
 subnetworks flow back into the central DuckDB warehouse as `edges`
 rows tagged with `upstream='network:carnival:<label>'` or
@@ -1636,6 +1752,7 @@ maintainers for releasing their code openly.
 | **IGVF Catalog (Knowledge Graph) canonical-query layer** (`catalog get-entity / search-region / find-associations / find-ld / resolve-id / list-sources`) | [IGVF-DACC/igvf-catalog-mcp](https://github.com/IGVF-DACC/igvf-catalog-mcp) (IGVF DACC, MIT) | clean-room reimpl, stdlib-only — no `httpx` / `mcp` / `pydantic` runtime dep | Universal `get-entity` with 20+ ID auto-detection (rsID / SPDI / HGVS / CA / ENSG / HGNC / Entrez / ENSP / UniProt / MONDO / EFO / GO / HPO / DOID / UBERON / CL / CHEBI / OBA / DB / CHEMBL / CPX / R-HSA / GCST); `search-region` parallel fan-out over genes + variants + genomic-elements with K/M/G suffix region parser; `find-associations` by semantic category (genetic / regulatory / physical / functional / pharmacological / ld / coding / transcription) walking 18 edge endpoints; `find-ld` with r²/D'/ancestry buckets; `resolve-id` cross-reference projection; `list-sources` with per-endpoint source/method introspection; filter DSL with automatic `p_value=lte:5e-8` → `log10pvalue=gte:7.301` translation. |
 | **Claude Code prompt-skill suite** (`.claude/skills/igvf-portal-facet-filter`, `igvf-catalog-variant-report`, `igvf-catalog-gene-dossier`, `igvf-catalog-dissect-locus`, `igvf-catalog-regulatory-landscape`, `igvf-catalog-disease-genes`, `igvf-catalog-ld-compare`) | [IGVF-DACC/igvf-portal-mcp](https://github.com/IGVF-DACC/igvf-portal-mcp) + [IGVF-DACC/igvf-catalog-mcp](https://github.com/IGVF-DACC/igvf-catalog-mcp) (IGVF DACC, MIT) | clean-room paraphrase, retargeted at IGVFagent's `portal` + `catalog` CLI surface | Seven workflow prompt skills (1 portal + 6 catalog) auto-loaded by Claude Code when the user's prompt matches the description. Each is a structured multi-step procedure (resolve identifiers → fan-out per semantic relationship → cross-reference → compile a sectioned report) wired to IGVFagent's CLI commands rather than the upstream MCP tools. Cross-references between skills point downstream to IGVFagent-only follow-ups (`network steiner`, `enrich pathways`, `ccre`, `enhancer`). See `Docs/Skills/PROMPT_SKILLS_INDEX.md` for the suite-level index. |
 | **ChIP-Atlas (Ohta/Oki) reprocessed peak archive** (`chipatlas list-genomes / list-qvalues / list-experiment-types / list-antigens / list-cell-types / search / get-experiment / download-experiment / assemble-bed / download-all-peaks / target-genes / submit-enrichment / poll-enrichment / showcase`) | [inutano/chip-atlas](https://github.com/inutano/chip-atlas) (Tazro Inutano Ohta / Shinya Oki / DBCLS, MIT) | clean-room reimpl of the public HTTP surface; stdlib-only (no `httpx`/`mcp`/`pydantic`) | Anonymous polite-1-rps client over three indirected hosts (`chip-atlas.org` JSON browse/search/POST-download, `chip-atlas.dbcls.jp/data` bulk static archive, `dtn1.ddbj.nig.ac.jp/wabi/chipatlas` WABI Enrichment/Diff queue). 10 supported genomes; 4 -log10(q) thresholds (05/10/20/50); browse antigens × cell-class with experiment counts; pull per-experiment BigWig/BigBed/BED; POST a `(genome × ag × cellClass × qval)` tuple to get an assembled all-peaks BED URL; HEAD-probe or stream the bulk `allPeaks_light.{genome}.{qval}.bed.gz` archive; discover and fetch pre-computed Target-Genes tables (e.g. `H3K4me3.5000.tsv` at ±5 kb TSS-proximity); submit + poll WABI Enrichment Analysis jobs for gene-list / BED-region TF over-representation. Cites Zou/Ohta/Oki *Nucleic Acids Res.* 2024 (doi:10.1093/nar/gkae358) and Oki *EMBO Rep.* 2018 (doi:10.15252/embr.201846255). Code MIT-compatible; data NBDC/DBCLS-licensed — we only fetch / link, never redistribute. |
+| **Synapse / Sage Bionetworks retrieval** (`synapse entity / children / walk / search / download / write-playbook`) | [Sage-Bionetworks/synapsePythonClient](https://github.com/Sage-Bionetworks/synapsePythonClient) (Sage Bionetworks, Apache-2.0) | clean-room reimpl over the public REST API (`rest-docs.synapse.org`); pure `urllib` + `json`, no `synapseclient` runtime dep | Anonymous-read of entity metadata + annotations + child-listing for projects/folders; depth-capped recursive `walk`; full-text `search`; PAT-authenticated (`SYNAPSE_AUTH_TOKEN`) file download via the `fileHandle` → pre-signed-URL flow for controlled-access deposits (PsychENCODE, AMP-AD/PD, ROSMAP, BrainSpan). Data stays under upstream consortium DUAs — we only fetch with the user's own token, never redistribute. |
 
 ### Methods papers cited in the skills
 

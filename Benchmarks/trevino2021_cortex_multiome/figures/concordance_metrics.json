@@ -1,0 +1,168 @@
+{
+  "panel_genes": 26,
+  "peaks_tested": 5628,
+  "candidate_pairs": 6098,
+  "significant_pairs": 2289,
+  "significant_positive_pairs": 2138,
+  "positive_fraction_of_significant": 0.934,
+  "median_abs_distance_sig_pos_bp": 137838,
+  "genes_with_significant_positive_link": 26,
+  "per_gene": [
+    {
+      "symbol": "SATB2",
+      "n_sig_pos": 235,
+      "best_corr": 0.2804672378273124,
+      "best_dist": -374
+    },
+    {
+      "symbol": "NEUROD2",
+      "n_sig_pos": 135,
+      "best_corr": 0.2084391377099424,
+      "best_dist": 438
+    },
+    {
+      "symbol": "GLI3",
+      "n_sig_pos": 134,
+      "best_corr": 0.2568828115007278,
+      "best_dist": 93
+    },
+    {
+      "symbol": "BCL11B",
+      "n_sig_pos": 133,
+      "best_corr": 0.165043270744375,
+      "best_dist": -103
+    },
+    {
+      "symbol": "NEUROD6",
+      "n_sig_pos": 115,
+      "best_corr": 0.1689967316073378,
+      "best_dist": 133
+    },
+    {
+      "symbol": "SOX2",
+      "n_sig_pos": 113,
+      "best_corr": 0.2343261006307218,
+      "best_dist": 100
+    },
+    {
+      "symbol": "HES1",
+      "n_sig_pos": 100,
+      "best_corr": 0.2765326180104974,
+      "best_dist": 92
+    },
+    {
+      "symbol": "DLX2",
+      "n_sig_pos": 98,
+      "best_corr": 0.3021870465688453,
+      "best_dist": -38
+    },
+    {
+      "symbol": "PAX6",
+      "n_sig_pos": 97,
+      "best_corr": 0.2066578732189124,
+      "best_dist": -79
+    },
+    {
+      "symbol": "GAD2",
+      "n_sig_pos": 92,
+      "best_corr": 0.230198692326228,
+      "best_dist": -81
+    },
+    {
+      "symbol": "GAD1",
+      "n_sig_pos": 81,
+      "best_corr": 0.2649992418102152,
+      "best_dist": 294
+    },
+    {
+      "symbol": "OLIG1",
+      "n_sig_pos": 81,
+      "best_corr": 0.3571885659135777,
+      "best_dist": -5
+    },
+    {
+      "symbol": "STMN2",
+      "n_sig_pos": 77,
+      "best_corr": 0.1648248015885763,
+      "best_dist": -197
+    },
+    {
+      "symbol": "TNC",
+      "n_sig_pos": 76,
+      "best_corr": 0.3579696600034143,
+      "best_dist": 60
+    },
+    {
+      "symbol": "TBR1",
+      "n_sig_pos": 67,
+      "best_corr": 0.1586848209397473,
+      "best_dist": 15
+    },
+    {
+      "symbol": "PPP1R17",
+      "n_sig_pos": 64,
+      "best_corr": 0.2116108812498694,
+      "best_dist": -6
+    },
+    {
+      "symbol": "VIM",
+      "n_sig_pos": 64,
+      "best_corr": 0.2303467924051686,
+      "best_dist": 255
+    },
+    {
+      "symbol": "EOMES",
+      "n_sig_pos": 58,
+      "best_corr": 0.2999292738397005,
+      "best_dist": -79
+    },
+    {
+      "symbol": "OLIG2",
+      "n_sig_pos": 56,
+      "best_corr": 0.2801644085111193,
+      "best_dist": 369
+    },
+    {
+      "symbol": "NEUROG2",
+      "n_sig_pos": 55,
+      "best_corr": 0.086194406685671,
+      "best_dist": -437
+    },
+    {
+      "symbol": "HOPX",
+      "n_sig_pos": 46,
+      "best_corr": 0.1858831859508653,
+      "best_dist": 181
+    },
+    {
+      "symbol": "FEZF2",
+      "n_sig_pos": 45,
+      "best_corr": 0.0994244027617812,
+      "best_dist": -386
+    },
+    {
+      "symbol": "AQP4",
+      "n_sig_pos": 44,
+      "best_corr": 0.1594073007478253,
+      "best_dist": 96
+    },
+    {
+      "symbol": "FOXP2",
+      "n_sig_pos": 33,
+      "best_corr": 0.1035295223505147,
+      "best_dist": -138
+    },
+    {
+      "symbol": "TOP2A",
+      "n_sig_pos": 25,
+      "best_corr": 0.1251328219633699,
+      "best_dist": -5185
+    },
+    {
+      "symbol": "MKI67",
+      "n_sig_pos": 14,
+      "best_corr": 0.0441018517434745,
+      "best_dist": -61
+    }
+  ]
+}
