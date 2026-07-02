@@ -152,7 +152,7 @@ RESERVED: "dict[str, str]" = {}
 INTROSPECTION = ("backends", "tools", "models")
 
 # Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
-TOP_LEVEL = ("ask", "ui", "playbook", "eval", "localstore")
+TOP_LEVEL = ("ask", "ui", "playbook", "eval", "localstore", "consistency")
 
 
 def _print_help() -> None:
@@ -283,6 +283,12 @@ def _run_top_level(skill: str, args: "list[str]") -> int:
         return _run_eval(args)
     if skill == "localstore":
         return _run_localstore(args)
+    if skill == "consistency":
+        try:
+            from igvfagent import consistency_check as cc
+        except Exception:
+            import consistency_check as cc  # type: ignore
+        return cc.main(args)
     return 2
 
 

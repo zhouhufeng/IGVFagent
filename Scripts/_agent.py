@@ -330,6 +330,47 @@ def _format_tool_result_for_llm(result: dict, max_chars: int = 3500) -> str:
     return "\n".join(parts)
 
 
+def _compose_templated_answer(transcript: "list[dict]", artefacts: "list[str]",
+                               llm_text: str) -> str:
+    """Deterministic answer skeleton from the (backend-independent) tool trace.
+
+    The tools run, their arguments, exit codes, and the artefacts they produce
+    are identical across backends for a consistent plan — so templating them
+    makes the *substantive* answer identical regardless of which LLM drove the
+    loop. The model's free-form prose is kept, clearly labelled, as a summary.
+    """
+    calls: "list[tuple[str, dict]]" = []
+    results: "dict[str, dict]" = {}
+    for entry in transcript:
+        if entry.get("role") == "assistant":
+            for tc in entry.get("tool_calls", []) or []:
+                calls.append((tc["name"], tc.get("arguments") or {}))
+        elif entry.get("role") == "tool":
+            results[entry.get("name", "")] = entry
+
+    lines: "list[str]" = []
+    lines.append("## What was run")
+    if calls:
+        for name, args in calls:
+            arg_str = ", ".join(f"{k}={v}" for k, v in list(args.items())[:4])
+            lines.append(f"- `{name}({arg_str})`")
+    else:
+        lines.append("- _(no tools were called)_")
+
+    # Artefacts: deterministic, de-duplicated, sorted.
+    uniq = sorted(set(artefacts))
+    if uniq:
+        lines += ["", "## Artefacts produced"]
+        for a in uniq[:40]:
+            lines.append(f"- `{a}`")
+        if len(uniq) > 40:
+            lines.append(f"- …and {len(uniq) - 40} more")
+
+    lines += ["", "## Summary", "",
+              (llm_text or "_(no narrative generated)_").strip()]
+    return "\n".join(lines)
+
+
 # --------------------------- Run loop --------------------------------------
 
 
@@ -388,6 +429,7 @@ def run(
     temperature: float = 0.0,
     seed: Optional[int] = None,
     enable_router: bool = True,
+    templated_answer: bool = True,
     system_prompt: Optional[str] = None,
     extra_context: Optional[str] = None,
     tools_subset: Optional["list[str]"] = None,
@@ -623,6 +665,15 @@ def run(
             "_The agent failed before producing a final answer. "
             "See the transcript / log for the underlying exception._"
         )
+
+    # Deterministic templated synthesis: wrap the model's prose in a
+    # backend-independent skeleton (tools run + artefacts) so the substantive
+    # answer is identical across LLMs. Only when tools actually ran and the run
+    # did not error. Disable with IGVF_TEMPLATED_ANSWER=0.
+    if (templated_answer and tool_calls_made > 0 and stop_reason == "complete"
+            and os.environ.get("IGVF_TEMPLATED_ANSWER", "1") != "0"):
+        final_answer = _compose_templated_answer(transcript, artefacts,
+                                                  final_answer)
 
     transcript_path = ""
     report_path = ""
