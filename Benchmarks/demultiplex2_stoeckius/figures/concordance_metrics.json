@@ -1,0 +1,10 @@
+{
+  "n_cells": 15113,
+  "n_tags": 8,
+  "n_singlet_hto_groups": 8,
+  "singlet_rate": 0.8331,
+  "multiplet_rate": 0.1635,
+  "negative_rate": 0.0034,
+  "hto_balance_min_over_max": 0.792,
+  "failed_tags": []
+}
