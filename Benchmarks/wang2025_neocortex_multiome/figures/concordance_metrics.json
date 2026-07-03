@@ -1,0 +1,11 @@
+{
+  "full_atlas_nuclei": 232328,
+  "analyzed_subsample": 20000,
+  "author_cell_types": 29,
+  "n_leiden_clusters": 41,
+  "ARI_vs_author_types": 0.392,
+  "AMI_vs_author_types": 0.6474,
+  "homogeneity": 0.7037,
+  "completeness": 0.6049,
+  "v_measure": 0.6506
+}
