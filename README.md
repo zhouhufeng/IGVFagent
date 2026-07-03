@@ -135,10 +135,15 @@ In short — **two ways to drive every skill, one shared contract**:
 - **Synapse / Sage Bionetworks retrieval** — anonymous metadata walk + search
   and PAT-authenticated download for controlled-access deposits (PsychENCODE,
   AMP-AD/PD, ROSMAP) that IGVF distributes off-Portal.
-- **Reproducibility benchmark suite** — twelve recent Nature / Cell / Science /
-  Nat Genet / Nat Methods / Nat Commun papers reproduced directly from public
-  data, each scored against machine-readable ground-truth checks
-  (see [`Benchmarks/`](Benchmarks/README.md)).
+- **Reproducibility benchmark suite** — eighteen recent Nature / Cell / Science /
+  Nat Genet / Nat Methods / Genome Biol papers reproduced directly from public
+  data, each scored against machine-readable ground-truth checks. Includes
+  **four full single-cell / multiome local reproductions** that download the
+  public data and run IGVFagent's real analytical chain end-to-end — Travaglini
+  2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`),
+  deMULTIplex2 / Stoeckius cell hashing (`multiseq`), and Rosenberg 2018
+  SPLiT-seq CNS (`splitseq`) — plus SHARE-seq (`share`) and a 2025 developing-
+  cortex multiome atlas in progress (see [`Benchmarks/`](Benchmarks/README.md)).
 
 ## Repository layout
 
@@ -219,7 +224,7 @@ IGVFagent/
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
 │
-├── Benchmarks/                          ← 12-paper reproducibility suite
+├── Benchmarks/                          ← 18-paper reproducibility suite
 │   ├── README.md                        ← suite dashboard + per-paper results
 │   ├── OPERATIONS_GUIDE.md  run_all.sh  concordance.py
 │   └── <paper-id>/                       ← run.sh + expected.json + figures + README
@@ -1647,9 +1652,9 @@ igvfagent synapse download --syn synXXXXXXXX --out-dir Data/Input   # needs PAT
 
 ## Reproducibility benchmark suite
 
-IGVFagent ships a **12-paper reproducibility benchmark suite** in
+IGVFagent ships an **18-paper reproducibility benchmark suite** in
 [`Benchmarks/`](Benchmarks/README.md): recent Nature / Cell / Science /
-Nat Genet / Nat Methods / Nat Commun papers whose published analyses IGVFagent
+Nat Genet / Nat Methods / Genome Biol papers whose published analyses IGVFagent
 reproduces **directly from public data**. Each benchmark is a self-contained
 directory — data sources, a deterministic `run.sh`, machine-readable
 `expected.json` checks, regenerable figures, and a paper-vs-IGVFagent
@@ -1670,11 +1675,20 @@ stdlib-only scorer (`concordance.py`) turns each run into pass/fail checks.
 | 9 | **Martyn 2025** Variant-FlowFISH *Cell* | `flowfish` | end-to-end chain: 20 elements → 7 Significant |
 | 10 | **Joung 2025** TF Perturb-seq *Nat Genet* | `perturb-catalog` | modality scale confirmed (15 datasets) |
 | 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` + `synapse` | 166-node Synapse walk; 12/12 annotations recovered |
+| 12 | **Gschwind 2023 / Sheth 2024** ENCODE-rE2G & scE2G *bioRxiv* | `portal` + `synapse` | ENCODE-rE2G base AUPRC 0.634 reproduces the published 0.634 exactly |
+| 13 | **Liu 2025** kidney multiome scorecard *Science* | `open4gene` + `figshare` | port matches R `pscl::hurdle` β to r=1.0; 125,699 unique peaks (exact) |
+| 14 | **Travaglini 2020** lung atlas *Nature* | `sc-analyze` (**full local repro**) | 49 clusters vs 46 author types, AMI 0.81; 9/10 markers — 8/8 |
+| 15 | **Trevino 2021** cortex multiome *Cell* | `multiome peak2gene` (**full local repro**) | all 26 lineage genes linked; 93 % positive cis links — 4/4 |
+| 16 | **deMULTIplex2 / Stoeckius 2018** cell hashing *Genome Biol* | `multiseq` (**full local repro**) | all 8 donor HTOs; 83 % singlets — 7/7 |
+| 17 | **Rosenberg 2018** SPLiT-seq CNS *Science* | `splitseq` (**full local repro**) | 156,049-nucleus atlas (exact); all 8 CNS lineages — 4/4 |
 
-Nine of the eleven primary benchmarks run end-to-end as pure online calls;
-**Zheng 2024** and **Deng 2024** have working online steps but need a
-user-fetched local file (a GEO `.qs` conversion and a PsychENCODE Synapse
-deposit, respectively) to complete their analytical chains.
+Benchmarks 14–17 are **full local reproductions** — they download the public
+data and run IGVFagent's real single-cell / multiome analytical chain, then
+score concordance against the authors' own results. Two further single-cell /
+multiome reproductions are in progress: **Ma 2020 SHARE-seq** (`share`) and a
+**2025 developing-cortex multiome atlas** (`multiome`). Most other benchmarks
+run end-to-end as pure online calls; a few (e.g. **Zheng 2024**, **Deng 2024**)
+need a user-fetched local file to complete their full analytical chains.
 
 ```bash
 # Verify the suite works (~60 s)

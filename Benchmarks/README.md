@@ -29,6 +29,17 @@ Eighteen recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol 
 | 16 | **deMULTIplex2 / Stoeckius 2018** cell hashing *Genome Biol* | `multiseq` (**full local repro**) | **All 8 donor HTO groups recovered** from the 15,113-cell PBMC matrix; 83 % singlets, balanced pool (0.79); **7/7 checks** | [`demultiplex2_stoeckius/`](demultiplex2_stoeckius/README.md) |
 | 17 | **Rosenberg 2018** SPLiT-seq developing CNS *Science* | `splitseq` (**full local repro**) | **156,049-nucleus atlas parsed (exact); all 8 CNS lineages recovered** (neurons + glia + vascular) via mouse-brain panel; **4/4 checks** | [`rosenberg2018_splitseq/`](rosenberg2018_splitseq/README.md) |
 
+## 🔜 In progress
+
+Two further single-cell / multiome full-local reproductions are being added:
+
+| Paper | Skill | Status |
+|---|---|---|
+| **Ma 2020** SHARE-seq mouse skin *Cell* (GSE140203) | `share` | data downloading (7.5 GB `_RAW.tar`); analytical chain (`fragment-qc` / `rna-qc` / `joint-qc`) ready |
+| **2025** developing-cortex lineage multiome *Nature* | `multiome peak2gene` | data accession being confirmed; panel `peak2gene` path validated on Trevino 2021 |
+
+Both follow the same pattern as benchmarks 14–17 (download public data → run the real chain → score concordance).
+
 ## How the benchmark suite is organised
 
 ```
