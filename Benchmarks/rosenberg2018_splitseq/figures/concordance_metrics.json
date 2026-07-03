@@ -1,0 +1,28 @@
+{
+  "full_atlas_nuclei": 156049,
+  "analyzed_nuclei": 5932,
+  "genes": 14649,
+  "n_leiden_clusters": 24,
+  "n_cell_types": 8,
+  "cns_lineages_recovered": [
+    "Astrocyte",
+    "Endothelial",
+    "Excitatory neuron",
+    "Inhibitory neuron",
+    "Microglia",
+    "OPC",
+    "Oligodendrocyte",
+    "Pericyte"
+  ],
+  "n_cns_lineages_recovered": 8,
+  "cell_type_counts": {
+    "Inhibitory neuron": 2758,
+    "Excitatory neuron": 1276,
+    "Astrocyte": 998,
+    "Endothelial": 332,
+    "OPC": 221,
+    "Pericyte": 197,
+    "Oligodendrocyte": 99,
+    "Microglia": 51
+  }
+}
