@@ -1,0 +1,12 @@
+{
+  "rna_cells_total": 42948,
+  "labeled_cells_ma2020_final": 34774,
+  "author_cell_types": 23,
+  "analyzed_subsample": 15000,
+  "n_leiden_clusters": 21,
+  "ARI_vs_author_types": 0.4082,
+  "AMI_vs_author_types": 0.6289,
+  "median_umis": 920.0,
+  "median_genes": 507.0,
+  "median_pct_mt": 0.001
+}

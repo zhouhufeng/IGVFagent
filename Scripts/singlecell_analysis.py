@@ -147,9 +147,34 @@ def load_counts(path: Path, *, transpose: bool = False):
         raise FileNotFoundError(path)
     suffix = "".join(path.suffixes).lower()
 
-    if suffix.endswith(".h5ad"):
+    # Shared single-cell loaders internalized from the benchmark suite.
+    try:
+        from igvfagent import _scload  # type: ignore
+    except Exception:
+        import _scload  # type: ignore
+
+    if suffix.endswith((".mat", ".mat.gz")):
+        # MATLAB v5 DGE (e.g. Rosenberg 2018 SPLiT-seq): cells × genes.
+        logger.info("Reading MATLAB DGE via _scload: %s", path)
+        adata = _scload.matlab_dge(path)
+    elif suffix.endswith(".h5ad"):
         logger.info("Reading anndata: %s", path)
         adata = sc.read_h5ad(path)
+        # CELLxGENE h5ads store normalized values in .X and raw counts in .raw
+        # with Ensembl var_names — QC needs raw counts + gene symbols, so
+        # auto-convert when we detect that shape.
+        try:
+            import scipy.sparse as _sp
+            x = adata.X[:200]
+            x = x.toarray() if _sp.issparse(x) else np.asarray(x)
+            looks_cellxgene = (adata.raw is not None
+                                and "feature_name" in getattr(adata.raw, "var", adata.var).columns
+                                and not np.allclose(x, np.round(x)))
+            if looks_cellxgene:
+                logger.info("Detected CELLxGENE h5ad — using raw counts + gene symbols")
+                adata = _scload.cellxgene_h5ad(path)
+        except Exception as e:  # noqa
+            logger.info("CELLxGENE auto-detect skipped: %s", e)
     elif suffix.endswith(".h5"):
         logger.info("Reading 10x HDF5: %s", path)
         adata = sc.read_10x_h5(str(path))
@@ -177,6 +202,13 @@ def load_counts(path: Path, *, transpose: bool = False):
                 break
     elif suffix.endswith((".csv", ".csv.gz", ".tsv", ".tsv.gz", ".txt", ".txt.gz")):
         sep = "," if ".csv" in suffix else "\t"
+        # Large gene-by-cell dumps (SHARE-seq / Rosenberg RNA) would OOM under a
+        # dense pandas read — stream them to sparse via _scload instead.
+        if path.stat().st_size > 25_000_000 and not transpose:
+            logger.info("Large text matrix — streaming to sparse via _scload: %s", path)
+            adata = _scload.dense_gene_by_cell_tsv(path, sep=sep)
+            logger.info("Loaded AnnData: n_obs=%d  n_vars=%d", adata.n_obs, adata.n_vars)
+            return adata
         logger.info("Reading text matrix (sep=%r): %s", sep, path)
         df = pd.read_csv(path, sep=sep, index_col=0,
                           compression="infer")

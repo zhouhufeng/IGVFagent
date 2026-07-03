@@ -54,6 +54,7 @@ case "$MODE" in
             trevino2021_cortex_multiome    # full local repro: multiome peak2gene (GSE162170)
             demultiplex2_stoeckius         # full local repro: multiseq (deMULTIplex2 data)
             rosenberg2018_splitseq         # full local repro: splitseq (GSE110823 MATLAB DGE)
+            ma2020_shareseq                # full local repro: share rna-qc + concordance (GSE140203)
         )
         ;;
 esac

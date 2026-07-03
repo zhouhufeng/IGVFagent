@@ -1,0 +1,15 @@
+{
+  "paper": {"authors": "Ma S, Zhang B, LaFave LM, et al.", "journal": "Cell", "year": 2020,
+            "doi": "10.1016/j.cell.2020.09.056", "pmid": "33098772"},
+  "data_source": {"type": "geo_shareseq", "gse": "GSE140203", "sample": "GSM4156608 skin late anagen (RNA)", "final_cells": 34774},
+  "skill_output_dir": "SHAREseq", "label": "ma2020_shareseq",
+  "primary_artefact": "concordance_metrics.json",
+  "extra_search_dirs": ["Docs/SHAREseq"],
+  "checks": [
+    {"name": "Ma 2020 final skin cell count (exact)", "type": "range", "path": "labeled_cells_ma2020_final", "min": 34774, "max": 34774, "expected": 34774},
+    {"name": "Author skin cell types recovered", "type": "range", "path": "author_cell_types", "min": 20, "max": 25, "expected": 23},
+    {"name": "Cluster concordance (AMI) vs author cell types", "type": "range", "path": "AMI_vs_author_types", "min": 0.45, "max": 1.0, "expected": 0.63},
+    {"name": "Leiden resolves comparable cluster count", "type": "range", "path": "n_leiden_clusters", "min": 12, "max": 35, "expected": 21},
+    {"name": "Per-barcode RNA QC table written", "type": "artefact", "filename": "2*_ma2020_shareseq_rna_qc.tsv"}
+  ]
+}
