@@ -1,0 +1,46 @@
+{
+  "paper": {
+    "authors": "Trevino AE, Müller F, Andersen J, et al.",
+    "journal": "Cell",
+    "year": 2021,
+    "doi": "10.1016/j.cell.2021.07.039",
+    "pmid": "34390642",
+    "pmcid": "PMC8422961"
+  },
+  "data_source": {
+    "type": "geo_multiome_tsv",
+    "gse": "GSE162170",
+    "modality": "10x Multiome (paired snRNA + snATAC)",
+    "cells": 8981,
+    "consensus_peaks": 467315,
+    "genes": 34104
+  },
+  "skill_output_dir": "Multiome10x",
+  "label": "trevino2021_cortex_multiome",
+  "primary_artefact": "concordance_metrics.json",
+  "checks": [
+    {
+      "name": "peak2gene link table written",
+      "type": "artefact",
+      "filename": "2*trevino2021_cortex_multiome_peak2gene.tsv"
+    },
+    {
+      "name": "All panel genes get a significant positive cis-link",
+      "type": "range",
+      "path": "genes_with_significant_positive_link",
+      "min": 22, "max": 26, "expected": 26
+    },
+    {
+      "name": "Significant positive cis peak-gene links recovered",
+      "type": "range",
+      "path": "significant_positive_pairs",
+      "min": 1200, "max": 6000, "expected": 2138
+    },
+    {
+      "name": "Cis links are positive-dominated (enhancer-gene activation)",
+      "type": "range",
+      "path": "positive_fraction_of_significant",
+      "min": 0.80, "max": 1.0, "expected": 0.93
+    }
+  ]
+}

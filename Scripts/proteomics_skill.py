@@ -274,7 +274,13 @@ def biogrid_download(target_version: Optional[str] = None) -> Optional[Path]:
     out = SOURCES_DIR / "BioGRID"
     out.mkdir(parents=True, exist_ok=True)
     fname = f"BIOGRID-ALL-{ver}.tab3.zip"
-    url = f"{BIOGRID_BASE}/Release-Archive/BIOGRID-{ver}/{fname}"
+    # BIOGRID_BASE (.../BioGRID) serves the browsable HTML listings used by
+    # biogrid_latest_release(); the actual file bytes live behind the
+    # /Download/ endpoint. Hitting the browse path for a file 302-redirects
+    # to the downloads landing page (an 11 KB HTML doc), which then fails to
+    # unzip. Build the download URL from the host explicitly.
+    host = BIOGRID_BASE.rsplit("/", 1)[0]  # https://downloads.thebiogrid.org
+    url = f"{host}/Download/BioGRID/Release-Archive/BIOGRID-{ver}/{fname}"
     dest = out / fname
     if dest.exists():
         logger.info("BioGRID v%s already cached at %s", ver, dest)

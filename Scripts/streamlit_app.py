@@ -32,14 +32,23 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from igvfagent import _agent, _llm, _tools, __version__
+    from igvfagent import load_dotenv as _load_dotenv
 except Exception:
     import _agent  # type: ignore
     import _llm    # type: ignore
     import _tools  # type: ignore
     try:
-        from __init__ import __version__  # type: ignore
+        from __init__ import __version__, load_dotenv as _load_dotenv  # type: ignore
     except Exception:
         __version__ = "0.1.0"
+        _load_dotenv = None  # type: ignore
+
+# Belt-and-suspenders: ensure the repo-root .env is loaded into THIS
+# Streamlit process even when launched via `streamlit run` directly
+# (which bypasses cli.py). Real env vars always win. Without this, the
+# Anthropic/OpenAI key silently appears "not set" in the model picker.
+if _load_dotenv is not None:
+    _load_dotenv()
 
 # KG visualizer — optional, soft-fail if matplotlib/networkx missing.
 try:

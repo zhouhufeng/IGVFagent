@@ -23,6 +23,8 @@ venv/
 Docs/Secretes/
 Docs/Secrets/
 **/APIkeys.txt
+*APIkeys*
+*apikeys*
 
 # Runtime outputs. Keep folder placeholders and READMEs tracked.
 Data/*
@@ -91,6 +93,9 @@ Docs/Benchmarks/*/2*
 # Benchmarks/results/ holds per-run concordance JSON+MD; per-run dirs
 # under Docs/<skill>/ are already ignored by the per-skill rules above.
 Benchmarks/results/2*
+# Benchmarks/_data/ holds large public datasets downloaded by each run.sh
+# (CELLxGENE h5ad, GEO count matrices, etc.) — never committed; re-fetched on run.
+Benchmarks/_data/
 Docs/Demos/*
 !Docs/Demos/12_demo_questions.md
 

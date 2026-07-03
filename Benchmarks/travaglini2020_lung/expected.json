@@ -1,0 +1,67 @@
+{
+  "paper": {
+    "authors": "Travaglini KJ, Nabhan AN, Penland L, et al. (Krasnow Lab)",
+    "journal": "Nature",
+    "year": 2020,
+    "doi": "10.1038/s41586-020-2922-4",
+    "pmid": "33208946",
+    "pmcid": "PMC7700471"
+  },
+  "data_source": {
+    "type": "cellxgene_h5ad",
+    "collection_doi": "10.1038/s41586-020-2922-4",
+    "asset": "f5568ea3-c249-4e4e-91f8-46abc30a5612.h5ad",
+    "cells": 65662,
+    "author_cell_types": 46
+  },
+  "skill_output_dir": "SingleCell",
+  "label": "travaglini2020_lung",
+  "primary_artefact": "concordance_metrics.json",
+  "checks": [
+    {
+      "name": "Cell count recovered (loaded from atlas)",
+      "type": "range",
+      "path": "n_cells",
+      "min": 65000, "max": 66000, "expected": 65662
+    },
+    {
+      "name": "Leiden cluster count comparable to 46 author cell types",
+      "type": "range",
+      "path": "n_leiden_clusters",
+      "min": 35, "max": 65, "expected": 49
+    },
+    {
+      "name": "Cluster concordance AMI vs author cell types",
+      "type": "range",
+      "path": "AMI",
+      "min": 0.70, "max": 1.0, "expected": 0.81
+    },
+    {
+      "name": "Cluster homogeneity vs author cell types",
+      "type": "range",
+      "path": "homogeneity",
+      "min": 0.80, "max": 1.0, "expected": 0.89
+    },
+    {
+      "name": "Canonical lung markers peak in expected cell type (top-3)",
+      "type": "range",
+      "path": "canonical_markers_peaking_in_target_top3",
+      "min": 8, "max": 10, "expected": 9
+    },
+    {
+      "name": "Processed AnnData artefact written",
+      "type": "artefact",
+      "filename": "processed.h5ad"
+    },
+    {
+      "name": "Marker-gene table written",
+      "type": "artefact",
+      "filename": "markers.csv"
+    },
+    {
+      "name": "Pipeline QC summary written",
+      "type": "artefact",
+      "filename": "qc_summary.json"
+    }
+  ]
+}

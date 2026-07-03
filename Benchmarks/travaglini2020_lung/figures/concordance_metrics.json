@@ -1,0 +1,84 @@
+{
+  "n_cells": 65662,
+  "n_leiden_clusters": 49,
+  "n_author_cell_types": 46,
+  "ARI": 0.4821,
+  "AMI": 0.8054,
+  "homogeneity": 0.8872,
+  "completeness": 0.7391,
+  "v_measure": 0.8064,
+  "canonical_markers_tested": 10,
+  "canonical_markers_peaking_in_target_top3": 9,
+  "marker_detail": [
+    {
+      "marker": "SFTPC",
+      "expected": "alveolar type 2",
+      "argmax_cell_type": "epithelial cell",
+      "target_rank": 2,
+      "pass": true
+    },
+    {
+      "marker": "AGER",
+      "expected": "alveolar type 1",
+      "argmax_cell_type": "pulmonary alveolar type 1 cell",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "SCGB1A1",
+      "expected": "club",
+      "argmax_cell_type": "mucus secreting cell",
+      "target_rank": 9,
+      "pass": false
+    },
+    {
+      "marker": "FOXJ1",
+      "expected": "ciliated",
+      "argmax_cell_type": "lung multiciliated epithelial cell",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "PECAM1",
+      "expected": "endothelial",
+      "argmax_cell_type": "endothelial cell of artery",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "MARCO",
+      "expected": "alveolar macrophage",
+      "argmax_cell_type": "macrophage",
+      "target_rank": 2,
+      "pass": true
+    },
+    {
+      "marker": "CD3E",
+      "expected": "t cell",
+      "argmax_cell_type": "naive thymus-derived CD4-positive, alpha-beta T cell",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "MS4A1",
+      "expected": "b cell",
+      "argmax_cell_type": "B cell",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "DCN",
+      "expected": "fibroblast",
+      "argmax_cell_type": "fibroblast",
+      "target_rank": 1,
+      "pass": true
+    },
+    {
+      "marker": "EPCAM",
+      "expected": "epithelial",
+      "argmax_cell_type": "pulmonary ionocyte",
+      "target_rank": 3,
+      "pass": true
+    }
+  ]
+}

@@ -272,6 +272,10 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
             "ANTHROPIC_API_KEY not set in the environment."
         )
     client = anthropic.Anthropic(api_key=api_key)
+    # Anthropic's Messages API has no `seed` param — strip it so the generic
+    # kwargs passthrough below doesn't 400. (Determinism on Anthropic comes
+    # from temperature 0 on models that still accept it.)
+    kwargs.pop("seed", None)
     system, msgs = _to_anthropic_messages(messages)
     payload: dict = {
         "model":       model,
@@ -494,6 +498,63 @@ _BACKENDS = {
 }
 
 
+# --------------------------- Cross-backend consistency ----------------------
+
+# The strictest backend (OpenAI Chat Completions) caps the tools array at 128.
+# To guarantee every backend sees the *same* tool set — so a query resolves to
+# the same tool no matter which LLM drives the loop — we apply one canonical,
+# deterministically-ordered selection to ALL backends, not just OpenAI.
+# Override with IGVF_LLM_MAX_TOOLS (e.g. raise it if you only ever use
+# Anthropic/Ollama and want all 141 exposed — at the cost of OpenAI parity).
+_DEFAULT_MAX_TOOLS = 128
+
+
+def _is_starred_tool(entry: dict) -> bool:
+    """A ★-prefixed description marks a hand-curated core tool."""
+    desc = entry.get("description", "") or ""
+    # tolerate already-serialized OpenAI/Anthropic shapes too
+    if not desc and isinstance(entry.get("function"), dict):
+        desc = entry["function"].get("description", "") or ""
+    return desc.lstrip().startswith("★")
+
+
+def canonical_tools(tools: "Optional[list[dict]]",
+                     max_tools: Optional[int] = None) -> "Optional[list[dict]]":
+    """Return one backend-independent, deterministically-ordered tool subset.
+
+    Ordering: starred (core) tools first, then the rest; each group sorted by
+    ``name``. Capped to ``max_tools`` (default 128 / IGVF_LLM_MAX_TOOLS). The
+    output is identical regardless of the calling backend, which is what makes
+    tool selection reproducible across Claude / Codex / Qwen / etc.
+    """
+    if not tools:
+        return tools
+    if max_tools is None:
+        try:
+            max_tools = int(os.environ.get("IGVF_LLM_MAX_TOOLS",
+                                            _DEFAULT_MAX_TOOLS))
+        except ValueError:
+            max_tools = _DEFAULT_MAX_TOOLS
+
+    def _key(e: dict) -> str:
+        return (e.get("name")
+                or (e.get("function", {}) or {}).get("name", "")
+                or "")
+
+    starred = sorted((e for e in tools if _is_starred_tool(e)), key=_key)
+    unstarred = sorted((e for e in tools if not _is_starred_tool(e)), key=_key)
+    ordered = starred + unstarred
+    if len(ordered) > max_tools:
+        dropped = [_key(e) for e in ordered[max_tools:]]
+        logger.warning(
+            "canonical_tools: exposing %d/%d tools identically across all "
+            "backends (%d starred kept); dropped for parity: %s",
+            max_tools, len(ordered), min(len(starred), max_tools),
+            ", ".join(dropped[:20]) + (" …" if len(dropped) > 20 else ""))
+        ordered = ordered[:max_tools]
+    return ordered
+
+
 # --------------------------- Public API ------------------------------------
 
 def chat(
@@ -505,6 +566,7 @@ def chat(
     max_tokens: int = 4096,
     temperature: float = 0.0,
     stop: Optional["list[str]"] = None,
+    seed: Optional[int] = None,
     **kwargs,
 ) -> Message:
     """Backend-neutral chat completion.
@@ -512,7 +574,24 @@ def chat(
     Returns a :class:`Message` with normalized ``content``, ``tool_calls``,
     and ``stop_reason``. Raises ``RuntimeError`` if the resolved backend's
     SDK is missing or the credentials env var is unset.
+
+    For cross-backend consistency the tool list is reduced to one canonical
+    deterministic subset (see :func:`canonical_tools`) before dispatch, and a
+    decoding ``seed`` (default ``IGVF_LLM_SEED``) is forwarded to every backend
+    that supports it (all OpenAI-compatible servers incl. Ollama/vLLM).
     """
+    # One identical tool set for every backend.
+    tools = canonical_tools(tools)
+    # Deterministic decoding seed (OpenAI-compatible backends honor `seed`).
+    if seed is None:
+        _env_seed = os.environ.get("IGVF_LLM_SEED")
+        if _env_seed not in (None, ""):
+            try:
+                seed = int(_env_seed)
+            except ValueError:
+                seed = None
+    if seed is not None:
+        kwargs.setdefault("seed", seed)
     bk = _resolve_backend(backend, model)
     chosen_model = (
         model

@@ -1,0 +1,40 @@
+{
+  "paper": {
+    "authors": "Rosenberg AB, Roco CM, Muscat RA, et al.",
+    "journal": "Science",
+    "year": 2018,
+    "doi": "10.1126/science.aam8999",
+    "pmid": "29545511"
+  },
+  "data_source": {
+    "type": "geo_matlab_dge",
+    "gse": "GSE110823",
+    "sample": "GSM3017261_150000_CNS_nuclei",
+    "atlas_nuclei": 156049
+  },
+  "skill_output_dir": "SPLiTseq",
+  "label": "rosenberg2018_splitseq",
+  "primary_artefact": "concordance_metrics.json",
+  "checks": [
+    {
+      "name": "Full CNS atlas nucleus count matches the paper (156,049)",
+      "type": "range", "path": "full_atlas_nuclei",
+      "min": 156049, "max": 156049, "expected": 156049
+    },
+    {
+      "name": "Canonical CNS lineages recovered by the mouse-brain panel",
+      "type": "range", "path": "n_cns_lineages_recovered",
+      "min": 6, "max": 8, "expected": 8
+    },
+    {
+      "name": "Leiden resolves multiple sub-clusters",
+      "type": "range", "path": "n_leiden_clusters",
+      "min": 10, "max": 45, "expected": 24
+    },
+    {
+      "name": "Cell-type annotations assigned",
+      "type": "range", "path": "n_cell_types",
+      "min": 5, "max": 12, "expected": 8
+    }
+  ]
+}

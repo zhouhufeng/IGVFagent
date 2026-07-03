@@ -1,6 +1,6 @@
 # IGVFagent Reproducibility Benchmark Suite
 
-Fourteen recent Nature / Cell / Science / Nat Genet / Nat Methods / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison.
+Eighteen recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison. **Four full single-cell / multiome local reproductions** — Travaglini 2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`), deMULTIplex2/Stoeckius cell hashing (`multiseq`), and Rosenberg 2018 SPLiT-seq CNS (`splitseq`) — download the public data and run IGVFagent's real analytical chain end-to-end, then score concordance against the authors' own results.
 
 **All primary benchmarks carry Concordance / Verdict / Honest caveats READMEs** (the suite-verified Matreyek 2018 smoke-test is the reference case). See the dashboard table below for each paper's headline result and link to its per-paper page.
 
@@ -24,6 +24,21 @@ Fourteen recent Nature / Cell / Science / Nat Genet / Nat Methods / medRxiv pape
 | 11 | **Deng 2024** cortex lentiMPRA *Science* | `mpra` + new `synapse` | **Full Synapse deposit recovered**: 166-node walk of NeuREs (`syn21392931`); 96 paired DNA+RNA files in MPRA_CapstoneII enumerated; all 12 paper-asserted annotations recovered; download step waits only on user-side PsychENCODE DUA + PAT | [`deng2024_cortex_mpra/`](deng2024_cortex_mpra/README.md) |
 | 12 | **Gschwind 2023 / Sheth 2024** ENCODE-rE2G & scE2G *bioRxiv* | `portal` + `synapse` + new `e2g_benchmark_eval` | **ENCODE-rE2G base AUPRC 0.634 reproduces the published 0.634 exactly** vs the K562 CRISPR ground truth; ranking rE2G-extended (0.758) > rE2G-base (0.634) > scE2G (0.53–0.59) > ARC-E2G ≈ ABC (0.49); scE2G beats the ABC baseline as claimed | [`e2g_crispr_benchmark/`](e2g_crispr_benchmark/README.md) |
 | 13 | **Liu 2025** kidney multiome scorecard *Science* | new `open4gene` port + `figshare` | **Port reproduces R `pscl::hurdle` zero-component β to r=1.0, Δ=0**; paper's published links pulled via `figshare` (article 26299093), **unique peaks 125,699 matches the paper headline exactly** | [`liu2025_open4gene/`](liu2025_open4gene/README.md) |
+| 14 | **Travaglini 2020** Human Lung Cell Atlas *Nature* | `sc-analyze` (**full local repro**) | **49 Leiden clusters vs 46 author cell types**; AMI 0.81, homogeneity 0.89; 9/10 canonical lung markers peak in expected cell type; **8/8 checks** | [`travaglini2020_lung/`](travaglini2020_lung/README.md) |
+| 15 | **Trevino 2021** developing cortex multiome *Cell* | `multiome peak2gene` (**full local repro**) | **cis peak→gene links for all 26 lineage genes; 93 % positive** (enhancer→gene activation), TSS-proximal; reproduces the paper's genome-wide linkage signal; **4/4 checks** | [`trevino2021_cortex_multiome/`](trevino2021_cortex_multiome/README.md) |
+| 16 | **deMULTIplex2 / Stoeckius 2018** cell hashing *Genome Biol* | `multiseq` (**full local repro**) | **All 8 donor HTO groups recovered** from the 15,113-cell PBMC matrix; 83 % singlets, balanced pool (0.79); **7/7 checks** | [`demultiplex2_stoeckius/`](demultiplex2_stoeckius/README.md) |
+| 17 | **Rosenberg 2018** SPLiT-seq developing CNS *Science* | `splitseq` (**full local repro**) | **156,049-nucleus atlas parsed (exact); all 8 CNS lineages recovered** (neurons + glia + vascular) via mouse-brain panel; **4/4 checks** | [`rosenberg2018_splitseq/`](rosenberg2018_splitseq/README.md) |
+
+## 🔜 In progress
+
+Two further single-cell / multiome full-local reproductions are being added:
+
+| Paper | Skill | Status |
+|---|---|---|
+| **Ma 2020** SHARE-seq mouse skin *Cell* (GSE140203) | `share` | data downloading (7.5 GB `_RAW.tar`); analytical chain (`fragment-qc` / `rna-qc` / `joint-qc`) ready |
+| **2025** developing-cortex lineage multiome *Nature* | `multiome peak2gene` | data accession being confirmed; panel `peak2gene` path validated on Trevino 2021 |
+
+Both follow the same pattern as benchmarks 14–17 (download public data → run the real chain → score concordance).
 
 ## How the benchmark suite is organised
 

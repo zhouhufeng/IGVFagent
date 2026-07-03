@@ -16,6 +16,7 @@ source of truth for each skill's CLI surface.
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from typing import Optional
 
@@ -151,7 +152,7 @@ RESERVED: "dict[str, str]" = {}
 INTROSPECTION = ("backends", "tools", "models")
 
 # Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
-TOP_LEVEL = ("ask", "ui", "playbook", "eval")
+TOP_LEVEL = ("ask", "ui", "playbook", "eval", "localstore", "consistency")
 
 
 def _print_help() -> None:
@@ -236,19 +237,39 @@ def main(argv: Optional["list[str]"] = None) -> int:
     # argv[0] so the skill's own --help text shows the friendly skill
     # name rather than the dispatcher path.
     sys.argv = [f"igvfagent {skill}"] + args[1:]
+    rc_code = 0
     try:
         rc = mod.main()
+        rc_code = int(rc) if isinstance(rc, int) else 0
     except SystemExit as exc:  # argparse + sys.exit propagation
         code = exc.code
         if code is None:
-            return 0
-        if isinstance(code, int):
-            return code
-        # Non-int code (e.g. sys.exit("some error message")) — print to
-        # stderr and use exit 1, matching Python's own default behavior.
-        sys.stderr.write(f"{code}\n")
-        return 1
-    return int(rc) if isinstance(rc, int) else 0
+            rc_code = 0
+        elif isinstance(code, int):
+            rc_code = code
+        else:
+            # Non-int code (e.g. sys.exit("some error message")) — print to
+            # stderr and use exit 1, matching Python's own default behavior.
+            sys.stderr.write(f"{code}\n")
+            rc_code = 1
+    finally:
+        # Core default: every skill run grows the local KG/DB from its new
+        # on-disk outputs. Best-effort; never affects the command's exit code.
+        _post_run_harvest(skill)
+    return rc_code
+
+
+def _post_run_harvest(skill: str) -> None:
+    if os.environ.get("IGVF_LOCALSTORE", "1") == "0":
+        return
+    try:
+        try:
+            from igvfagent import _localstore as ls
+        except Exception:
+            import _localstore as ls  # type: ignore
+        ls.harvest()
+    except Exception:
+        pass  # the skill already did its job; growth is a bonus
 
 
 def _run_top_level(skill: str, args: "list[str]") -> int:
@@ -260,6 +281,41 @@ def _run_top_level(skill: str, args: "list[str]") -> int:
         return _run_playbook(args)
     if skill == "eval":
         return _run_eval(args)
+    if skill == "localstore":
+        return _run_localstore(args)
+    if skill == "consistency":
+        try:
+            from igvfagent import consistency_check as cc
+        except Exception:
+            import consistency_check as cc  # type: ignore
+        return cc.main(args)
+    return 2
+
+
+def _run_localstore(args: "list[str]") -> int:
+    """Inspect / grow the local Knowledge Graph + database.
+
+    Subcommands:
+      stats     show current KG/DB size (nodes, edges, downloads, analyses)
+      harvest   scan Docs/ + Benchmarks/_data and ingest anything new
+    """
+    import json
+    try:
+        from igvfagent import _localstore as ls
+    except Exception:
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+        import _localstore as ls  # type: ignore
+    sub = args[0] if args else "stats"
+    if sub == "harvest":
+        print("Harvesting on-disk downloads + analyses into the local KG/DB …")
+        print(json.dumps(ls.harvest(), indent=2, default=str))
+        print(json.dumps(ls.stats(), indent=2, default=str))
+        return 0
+    if sub in ("stats", "", "--help", "-h"):
+        print(json.dumps(ls.stats(), indent=2, default=str))
+        return 0
+    sys.stderr.write(f"unknown localstore subcommand: {sub}\n"
+                     "  use: igvfagent localstore [stats|harvest]\n")
     return 2
 
 
