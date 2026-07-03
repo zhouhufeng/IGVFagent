@@ -52,6 +52,8 @@ case "$MODE" in
             zou2024_chipatlas_gata1
             travaglini2020_lung            # full local repro: sc-analyze (CELLxGENE h5ad)
             trevino2021_cortex_multiome    # full local repro: multiome peak2gene (GSE162170)
+            demultiplex2_stoeckius         # full local repro: multiseq (deMULTIplex2 data)
+            rosenberg2018_splitseq         # full local repro: splitseq (GSE110823 MATLAB DGE)
         )
         ;;
 esac
