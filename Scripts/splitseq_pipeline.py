@@ -688,6 +688,12 @@ def run_qc_normalize(a, qc=DEFAULT_QC):
     sc.pp.highly_variable_genes(a, n_top_genes=2500, flavor="seurat_v3"
                                   if "counts" in a.layers else "seurat",
                                   layer="counts" if "counts" in a.layers else None)
+    # Keep the full log-normalized matrix in .raw (for marker scoring), then
+    # restrict to HVGs BEFORE scaling. sc.pp.scale densifies its input, so
+    # scaling all genes on a large atlas (e.g. Rosenberg's 156k×27k) needs
+    # tens of GB; scaling only the 2,500 HVGs keeps peak memory ~100× smaller.
+    a.raw = a
+    a = a[:, a.var["highly_variable"]].copy()
     sc.pp.scale(a, max_value=10)
     sc.tl.pca(a, n_comps=50)
     return a
@@ -728,11 +734,15 @@ def annotate_with_markers(a, tissue: str):
         a.obs["cell_type_marker"] = a.obs["leiden"].astype(str)
         return a
     scores = {}
+    # After QC we restrict a.X to HVGs but keep all genes in a.raw, so score
+    # markers against raw (marker genes are frequently not among the HVGs).
+    use_raw = a.raw is not None
+    marker_vocab = set(a.raw.var_names if use_raw else a.var_names)
     for ct, genes in panel.items():
-        present = [g for g in genes if g in a.var_names]
+        present = [g for g in genes if g in marker_vocab]
         if not present:
             continue
-        sc.tl.score_genes(a, present, score_name=f"_score_{ct}", use_raw=False)
+        sc.tl.score_genes(a, present, score_name=f"_score_{ct}", use_raw=use_raw)
         scores[ct] = a.obs[f"_score_{ct}"].to_numpy()
     if not scores:
         a.obs["cell_type_marker"] = a.obs["leiden"].astype(str)
