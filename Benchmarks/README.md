@@ -34,7 +34,7 @@ Nineteen recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol 
 
 | Paper | Skill | Status |
 |---|---|---|
-| **Wang 2025** developing neocortex multiome *Nature* | `multiome peak2gene` | data on Dryad (`snMultiome_..._bc_matrix.h5.zip`, 3.2 GB) needs a Dryad token; panel `peak2gene` path validated on Trevino 2021 |
+| **Wang 2025** developing neocortex multiome *Nature* (`10.1038/s41586-024-08351-7`) | `multiome peak2gene` | data located on **CELLxGENE** (collection `ad2149fc…`) — a single 232,328-cell 10x-multiome h5ad (2.6 GB), reliably downloadable (the Dryad copy is token-gated). Panel `peak2gene` path already validated on Trevino 2021; run pending the download + a check that the h5ad carries the ATAC peak features. |
 
 Follows the same pattern as benchmarks 14–18 (download public data → run the real chain → score concordance).
 
