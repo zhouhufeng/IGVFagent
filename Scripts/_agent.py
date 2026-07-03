@@ -471,7 +471,7 @@ def run(
     # shapes, identical across backends. Only keep routed calls whose tool is
     # actually exposed (survived the canonical cap).
     routed_plan: "list[dict]" = []
-    if enable_router:
+    if enable_router and os.environ.get("IGVF_ROUTER", "1") != "0":
         routed_plan = [r for r in router.route(query)
                        if r.get("tool") in canon_name_set]
 

@@ -510,6 +510,62 @@ tokens, or any other authenticated session material.
 Set `IGVF_PROJECT_ROOT` if you want to run the scripts from outside the
 repository directory.
 
+## Consistent results across LLM backends
+
+IGVFagent is designed so the **same query resolves to the same plan and the
+same substantive answer no matter which model drives the loop** — Claude Code,
+the Anthropic/OpenAI APIs, Codex, or a local Qwen/Gemma via Ollama. Four
+mechanisms make this hold:
+
+1. **Identical tool set on every backend.** The runtime exposes one canonical,
+   deterministically-ordered set of ≤128 tools to *all* backends (previously
+   OpenAI-family models were silently trimmed to 128 while others saw more, so
+   the same query could pick a tool that didn't exist elsewhere). Override the
+   cap with `IGVF_LLM_MAX_TOOLS`.
+2. **Deterministic decoding.** Temperature defaults to 0 and a decoding `seed`
+   (`IGVF_LLM_SEED`, default 0) is forwarded to every OpenAI-compatible backend
+   (Ollama / vLLM / OpenAI …).
+3. **Deterministic router.** Unambiguous query shapes bypass LLM tool-choice
+   entirely and run a fixed first tool: a bare gene symbol → `kg_gene`, an rsID
+   → `kg_variant`, an IGVF/ENCODE accession or URL → `explain_dataset`, a
+   `chrN:start-end` region → `kg_region`.
+4. **Templated answer synthesis.** The final answer wraps the model's prose in a
+   backend-independent skeleton (tools run + arguments + artefacts produced), so
+   the substantive content is identical across models; only the narrative varies.
+
+Every run records a **consistency fingerprint** (system-prompt hash + seed +
+tool-set hash) in its transcript. Verify consistency yourself:
+
+```bash
+igvfagent consistency                         # offline invariants (no API key)
+igvfagent consistency --backends anthropic,ollama   # diff tool-call traces across backends
+```
+
+Disable the router or templating with `IGVF_ROUTER=0` / `IGVF_TEMPLATED_ANSWER=0`.
+
+## The growing local knowledge graph + database
+
+Every time IGVFagent **downloads data or analyzes/processes raw data**, a little
+more of a *local* knowledge graph and database accumulates — so the agent gets
+faster and more self-contained the more you use it, and repeat queries can be
+answered from local data. This is the **core default mechanism**, wired into
+both the agent loop (every tool call) and the CLI (every direct skill run
+auto-harvests its new outputs).
+
+- **Knowledge Graph** — `Data/KG/local_kg.sqlite` (`nodes` + `edges`: genes,
+  variants, regions, datasets, studies, analyses, and the relations between
+  them — the same graph the `portal-kg` skill builds).
+- **Database** — the DuckDB warehouse at `Data/Warehouse/igvf.duckdb`.
+
+```bash
+igvfagent localstore stats      # nodes / edges / downloads / analyses logged
+igvfagent localstore harvest    # scan Docs/ + downloads and ingest anything new
+```
+
+Growth is idempotent (deterministic upserts + a harvest ledger) and safe under
+concurrent agent/CLI writers (WAL + busy-timeout). Disable with
+`IGVF_LOCALSTORE=0`.
+
 ## Smoke test
 
 After `cp .env.example .env` and (optionally) editing it, verify the install:
