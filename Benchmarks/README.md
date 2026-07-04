@@ -1,6 +1,6 @@
 # IGVFagent Reproducibility Benchmark Suite
 
-Eighteen recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison. **Four full single-cell / multiome local reproductions** — Travaglini 2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`), deMULTIplex2/Stoeckius cell hashing (`multiseq`), and Rosenberg 2018 SPLiT-seq CNS (`splitseq`) — download the public data and run IGVFagent's real analytical chain end-to-end, then score concordance against the authors' own results.
+Twenty recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol / medRxiv papers whose published analyses **IGVFagent reproduces directly from public data**. Each benchmark is a self-contained directory with the data sources, run script, expected outputs, figures, and a paper-vs-IGVFagent comparison. **Six full single-cell / multiome local reproductions** — Travaglini 2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`), deMULTIplex2/Stoeckius cell hashing (`multiseq`), Rosenberg 2018 SPLiT-seq CNS (`splitseq`), Ma 2020 SHARE-seq skin (`share`), and Wang 2025 neocortex multiome (`sc-analyze`) — download the public data and run IGVFagent's real analytical chain end-to-end, then score concordance against the authors' own results. The loaders + QC they exercise are internalized into `Scripts/_scload.py` and the skills, so future datasets in the same formats flow through one memory-safe path.
 
 **All primary benchmarks carry Concordance / Verdict / Honest caveats READMEs** (the suite-verified Matreyek 2018 smoke-test is the reference case). See the dashboard table below for each paper's headline result and link to its per-paper page.
 
@@ -28,17 +28,8 @@ Eighteen recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Biol 
 | 15 | **Trevino 2021** developing cortex multiome *Cell* | `multiome peak2gene` (**full local repro**) | **cis peak→gene links for all 26 lineage genes; 93 % positive** (enhancer→gene activation), TSS-proximal; reproduces the paper's genome-wide linkage signal; **4/4 checks** | [`trevino2021_cortex_multiome/`](trevino2021_cortex_multiome/README.md) |
 | 16 | **deMULTIplex2 / Stoeckius 2018** cell hashing *Genome Biol* | `multiseq` (**full local repro**) | **All 8 donor HTO groups recovered** from the 15,113-cell PBMC matrix; 83 % singlets, balanced pool (0.79); **7/7 checks** | [`demultiplex2_stoeckius/`](demultiplex2_stoeckius/README.md) |
 | 17 | **Rosenberg 2018** SPLiT-seq developing CNS *Science* | `splitseq` (**full local repro**) | **156,049-nucleus atlas parsed (exact); all 8 CNS lineages recovered** (neurons + glia + vascular) via mouse-brain panel; **4/4 checks** | [`rosenberg2018_splitseq/`](rosenberg2018_splitseq/README.md) |
-
-## 🔜 In progress
-
-Two further single-cell / multiome full-local reproductions are being added:
-
-| Paper | Skill | Status |
-|---|---|---|
-| **Ma 2020** SHARE-seq mouse skin *Cell* (GSE140203) | `share` | data downloading (7.5 GB `_RAW.tar`); analytical chain (`fragment-qc` / `rna-qc` / `joint-qc`) ready |
-| **2025** developing-cortex lineage multiome *Nature* | `multiome peak2gene` | data accession being confirmed; panel `peak2gene` path validated on Trevino 2021 |
-
-Both follow the same pattern as benchmarks 14–17 (download public data → run the real chain → score concordance).
+| 18 | **Ma 2020** SHARE-seq mouse skin *Cell* | `share` + shared `_scload` (**full local repro**) | **34,774-cell skin set (exact); all 23 author cell types**; Leiden AMI 0.63 on shallow SHARE-seq RNA; **5/5 checks** | [`ma2020_shareseq/`](ma2020_shareseq/README.md) |
+| 19 | **Wang 2025** developing neocortex multiome *Nature* | `sc-analyze` (**full local repro**) | **232,328-nucleus atlas (exact); 29 author cell types**; Leiden AMI 0.65, homogeneity 0.70; **7/7 checks** | [`wang2025_neocortex_multiome/`](wang2025_neocortex_multiome/README.md) |
 
 ## How the benchmark suite is organised
 

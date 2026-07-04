@@ -1,0 +1,70 @@
+{
+  "paper": {
+    "authors": "(see DOI 10.1038/s41586-024-08351-7)",
+    "journal": "Nature",
+    "year": 2025,
+    "doi": "10.1038/s41586-024-08351-7",
+    "pmid": "39779846"
+  },
+  "data_source": {
+    "type": "cellxgene_multiome_h5ad",
+    "collection": "ad2149fc-19c5-41de-8cfe-44710fbada73",
+    "modality": "10x multiome (RNA side on CELLxGENE; ATAC on Dryad)",
+    "atlas_nuclei": 232328
+  },
+  "skill_output_dir": "SingleCell",
+  "label": "wang2025_neocortex_multiome",
+  "primary_artefact": "concordance_metrics.json",
+  "checks": [
+    {
+      "name": "Full atlas nucleus count (exact)",
+      "type": "range",
+      "path": "full_atlas_nuclei",
+      "min": 232328,
+      "max": 232328,
+      "expected": 232328
+    },
+    {
+      "name": "Author neocortex cell types",
+      "type": "range",
+      "path": "author_cell_types",
+      "min": 27,
+      "max": 33,
+      "expected": 29
+    },
+    {
+      "name": "Cluster concordance (AMI) vs author types",
+      "type": "range",
+      "path": "AMI_vs_author_types",
+      "min": 0.55,
+      "max": 1.0,
+      "expected": 0.65
+    },
+    {
+      "name": "Cluster homogeneity",
+      "type": "range",
+      "path": "homogeneity",
+      "min": 0.6,
+      "max": 1.0,
+      "expected": 0.7
+    },
+    {
+      "name": "Leiden cluster count comparable",
+      "type": "range",
+      "path": "n_leiden_clusters",
+      "min": 25,
+      "max": 60,
+      "expected": 41
+    },
+    {
+      "name": "Processed AnnData written",
+      "type": "artefact",
+      "filename": "processed.h5ad"
+    },
+    {
+      "name": "Marker table written",
+      "type": "artefact",
+      "filename": "markers.csv"
+    }
+  ]
+}

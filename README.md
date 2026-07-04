@@ -135,15 +135,17 @@ In short — **two ways to drive every skill, one shared contract**:
 - **Synapse / Sage Bionetworks retrieval** — anonymous metadata walk + search
   and PAT-authenticated download for controlled-access deposits (PsychENCODE,
   AMP-AD/PD, ROSMAP) that IGVF distributes off-Portal.
-- **Reproducibility benchmark suite** — eighteen recent Nature / Cell / Science /
+- **Reproducibility benchmark suite** — nineteen recent Nature / Cell / Science /
   Nat Genet / Nat Methods / Genome Biol papers reproduced directly from public
   data, each scored against machine-readable ground-truth checks. Includes
-  **four full single-cell / multiome local reproductions** that download the
+  **five full single-cell / multiome local reproductions** that download the
   public data and run IGVFagent's real analytical chain end-to-end — Travaglini
   2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`),
-  deMULTIplex2 / Stoeckius cell hashing (`multiseq`), and Rosenberg 2018
-  SPLiT-seq CNS (`splitseq`) — plus SHARE-seq (`share`) and a 2025 developing-
-  cortex multiome atlas in progress (see [`Benchmarks/`](Benchmarks/README.md)).
+  deMULTIplex2 / Stoeckius cell hashing (`multiseq`), Rosenberg 2018
+  SPLiT-seq CNS (`splitseq`), and Ma 2020 SHARE-seq skin (`share`) — with a
+  2025 developing-neocortex multiome atlas (Wang, CELLxGENE) in progress. The
+  single-cell loaders + QC these exercise are internalized into
+  `Scripts/_scload.py` and the skills (see [`Benchmarks/`](Benchmarks/README.md)).
 
 ## Repository layout
 
