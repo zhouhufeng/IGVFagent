@@ -226,7 +226,7 @@ IGVFagent/
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
 │
-├── Benchmarks/                          ← 18-paper reproducibility suite
+├── Benchmarks/                          ← 21-paper reproducibility suite
 │   ├── README.md                        ← suite dashboard + per-paper results
 │   ├── OPERATIONS_GUIDE.md  run_all.sh  concordance.py
 │   └── <paper-id>/                       ← run.sh + expected.json + figures + README
@@ -1654,7 +1654,7 @@ igvfagent synapse download --syn synXXXXXXXX --out-dir Data/Input   # needs PAT
 
 ## Reproducibility benchmark suite
 
-IGVFagent ships an **18-paper reproducibility benchmark suite** in
+IGVFagent ships a **21-paper reproducibility benchmark suite** in
 [`Benchmarks/`](Benchmarks/README.md): recent Nature / Cell / Science /
 Nat Genet / Nat Methods / Genome Biol papers whose published analyses IGVFagent
 reproduces **directly from public data**. Each benchmark is a self-contained
@@ -1683,14 +1683,18 @@ stdlib-only scorer (`concordance.py`) turns each run into pass/fail checks.
 | 15 | **Trevino 2021** cortex multiome *Cell* | `multiome peak2gene` (**full local repro**) | all 26 lineage genes linked; 93 % positive cis links — 4/4 |
 | 16 | **deMULTIplex2 / Stoeckius 2018** cell hashing *Genome Biol* | `multiseq` (**full local repro**) | all 8 donor HTOs; 83 % singlets — 7/7 |
 | 17 | **Rosenberg 2018** SPLiT-seq CNS *Science* | `splitseq` (**full local repro**) | 156,049-nucleus atlas (exact); all 8 CNS lineages — 4/4 |
+| 18 | **Ma 2020** SHARE-seq mouse skin *Cell* | `share` (**full local repro**) | 34,774-cell skin set (exact); all 23 author cell types; Leiden AMI 0.63 — 5/5 |
+| 19 | **Wang 2025** developing neocortex multiome *Nature* | `sc-analyze` (**full local repro**) | 232,328-nucleus atlas (exact); 29 author cell types; AMI 0.65 — 7/7 |
+| 20 | **Zou/Shi 2026** scEPS GWAS × single-cell *medRxiv* | `sceps` port (**full local repro**) | microglia significantly AD-associated (d=4.76e-5, **Z=4.99, P=6e-7**); d>0 fraction 58 % vs paper 58 % |
 
-Benchmarks 14–17 are **full local reproductions** — they download the public
-data and run IGVFagent's real single-cell / multiome analytical chain, then
-score concordance against the authors' own results. Two further single-cell /
-multiome reproductions are in progress: **Ma 2020 SHARE-seq** (`share`) and a
-**2025 developing-cortex multiome atlas** (`multiome`). Most other benchmarks
-run end-to-end as pure online calls; a few (e.g. **Zheng 2024**, **Deng 2024**)
-need a user-fetched local file to complete their full analytical chains.
+Benchmarks 14–20 are **full local reproductions** — they download the public
+data and run IGVFagent's real single-cell / multiome / GWAS-integration chain,
+then score concordance against the authors' own results. The newest, **scEPS**
+(Zou/Shi 2026), reimplements the full estimate→cluster→aggregate pipeline
+(validated vs upstream, corr 1.0) and reproduces the paper's microglia AD-
+association from public SEA-AD + Bellenguez-AD MAGMA scores. Most other
+benchmarks run end-to-end as pure online calls; a few (e.g. **Zheng 2024**,
+**Deng 2024**) need a user-fetched local file to complete their full chains.
 
 ```bash
 # Verify the suite works (~60 s)
