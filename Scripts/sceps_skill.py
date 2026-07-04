@@ -507,6 +507,169 @@ def cmd_estimate(args):
 
 
 # ---------------------------------------------------------------------------
+# cluster (step 2) — approximately-independent neighborhood blocks
+# ---------------------------------------------------------------------------
+
+ESTIMANDS = ["OMEGA_GWAS", "OMEGA_CONTROL", "OMEGA_REST", "OMEGA_OVERALL", "OMEGA_DIFF"]
+INFO_COLS = ["NEIGHBORHOOD_SIZE", "NUM_DONOR", "MEAN_VAR_EXPR_GWAS",
+             "MEAN_VAR_EXPR_CONTROL", "MEAN_VAR_EXPR_REST", "MEAN_VAR_EXPR_ALL",
+             "NUM_GENE_GWAS", "NUM_GENE_CONTROL", "NUM_GENE_REST", "VAR_PHENO"]
+
+
+def cmd_cluster(args):
+    """Assign each cell to a neighborhood block (mini-batch k-means on the
+    standardized NAM) for the block bootstrap used in aggregation."""
+    np, pd, st, sp, sm = _lazy()
+    import scanpy as sc
+    from sklearn.cluster import MiniBatchKMeans
+    setup_logging(args.label or "cluster")
+    np.random.seed(args.seed); random.seed(args.seed)
+    adata = sc.read_h5ad(args.adata)
+    if "connectivities" not in adata.obsp:
+        sc.pp.neighbors(adata, use_rep=args.neighbors_use_rep)
+    T = transition_matrix(adata.obsp["connectivities"], sp)
+    donor_ids = adata.obs[args.donor_id_col]
+    nstep = choose_step_size(T, donor_ids, maxnsteps=15)
+    nam = pd.get_dummies(donor_ids).values.astype(float)
+    for _ in range(nstep):
+        nam = T.dot(nam)
+    nam = (nam - nam.mean(axis=0)) / (nam.std(axis=0) + EPS)
+    km = MiniBatchKMeans(n_clusters=args.num_kmeans_cluster,
+                         batch_size=max(1, int(0.05 * adata.n_obs)),
+                         random_state=args.seed, n_init="auto")
+    labels = km.fit(nam).labels_
+    cell_ids = (adata.obs[args.cell_id_col].values
+                if args.cell_id_col in adata.obs.columns else adata.obs_names.values)
+    out = pd.DataFrame({"CELL": cell_ids, "sceps.neighborhood_cluster": labels})
+    outpath = Path(args.out) if args.out else \
+        DOC_DIR / f"{datetime.now():%Y%m%d_%H%M%S}_{args.label or 'cluster'}.txt.gz"
+    Path(outpath).parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(outpath, sep="\t", index=False,
+               compression="gzip" if str(outpath).endswith(".gz") else None)
+    logging.info("assigned %d cells to %d neighborhood blocks -> %s",
+                 len(out), args.num_kmeans_cluster, outpath)
+    print(f"scEPS cluster: {len(out)} cells -> {args.num_kmeans_cluster} blocks -> {outpath}")
+
+
+# ---------------------------------------------------------------------------
+# aggregate (step 3) — neighborhood -> cell-type, block-bootstrap significance
+# ---------------------------------------------------------------------------
+
+def _fdr_flags(np, pvals, est, alpha):
+    from statsmodels.stats.multitest import multipletests
+    rej = multipletests(pvals, alpha=alpha, method="fdr_bh")[0]
+    return rej & (est > 0)
+
+
+def _per_neighborhood_fdr(np, df):
+    """Add SIGNIF_FDR{5,10,20}_{estimand} booleans (est>0 & BH-significant;
+    DIFF additionally requires OMEGA_GWAS>0)."""
+    for e in ESTIMANDS:
+        if e not in df or f"P_Z_{e}" not in df:
+            continue
+        p = df[f"P_Z_{e}"].fillna(1.0).values
+        est = df[e].values
+        for a, tag in ((0.05, 5), (0.10, 10), (0.20, 20)):
+            flag = _fdr_flags(np, p, est, a)
+            if "DIFF" in e:
+                flag = flag & (df["OMEGA_GWAS"].values > 0)
+            df[f"SIGNIF_FDR{tag}_{e}"] = flag
+    return df
+
+
+def _block_bootstrap_mean(np, sub, col, nbs, seed):
+    """Mean of `col` across neighborhoods + block-bootstrap SE/Z/P."""
+    rng = np.random.RandomState(seed)
+    vals = sub[col].values
+    n = len(vals)
+    mean = float(vals.mean())
+    if "BLOCK" in sub.columns:
+        blocks = sub["BLOCK"].values
+        uniq = np.unique(blocks)
+        idx_by_block = {b: np.where(blocks == b)[0] for b in uniq}
+        boot = np.empty(nbs)
+        for i in range(nbs):
+            pick = rng.choice(uniq, size=len(uniq), replace=True)
+            idx = np.concatenate([idx_by_block[b] for b in pick])
+            boot[i] = vals[idx].mean()
+    else:
+        boot = np.array([vals[rng.choice(n, n, replace=True)].mean() for _ in range(nbs)])
+    se = float(boot.std())
+    z = mean / (se + EPS)
+    from scipy.stats import norm
+    p = 2.0 * (1.0 - norm.cdf(abs(z)))
+    return mean, se, z, p
+
+
+def cmd_aggregate(args):
+    """Aggregate per-neighborhood scEPS stats to cell-type level with a
+    block bootstrap; report MEAN/SE/Z/P and counts of significant neighborhoods."""
+    np, pd, st, sp, sm = _lazy()
+    import glob
+    setup_logging(args.label or "aggregate")
+    files = glob.glob(args.sceps_result)
+    if not files:
+        sys.exit(f"no scEPS result files match {args.sceps_result!r}")
+    df = pd.concat([pd.read_csv(f, sep="\t") for f in files], ignore_index=True)
+    logging.info("loaded %d neighborhoods from %d file(s)", len(df), len(files))
+    df = _per_neighborhood_fdr(np, df)
+
+    # block map
+    if args.neighborhood_clusters:
+        cl = pd.read_csv(args.neighborhood_clusters, sep="\t")
+        cell2block = dict(zip(cl["CELL"].astype(str),
+                              cl["sceps.neighborhood_cluster"]))
+        df["BLOCK"] = df["CELL"].astype(str).map(cell2block)
+
+    # cell-type map (optional)
+    ct_of = None
+    if args.cell_type_col and args.adata:
+        import scanpy as sc
+        ad_obs = sc.read_h5ad(args.adata, backed="r").obs
+        cid = (ad_obs[args.cell_id_col] if args.cell_id_col in ad_obs.columns
+               else ad_obs.index)
+        ct_of = dict(zip(cid.astype(str), ad_obs[args.cell_type_col].astype(str)))
+        df["CELLTYPE"] = df["CELL"].astype(str).map(ct_of)
+        groups = [("All", df)] + [(ct, df[df["CELLTYPE"] == ct])
+                                  for ct in sorted(df["CELLTYPE"].dropna().unique())]
+    else:
+        groups = [("All", df)]
+
+    rows = []
+    for ct, sub in groups:
+        if sub.shape[0] == 0:
+            continue
+        row = {"CELLTYPE": ct, "NUM_CELL": sub.shape[0]}
+        for c in INFO_COLS:
+            if c in sub:
+                row[f"MEAN_{c}"] = float(sub[c].mean())
+        for e in ESTIMANDS:
+            if e not in sub:
+                continue
+            mean, se, z, p = _block_bootstrap_mean(np, sub, e, args.num_bootstrap, args.seed)
+            row[f"MEAN_{e}"], row[f"SE_MEAN_{e}"] = mean, se
+            row[f"Z_MEAN_{e}"], row[f"P_Z_MEAN_{e}"] = z, p
+            for tag in (5, 10, 20):
+                col = f"SIGNIF_FDR{tag}_{e}"
+                if col in sub:
+                    row[f"NUM_SIGNIF_FDR{tag}_{e}"] = int(sub[col].sum())
+        rows.append(row)
+
+    res = pd.DataFrame(rows)
+    outpath = Path(args.out) if args.out else \
+        DOC_DIR / f"{datetime.now():%Y%m%d_%H%M%S}_{args.label or 'aggregate'}.celltype.txt"
+    Path(outpath).parent.mkdir(parents=True, exist_ok=True)
+    res.to_csv(outpath, sep="\t", index=False, float_format="%.6g")
+    logging.info("wrote %d cell-type rows -> %s", len(res), outpath)
+    print(f"scEPS aggregate: {len(res)} groups -> {outpath}")
+    for _, r in res.iterrows():
+        print(f"  {r['CELLTYPE']:20s} d={r.get('MEAN_OMEGA_DIFF',float('nan')):.3e} "
+              f"Z={r.get('Z_MEAN_OMEGA_DIFF',float('nan')):.2f} "
+              f"P={r.get('P_Z_MEAN_OMEGA_DIFF',float('nan')):.2e} "
+              f"nSig(FDR10)={r.get('NUM_SIGNIF_FDR10_OMEGA_DIFF','-')}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -554,6 +717,29 @@ def main():
     sp = sub.add_parser("estimate", help="per-neighborhood scEPS d-statistics (step 1).")
     _add_estimate_args(sp)
     sp.set_defaults(func=cmd_estimate)
+
+    sp = sub.add_parser("cluster", help="Assign cells to neighborhood blocks (step 2).")
+    sp.add_argument("--adata", required=True)
+    sp.add_argument("--donor-id-col", required=True)
+    sp.add_argument("--cell-id-col", default="")
+    sp.add_argument("--neighbors-use-rep", default="X_pca_harmony")
+    sp.add_argument("--num-kmeans-cluster", type=int, default=50)
+    sp.add_argument("--seed", type=int, default=0)
+    sp.add_argument("--label", default=None)
+    sp.add_argument("--out", default=None)
+    sp.set_defaults(func=cmd_cluster)
+
+    sp = sub.add_parser("aggregate", help="Aggregate neighborhoods to cell types (step 3).")
+    sp.add_argument("--sceps-result", required=True, help="glob of step-1 output(s)")
+    sp.add_argument("--neighborhood-clusters", default=None, help="step-2 cluster TSV (for block bootstrap)")
+    sp.add_argument("--adata", default=None, help="h5ad for cell->cell-type map")
+    sp.add_argument("--cell-type-col", default="")
+    sp.add_argument("--cell-id-col", default="")
+    sp.add_argument("--num-bootstrap", type=int, default=1000)
+    sp.add_argument("--seed", type=int, default=0)
+    sp.add_argument("--label", default=None)
+    sp.add_argument("--out", default=None)
+    sp.set_defaults(func=cmd_aggregate)
 
     sp = sub.add_parser("write-playbook", help="Emit Docs/Skills/SCEPS_SKILLS.md.")
     sp.set_defaults(func=lambda a: (PLAYBOOK_PATH.parent.mkdir(parents=True, exist_ok=True),
