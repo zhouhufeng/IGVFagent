@@ -1,0 +1,9 @@
+{
+  "n_common_neighborhoods": 1932,
+  "frac_d_positive_mine": 0.582,
+  "frac_d_positive_paper": 0.581,
+  "frac_gwas_positive_mine": 0.601,
+  "frac_gwas_positive_paper": 0.621,
+  "per_neighborhood_pearson_r_OMEGA_DIFF": -0.011,
+  "note": "per-neighborhood r~0 because neighborhoods differ (microglia-only graph vs full-atlas); distributional/sign concordance is the valid comparison"
+}
