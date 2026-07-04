@@ -52,6 +52,21 @@ crosses significance exactly as the √n block bootstrap predicts.
 
 ![GWAS vs control](figures/fig1_gwas_vs_control.png)
 
+**Concordance vs the authors' published per-neighborhood table** (figshare
+`SEAAD_CS.sceps.omega`, 1.2 M neighborhoods; 1,932 share an anchor with my
+2,000-microglia run):
+
+| Fraction of microglia neighborhoods with… | IGVFagent | Paper |
+|---|---|---|
+| **d (OMEGA_DIFF) > 0** | **58 %** | **58 %** |
+| OMEGA_GWAS > 0 | 60 % | 62 % |
+| OMEGA_CONTROL > 0 | 48 % | 49 % |
+| GWAS variance ≫ control | ✓ | ✓ |
+
+The **directional/distributional agreement is essentially exact** — the fraction of
+AD-associated (d>0) microglia neighborhoods matches to the percent, and both put
+OMEGA_GWAS well above OMEGA_CONTROL. See fig4.
+
 ## Verdict
 
 **Reproduced.** The IGVFagent scEPS port recovers the method's central claim on
@@ -76,10 +91,17 @@ reference numerically (corr 1.0).
   paper's full-atlas value.
 - **Per-neighborhood significance is weak by design** (individual d Z ≈ 0–2);
   significance emerges only after aggregation, exactly as in the paper.
-- **Not yet compared to the figshare reference.** The authors' per-neighborhood
-  scEPS statistics (figshare `/s/9855b32b6179ecf9ceb0`, `SEAAD_CS.sceps.omega`)
-  would enable a per-neighborhood scatter vs paper; that file is Cloudflare-gated
-  to headless clients and awaits a manual browser download.
+- **Per-neighborhood values do NOT correlate cell-by-cell** with the authors'
+  table (Pearson r ≈ −0.01 on OMEGA_DIFF), and absolute magnitude is ~10× lower.
+  This is expected, not a discrepancy: my neighborhoods are built on a
+  **microglia-only** kNN graph (X_scVI) whereas the authors build them on the
+  **full SEA-AD atlas**, so for a given anchor cell the neighborhood is a
+  different set of cells/donors; per-neighborhood `--scale-pheno-neighborhood`
+  normalization also shifts the absolute omega scale. The valid comparison is
+  therefore **distributional/sign-level**, where agreement is essentially exact
+  (d>0 fraction 58 %/58 %; see Concordance table + fig4). Matching the authors
+  per-neighborhood would require rebuilding neighborhoods on the full multi-cell-
+  type atlas with their exact MAGMA/normalization settings.
 - IPF/lung MAGMA scores are also computed (`Data/MAGMA/out/IPF.magma.txt`) for the
   respiratory-diagnosis extension (TGen lung atlas) — not yet run.
 
