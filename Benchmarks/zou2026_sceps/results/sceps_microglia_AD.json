@@ -1,0 +1,18 @@
+{
+  "dataset": "SEA-AD Microglia-PVM MTG (CELLxGENE)",
+  "cells": 38905,
+  "donors": 84,
+  "gwas": "Bellenguez 2022 AD (MAGMA)",
+  "gwas_genes": 569,
+  "n_neighborhoods": 2000,
+  "OMEGA_GWAS_mean": 4.3945046700711935e-05,
+  "OMEGA_CONTROL_mean": -3.6962859827912574e-06,
+  "d_mean": 4.764133268350619e-05,
+  "d_frac_positive": 0.5825,
+  "aggregated_d": 4.76413e-05,
+  "aggregated_SE": 9.54359e-06,
+  "aggregated_Z": 4.99197,
+  "aggregated_P": 5.97655e-07,
+  "Z_at_100_nbhd": 1.87,
+  "Z_at_2000_nbhd": 4.99197
+}

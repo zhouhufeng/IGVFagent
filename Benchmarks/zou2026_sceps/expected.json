@@ -1,0 +1,41 @@
+{
+  "paper": {
+    "authors": "Zou, Whitley, Tseng, ... Shi (Genentech)",
+    "journal": "medRxiv",
+    "year": 2026,
+    "doi": "10.64898/2026.06.26.26356714"
+  },
+  "data_source": {
+    "type": "cellxgene+magma",
+    "single_cell": "CELLxGENE SEA-AD Microglia-PVM (collection 1ca90a2d-2943-483d-b678-b809bf464c30)",
+    "gwas": "Bellenguez 2022 AD (GCST90027158) -> MAGMA v1.10 gene Z-scores"
+  },
+  "label": "zou2026_sceps",
+  "checks": [
+    {
+      "name": "port aggregate MEAN_OMEGA_DIFF matches upstream reference (corr ~1.0)",
+      "type": "note",
+      "detail": "validated separately on sceps test/ fixtures: correlation 1.00000, max abs diff 5e-8"
+    },
+    {
+      "name": "AD-GWAS genes explain more variance than control (OMEGA_GWAS > OMEGA_CONTROL)",
+      "type": "range", "artefact": "results/sceps_microglia_AD.json",
+      "path": "OMEGA_GWAS_mean", "min": 1e-5, "max": 1e-4
+    },
+    {
+      "name": "per-neighborhood d predominantly positive",
+      "type": "range", "artefact": "results/sceps_microglia_AD.json",
+      "path": "d_frac_positive", "min": 0.5, "max": 1.0
+    },
+    {
+      "name": "aggregated microglia AD-association significant (Z > 3)",
+      "type": "range", "artefact": "results/sceps_microglia_AD.json",
+      "path": "aggregated_Z", "min": 3.0, "max": 15.0
+    },
+    {
+      "name": "aggregated p-value significant (P < 1e-3)",
+      "type": "range", "artefact": "results/sceps_microglia_AD.json",
+      "path": "aggregated_P", "min": 0.0, "max": 0.001
+    }
+  ]
+}
