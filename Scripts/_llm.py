@@ -314,7 +314,12 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
     stop_map = {"end_turn":         "end_turn",
                 "tool_use":         "tool_use",
                 "max_tokens":       "max_tokens",
-                "stop_sequence":    "stop_sequence"}
+                "stop_sequence":    "stop_sequence",
+                # Surface a safety-classifier refusal as itself instead of
+                # collapsing it into "other" — the agent loop needs to tell
+                # a refusal apart from a normal empty end_turn to react.
+                "refusal":          "refusal",
+                "pause_turn":       "pause_turn"}
     return Message(
         content="".join(text_parts),
         tool_calls=tool_calls,
@@ -909,12 +914,13 @@ def _chat_codex_cli(messages, *, model, tools, max_tokens, temperature,
 
     prompt = _xml_cli_build_prompt(messages, tools)
 
-    # `codex exec` runs in non-interactive mode. Approval mode `never`
-    # auto-approves any tool calls Codex's own runtime might want to
-    # make — we don't expect any since our prompt explicitly tells it
-    # to emit XML rather than use its built-in tools, but the flag
-    # keeps the run from blocking on a TTY prompt.
-    cmd = ["codex", "exec", "--ask-for-approval", "never"]
+    # `codex exec` runs in non-interactive mode already, so it never
+    # blocks on a TTY approval prompt. Older CLIs took
+    # `--ask-for-approval never`, but codex >= 0.11 removed that flag
+    # from the `exec` subcommand ("unexpected argument"), so we no
+    # longer pass it. Our prompt tells Codex to emit XML rather than use
+    # its own tools, so no approval is needed.
+    cmd = ["codex", "exec"]
     if model and model.strip():
         cmd.extend(["--model", model.strip()])
     # Read the prompt from stdin to avoid argv-length limits.
@@ -937,6 +943,7 @@ def _chat_codex_cli(messages, *, model, tools, max_tokens, temperature,
     # argument (truncated diagnostic on persistent failure).
     if result.returncode != 0 and ("unrecognized" in (result.stderr or "")
                                     or "invalid value" in (result.stderr or "")
+                                    or "unexpected argument" in (result.stderr or "")
                                     or "expected one of" in (result.stderr or "")):
         cmd_fallback = ["codex", "exec"]
         if model and model.strip():
@@ -1037,6 +1044,8 @@ OLLAMA_LIBRARY = [
 # Anthropic API access requires the key + tier).
 ANTHROPIC_MODELS = [
     "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-fable-5",
     "claude-sonnet-4-6",
     "claude-haiku-4-5",
 ]

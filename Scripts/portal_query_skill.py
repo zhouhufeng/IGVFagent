@@ -286,15 +286,54 @@ def _request(url: str, *, accept: str | None = None,
         return 0, msg, "text/plain"
 
 
+def _snake_collection(camel: str) -> str:
+    """CamelCase ItemType → snake-case collection path segment
+    (e.g. ``AnalysisSet`` → ``analysis-sets``)."""
+    import re
+    snake = re.sub(r"(?<!^)(?=[A-Z])", "-", camel).lower()
+    return snake if snake.endswith("s") else snake + "s"
+
+
+def _filter_error_hint(item_types: list[str] | None,
+                        field_filters_spec: str | None) -> str | None:
+    """Build an actionable hint for a 400/404 on a *filtered* query.
+
+    The IGVF Portal returns an opaque 404 when a ``--field-filters`` key is
+    not a valid field for the queried type. Rather than leave the agent to
+    guess-and-check (the failure mode this addresses), point it at the two
+    ways to discover valid fields in one call each.
+    """
+    if not field_filters_spec:
+        return None
+    keys = [c.split("!=", 1)[0].split("=", 1)[0].strip()
+            for c in field_filters_spec.split(";") if c.strip()]
+    types_str = ",".join(item_types) if item_types else "<Type>"
+    coll = _snake_collection(item_types[0]) if item_types else "<collection>"
+    return (
+        "Hint: a 400/404 on a filtered query usually means a --field-filters "
+        f"key is not a valid field for type '{types_str}', or its value does "
+        "not match any indexed term (the IGVF Portal returns 404 for a "
+        f"zero-result filtered search). Filter keys sent: "
+        f"{', '.join(keys) or '(none)'}. To find the correct field AND value, "
+        f"run `portal facets --type {types_str}` with NO --field-filters to "
+        f"see the facet field names, then `portal facets --type {types_str} "
+        "--field <name>` to list every exact value of one facet; or "
+        f"`portal endpoint-params {coll}` for the full search-field map."
+    )
+
+
 def _ensure_json(status: int, content: bytes, ct: str, *,
-                  context: str) -> Any:
+                  context: str, hint: str | None = None) -> Any:
     if status < 200 or status >= 300:
         try:
             err = json.loads(content)
             detail = err.get("description") or err.get("detail") or str(err)
         except Exception:
             detail = content[:300].decode(errors="replace")
-        raise SystemExit(f"{context}: HTTP {status}: {detail}")
+        msg = f"{context}: HTTP {status}: {detail}"
+        if hint and status in (400, 404):
+            msg += f"\n{hint}"
+        raise SystemExit(msg)
     if "json" not in ct:
         raise SystemExit(f"{context}: expected JSON, got {ct!r}")
     return json.loads(content)
@@ -392,7 +431,8 @@ def cmd_search(args: argparse.Namespace) -> int:
         sort=sort, frame=args.frame,
     )
     status, content, ct = _request(url, accept="application/json")
-    data = _ensure_json(status, content, ct, context="portal search")
+    data = _ensure_json(status, content, ct, context="portal search",
+                        hint=_filter_error_hint(item_types, args.field_filters))
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_search_{safe_label(args.label or 'q')}"
     out_path = _write_response("search", content, ext="json", out_dir=out_dir)
     hits = data.get("@graph", []) or []
@@ -424,7 +464,8 @@ def cmd_facets(args: argparse.Namespace) -> int:
         limit=0,
     )
     status, content, ct = _request(url, accept="application/json")
-    data = _ensure_json(status, content, ct, context="portal facets")
+    data = _ensure_json(status, content, ct, context="portal facets",
+                        hint=_filter_error_hint(item_types, args.field_filters))
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_facets_{safe_label(args.label or 'q')}"
     out_path = _write_response("facets", content, ext="json", out_dir=out_dir)
     facets = data.get("facets", []) or []
@@ -433,6 +474,38 @@ def cmd_facets(args: argparse.Namespace) -> int:
     print(f"Facet groups:         {len(facets)}")
     print(f"Saved JSON:           {out_path}")
     print()
+
+    # --field: dump EVERY value of one facet, not the top-5 preview. This is
+    # how you discover the exact filter term for a rare value (e.g. the
+    # content_type used by rE2G outputs) in a single call instead of
+    # guess-and-check against the API.
+    if getattr(args, "field", None):
+        want = args.field.strip().lower()
+        matches = [
+            f for f in facets
+            if (f.get("field") or "").lower() == want
+            or (f.get("title") or "").lower() == want
+        ] or [
+            f for f in facets
+            if want in (f.get("field") or "").lower()
+            or want in (f.get("title") or "").lower()
+        ]
+        if not matches:
+            print(f"No facet field matched {args.field!r}. Available fields:")
+            for f in facets:
+                print(f"  {f.get('field', '?')}"
+                      f"  (title: {f.get('title', '?')},"
+                      f" {len(f.get('terms', []) or [])} values)")
+            return 1
+        for f in matches:
+            terms = sorted((f.get("terms", []) or []),
+                           key=lambda t: t.get("doc_count", 0), reverse=True)
+            print(f"  {f.get('title') or f.get('field')} "
+                  f"[field={f.get('field')}]  ({len(terms)} values)")
+            for t in terms:
+                print(f"     {t.get('key', '?')}={t.get('doc_count', 0)}")
+        return 0
+
     for f in facets[:12]:
         title = f.get("title") or f.get("field")
         terms = f.get("terms", []) or []
@@ -444,7 +517,8 @@ def cmd_facets(args: argparse.Namespace) -> int:
         if rows:
             print(f"     {rows}")
     if len(facets) > 12:
-        print(f"  ... +{len(facets) - 12} more facet groups in JSON.")
+        print(f"  ... +{len(facets) - 12} more facet groups in JSON. "
+              "Use --field <name> to list every value of one facet.")
     return 0
 
 
@@ -466,7 +540,11 @@ def cmd_report(args: argparse.Namespace) -> int:
     # Strip the redundant format=json the helper adds (we set format_json=False)
     status, content, ct = _request(url, accept="text/tab-separated-values")
     if status < 200 or status >= 300:
-        raise SystemExit(f"portal report: HTTP {status}: {content[:200]!r}")
+        msg = f"portal report: HTTP {status}: {content[:200]!r}"
+        hint = _filter_error_hint(item_types, args.field_filters)
+        if hint and status in (400, 404):
+            msg += f"\n{hint}"
+        raise SystemExit(msg)
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_report_{safe_label(args.label or item_types[0])}"
     out_path = _write_response(
         "report", content, ext="tsv", out_dir=out_dir)
@@ -514,8 +592,11 @@ def cmd_batch_download(args: argparse.Namespace) -> int:
     )
     status, content, ct = _request(url, accept="text/plain")
     if status < 200 or status >= 300:
-        raise SystemExit(
-            f"portal batch-download: HTTP {status}: {content[:200]!r}")
+        msg = f"portal batch-download: HTTP {status}: {content[:200]!r}"
+        hint = _filter_error_hint(item_types, args.field_filters)
+        if hint and status in (400, 404):
+            msg += f"\n{hint}"
+        raise SystemExit(msg)
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_batchdl_{safe_label(args.label or item_types[0])}"
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = out_dir / "batch_download.txt"
@@ -768,6 +849,12 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("facets", help="Facets-only (limit=0) call.")
     _add_filter_args(p)
+    p.add_argument("--field", default=None,
+                    help="List EVERY value of this one facet field (e.g. "
+                         "'content_type') instead of the top-5 preview of "
+                         "each group. Matches a facet by field or title "
+                         "(case-insensitive, substring); lists available "
+                         "fields if none match.")
     p.set_defaults(func=cmd_facets)
 
     p = sub.add_parser("report", help="`/report.tsv` export.")

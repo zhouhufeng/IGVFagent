@@ -2755,19 +2755,28 @@ _TOOLS: "list[Tool]" = [
         "ids, taxa, sample terms, perturbation modality, file formats, "
         "etc.). USE THIS to summarise what IGVF has across a slice of "
         "data (e.g. 'how many of each assay class for human putamen "
-        "tissue?').",
+        "tissue?'). Set `field` to the name of ONE facet (e.g. "
+        "'content_type') to dump EVERY value of that facet with counts "
+        "instead of the top-5 preview — the reliable way to discover the "
+        "exact filter term for a rare value in a single call, rather than "
+        "guessing field_filters and getting 404s.",
         {
             "type": "object",
             "properties": {
                 "type":          {**_S_STRING},
                 "query":         {**_S_STRING},
                 "field_filters": {**_S_STRING},
+                "field":         {**_S_STRING, "description":
+                    "List every value of this one facet field (e.g. "
+                    "'content_type', 'assay_titles'); lists available "
+                    "fields if the name does not match."},
                 "label":         {**_S_STRING},
             },
         },
         cli=["portal", "facets"],
         flag_map={"type": "--type", "query": "--query",
-                   "field_filters": "--field-filters", "label": "--label"},
+                   "field_filters": "--field-filters", "field": "--field",
+                   "label": "--label"},
     ),
     _T(
         "portal_report",

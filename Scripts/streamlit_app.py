@@ -341,6 +341,8 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
     _CLAUDE_CLI_MODELS = (
         "claude-opus-4-8",
         "claude-opus-4-7",
+        "claude-sonnet-5",
+        "claude-fable-5",
         "claude-sonnet-4-6",
         "claude-haiku-4-5",
     )

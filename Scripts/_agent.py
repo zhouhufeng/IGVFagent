@@ -225,6 +225,25 @@ def _emit(cb: Optional[Callable[[AgentEvent], None]], kind: str,
         logger.warning("callback failure on %s: %s", kind, e)
 
 
+def _format_refusal(model: str, refused: bool = True) -> str:
+    """Actionable message when the model returns a safety refusal or an
+    empty non-answer on the first step (no tools run, nothing produced)."""
+    what = ("declined the request (safety-classifier refusal)"
+            if refused else "returned an empty response")
+    return (
+        f"**The model `{model or '(default)'}` {what} before any tools ran.**\n\n"
+        "This is a known failure mode with **Claude Fable 5**: its additional "
+        "dual-use safety layer false-positives on IGVFagent's genomics-agent "
+        "system prompt and refuses even benign requests (the refusal is "
+        "probabilistic, so it is not fixable by rewording the prompt).\n\n"
+        "**Use a model without that extra layer** — recommended for all "
+        "IGVFagent work:\n"
+        "- `claude-sonnet-4-5` (default fallback) or `claude-opus-4-8`\n"
+        "- set `IGVF_LLM_MODEL=claude-sonnet-4-5`, pick Sonnet/Opus in the UI "
+        "sidebar, or set `IGVF_LLM_FALLBACK_MODEL` to auto-retry on refusal.\n"
+    )
+
+
 def _format_runtime_error(err_msg: str, backend: str, model: str) -> str:
     """Turn a raw exception string into an actionable Markdown report.
 
@@ -495,6 +514,7 @@ def run(
     tool_calls_made = 0
     chosen_backend = backend or os.environ.get("IGVF_LLM_BACKEND") or ""
     chosen_model = model or ""
+    refusal_fallback_used = False
 
     _emit(callback, "run_start", {
         "backend": chosen_backend or "(auto)", "model": chosen_model or "(auto)",
@@ -597,6 +617,39 @@ def run(
             "usage": msg.usage,
         })
 
+        # A non-answer from the model: either an explicit safety refusal
+        # (Fable 5's dual-use classifier false-positives on the genomics
+        # system prompt → stop_reason "refusal", empty content) or an empty
+        # first response with no tools called. Previously this fell straight
+        # into the "no tool_calls → complete" branch below and was reported
+        # as a successful run with an empty answer, hiding the real cause.
+        # Fall back once to a reliable model, then surface a clear message.
+        refused = msg.stop_reason == "refusal"
+        empty_start = (iters == 1 and tool_calls_made == 0
+                       and not msg.tool_calls
+                       and not (msg.content or "").strip())
+        if refused or empty_start:
+            fallback = os.environ.get("IGVF_LLM_FALLBACK_MODEL",
+                                      "claude-sonnet-4-5")
+            can_fallback = (
+                not refusal_fallback_used
+                and (chosen_backend or backend) == "anthropic"
+                and (model or chosen_model or "") != fallback
+            )
+            _emit(callback, "refusal", {
+                "iteration": iters,
+                "model": chosen_model or model,
+                "stop_reason": msg.stop_reason,
+                "falling_back_to": fallback if can_fallback else None,
+            })
+            if can_fallback:
+                refusal_fallback_used = True
+                model = fallback          # retry this step on the reliable model
+                continue
+            final_answer = _format_refusal(chosen_model or model or "", refused)
+            stop_reason = "refusal"
+            break
+
         if not msg.tool_calls:
             final_answer = msg.content or ""
             stop_reason = "complete"
@@ -654,8 +707,56 @@ def run(
                 "content": tool_summary,
             })
 
-    # Truncated final answer if we ran out of iterations
+    # Final-iteration wrap-up. The loop exhausted its tool-call budget while
+    # the model was still calling tools, so nothing was ever synthesized. Make
+    # one more LLM call with tools DISABLED and an explicit instruction to
+    # answer from the evidence already gathered — this rescues the findings
+    # (counts, IDs, file paths) instead of discarding them behind a boilerplate
+    # "ran out of iterations" message.
     if not final_answer and stop_reason == "max_iterations":
+        wrap_prompt = (
+            "You have reached the tool-call budget for this task and cannot "
+            "call any more tools. Do NOT request any tools. Using ONLY the "
+            "information already gathered above, write the best final answer "
+            "you can to the user's original request: summarize what you "
+            "found, state concrete results (counts, IDs, file paths, key "
+            "facts), say clearly what remains incomplete, and give the user "
+            "concrete next steps to finish the task."
+        )
+        _emit(callback, "wrap_up_start", {"iteration": iters})
+        try:
+            wrap_msg = llm.chat(
+                messages=[{"role": "system", "content": sys_prompt}, *messages,
+                          {"role": "user", "content": wrap_prompt}],
+                backend=backend, model=model, tools=None,
+                max_tokens=max_tokens, temperature=temperature, seed=seed,
+            )
+        except Exception as e:  # noqa: BLE001 — best-effort rescue
+            _emit(callback, "error",
+                  {"where": "llm.chat.wrap_up", "error": str(e)})
+            wrap_msg = None
+        if wrap_msg is not None and (wrap_msg.content or "").strip():
+            final_answer = wrap_msg.content
+            stop_reason = "max_iterations_wrapped"
+            chosen_backend = wrap_msg.backend
+            chosen_model = wrap_msg.model
+            transcript.append({"role": "user", "content": wrap_prompt,
+                               "wrap_up": True})
+            transcript.append({
+                "role": "assistant", "content": wrap_msg.content,
+                "stop_reason": wrap_msg.stop_reason,
+                "backend": wrap_msg.backend, "model": wrap_msg.model,
+                "wrap_up": True,
+            })
+            _emit(callback, "wrap_up_end", {
+                "content": wrap_msg.content,
+                "stop_reason": wrap_msg.stop_reason,
+                "usage": wrap_msg.usage,
+            })
+
+    # Truncated final answer if the wrap-up call also produced nothing.
+    if not final_answer and stop_reason in ("max_iterations",
+                                            "max_iterations_wrapped"):
         final_answer = (
             "_The agent ran out of iterations without producing a final "
             "answer. See the transcript and any artefacts written so far._"

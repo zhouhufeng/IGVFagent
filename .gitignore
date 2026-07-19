@@ -114,3 +114,6 @@ Scripts/_make_overview_slides.py
 # exclude per-machine settings + the parallel-worktree directory.
 .claude/settings.local.json
 .claude/worktrees/
+
+# transient run logs (Claude Code sessions)
+scratch_*.log

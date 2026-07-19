@@ -236,7 +236,7 @@ def run_playbook(
                 messages, backend=backend, model=model,
                 tools=None, max_tokens=max_tokens, temperature=temperature,
             )
-            final_answer = (resp.get("content") or "").strip()
+            final_answer = (resp.content or "").strip()
             synth_used = True
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("synthesis skipped (%s)", exc)
