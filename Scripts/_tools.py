@@ -829,6 +829,35 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "sce2g_kg_pull",
+        "BULK-ingest scE2G element→gene regulatory linkages from the IGVF "
+        "Catalog into the local KG as `regulates` edges. Deterministic, "
+        "resumable, runs to completion over the whole genome regardless of "
+        "size (adaptive region tiling around the API's 500-row cap) with a "
+        "progress heartbeat. USE THIS for 'download/integrate all scE2G "
+        "linkages' — one call, not a per-gene loop. Scope with `region` "
+        "(default 'all' = whole genome) or `chromosomes`.",
+        {
+            "type": "object",
+            "properties": {
+                "region":      {**_S_STRING, "description":
+                    "'all' (whole genome, default), a chromosome ('chr19'), "
+                    "or a locus ('chr19:44900000-45000000')."},
+                "chromosomes": {**_S_STRING, "description":
+                    "Comma-separated chroms to restrict 'all' (e.g. '19,20,X')."},
+                "min_window":  {**_S_INTEGER, "default": 20000},
+                "heartbeat":   {**_S_INTEGER, "default": 25},
+                "max_windows": {**_S_INTEGER, "default": 0,
+                    "description": "Stop after N windows (0 = unlimited)."},
+            },
+        },
+        cli=["sce2g-kg", "pull"],
+        flag_map={"region": "--region", "chromosomes": "--chromosomes",
+                   "min_window": "--min-window", "heartbeat": "--heartbeat",
+                   "max_windows": "--max-windows"},
+    ),
+
+    _T(
         "portal_kg_query",
         "Query the local KG by gene / tissue / node-id.",
         {

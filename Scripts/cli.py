@@ -62,6 +62,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "IGVF Knowledge Graph multi-hop traversal"),
     "portal-kg":        ("igvfagent.portal_to_kg_skill",
                           "Portal → local Knowledge Graph ETL"),
+    "sce2g-kg":         ("igvfagent.sce2g_kg_skill",
+                          "scE2G element→gene linkages → local KG (bulk, "
+                          "adaptive region tiling, resumable, runs to "
+                          "completion regardless of size)"),
     "kg-mirror":        ("igvfagent.kg_mirror_skill",
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",

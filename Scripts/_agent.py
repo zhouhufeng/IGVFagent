@@ -515,6 +515,13 @@ def run(
     chosen_backend = backend or os.environ.get("IGVF_LLM_BACKEND") or ""
     chosen_model = model or ""
     refusal_fallback_used = False
+    # No-progress detection: bail out (instead of burning the whole iteration
+    # budget) when the model repeats the identical tool-call set, or every tool
+    # call fails, for this many consecutive iterations.
+    stuck_limit = max(2, int(os.environ.get("IGVF_AGENT_STUCK_LIMIT", "3")))
+    last_sig = None
+    repeat_count = 0
+    consecutive_allfail = 0
 
     _emit(callback, "run_start", {
         "backend": chosen_backend or "(auto)", "model": chosen_model or "(auto)",
@@ -663,6 +670,14 @@ def run(
                             for tc in msg.tool_calls],
         })
 
+        # Signature of this iteration's requested work, for no-progress
+        # detection (identical repeated tool-call sets = spinning).
+        iter_sig = tuple(sorted(
+            (tc.name, repr(sorted((tc.arguments or {}).items())))
+            for tc in msg.tool_calls))
+        iter_n = 0
+        iter_fail = 0
+
         # Execute every tool the model asked for.
         for tc in msg.tool_calls:
             _emit(callback, "tool_call_start", {
@@ -685,6 +700,9 @@ def run(
                     "stdout": "", "stderr": str(e),
                     "artifacts": {},
                 }
+            iter_n += 1
+            if int(result.get("exit_code") or 0) != 0:
+                iter_fail += 1
             for paths in (result.get("artifacts") or {}).values():
                 artefacts.extend(paths)
             _emit(callback, "tool_call_end", {
@@ -707,13 +725,35 @@ def run(
                 "content": tool_summary,
             })
 
+        # No-progress detection: stop early (rather than burning the whole
+        # iteration budget) if the model keeps issuing the identical tool-call
+        # set, or every tool call fails, for `stuck_limit` iterations in a row.
+        if iter_sig == last_sig:
+            repeat_count += 1
+        else:
+            repeat_count = 1
+            last_sig = iter_sig
+        consecutive_allfail = (consecutive_allfail + 1
+                               if iter_n and iter_fail == iter_n else 0)
+        if repeat_count >= stuck_limit or consecutive_allfail >= stuck_limit:
+            why = ("the model repeated the same tool call(s) without making "
+                   "progress" if repeat_count >= stuck_limit
+                   else "every tool call failed for several iterations")
+            _emit(callback, "stuck", {
+                "iteration": iters, "reason": why,
+                "repeat_count": repeat_count,
+                "consecutive_allfail": consecutive_allfail,
+            })
+            stop_reason = "stuck"
+            break
+
     # Final-iteration wrap-up. The loop exhausted its tool-call budget while
     # the model was still calling tools, so nothing was ever synthesized. Make
     # one more LLM call with tools DISABLED and an explicit instruction to
     # answer from the evidence already gathered — this rescues the findings
     # (counts, IDs, file paths) instead of discarding them behind a boilerplate
     # "ran out of iterations" message.
-    if not final_answer and stop_reason == "max_iterations":
+    if not final_answer and stop_reason in ("max_iterations", "stuck"):
         wrap_prompt = (
             "You have reached the tool-call budget for this task and cannot "
             "call any more tools. Do NOT request any tools. Using ONLY the "
@@ -756,10 +796,11 @@ def run(
 
     # Truncated final answer if the wrap-up call also produced nothing.
     if not final_answer and stop_reason in ("max_iterations",
-                                            "max_iterations_wrapped"):
+                                            "max_iterations_wrapped", "stuck"):
         final_answer = (
-            "_The agent ran out of iterations without producing a final "
-            "answer. See the transcript and any artefacts written so far._"
+            "_The agent stopped without producing a final answer "
+            "(ran out of iterations, or was not making progress). See the "
+            "transcript and any artefacts written so far._"
         )
     elif not final_answer and stop_reason == "error":
         final_answer = (
