@@ -124,3 +124,14 @@ python3 Scripts/crispri_data_skills.py pull --source catalog --limit 25
 python3 Scripts/crispri_data_skills.py analyze-local --input Data/Input/VariantList/example_variants.csv --label my_locus_crispri
 python3 Scripts/crispri_data_skills.py write-playbook
 ```
+
+## Functional-assay calibration → ACMG/AMP evidence
+
+```bash
+python3 Scripts/excalibr_skill.py thresholds --prior 0.1
+python3 Scripts/excalibr_skill.py prepare --pillar MSH2_Jia_2021.csv --name MSH2_Jia_2021
+python3 Scripts/excalibr_skill.py run --pillar MSH2_Jia_2021.csv --name MSH2_Jia_2021 --components 2 3 --n-bootstraps 1000 --fits-per-bootstrap 100
+python3 Scripts/excalibr_skill.py assign --calibration MSH2_Jia_2021_2c_calibration.json --scores my_variants.csv
+python3 Scripts/excalibr_skill.py selftest
+python3 Scripts/excalibr_skill.py write-playbook
+```

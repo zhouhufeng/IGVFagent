@@ -3256,6 +3256,122 @@ _TOOLS: "list[Tool]" = [
                    "label": "--label", "top_k": "--top-k"},
     ),
 
+    _T(
+        "calibrate_thresholds",
+        "★ ACMG/AMP EVIDENCE THRESHOLDS FROM A PRIOR ★. Solves Tavtigian's "
+        "constant C (O_PVSt) for a given prior probability of pathogenicity "
+        "and prints the likelihood-ratio (LR+) threshold for every evidence "
+        "strength — supporting / moderate / strong / very strong, on both the "
+        "PS3 (pathogenic) and BS3 (benign) sides. Instant, no data or fitting "
+        "needed. USE THIS to answer 'how strong must an assay LR+ be to count "
+        "as PS3 moderate?' or to sanity-check a published calibration.",
+        {
+            "type": "object",
+            "properties": {
+                "prior": {"type": "number", "description":
+                    "P(pathogenic) in the reference population, e.g. 0.1 for a "
+                    "well-studied disease gene, 0.01 for a low-prior gene."},
+                "point_values": {**_S_STRING, "description":
+                    "Comma list of evidence point values (default 1..8)."},
+            },
+            "required": ["prior"],
+        },
+        cli=["calibrate", "thresholds"],
+        flag_map={"prior": "--prior", "point_values": "--point-values"},
+    ),
+
+    _T(
+        "calibrate_run",
+        "★ CALIBRATE A FUNCTIONAL ASSAY TO ACMG/AMP EVIDENCE ★. Full "
+        "exCALIBR chain (Zeiberg et al. 2025) on a variant-effect scoreset: "
+        "bootstrap constrained skew-normal mixture EM over the P/LP, B/LB, "
+        "gnomAD-population and synonymous samples → EM prior → LR+(score) → "
+        "Tavtigian C → the score window that earns each evidence strength "
+        "(PS3 / BS3 supporting → very strong), plus 2c-vs-3c model selection, "
+        "a calibration JSON and a figure. Input is either an IGVF / "
+        "Pillar-format scoreset CSV (`pillar`) or a score/sample table from "
+        "calibrate prepare (`table`). LONG JOB: runs to completion in one "
+        "call with a progress heartbeat and a resumable ledger — lower "
+        "`n_bootstraps` / `fits_per_bootstrap` for a quick look (defaults "
+        "1000 x 100 are the paper's settings).",
+        {
+            "type": "object",
+            "properties": {
+                "pillar": {**_S_STRING, "description":
+                    "Path to an IGVF / Pillar-format scoreset CSV (carries "
+                    "auth_reported_score + ClinVar + gnomAD + SpliceAI)."},
+                "table": {**_S_STRING, "description":
+                    "Path to a score/sample CSV (from calibrate prepare)."},
+                "name": {**_S_STRING, "description":
+                    "Dataset name; also selects one Dataset from a "
+                    "multi-dataset Pillar table."},
+                "n_bootstraps": {**_S_INTEGER, "default": 1000},
+                "fits_per_bootstrap": {**_S_INTEGER, "default": 100},
+                "benign_method": {**_S_STRING, "description":
+                    "'avg' (benign+synonymous, default), 'benign', "
+                    "'synonymous'."},
+                "jobs": {**_S_INTEGER, "default": -1,
+                          "description": "-1 = all CPUs."},
+            },
+        },
+        cli=["calibrate", "run"],
+        flag_map={"pillar": "--pillar", "table": "--table", "name": "--name",
+                   "n_bootstraps": "--n-bootstraps",
+                   "fits_per_bootstrap": "--fits-per-bootstrap",
+                   "benign_method": "--benign-method", "jobs": "--jobs"},
+    ),
+
+    _T(
+        "calibrate_assign",
+        "Apply an existing calibration to a table of assay scores: each "
+        "score gets its evidence point value and the ACMG/AMP criterion + "
+        "strength it supports (e.g. 'PS3 moderate', 'BS3 strong', 'no "
+        "evidence'). USE THIS after calibrate_run, or with a published "
+        "calibration JSON, to interpret new variants.",
+        {
+            "type": "object",
+            "properties": {
+                "calibration": {**_S_STRING, "description":
+                    "Path to a *_calibration.json from calibrate run."},
+                "scores": {**_S_STRING, "description":
+                    "CSV/TSV with a score column (plus any ID columns)."},
+            },
+            "required": ["calibration", "scores"],
+        },
+        cli=["calibrate", "assign"],
+        flag_map={"calibration": "--calibration", "scores": "--scores"},
+    ),
+
+    _T(
+        "calibrate_prepare",
+        "Build the score/sample input table a calibration needs. Labels "
+        "variants into the four calibration samples — 0 P/LP and 1 B/LB from "
+        "ClinVar (with a review-star quality gate), 2 population from gnomAD "
+        "membership, 3 synonymous — from an IGVF / Pillar-format scoreset "
+        "(`pillar`), a plain score/sample CSV (`table`), or a `mavedb "
+        "map-scoreset` output joined to ClinVar (`mapped` + `clinvar_tsv`). "
+        "Reports the per-sample counts so you can see whether the scoreset "
+        "has enough labelled variants to calibrate at all.",
+        {
+            "type": "object",
+            "properties": {
+                "pillar": {**_S_STRING},
+                "table": {**_S_STRING},
+                "mapped": {**_S_STRING, "description":
+                    "mavedb map-scoreset output with chr/pos/ref/alt + score."},
+                "clinvar_tsv": {**_S_STRING, "description":
+                    "ClinVar variant_summary.txt.gz (used with `mapped`)."},
+                "name": {**_S_STRING},
+                "min_clinvar_star": {**_S_INTEGER, "default": 1},
+            },
+        },
+        cli=["calibrate", "prepare"],
+        flag_map={"pillar": "--pillar", "table": "--table",
+                   "mapped": "--mapped", "clinvar_tsv": "--clinvar-tsv",
+                   "name": "--name",
+                   "min_clinvar_star": "--min-clinvar-star"},
+    ),
+
 ]
 
 

@@ -130,6 +130,14 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "variance-component d-statistic (GWAS vs matched "
                           "control genes). Subcommands: estimate. Runs under the "
                           "scEPS env (scanpy/anndata/statsmodels)."),
+    "calibrate":        ("igvfagent.excalibr_skill",
+                          "Functional-assay calibration to ACMG/AMP evidence — "
+                          "clean-room reimpl of rosstewart/exCALIBR (Zeiberg "
+                          "et al. bioRxiv 2025). Bootstrap constrained "
+                          "skew-normal mixture EM + Bayesian (Tavtigian) "
+                          "calibration turns MAVE / VAMP-seq / SGE scores into "
+                          "PS3 / BS3 evidence strengths. Subcommands: "
+                          "thresholds, prepare, run, assign, selftest."),
     "open4gene":        ("igvfagent.open4gene_skill",
                           "Open4Gene peak-to-gene linkage — clean-room reimpl of "
                           "hbliu/Open4Gene (Liu et al. Science 2025). Hurdle model "

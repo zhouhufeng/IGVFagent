@@ -96,6 +96,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [ChIP-Atlas reprocessed peak archive](#chip-atlas-reprocessed-peak-archive)
   - [MaveDB mapping (incl. SGE cDNA path)](#mavedb-mapping-incl-sge-cdna-path)
   - [Synapse / Sage Bionetworks retrieval](#synapse--sage-bionetworks-retrieval)
+  - [Assay calibration → ACMG/AMP evidence (exCALIBR)](#assay-calibration--acmgamp-evidence-excalibr)
 - [Reproducibility benchmark suite](#reproducibility-benchmark-suite)
 - [Deployment with LLM agents](#deployment-with-llm-agents)
   - [Codex API](#codex-api)
@@ -135,6 +136,11 @@ In short — **two ways to drive every skill, one shared contract**:
 - **Synapse / Sage Bionetworks retrieval** — anonymous metadata walk + search
   and PAT-authenticated download for controlled-access deposits (PsychENCODE,
   AMP-AD/PD, ROSMAP) that IGVF distributes off-Portal.
+- **Functional-assay calibration to ACMG/AMP evidence** — bootstrap constrained
+  skew-normal mixture fitting + Bayesian (Tavtigian) calibration turns MAVE /
+  VAMP-seq / SGE / cell-fitness scores into **PS3 / BS3 evidence strengths**
+  (supporting → very strong) with the score window for each, so an assay score
+  can be used directly in clinical variant classification.
 - **Reproducibility benchmark suite** — nineteen recent Nature / Cell / Science /
   Nat Genet / Nat Methods / Genome Biol papers reproduced directly from public
   data, each scored against machine-readable ground-truth checks. Includes
@@ -223,6 +229,8 @@ IGVFagent/
 │   ├── mavedb_mapping_skill.py         ← MaveDB → genomic coords (+ SGE cDNA path)
 │   ├── synapse_skill.py                ← Synapse / Sage Bionetworks retrieval
 │   │                                       (anonymous walk/search + PAT download)
+│   ├── excalibr_skill.py               ← assay score → ACMG/AMP PS3/BS3 evidence
+│   │                                       (clean-room port of rosstewart/exCALIBR)
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
 │
@@ -1652,6 +1660,64 @@ igvfagent synapse search   --query "lentiMPRA cortex" --limit 20
 igvfagent synapse download --syn synXXXXXXXX --out-dir Data/Input   # needs PAT
 ```
 
+### Assay calibration → ACMG/AMP evidence (exCALIBR)
+
+Turn a raw multiplexed-assay score into a **clinically usable evidence
+strength**. This is the last mile of the MAVE chain: `mavedb map-scoreset`
+gives a variant genomic coordinates, and `calibrate` says how much a given
+assay score is actually worth as PS3 / BS3 evidence — supporting, moderate,
+strong or very strong — instead of leaving the reader with a bare number.
+
+Clean-room reimplementation of [exCALIBR](https://github.com/rosstewart/exCALIBR)
+(MIT), which implements the gene-based calibration method of Zeiberg et al.
+(*bioRxiv* 2025.04.29.651326) on top of Tavtigian's Bayesian reading of the
+ACMG/AMP guidelines. The chain: label variants into P/LP, B/LB, gnomAD-population
+and synonymous samples → fit a **constrained skew-normal mixture** by EM (shared
+components, per-sample weights, monotone density-ratio constraint enforced by
+binary search inside every M-step) → **bootstrap** it → EM-estimate the prior
+P(pathogenic | population) → build LR⁺(score) → solve for **Tavtigian's C** →
+emit the score window that earns each evidence strength. Playbook:
+[`Docs/Skills/ASSAY_CALIBRATION_SKILL.md`](Docs/Skills/ASSAY_CALIBRATION_SKILL.md).
+
+```bash
+# 0) Evidence thresholds alone — instant, no data needed
+igvfagent calibrate thresholds --prior 0.1
+#    -> C = 348; LR+ 2.08 (supporting) / 4.32 (moderate) / 18.7 (strong) / 348 (very strong)
+
+# 1) Label a scoreset into the four calibration samples
+igvfagent calibrate prepare --pillar MSH2_Jia_2021.csv --name MSH2_Jia_2021
+#    or from IGVFagent's own MAVE chain, joined to a ClinVar release:
+igvfagent calibrate prepare --mapped Docs/MaveDB/<run>/mapped.tsv \
+    --clinvar-tsv variant_summary.txt.gz --gnomad-tsv gnomad_sites.tsv
+
+# 2) Calibrate (long job: progress heartbeat + resumable ledger,
+#    2c-vs-3c model selection, calibration JSON + figure)
+igvfagent calibrate run --pillar MSH2_Jia_2021.csv --name MSH2_Jia_2021 \
+    --components 2 3 --n-bootstraps 1000 --fits-per-bootstrap 100
+igvfagent calibrate run --table scores.csv --name MSH2 --resume   # continue
+
+# 3) Interpret new variants with the calibration
+igvfagent calibrate assign --calibration MSH2_Jia_2021_2c_calibration.json \
+    --scores my_variants.csv
+#    -> score, evidence_points, acmg_evidence ("PS3 moderate", "BS3 strong", …)
+
+# 4) Validate the port on this machine (~1 min)
+igvfagent calibrate selftest
+```
+
+Every numeric component of the default path was checked against the upstream
+implementation:
+Tavtigian's C matches over a 12-prior grid (including the `original` and
+`strict` rule variants), the constrained-EM iterates are **bit-identical** for
+60 consecutive steps at 2 and 3 components, and the prior EM, LR⁺ → point-range
+conversion, and paired model-selection test all agree to machine precision. The
+Pillar/IGVF-format loader reproduces upstream's variant labelling exactly
+(identical variant-ID sets per sample across ClinVar releases and star
+thresholds). On the MSH2 (Jia 2021) example both implementations select the same
+model and the same set of evidence strengths, with thresholds inside ~1–2 % of
+the score range at equal bootstrap budgets. Unlike upstream the run is fully
+seeded, so a rerun reproduces the calibration exactly.
+
 ## Reproducibility benchmark suite
 
 IGVFagent ships a **21-paper reproducibility benchmark suite** in
@@ -1837,6 +1903,7 @@ maintainers for releasing their code openly.
 | **Synapse / Sage Bionetworks retrieval** (`synapse entity / children / walk / search / download / write-playbook`) | [Sage-Bionetworks/synapsePythonClient](https://github.com/Sage-Bionetworks/synapsePythonClient) (Sage Bionetworks, Apache-2.0) | clean-room reimpl over the public REST API (`rest-docs.synapse.org`); pure `urllib` + `json`, no `synapseclient` runtime dep | Anonymous-read of entity metadata + annotations + child-listing for projects/folders; depth-capped recursive `walk`; full-text `search`; PAT-authenticated (`SYNAPSE_AUTH_TOKEN`) file download via the `fileHandle` → pre-signed-URL flow for controlled-access deposits (PsychENCODE, AMP-AD/PD, ROSMAP, BrainSpan). Data stays under upstream consortium DUAs — we only fetch with the user's own token, never redistribute. |
 | **Open4Gene** peak→gene linkage (`open4gene link`) | [hbliu/Open4Gene](https://github.com/hbliu/Open4Gene) (Liu et al. *Science* 2025, PMID 39913582; **no LICENSE**) | clean-room Python reimpl — no source copied; upstream is R/`pscl::hurdle` | Two-component hurdle model per peak-gene pair: logistic zero component `I(RNA>0) ~ ATAC + covariates` + zero-truncated negative-binomial count component `RNA|RNA>0 ~ ATAC + covariates`, via statsmodels `Logit` + `TruncatedLFNegativeBinomialP`; per-cell-type / All / Each modes; Spearman; AIC/BIC. **Validated vs the R `pscl::hurdle` reference: zero-component β correlation 1.0, max abs Δ 0.0.** |
 | **scEPS** GWAS × single-cell neighborhood d-statistic (`sceps estimate`) | [Genentech/sceps](https://github.com/Genentech/sceps) (Zou/Shi et al. medRxiv 2026; **no LICENSE**) | clean-room Python reimpl — no source copied | Random-walk NAM neighborhood diffusion, per-donor pseudobulk, method-of-moments variance-component model decomposing disease variance into GWAS-gene / mean-expression-matched-control / rest components; per-neighborhood d-statistic (OMEGA_GWAS − OMEGA_CONTROL) with bootstrap disattenuation + delta-method SEs. **Validated vs upstream `test/` fixtures: step size, GWAS-gene count, neighborhood sizes, num-donors, expression variances all match exactly.** |
+| **Functional-assay calibration → ACMG/AMP evidence** (`calibrate thresholds / prepare / run / assign / selftest`) | [rosstewart/exCALIBR](https://github.com/rosstewart/exCALIBR) (R. Stewart, Northeastern; MIT) — implements Zeiberg et al. *bioRxiv* 2025.04.29.651326 | clean-room Python reimpl — no source copied; stdlib + numpy/scipy (joblib and the SLURM job-array generator replaced by `concurrent.futures` + a resumable ledger) | Multi-sample skew-normal mixture (components shared across samples, per-sample mixing weights) fitted by EM in Azzalini's (loc, Δ, Γ) parameterisation with truncated-normal moments; monotone density-ratio constraint between adjacent components enforced by binary search on every parameter update; per-sample bootstrap with best-of-N fit selection on held-out likelihood; Saerens-style EM estimate of the population prior; LR⁺ envelope across bootstraps; Tavtigian C = O_PVSt search and C^(points/8) evidence thresholds; LR⁺ → per-strength score ranges with monotonicity repair; paired Wilcoxon / 5th-percentile 2c-vs-3c model selection; ClinVar-star + gnomAD + SpliceAI variant labelling of IGVF/Pillar-format scoresets. **Validated vs upstream: Tavtigian C identical over a 12-prior grid (plus `original` / `strict` variants); constrained-EM iterates bit-identical for 60 steps at K=2 and K=3; prior EM, point-range conversion and model-selection statistics identical to machine precision; scoreset labelling reproduces upstream's variant-ID sets exactly.** |
 | **figshare** data retrieval (`figshare article / files / download / search`) | [figshare API v2](https://docs.figshare.com) (Zenodo-style research-data deposit) | clean-room, urllib + json only | Resolve an article from numeric id, DOI, article URL, or private `/s/<token>` share link; list files (size + md5); md5-verified downloads (single file or whole article); public full-text article search. The general-purpose counterpart to the `synapse` skill for author-deposited supplementary data. |
 
 ### Methods papers cited in the skills
@@ -1859,6 +1926,10 @@ maintainers for releasing their code openly.
 - **Liberzon A et al. (2015)** "The Molecular Signatures Database (MSigDB) hallmark gene set collection." *Cell Syst* 1:417–425. doi:[10.1016/j.cels.2015.12.004](https://doi.org/10.1016/j.cels.2015.12.004) — MSigDB Hallmark library used in `enrich pathways`.
 - **Kuleshov MV et al. (2016)** "Enrichr: a comprehensive gene set enrichment analysis web server 2016 update." *Nucleic Acids Res* 44:W90–W97. doi:[10.1093/nar/gkw377](https://doi.org/10.1093/nar/gkw377) — Enrichr proxy backing `enrich ora`.
 - **Fang Z, Liu X, Peltz G (2023)** "GSEApy: a comprehensive package for performing gene set enrichment analysis in Python." *Bioinformatics* 39:btac757. doi:[10.1093/bioinformatics/btac757](https://doi.org/10.1093/bioinformatics/btac757) — gseapy library powering `enrich`.
+- **Zeiberg D, Tejura M, McEwen AE, Fayer S, Pejaver V, Rubin AF, Starita LM, Fowler DM, O'Donnell-Luria A, Radivojac P (2025)** "Gene-based calibration of high-throughput functional assays for clinical variant classification." *bioRxiv* 2025.04.29.651326. doi:[10.1101/2025.04.29.651326](https://doi.org/10.1101/2025.04.29.651326) — the calibration method behind `calibrate` (implemented upstream as exCALIBR).
+- **Tavtigian SV et al. (2018)** "Modeling the ACMG/AMP variant classification guidelines as a Bayesian classification framework." *Genetics in Medicine* 20:1054–1060. doi:[10.1038/gim.2017.210](https://doi.org/10.1038/gim.2017.210) — the C = O_PVSt constant and the C^(points/8) evidence-strength ladder used by `calibrate thresholds`.
+- **Brnich SE et al. (2020)** "Recommendations for application of the functional evidence PS3/BS3 criterion using the ACMG/AMP sequence variant interpretation framework." *Genome Medicine* 12:3. doi:[10.1186/s13073-019-0690-2](https://doi.org/10.1186/s13073-019-0690-2) — ClinGen SVI framework for converting assay odds-of-pathogenicity into PS3 / BS3 strengths.
+- **Richards S et al. (2015)** "Standards and guidelines for the interpretation of sequence variants." *Genetics in Medicine* 17:405–424. doi:[10.1038/gim.2015.30](https://doi.org/10.1038/gim.2015.30) — the ACMG/AMP rule set whose combining logic `calibrate` reproduces.
 
 ### License & attribution policy
 
