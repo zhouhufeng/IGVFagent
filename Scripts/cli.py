@@ -70,6 +70,15 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",
                           "Literature retrieval / validation / study design"),
+    "bench":            ("igvfagent.benchmark_skill",
+                          "Paper → reproduction benchmark. Resolve a publication "
+                          "from a title / URL / DOI / PMID / author+journal+year, "
+                          "harvest its Data Availability statement + accessions "
+                          "from the full text, route them onto an IGVFagent "
+                          "analysis chain, and scaffold a runnable "
+                          "Benchmarks/<paper-id>/ that concordance.py scores. "
+                          "Subcommands: resolve, harvest, route, scaffold, run, "
+                          "score, report, pipeline, selftest, list-routes."),
     "mavedb":           ("igvfagent.mavedb_mapping_skill",
                           "MaveDB scoreset → genomic coords (chr/pos/ref/alt)"),
     "encode":           ("igvfagent.encode_pipeline",

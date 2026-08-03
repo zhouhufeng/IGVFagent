@@ -122,13 +122,41 @@ check types:
 | `artefact` | A file (or glob) must exist and be non-empty |
 | `row_count_tsv` | A TSV file's row count must fall in `[min, max]` |
 
+### Confirmed vs unconfirmed checks
+
+A check may additionally carry `"confirmed": false`. Benchmarks scaffolded by
+`igvfagent bench` use this for every number extracted from a paper's prose —
+by regex, or by the optional LLM headline-claim pass. Such a check ships with
+`"path": "TODO_SET_JSON_PATH"` and a `provenance` block quoting the sentence
+it came from.
+
+**Unconfirmed checks are reported but never scored.** They do not count toward
+`n_passed` / `n_total`, and a benchmark whose checks are *all* unconfirmed gets
+status `unreviewed` (icon ⊘) rather than `ok` — a run that has verified nothing
+must never look green. The suite-level Markdown lists them under each paper with
+their source quote.
+
+To promote one into a real reproducibility claim:
+
+1. Run the chain once and open the artefact named by `primary_artefact`.
+2. Find the key holding the comparable quantity; put its dotted path in `path`.
+3. Check the quoted sentence really states that number for that quantity.
+4. Set `"confirmed": true` and tighten `min` / `max` to a defensible tolerance.
+
 Results land in `Benchmarks/results/<ts>_concordance.{json,md}`
 (`results/` is gitignored — regenerated on each scoring run).
 
 A clean `ok` status means every declared check passed; `partial` means
-some passed; `no_run_found` means the scorer couldn't locate the run
-directory (usually: the `run.sh` wasn't executed yet, or the label in
+some passed; `unreviewed` means only unconfirmed checks exist so nothing
+was actually scored; `no_run_found` means the scorer couldn't locate the
+run directory (usually: the `run.sh` wasn't executed yet, or the label in
 `expected.json` doesn't match what `run.sh` actually wrote).
+
+A few skills (`chipatlas`, `perturb-catalog`, `portal get`) accept no
+`--label`, so their run directories are not paper-tagged. Benchmarks on
+those routes set `label` to the skill's own default directory token and
+carry a `label_note` saying so — scoring will pick up the most recent run
+of that skill, whichever paper produced it.
 
 ## 4. Running through the LLM backend
 

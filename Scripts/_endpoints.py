@@ -42,6 +42,11 @@ _DEFAULTS = {
     "semanticscholar": "68747470733a2f2f6170692e73656d616e7469637363686f6c61722e6f72672f67726170682f7631",
     "openalex":        "68747470733a2f2f6170692e6f70656e616c65782e6f7267",
     "crossref":        "68747470733a2f2f6170692e63726f73737265662e6f7267",
+    # Europe PMC REST — the only free, uniform full-text source that covers
+    # both PMC open-access articles and bioRxiv / medRxiv preprints (PPR ids).
+    # Used by ``Scripts/benchmark_skill.py`` to harvest Data Availability
+    # statements and accession numbers out of a paper's own text.
+    "europepmc":       "68747470733a2f2f7777772e6562692e61632e756b2f6575726f7065706d632f77656273657276696365732f72657374",
     "geo_ftp":         "68747470733a2f2f6674702e6e6362692e6e6c6d2e6e69682e676f762f67656f",
     "biogrid":         "68747470733a2f2f646f776e6c6f6164732e74686562696f677269642e6f72672f42696f47524944",
     "intact_ftp":      "68747470733a2f2f6674702e6562692e61632e756b2f7075622f6461746162617365732f696e746163742f63757272656e74",
