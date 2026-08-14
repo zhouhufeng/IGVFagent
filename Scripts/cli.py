@@ -170,10 +170,29 @@ RESERVED: "dict[str, str]" = {}
 # Introspection commands wired in step 2: lists the LLM provider router's
 # registered backends, the tool registry the agent runtime will see, and
 # (step 5) the locally installed Ollama models when the daemon is running.
-INTROSPECTION = ("backends", "tools", "models")
+# `extensions` inspects user-supplied skills/tools (see _userext.py).
+INTROSPECTION = ("backends", "tools", "models", "extensions")
 
 # Top-level commands wired in step 3 (`ask`) and step 4 (`ui`).
 TOP_LEVEL = ("ask", "ui", "playbook", "eval", "localstore", "consistency")
+
+
+def _user_skills() -> "dict[str, dict]":
+    """User-supplied skills discovered from the extension directories
+    (see ``_userext``), minus any name shadowed by a built-in command.
+
+    Never raises: extension discovery is best-effort so a broken user
+    file can't take the whole CLI down.
+    """
+    try:
+        from . import _userext
+        found = _userext.discover_skills()
+    except Exception:
+        return {}
+    reserved = (set(SKILLS) | set(RESERVED) | set(INTROSPECTION)
+                | set(TOP_LEVEL))
+    return {name: entry for name, entry in found.items()
+            if name not in reserved}
 
 
 def _print_help() -> None:
@@ -186,10 +205,16 @@ def _print_help() -> None:
     print("  igvfagent <skill> [subcommand] [args ...]")
     print("  igvfagent --version | --help | --list")
     print()
+    user = _user_skills()
     print("Available skills:")
-    width = max(len(name) for name in SKILLS)
+    width = max(len(name) for name in [*SKILLS, *user])
     for name, (_, doc) in SKILLS.items():
         print(f"  {name:{width}}  {doc}")
+    if user:
+        print()
+        print("User skills (from ~/.igvfagent + UserExtensions/):")
+        for name, entry in user.items():
+            print(f"  {name:{width}}  {entry['description']}")
     print()
     print("Top-level commands:")
     print(f"  {'ask':{width}}  Natural-language ReAct agent (LLM-driven)")
@@ -201,6 +226,8 @@ def _print_help() -> None:
     print(f"  {'backends':{width}}  List configured LLM provider backends")
     print(f"  {'tools':{width}}  List the tool registry the agent runtime sees")
     print(f"  {'models':{width}}  List Ollama models installed on the local daemon")
+    print(f"  {'extensions':{width}}  List user-supplied skills / tools and where "
+          "they were found")
     if RESERVED:
         print()
         print("Reserved (not yet wired):")
@@ -214,6 +241,8 @@ def _print_help() -> None:
 def _print_list() -> None:
     """Machine-readable skill list (one name per line)."""
     for name in SKILLS:
+        print(name)
+    for name in _user_skills():
         print(name)
 
 
@@ -239,17 +268,28 @@ def main(argv: Optional["list[str]"] = None) -> int:
         return _run_introspection(skill, args[1:])
     if skill in TOP_LEVEL:
         return _run_top_level(skill, args[1:])
-    if skill not in SKILLS:
-        sys.stderr.write(f"unknown skill: {skill}\n")
-        sys.stderr.write("Run `igvfagent --help` for the skill list.\n")
-        return 2
-
-    module_name, _ = SKILLS[skill]
-    try:
-        mod = importlib.import_module(module_name)
-    except ImportError as exc:
-        sys.stderr.write(f"failed to load skill `{skill}`: {exc}\n")
-        return 1
+    if skill in SKILLS:
+        module_name, _ = SKILLS[skill]
+        try:
+            mod = importlib.import_module(module_name)
+        except ImportError as exc:
+            sys.stderr.write(f"failed to load skill `{skill}`: {exc}\n")
+            return 1
+    else:
+        # Not a built-in — fall back to user-supplied skills discovered
+        # under ~/.igvfagent/skills/ and UserExtensions/skills/.
+        entry = _user_skills().get(skill)
+        if entry is None:
+            sys.stderr.write(f"unknown skill: {skill}\n")
+            sys.stderr.write("Run `igvfagent --help` for the skill list.\n")
+            return 2
+        try:
+            from . import _userext
+            mod = _userext.load_skill(skill, entry)
+        except Exception as exc:
+            sys.stderr.write(f"failed to load user skill `{skill}` "
+                             f"({entry['path']}): {exc}\n")
+            return 1
     if not hasattr(mod, "main"):
         sys.stderr.write(f"skill `{skill}` has no main() entrypoint\n")
         return 1
@@ -704,6 +744,42 @@ def _run_introspection(skill: str, args: "list[str]") -> int:
         for t in _tools.list_tools():
             print(_tools.render_tool_summary(t))
             print()
+        return 0
+    if skill == "extensions":
+        from . import _userext
+        user_tools = _userext.discover_tools()
+        user_skills = _user_skills()
+        problems = _userext.problems()
+        if "--json" in args:
+            import json as _json
+            print(_json.dumps({
+                "directories": [str(d) for d in _userext.extension_dirs()],
+                "tools":       user_tools,
+                "skills":      user_skills,
+                "problems":    problems,
+            }, indent=2))
+            return 0
+        print("Extension directories (searched in order):")
+        for d in _userext.extension_dirs():
+            mark = "found" if d.is_dir() else "absent"
+            print(f"  {d}  [{mark}]")
+        print()
+        print(f"User tools ({len(user_tools)}):")
+        for t in user_tools:
+            runner = " ".join(t["command"]) if t["command"] \
+                else "igvfagent " + " ".join(t["cli"])
+            print(f"  {t['name']:28} {runner}")
+            print(f"  {'':28} from {t['source']}")
+        print()
+        print(f"User skills ({len(user_skills)}):")
+        for name, entry in user_skills.items():
+            print(f"  {name:28} {entry['description']}")
+            print(f"  {'':28} from {entry['path']}")
+        if problems:
+            print()
+            print("Problems (skipped definitions):")
+            for p in problems:
+                print(f"  ! {p}")
         return 0
     if skill == "models":
         from . import _llm
