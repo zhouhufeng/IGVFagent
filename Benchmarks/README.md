@@ -165,6 +165,41 @@ The SGE, FCE, and Synapse extensions are the three most consequential — togeth
 
 ## How to add a new benchmark
 
+### Automatically — `igvfagent bench`
+
+The 21 benchmarks above were hand-built; the `bench` skill automates that work. Give it anything that identifies a paper — title, URL, DOI, PMID, or author + journal + year:
+
+```bash
+igvfagent bench pipeline --query "10.1038/s41588-024-01800-z"
+```
+
+That runs four stages, each also available on its own:
+
+| Stage | What it does |
+|---|---|
+| `resolve` | Identifier or free text → **one** paper, via Crossref + Europe PMC + PubMed + bioRxiv + OpenAlex + Semantic Scholar. Reports `ambiguous` with a candidate list rather than guessing. |
+| `harvest` | Full text (Europe PMC JATS for PMC open-access; publisher page for bioRxiv/medRxiv) → Data/Code Availability statements, 20 repository accession patterns, assay families, gene symbols, candidate numeric claims. |
+| `route` | Accessions + assays → one of 15 IGVFagent chains, each modelled on a benchmark above. Analysis routes that matched an assay outrank the retrieval fallbacks. |
+| `scaffold` | Writes `README.md`, `OPERATIONS.md`, `expected.json`, `run.sh`, `provenance.json`, and registers the id in `generated.txt`. |
+
+Then `bench run` → `bench score` → `bench report`.
+
+**Two guarantees worth knowing before you trust the output:**
+
+* **Checks derived from prose are never scored.** Anything the tool extracts from the paper's text lands in `expected.json` as `"confirmed": false` with `"path": "TODO_SET_JSON_PATH"` and a `provenance` block quoting the source sentence. `concordance.py` reports them separately and never counts them. A benchmark whose checks are all unconfirmed scores `unreviewed`, not `ok`. You promote a check by setting a real JSON path, verifying the quote, and flipping `confirmed` to `true`.
+* **Routes that cannot reproduce the paper say so.** Controlled-access, embargoed, or unreadable-format data produces a `run.sh` that exits 77 with download instructions — the suite's existing "skipped, missing local input" convention — instead of pretending.
+
+Measured accuracy against the 21 committed benchmarks (`igvfagent bench selftest --with-router`, re-deriving each from its DOI):
+
+| | Result |
+|---|---|
+| **Resolver** (canonical title → correct DOI) | **21 / 22 exact**, 1 correct-but-not-top-ranked |
+| **Router** (→ the skill dir the committed benchmark uses) | **14 / 19 exact, 15 / 19 in top 3** (3 benchmarks have no single skill dir to score against) |
+
+Every router miss is a paper with no open-access full text, where harvest saw only the abstract. For those, pass `--route <name>` yourself (`igvfagent bench list-routes`).
+
+### By hand
+
 1. `mkdir Benchmarks/<paper-id>/`
 2. Add `README.md` (paper context + headline), `expected.json` (ground-truth checks), `run.sh` (CLI invocation chain).
 3. Optional: `make_figures.py` to render PNG/SVG plots committed under `figures/`.

@@ -19,9 +19,14 @@ venv/
 *.cookie
 *.token
 # API keys and any other secret material — never commit anything under the
-# secrets folder (tolerate the existing "Secretes" spelling + the correct one)
+# secrets folder. All three spellings are ignored: the correct one, the
+# singular in actual use, and the historical "Secretes" typo.
+Docs/Secret/
 Docs/Secretes/
 Docs/Secrets/
+# Belt and braces: any path segment named Secret/Secrets, at any depth.
+**/Secret/
+**/Secrets/
 **/APIkeys.txt
 *APIkeys*
 *apikeys*
@@ -67,6 +72,7 @@ Docs/DataIllustration/2*
 Docs/AdvancedVariantAnalysis/2*
 Docs/AdvancedVariantAnalysis/PutamenMultiome/
 Docs/References/2*
+Docs/Benchmark/2*
 Docs/SPLiTseq/2*
 Docs/KGTraversal/2*
 Docs/PortalToKG/2*

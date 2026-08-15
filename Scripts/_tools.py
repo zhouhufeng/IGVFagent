@@ -53,6 +53,10 @@ class Tool:
     flag_map: "dict[str, str]"     # parameter name -> CLI flag name
     flag_repeat: "set[str]"        # parameter names that are list -> repeat flag
     bool_flags: "set[str]"         # parameter names that are bare flags
+    # User-extension tools only: full argv of an arbitrary executable to
+    # run instead of the ``igvfagent`` console script. Empty for every
+    # built-in tool.
+    command: "list[str]" = dataclasses.field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {"name": self.name, "description": self.description,
@@ -3378,6 +3382,50 @@ _TOOLS: "list[Tool]" = [
 _BY_NAME = {t.name: t for t in _TOOLS}
 
 
+# --------------------------- User-extension tools ----------------------------
+
+
+def _merge_user_tools() -> None:
+    """Absorb user-defined tools into the registry at import time.
+
+    Users drop YAML / JSON manifests under ``~/.igvfagent/tools/`` or
+    ``<root>/UserExtensions/tools/`` (see ``_userext``) and they show
+    up in ``igvfagent tools``, the ``ask`` agent loop, and the UI tool
+    picker exactly like built-ins. Defensive by design: a broken
+    manifest is skipped with a warning and can never take down the
+    built-in registry.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        try:
+            from igvfagent import _userext
+        except ImportError:
+            import _userext  # type: ignore[no-redef]
+        specs = _userext.discover_tools()
+    except Exception as exc:
+        logger.warning("user-extension tool discovery failed: %s", exc)
+        return
+    for spec in specs:
+        if spec["name"] in _BY_NAME:
+            logger.warning("user tool `%s` (%s) shadows an existing tool; "
+                           "skipped", spec["name"], spec.get("source"))
+            continue
+        tool = Tool(
+            name=spec["name"], description=spec["description"],
+            parameters=spec["parameters"], cli=list(spec["cli"]),
+            positional=list(spec["positional"]),
+            flag_map=dict(spec["flag_map"]),
+            flag_repeat=set(spec["flag_repeat"]),
+            bool_flags=set(spec["bool_flags"]),
+            command=list(spec["command"]),
+        )
+        _TOOLS.append(tool)
+        _BY_NAME[tool.name] = tool
+
+
+_merge_user_tools()
+
+
 # --------------------------- Public registry API ----------------------------
 
 def list_tools() -> "list[Tool]":
@@ -3419,8 +3467,8 @@ def _coerce_value(v: Any) -> str:
 
 def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
     """Translate the parameter dict the LLM provided into ``igvfagent``
-    argv tokens."""
-    argv = ["igvfagent", *tool.cli]
+    argv tokens (or the user tool's own ``command`` argv)."""
+    argv = [*(tool.command or ["igvfagent"]), *tool.cli]
     args = dict(arguments or {})
 
     # Positional first
@@ -3502,10 +3550,11 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
     if not tool:
         raise KeyError(f"Unknown tool: {name}")
     argv = _build_argv(tool, arguments or {})
-    # Replace the leading "igvfagent" placeholder with whatever runner we
-    # have available (binary or `python -m igvfagent.cli`).
-    head = _resolve_igvfagent()
-    argv = head + argv[1:]
+    # Built-in tools carry a leading "igvfagent" placeholder — replace it
+    # with whatever runner works here (binary or `python -m igvfagent.cli`).
+    # User tools with their own `command` run that argv verbatim.
+    if not tool.command:
+        argv = _resolve_igvfagent() + argv[1:]
 
     env = os.environ.copy()
     if extra_env:
@@ -3563,7 +3612,9 @@ def _parse_artefacts(stdout: str) -> "dict[str, list[str]]":
 # --------------------------- Pretty render ---------------------------------
 
 def render_tool_summary(tool: Tool) -> str:
-    return (f"{tool.name}\n  cli: igvfagent {' '.join(tool.cli)}\n"
+    runner = (shlex.join(tool.command + tool.cli) if tool.command
+              else "igvfagent " + " ".join(tool.cli))
+    return (f"{tool.name}\n  cli: {runner}\n"
             f"  desc: {tool.description}\n"
             f"  params: {json.dumps(tool.parameters.get('properties', {}), default=str)[:200]}")
 

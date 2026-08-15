@@ -218,6 +218,17 @@ def score_benchmark(paper_dir: Path) -> dict:
     for chk in spec.get("checks", []):
         ctype = chk.get("type")
         name = chk.get("name", "(unnamed)")
+        # Checks scaffolded by `igvfagent bench` out of a paper's prose carry
+        # ``"confirmed": false`` until a human sets a real JSON path and vouches
+        # for them. They are reported, never scored — otherwise the suite would
+        # be grading itself against text extraction.
+        if chk.get("confirmed") is False:
+            result.setdefault("unconfirmed", []).append({
+                "name": name, "type": ctype,
+                "expected": chk.get("expected"),
+                "provenance": chk.get("provenance"),
+            })
+            continue
         try:
             if ctype == "range":
                 v = get_path(payload, chk["path"])
@@ -241,8 +252,14 @@ def score_benchmark(paper_dir: Path) -> dict:
     n_pass = sum(1 for c in result["checks"] if c["passed"])
     result["n_passed"] = n_pass
     result["n_total"] = n_total
-    result["status"] = "ok" if n_pass == n_total and n_total > 0 \
-                         else ("partial" if n_pass > 0 else "fail")
+    result["n_unconfirmed"] = len(result.get("unconfirmed") or [])
+    if n_total == 0:
+        # Only unconfirmed checks exist — the chain may have run, but nothing
+        # has been verified. Never report that as a pass.
+        result["status"] = "unreviewed" if result["n_unconfirmed"] else "fail"
+    else:
+        result["status"] = "ok" if n_pass == n_total \
+                             else ("partial" if n_pass > 0 else "fail")
     return result
 
 
@@ -256,16 +273,24 @@ def render_markdown(results: list[dict], ts: str) -> str:
     n_fail = sum(1 for r in results
                   if r.get("status") in ("fail", "no_run_found",
                                             "no_expected_json"))
+    n_unconf = sum(r.get("n_unconfirmed", 0) for r in results)
     out.append(f"**Suite summary:** {n_pass} / {n_tot} checks passed across "
                 f"{len(results)} papers — {n_ok} clean ✓ · {n_part} partial · "
                 f"{n_fail} unscored or failed.\n")
+    if n_unconf:
+        out.append(f"**{n_unconf} unconfirmed checks** were reported but not "
+                    f"scored. These were extracted from paper text by "
+                    f"`igvfagent bench` and need a human to set a real JSON path "
+                    f"and flip `\"confirmed\": true` before they count.\n")
     out.append("| Paper | Status | Checks | Run dir |")
     out.append("|---|---|---|---|")
     for r in results:
         st = r.get("status", "?")
-        icon = {"ok": "✓", "partial": "△", "fail": "✗",
+        icon = {"ok": "✓", "partial": "△", "fail": "✗", "unreviewed": "⊘",
                   "no_run_found": "—", "no_expected_json": "?"}.get(st, "?")
         cks = f"{r.get('n_passed', 0)}/{r.get('n_total', 0)}"
+        if r.get("n_unconfirmed"):
+            cks += f" (+{r['n_unconfirmed']} unconfirmed)"
         rd = r.get("run_dir", "—")
         out.append(f"| `{r['paper']}` | {icon} {st} | {cks} | `{rd}` |")
     out.append("")
@@ -277,6 +302,12 @@ def render_markdown(results: list[dict], ts: str) -> str:
         for c in r.get("checks", []):
             mark = "✓" if c["passed"] else "✗"
             out.append(f"  - {mark} **{c['name']}** ({c['type']}): {c['detail']}")
+        for c in r.get("unconfirmed", []):
+            prov = c.get("provenance") or {}
+            out.append(f"  - ⊘ **{c['name']}** ({c.get('type')}): NOT SCORED — "
+                        f"unconfirmed, source: {prov.get('kind', '?')}")
+            if prov.get("quote"):
+                out.append(f"      > {prov['quote'][:220]}")
         out.append("")
     return "\n".join(out)
 
