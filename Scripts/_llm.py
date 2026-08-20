@@ -75,7 +75,7 @@ class Message:
 
 
 _DEFAULT_MODELS = {
-    "anthropic":  "claude-opus-4-8",
+    "anthropic":  "claude-opus-5",
     "openai":     "gpt-4o-mini",
     "codex":      "gpt-5-codex",
     "ollama":     "qwen3:8b",
@@ -241,10 +241,14 @@ def _to_openai_messages(messages: Iterable[dict]) -> "list[dict]":
 
 # Anthropic models that no longer accept temperature/top_p/top_k. Sending any
 # sampling param to these returns a 400 ("temperature is deprecated for this
-# model."). Covers Opus 4.7/4.8, Fable 5, Mythos 5, and any later release.
+# model."). Covers Opus 5, Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5, and any
+# later release. Sonnet 5 rejects only *non-default* values, but we send
+# temperature 0.0 (non-default), so it belongs here too.
 _NO_SAMPLING_PARAM_MODELS = (
+    "claude-opus-5",
     "claude-opus-4-7",
     "claude-opus-4-8",
+    "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
     "claude-mythos-preview",
@@ -1043,11 +1047,9 @@ OLLAMA_LIBRARY = [
 # dropdowns. Real model availability is checked separately (e.g.
 # Anthropic API access requires the key + tier).
 ANTHROPIC_MODELS = [
-    "claude-opus-4-8",
+    "claude-opus-5",
     "claude-sonnet-5",
     "claude-fable-5",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
 ]
 
 OPENAI_MODELS = [
