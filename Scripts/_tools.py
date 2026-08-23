@@ -3529,6 +3529,18 @@ def _merge_user_tools() -> None:
 _merge_user_tools()
 
 
+def refresh_user_tools() -> int:
+    """Re-scan the extension directories and absorb any new user tools.
+
+    For long-lived processes (the Streamlit UI) where the import-time
+    merge already happened: call after a manifest is added on disk.
+    Existing names are never redefined. Returns the number of tools added.
+    """
+    before = len(_TOOLS)
+    _merge_user_tools()
+    return len(_TOOLS) - before
+
+
 # --------------------------- Public registry API ----------------------------
 
 def list_tools() -> "list[Tool]":
@@ -3725,6 +3737,6 @@ def render_tool_summary(tool: Tool) -> str:
 __all__ = [
     "Tool", "list_tools", "get_tool",
     "to_anthropic_schema", "to_openai_schema",
-    "execute",
+    "execute", "refresh_user_tools",
 
 ]

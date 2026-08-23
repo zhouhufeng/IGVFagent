@@ -31,12 +31,13 @@ import streamlit as st
 # Dual-mode import (installed package OR running from a checkout).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from igvfagent import _agent, _llm, _tools, __version__
+    from igvfagent import _agent, _llm, _tools, _userext, __version__
     from igvfagent import load_dotenv as _load_dotenv
 except Exception:
     import _agent  # type: ignore
     import _llm    # type: ignore
     import _tools  # type: ignore
+    import _userext  # type: ignore
     try:
         from __init__ import __version__, load_dotenv as _load_dotenv  # type: ignore
     except Exception:
@@ -476,6 +477,70 @@ def _sidebar_load_button(backend: str, model: str) -> None:
             )
 
 
+def _sidebar_user_extensions() -> None:
+    """User-extension panel: show discovered custom tools/skills and let
+    the user install new ones from the browser (saved to ~/.igvfagent/,
+    absorbed into the registry immediately — no restart)."""
+    st.subheader("🧩 User extensions")
+    st.caption(
+        "Bring your own tools (YAML/JSON manifest wrapping any script) and "
+        "skills (Python modules) — no core-code edits. Templates in "
+        "`Docs/Examples/user_extensions/`; tutorial: README → "
+        "*Extending IGVFagent*."
+    )
+    notice = st.session_state.pop("_ext_notice", None)
+    if notice:
+        st.success(notice)
+
+    user_tools = _userext.discover_tools()
+    user_skills = _userext.discover_skills()
+    label = (f"Installed: {len(user_tools)} tool(s) · "
+             f"{len(user_skills)} skill(s)")
+    with st.expander(label, expanded=False):
+        st.markdown("**Search locations** (first definition wins):")
+        for d in _userext.extension_dirs():
+            mark = "✅" if d.is_dir() else "➖"
+            st.markdown(f"- {mark} `{d}`")
+        if user_tools:
+            st.markdown("**Custom tools** — callable by the agent and "
+                        "listed in the tool picker above:")
+            for t in user_tools:
+                st.markdown(f"- `{t['name']}` — {t['description']}")
+        if user_skills:
+            st.markdown("**Custom skills** — run as `igvfagent <name>` "
+                        "in a terminal:")
+            for name, entry in user_skills.items():
+                st.markdown(f"- `{name}` — {entry['description']}")
+        problems = _userext.problems()
+        if problems:
+            st.markdown("**Skipped definitions:**")
+            for p in problems:
+                st.warning(p, icon="⚠️")
+
+    uploads = st.file_uploader(
+        "Add extension files",
+        type=["yaml", "yml", "json", "py"],
+        accept_multiple_files=True,
+        help="Tool manifests (.yaml/.json) and skill modules (.py). "
+             "Installed into ~/.igvfagent/ and picked up immediately — "
+             "no restart needed.",
+    )
+    if uploads and st.button("📦 Install extensions",
+                              use_container_width=True):
+        base = Path.home() / ".igvfagent"
+        for up in uploads:
+            sub = "skills" if up.name.endswith(".py") else "tools"
+            dest = base / sub / Path(up.name).name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(up.getbuffer())
+        added = _tools.refresh_user_tools()
+        st.session_state["_ext_notice"] = (
+            f"Installed {len(uploads)} file(s) into `{base}` — "
+            f"{added} new tool(s) registered with the agent."
+        )
+        st.rerun()
+
+
 def _sidebar() -> dict:
     with st.sidebar:
         st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
@@ -531,6 +596,9 @@ def _sidebar() -> dict:
             help="Empty = all tools allowed. Smaller subsets cut prompt "
                  "size and noticeably speed up local LLMs.",
         )
+
+        st.divider()
+        _sidebar_user_extensions()
 
         st.divider()
         if st.button("🗑 Clear conversation", use_container_width=True):

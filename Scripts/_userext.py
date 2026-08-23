@@ -67,7 +67,14 @@ _TOOL_SUFFIXES = (".yaml", ".yml", ".json")
 
 # Populated by discover_tools() / discover_skills(); surfaced by
 # ``igvfagent extensions`` so users can debug a manifest that was skipped.
+# De-duplicated on append: discovery re-runs in long-lived processes
+# (Streamlit rerenders every interaction), and repeats must not accumulate.
 _PROBLEMS: "list[str]" = []
+
+
+def _note(problem: str) -> None:
+    if problem not in _PROBLEMS:
+        _PROBLEMS.append(problem)
 
 
 # --------------------------- Locations --------------------------------------
@@ -128,20 +135,20 @@ def _normalize_tool(raw: Any, source: Path) -> "Optional[dict]":
     """Validate one manifest entry -> plain dict, or None (recorded)."""
     where = str(source)
     if not isinstance(raw, dict):
-        _PROBLEMS.append(f"{where}: entry is not a mapping")
+        _note(f"{where}: entry is not a mapping")
         return None
     name = raw.get("name")
     desc = raw.get("description")
     if not name or not isinstance(name, str):
-        _PROBLEMS.append(f"{where}: missing required `name`")
+        _note(f"{where}: missing required `name`")
         return None
     if not desc or not isinstance(desc, str):
-        _PROBLEMS.append(f"{where}: tool `{name}` missing `description`")
+        _note(f"{where}: tool `{name}` missing `description`")
         return None
     command = raw.get("command")
     cli = raw.get("cli")
     if bool(command) == bool(cli):
-        _PROBLEMS.append(
+        _note(
             f"{where}: tool `{name}` needs exactly one of `command` "
             f"(any executable) or `cli` (igvfagent subcommand argv)"
         )
@@ -152,8 +159,8 @@ def _normalize_tool(raw: Any, source: Path) -> "Optional[dict]":
         cli = shlex.split(cli)
     params = raw.get("parameters") or {"type": "object", "properties": {}}
     if not isinstance(params, dict) or params.get("type", "object") != "object":
-        _PROBLEMS.append(f"{where}: tool `{name}` `parameters` must be a "
-                         f"JSON Schema object")
+        _note(f"{where}: tool `{name}` `parameters` must be a "
+              f"JSON Schema object")
         return None
     params.setdefault("type", "object")
     params.setdefault("properties", {})
@@ -190,7 +197,7 @@ def discover_tools() -> "list[dict]":
             try:
                 doc = _load_manifest(path)
             except Exception as exc:
-                _PROBLEMS.append(f"{path}: unreadable manifest ({exc})")
+                _note(f"{path}: unreadable manifest ({exc})")
                 continue
             entries = doc.get("tools") if isinstance(doc, dict) and \
                 isinstance(doc.get("tools"), list) else [doc]
@@ -199,7 +206,7 @@ def discover_tools() -> "list[dict]":
                 if tool is None:
                     continue
                 if tool["name"] in seen:
-                    _PROBLEMS.append(
+                    _note(
                         f"{path}: duplicate user tool `{tool['name']}` "
                         f"(first definition wins)")
                     continue
@@ -237,7 +244,7 @@ def discover_skills() -> "dict[str, dict]":
                 continue
             name = path.stem.replace("_", "-")
             if name in found:
-                _PROBLEMS.append(
+                _note(
                     f"{path}: duplicate user skill `{name}` "
                     f"(first definition wins: {found[name]['path']})")
                 continue
