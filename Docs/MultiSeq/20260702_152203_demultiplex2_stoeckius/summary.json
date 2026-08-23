@@ -1,0 +1,44 @@
+{
+  "label": "demultiplex2_stoeckius",
+  "input": "Benchmarks/_data/demultiplex2_stoeckius/stoeckius_tags.csv",
+  "n_cells": 15113,
+  "n_tags": 8,
+  "tag_names": [
+    "HTO_A",
+    "HTO_B",
+    "HTO_C",
+    "HTO_D",
+    "HTO_E",
+    "HTO_F",
+    "HTO_G",
+    "HTO_H"
+  ],
+  "counts_by_droplet_type": {
+    "singlet": 12591,
+    "multiplet": 2471,
+    "negative": 51
+  },
+  "counts_by_assignment": {
+    "multiplet": 2471,
+    "HTO_B": 1705,
+    "HTO_A": 1693,
+    "HTO_H": 1674,
+    "HTO_C": 1633,
+    "HTO_G": 1631,
+    "HTO_D": 1518,
+    "HTO_F": 1387,
+    "HTO_E": 1350,
+    "negative": 51
+  },
+  "failed_tags": [],
+  "n_iter_per_tag": {
+    "HTO_A": 10,
+    "HTO_B": 10,
+    "HTO_C": 10,
+    "HTO_D": 10,
+    "HTO_E": 10,
+    "HTO_F": 10,
+    "HTO_G": 10,
+    "HTO_H": 10
+  }
+}
