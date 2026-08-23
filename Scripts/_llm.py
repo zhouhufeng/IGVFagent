@@ -241,13 +241,16 @@ def _to_openai_messages(messages: Iterable[dict]) -> "list[dict]":
 
 # Anthropic models that no longer accept temperature/top_p/top_k. Sending any
 # sampling param to these returns a 400 ("temperature is deprecated for this
-# model."). Covers Opus 5, Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5, and any
-# later release. Sonnet 5 rejects only *non-default* values, but we send
-# temperature 0.0 (non-default), so it belongs here too.
+# model."). Covers Opus 4.7/4.8, the Claude 5 family (Opus 5 / Sonnet 5 /
+# Fable 5 / Mythos 5), and any later release. Sonnet 5 rejects only
+# *non-default* values, but we send temperature 0.0 (non-default), so it
+# belongs here too. Models newer than this list are self-healed at call time:
+# _chat_anthropic catches the deprecation 400, strips the sampling params,
+# and retries once.
 _NO_SAMPLING_PARAM_MODELS = (
-    "claude-opus-5",
     "claude-opus-4-7",
     "claude-opus-4-8",
+    "claude-opus-5",
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
@@ -256,7 +259,7 @@ _NO_SAMPLING_PARAM_MODELS = (
 
 
 def _accepts_sampling_params(model: str) -> bool:
-    """False for models that reject temperature/top_p/top_k (Opus 4.7+, Fable/Mythos 5)."""
+    """False for models that reject temperature/top_p/top_k (Opus 4.7+, Claude 5 family)."""
     m = (model or "").lower()
     return not any(tag in m for tag in _NO_SAMPLING_PARAM_MODELS)
 
@@ -302,7 +305,20 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         payload["stop_sequences"] = stop
     payload.update({k: v for k, v in kwargs.items() if v is not None})
 
-    resp = client.messages.create(**payload)
+    try:
+        resp = client.messages.create(**payload)
+    except anthropic.BadRequestError as e:
+        # Self-heal for models newer than _NO_SAMPLING_PARAM_MODELS: the API
+        # rejects removed sampling params with 400 "<param> is deprecated for
+        # this model." Strip them all and retry once.
+        err = str(e).lower()
+        named = any(p in err for p in ("temperature", "top_p", "top_k"))
+        present = [p for p in ("temperature", "top_p", "top_k") if p in payload]
+        if not (named and present and "deprecated" in err):
+            raise
+        for p in present:
+            payload.pop(p, None)
+        resp = client.messages.create(**payload)
     text_parts: "list[str]" = []
     tool_calls: "list[ToolCall]" = []
     for block in (resp.content or []):
