@@ -264,6 +264,28 @@ def _accepts_sampling_params(model: str) -> bool:
     return not any(tag in m for tag in _NO_SAMPLING_PARAM_MODELS)
 
 
+_SDK_SAMPLING_KWARGS: "Optional[bool]" = None
+
+
+def _sdk_has_sampling_kwargs() -> bool:
+    """True if Messages.create() still accepts temperature/top_p/top_k.
+
+    The anthropic SDK removed all three in 1.0 — passing them raises a
+    client-side TypeError, not an API 400. Older models that still accept
+    sampling must then get the params via extra_body instead.
+    """
+    global _SDK_SAMPLING_KWARGS
+    if _SDK_SAMPLING_KWARGS is None:
+        try:
+            import inspect
+            from anthropic.resources.messages import Messages
+            _SDK_SAMPLING_KWARGS = (
+                "temperature" in inspect.signature(Messages.create).parameters)
+        except Exception:
+            _SDK_SAMPLING_KWARGS = True
+    return _SDK_SAMPLING_KWARGS
+
+
 def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
                      stop, **kwargs) -> Message:
     try:
@@ -305,19 +327,35 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         payload["stop_sequences"] = stop
     payload.update({k: v for k, v in kwargs.items() if v is not None})
 
+    # anthropic SDK >= 1.0 removed temperature/top_p/top_k from
+    # Messages.create() itself; models that still accept them must get them
+    # through extra_body, which merges into the request JSON.
+    if not _sdk_has_sampling_kwargs():
+        moved = {p: payload.pop(p)
+                 for p in ("temperature", "top_p", "top_k") if p in payload}
+        if moved:
+            payload["extra_body"] = {**(payload.get("extra_body") or {}),
+                                     **moved}
+
+    def _sampling_in_payload() -> "list[str]":
+        eb = payload.get("extra_body") or {}
+        return [p for p in ("temperature", "top_p", "top_k")
+                if p in payload or p in eb]
+
     try:
         resp = client.messages.create(**payload)
     except anthropic.BadRequestError as e:
         # Self-heal for models newer than _NO_SAMPLING_PARAM_MODELS: the API
-        # rejects removed sampling params with 400 "<param> is deprecated for
-        # this model." Strip them all and retry once.
+        # rejects removed sampling params with 400 ("<param> is deprecated
+        # for this model."). Strip them all and retry once.
         err = str(e).lower()
         named = any(p in err for p in ("temperature", "top_p", "top_k"))
-        present = [p for p in ("temperature", "top_p", "top_k") if p in payload]
+        present = _sampling_in_payload()
         if not (named and present and "deprecated" in err):
             raise
         for p in present:
             payload.pop(p, None)
+            (payload.get("extra_body") or {}).pop(p, None)
         resp = client.messages.create(**payload)
     text_parts: "list[str]" = []
     tool_calls: "list[ToolCall]" = []
