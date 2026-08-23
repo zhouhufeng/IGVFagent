@@ -122,7 +122,14 @@ _TOOLS: "list[Tool]" = [
     _T(
         "kg_variant",
         "Variant-centric KG: linked genes, regulatory elements, "
-        "phenotypes, biosamples, predictions. Accepts rsID/SPDI/HGVS.",
+        "phenotypes, biosamples, predictions. Accepts rsID/SPDI/HGVS. "
+        "Spans several Catalog collections, each with its own IGVF "
+        "'method' vocabulary: variant->gene effects are 'Variant-EFFECTS', "
+        "variant->phenotype functional calls are 'cV2F', and "
+        "variant->biosample reporter records are 'STARR-seq' / "
+        "'BlueSTARR'. For variant effects on protein binding "
+        "specifically (SEMVAR / ADASTRA allele-specific binding), use "
+        "grn_protein_variants — that collection is not traversed here.",
         {
             "type": "object",
             "properties": {
@@ -295,7 +302,13 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "mpra_pull",
-        "Pull MPRA/STARR/BlueSTARR metadata from Catalog or Portal.",
+        "Pull MPRA/STARR/BlueSTARR metadata from Catalog or Portal. "
+        "Backed by /api/variants/biosamples, where the reporter assay is "
+        "carried by the Catalog 'method' field: 'STARR-seq' for the "
+        "measured assay and 'BlueSTARR' for the neural-network predictions "
+        "over it (source='IGVF'). Those are distinct record sets — say "
+        "which one the user means rather than conflating them. This "
+        "collection is region-queryable (e.g. chr4:155600-155770).",
         {
             "type": "object",
             "properties": {
@@ -686,7 +699,14 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "crispri_pull",
-        "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog.",
+        "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog. "
+        "Backed by /api/genes/genomic-elements, where the IGVF assay that "
+        "produced an element->gene link is carried by the Catalog 'method' "
+        "field — 'Perturb-seq' and 'CRISPR screen' are the two values on "
+        "this collection (source='IGVF'). For per-edge effect sizes and "
+        "significance from the same perturbation experiments, use "
+        "grn_network instead; this tool returns the element/gene evidence "
+        "records, not the dEx statistics.",
         {
             "type": "object",
             "properties": {
@@ -697,6 +717,82 @@ _TOOLS: "list[Tool]" = [
         },
         cli=["crispri", "pull"],
         flag_map={"source": "--source", "limit": "--limit"},
+    ),
+
+    _T(
+        "grn_network",
+        "Differential-expression gene regulatory network (dEx GRN) edges "
+        "from the IGVF Catalog. Call this for 'what genes does TF X "
+        "regulate?', 'what regulates gene Y?', 'is there a Perturb-seq "
+        "self-edge for TF Z?', or any question about regulator->target "
+        "effect size or significance. Returns one row per element->gene "
+        "edge with log2FC, neg_log10_pvalue, significant, crispr_modality "
+        "and the perturbed element's coordinates. Query from either end: "
+        "'regulator' gives that TF's targets, 'response' gives that gene's "
+        "regulators, and passing BOTH with the same symbol tests the "
+        "self-edge (many TFs legitimately have none). This is the only "
+        "tool that reaches /api/gene-regulatory-network — kg_gene and "
+        "catalog_find_associations do not cover it.",
+        {
+            "type": "object",
+            "properties": {
+                "regulator": {**_S_STRING, "description":
+                    "Regulator (TF) gene symbol; returns its targets. "
+                    "e.g. EOMES"},
+                "response": {**_S_STRING, "description":
+                    "Response gene symbol; returns its regulators. "
+                    "e.g. ARHGEF3"},
+                "method": {**_S_STRING, "description":
+                    "Assay method: 'Perturb-seq' or 'CRISPR screen'. Omit "
+                    "for all methods."},
+                "p_value": {"type": "number", "description":
+                    "Keep edges with p <= this (typical: 0.05). Omit to "
+                    "return all edges regardless of significance."},
+                "host": {**_S_STRING, "enum": ["prod", "dev"],
+                          "default": "prod",
+                          "description":
+                    "'dev' queries the pre-release demo Catalog; use only "
+                    "when the user explicitly asks for dev data."},
+                "max_results": {**_S_INTEGER, "default": 10000},
+                "label": {**_S_STRING},
+            },
+        },
+        cli=["grn", "network"],
+        flag_map={"regulator": "--regulator", "response": "--response",
+                   "method": "--method", "p_value": "--p-value",
+                   "host": "--host", "max_results": "--max-results",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "grn_protein_variants",
+        "Sequence-variant effects on proteins from the IGVF Catalog: "
+        "allele-specific binding and motif-disruption calls (SEMVAR, "
+        "ADASTRA). Use for 'which variants alter binding of TF X?' or "
+        "'what is the allele-specific binding evidence for this protein?'. "
+        "Returns sequence_variant, protein_complex, biosample_term, the "
+        "effect label (e.g. 'allele-specific binding' / 'binding modulated "
+        "by'), method and source_url. This is the only tool that reaches "
+        "/api/proteins/variants.",
+        {
+            "type": "object",
+            "properties": {
+                "protein": {**_S_STRING, "description":
+                    "Protein / gene symbol, e.g. ELF2, TP53."},
+                "method": {**_S_STRING, "description":
+                    "Scoring method, e.g. 'SEMVAR' or 'ADASTRA'."},
+                "source": {**_S_STRING, "description":
+                    "Originating source, e.g. IGVF, ADASTRA."},
+                "host": {**_S_STRING, "enum": ["prod", "dev"],
+                          "default": "prod"},
+                "max_results": {**_S_INTEGER, "default": 10000},
+                "label": {**_S_STRING},
+            },
+        },
+        cli=["grn", "protein-variants"],
+        flag_map={"protein": "--protein", "method": "--method",
+                   "source": "--source", "host": "--host",
+                   "max_results": "--max-results", "label": "--label"},
     ),
 
     _T(
@@ -2946,7 +3042,14 @@ _TOOLS: "list[Tool]" = [
         "transcription / all) for an entity, aggregating hits across "
         "multiple edge endpoints in one call. Accepts the catalog "
         "filter DSL (label=eqtl;method=GTEx,FANTOM5;p_value=lte:5e-8) "
-        "with automatic p_value → log10pvalue conversion.",
+        "with automatic p_value → log10pvalue conversion. IGVF 'method' "
+        "values worth filtering on (all with source=IGVF): 'Perturb-seq' "
+        "and 'CRISPR screen' on element->gene edges, 'STARR-seq' and "
+        "'BlueSTARR' on variant->biosample, 'Variant-EFFECTS' on "
+        "variant->gene, 'cV2F' on variant->phenotype, 'SEMVAR' on "
+        "protein->variant. Note this tool does NOT cover the "
+        "gene-regulatory-network collection — use grn_network for dEx "
+        "regulator/target edges.",
         {
             "type": "object",
             "properties": {

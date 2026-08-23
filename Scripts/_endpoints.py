@@ -28,6 +28,12 @@ _DEFAULTS = {
     "portal":       "68747470733a2f2f646174612e696776662e6f7267",
     "portal_api":   "68747470733a2f2f6170692e646174612e696776662e6f7267",
     "catalog_api":  "68747470733a2f2f6170692e636174616c6f676b672e696776662e6f7267",
+    # Dev/demo Catalog API. Same /api surface as ``catalog_api`` but tracks
+    # pre-release collections (used by the IGVF QA notebooks under
+    # Docs/References/IGVF_Catalog-dev). Opt in per call: it is a demo host
+    # with no availability guarantee, so nothing defaults to it.
+    "catalog_api_dev":
+        "68747470733a2f2f636174616c6f672d6170692d6465762e64656d6f2e696776662e6f7267",
     "catalog_docs": "68747470733a2f2f646f63732e636174616c6f672e696776662e6f7267",
     "arango":       "68747470733a2f2f64622e636174616c6f672e696776662e6f72672f5f64622f69677666",
     "encode":       "68747470733a2f2f7777772e656e636f646570726f6a6563742e6f7267",
