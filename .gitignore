@@ -72,9 +72,15 @@ Docs/DataIllustration/2*
 Docs/AdvancedVariantAnalysis/2*
 Docs/AdvancedVariantAnalysis/PutamenMultiome/
 Docs/References/2*
+# Reference notebooks pulled from IGVF QA/Colab. Every one of them embeds a
+# plaintext ArangoDB `guest` password in its connection cell, so the whole
+# tree stays local — never commit it. Skills may cite these paths in
+# docstrings; the reader is expected to have their own copy.
+Docs/References/IGVF_Catalog-dev/
 Docs/Benchmark/2*
 Docs/SPLiTseq/2*
 Docs/KGTraversal/2*
+Docs/CatalogGRN/2*
 Docs/PortalToKG/2*
 Docs/Agent/2*
 Docs/ENCODE/2*

@@ -336,15 +336,13 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
     )
 
     # Claude Code CLI runs against whichever models the local `claude`
-    # binary supports. Limit the picker to the current Claude 4.x
-    # tiers so users do not pick a retired/unsupported model id.
+    # binary supports. Limit the picker to the current Claude 5 tiers so
+    # users do not pick a retired/superseded model id. Older ids still
+    # work via "(custom...)" if you need to pin one.
     _CLAUDE_CLI_MODELS = (
-        "claude-opus-4-8",
-        "claude-opus-4-7",
+        "claude-opus-5",
         "claude-sonnet-5",
         "claude-fable-5",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5",
     )
     options = ["(use Claude Code's configured default)"] + \
               list(_CLAUDE_CLI_MODELS) + ["(custom...)"]

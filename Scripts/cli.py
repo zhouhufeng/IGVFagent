@@ -58,6 +58,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "10x Multiome retrieval pipeline"),
     "splitseq":         ("igvfagent.splitseq_pipeline",
                           "Parse SPLiT-seq end-to-end pipeline"),
+    "grn":              ("igvfagent.catalog_grn_skill",
+                          "Gene regulatory network (dEx) + protein-variant "
+                          "effects from the Catalog"),
     "kg":               ("igvfagent.kg_traversal_skill",
                           "IGVF Knowledge Graph multi-hop traversal"),
     "portal-kg":        ("igvfagent.portal_to_kg_skill",
