@@ -22,6 +22,16 @@ import json
 from pathlib import Path
 from typing import Any
 
+# Streamlit width-argument compat (see Scripts/_stcompat.py). Kept as a
+# dual-mode import so the module works installed or from a checkout.
+try:
+    from igvfagent._stcompat import fit
+except Exception:  # pragma: no cover - checkout / direct-run fallback
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    from _stcompat import fit
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 NETWORK_DIR = PROJECT_ROOT / "Docs" / "Network"
@@ -212,7 +222,7 @@ def _render_run(st, run: "dict") -> None:
             try:
                 st.image(str(run["composite"]),
                           caption=run["composite"].name,
-                          use_container_width=True)
+                          **fit(st.image))
             except Exception as exc:
                 st.error(f"Could not render composite: {exc}")
             with st.expander("Download links", expanded=False):
@@ -247,11 +257,11 @@ def _render_run(st, run: "dict") -> None:
             try:
                 import pandas as pd
                 df = pd.read_csv(run["csv"])
-                st.dataframe(df, use_container_width=True, height=420)
+                st.dataframe(df, **fit(st.dataframe), height=420)
                 if not df.empty and "total_degree" in df.columns:
                     st.markdown("**Top 5 hubs by degree:**")
                     top = df.nlargest(5, "total_degree")
-                    st.dataframe(top, use_container_width=True, height=200)
+                    st.dataframe(top, **fit(st.dataframe), height=200)
                 _download_button(st, run["csv"], key="dl_csv")
             except Exception as exc:
                 st.error(f"Could not load CSV: {exc}")
@@ -272,7 +282,7 @@ def _render_run(st, run: "dict") -> None:
                         with row[j]:
                             try:
                                 st.image(str(png), caption=png.name,
-                                          use_container_width=True)
+                                          **fit(st.image))
                             except Exception as exc:
                                 st.warning(f"{png.name}: {exc}")
         else:

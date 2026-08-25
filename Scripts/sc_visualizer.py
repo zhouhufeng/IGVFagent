@@ -18,6 +18,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+# Streamlit width-argument compat (see Scripts/_stcompat.py). Kept as a
+# dual-mode import so the module works installed or from a checkout.
+try:
+    from igvfagent._stcompat import fit
+except Exception:  # pragma: no cover - checkout / direct-run fallback
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    from _stcompat import fit
+
 logger = logging.getLogger("sc_visualizer")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -375,7 +385,7 @@ def render_streamlit_panel(st) -> None:
                 color_keys=final_color, ncols=ncols,
                 point_size=point_size,
             )
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, **fit(st.pyplot))
         except Exception as exc:
             import traceback
             st.error(f"Render error: {exc}")
@@ -385,7 +395,7 @@ def render_streamlit_panel(st) -> None:
     # QC + markers + cluster composition (expandable)
     with st.expander("QC violins", expanded=False):
         try:
-            st.pyplot(render_qc_figure(adata), use_container_width=True)
+            st.pyplot(render_qc_figure(adata), **fit(st.pyplot))
         except Exception as exc:
             st.warning(f"QC plot unavailable: {exc}")
 
@@ -398,9 +408,9 @@ def render_streamlit_panel(st) -> None:
                 # Pivoted view — one column per cluster, top-N rows
                 pivot = (df.pivot(index="rank", columns="cluster",
                                     values="gene"))
-                st.dataframe(pivot, use_container_width=True, height=360)
+                st.dataframe(pivot, **fit(st.dataframe), height=360)
                 st.caption("Full ranked table:")
-                st.dataframe(df, use_container_width=True, height=240)
+                st.dataframe(df, **fit(st.dataframe), height=240)
 
     if desc.has_leiden:
         with st.expander("Cluster composition", expanded=False):
@@ -418,12 +428,12 @@ def render_streamlit_panel(st) -> None:
                 sizes = {str(k): v for k, v in comp["cluster_sizes"].items()}
                 st.bar_chart(sizes)
             if sb and comp.get("crosstab"):
-                st.dataframe(comp["crosstab"], use_container_width=True,
+                st.dataframe(comp["crosstab"], **fit(st.dataframe),
                               height=240)
 
     with st.expander("Obs columns table (cell metadata sample)",
                       expanded=False):
-        st.dataframe(adata.obs.head(50), use_container_width=True,
+        st.dataframe(adata.obs.head(50), **fit(st.dataframe),
                       height=320)
 
 

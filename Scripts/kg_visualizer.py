@@ -29,6 +29,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+# Streamlit width-argument compat (see Scripts/_stcompat.py). Kept as a
+# dual-mode import so the module works installed or from a checkout.
+try:
+    from igvfagent._stcompat import fit
+except Exception:  # pragma: no cover - checkout / direct-run fallback
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    from _stcompat import fit
+
 logger = logging.getLogger("kg_visualizer")
 
 # ---------------------------------------------------------------------------
@@ -719,12 +729,12 @@ def render_streamlit_panel(st) -> None:
             )
             fig = render_subgraph_figure(sub, center=center,
                                             title=f"{center} — depth {depth}")
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, **fit(st.pyplot))
 
             # Show edge table
             with st.expander("Edges in this subgraph", expanded=False):
                 if sub.get("edges"):
-                    st.dataframe(sub["edges"], use_container_width=True,
+                    st.dataframe(sub["edges"], **fit(st.dataframe),
                                   height=240)
                 else:
                     st.write("(no edges in this subgraph)")
@@ -737,7 +747,7 @@ def render_streamlit_panel(st) -> None:
                         f"Pathway membership for `{center}` (Reactome/KEGG)",
                         expanded=False,
                     ):
-                        st.dataframe(pw, use_container_width=True,
+                        st.dataframe(pw, **fit(st.dataframe),
                                       height=240)
 
         # --- Schema browser ---------------------------------------------------
@@ -752,7 +762,7 @@ def render_streamlit_panel(st) -> None:
             st.caption(f"`{tab_sel}` — {n:,} rows total")
             rows = acc.sample_rows(tab_sel, limit=25)
             if rows:
-                st.dataframe(rows, use_container_width=True, height=320)
+                st.dataframe(rows, **fit(st.dataframe), height=320)
             else:
                 st.write("(empty)")
 
@@ -762,7 +772,7 @@ def render_streamlit_panel(st) -> None:
             if big:
                 st.dataframe(
                     [{"node_id": h, "degree": d} for h, d in big],
-                    use_container_width=True, height=320,
+                    **fit(st.dataframe), height=320,
                 )
             else:
                 st.write("(no hub data)")

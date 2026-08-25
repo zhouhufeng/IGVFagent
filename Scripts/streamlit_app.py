@@ -33,11 +33,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from igvfagent import _agent, _llm, _tools, _userext, __version__
     from igvfagent import load_dotenv as _load_dotenv
+    from igvfagent._stcompat import fit
 except Exception:
     import _agent  # type: ignore
     import _llm    # type: ignore
     import _tools  # type: ignore
     import _userext  # type: ignore
+    from _stcompat import fit  # type: ignore
     try:
         from __init__ import __version__, load_dotenv as _load_dotenv  # type: ignore
     except Exception:
@@ -176,7 +178,7 @@ def _sidebar_local_model_picker() -> "tuple[str, str]":
             "`OLLAMA_HOST_BASE` to the right URL."
         )
         st.caption("After Ollama is up, click **Refresh** to repopulate.")
-        if st.button("🔄 Refresh installed models", use_container_width=True):
+        if st.button("🔄 Refresh installed models", **fit(st.button)):
             st.rerun()
         installed_names: "list[str]" = []
     else:
@@ -209,7 +211,7 @@ def _sidebar_local_model_picker() -> "tuple[str, str]":
     cols = st.columns([2, 1])
     with cols[1]:
         if st.button("🔄", help="Re-query the Ollama daemon",
-                       use_container_width=True):
+                       **fit(st.button)):
             st.rerun()
     with cols[0]:
         st.caption(f"Endpoint: `{_llm._BACKENDS['ollama']['base_url']}`")
@@ -237,7 +239,7 @@ def _sidebar_local_model_picker() -> "tuple[str, str]":
             )
             pick_name = available[avail_labels.index(pick_label)][0]
             if st.button(f"⬇ Pull `{pick_name}`",
-                            use_container_width=True,
+                            **fit(st.button),
                             key="_download_pull_btn"):
                 _do_ollama_pull(pick_name)
 
@@ -426,7 +428,7 @@ def _sidebar_load_button(backend: str, model: str) -> None:
     cols = st.columns([2, 1])
     with cols[0]:
         clicked = st.button("⚙  Load Model", type="primary",
-                              use_container_width=True,
+                              **fit(st.button),
                               disabled=not (backend and model),
                               help="Ping the backend to confirm credentials, "
                                    "model presence, and (for Ollama) preload "
@@ -434,17 +436,22 @@ def _sidebar_load_button(backend: str, model: str) -> None:
                                    "doesn't pay the cold-load cost.")
     with cols[1]:
         if st.button("🔄", help="Refresh state",
-                       use_container_width=True, key="_load_refresh_btn"):
+                       **fit(st.button), key="_load_refresh_btn"):
             st.session_state.pop("_loaded_status", None)
             st.rerun()
     if clicked:
         with st.spinner(f"Loading `{model}` via `{backend}` …"):
             t0 = time.time()
             try:
+                # 256, not 8: Claude 5 models (Opus 5, Sonnet 5, Fable 5)
+                # have thinking on by default, and max_tokens caps thinking
+                # + response text together. A tiny budget is spent entirely
+                # on thinking, so the probe returned stop_reason=max_tokens
+                # with empty content and the status preview came up blank.
                 msg = _llm.chat(
                     messages=[{"role": "user", "content": "READY"}],
                     backend=backend, model=model,
-                    max_tokens=8, temperature=0.0,
+                    max_tokens=256, temperature=0.0,
                 )
                 dt = time.time() - t0
                 st.session_state["_loaded_status"] = {
@@ -526,7 +533,7 @@ def _sidebar_user_extensions() -> None:
              "no restart needed.",
     )
     if uploads and st.button("📦 Install extensions",
-                              use_container_width=True):
+                              **fit(st.button)):
         base = Path.home() / ".igvfagent"
         for up in uploads:
             sub = "skills" if up.name.endswith(".py") else "tools"
@@ -601,7 +608,7 @@ def _sidebar() -> dict:
         _sidebar_user_extensions()
 
         st.divider()
-        if st.button("🗑 Clear conversation", use_container_width=True):
+        if st.button("🗑 Clear conversation", **fit(st.button)):
             st.session_state.messages = []
             st.rerun()
 
@@ -690,7 +697,7 @@ def _download_button(path: str, key_hint: str = "") -> None:
             data=data,
             file_name=Path(path).name,
             key=f"dl_{key_hint}_{path}",
-            use_container_width=False,
+            **fit(st.download_button, stretch=False),
         )
     except Exception as e:
         st.caption(f"(download unavailable: {e})")
@@ -758,7 +765,7 @@ def _render_csv_like(path: str, sep: "str|None" = None) -> None:
     try:
         import pandas as pd
         df = pd.read_csv(path, nrows=400, sep=sep, engine="python")
-        st.dataframe(df, use_container_width=True, height=300)
+        st.dataframe(df, **fit(st.dataframe), height=300)
         if len(df) >= 400:
             st.caption("Preview limited to first 400 rows.")
         _download_button(path, key_hint="csv")
@@ -786,7 +793,7 @@ def _render_jsonl(path: str, max_rows: int = 50) -> None:
         try:
             import pandas as pd
             df = pd.json_normalize(rows)
-            st.dataframe(df, use_container_width=True, height=300)
+            st.dataframe(df, **fit(st.dataframe), height=300)
         except Exception:
             st.json(rows)
         st.caption(f"First {len(rows)} record(s).")
@@ -860,7 +867,7 @@ def _render_markdown_with_images(body: str, *, base_dir: Path) -> "set[str]":
             rendered_inline.add(resolved)
         else:
             try:
-                st.image(resolved, caption=alt, use_container_width=True)
+                st.image(resolved, caption=alt, **fit(st.image))
                 rendered_inline.add(resolved)
             except Exception as e:
                 st.text(f"(image unavailable: {alt}) {e}")
@@ -883,7 +890,7 @@ def _render_one(path: str, *, depth: int = 0) -> None:
         return
     if low.endswith((".png", ".jpg", ".jpeg", ".gif")):
         try:
-            st.image(path, caption=name, use_container_width=True)
+            st.image(path, caption=name, **fit(st.image))
         except Exception as e:
             st.text(f"(image unavailable: {name}) {e}")
         return
@@ -1029,8 +1036,10 @@ def _render_artefacts(paths: "list[str]") -> None:
         cols = st.columns(2)
         for idx, img in enumerate(images):
             try:
+                # Column methods share st.image's signature, so probe the
+                # module-level function for the supported width spelling.
                 cols[idx % 2].image(
-                    img, caption=Path(img).name, use_container_width=True,
+                    img, caption=Path(img).name, **fit(st.image),
                 )
             except Exception as e:
                 cols[idx % 2].text(
