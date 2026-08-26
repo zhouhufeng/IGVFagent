@@ -24,10 +24,9 @@ _Detailed five-layer architecture: user entry points (terminal, NL agent, browse
 
 **<https://igvfagent.genohub.org>**
 
-A hosted IGVFagent runs on the project's [Jetstream2](https://jetstream-cloud.org/)
-allocation, on the team's own API key. Nothing to install, no Python
-environment to build, and **no API key of your own** — open the URL and start
-asking questions.
+A hosted IGVFagent runs on the project's Hcloud allocation, on the team's own
+API key. Nothing to install, no Python environment to build, and **no API key
+of your own** — open the URL and start asking questions.
 
 Access is gated by a shared password. Email
 [hufengzhou@g.harvard.edu](mailto:hufengzhou@g.harvard.edu) to request it.
