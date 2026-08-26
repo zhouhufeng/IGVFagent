@@ -1,0 +1,103 @@
+# IGVFagent — hosted deployment (igvfagent.genohub.org)
+#
+# Three services, and deliberately NO `ports:` on any of them. Nothing is
+# bound to a host interface: cloudflared dials *outbound* to Cloudflare and
+# traffic arrives back down that tunnel. The VM therefore has no inbound web
+# port to scan, and the Jetstream security group only needs SSH.
+#
+#   internet -> Cloudflare (TLS) -> tunnel -> gateway (auth) -> app (Streamlit)
+#
+# Usage on the VM:
+#   cd /srv/igvfagent/Deploy
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Secrets come from Deploy/.env.prod (gitignored) — see .env.prod.example.
+
+name: igvfagent
+
+services:
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: igvfagent:latest
+    container_name: igvfagent-app
+    restart: unless-stopped
+    environment:
+      # --- Hosted-mode guardrails (see Scripts/streamlit_app.py:_public_mode) ---
+      # Pins the model picker, clamps the cost sliders, and drops the
+      # "Load Model" button that only makes sense for local Ollama.
+      IGVF_PUBLIC_MODE:       "1"
+      IGVF_PUBLIC_MAX_ITER:   ${IGVF_PUBLIC_MAX_ITER:-12}
+      IGVF_PUBLIC_MAX_TOKENS: ${IGVF_PUBLIC_MAX_TOKENS:-4096}
+      # Backend is fixed here, NOT chosen in the browser.
+      IGVF_LLM_BACKEND:       ${IGVF_LLM_BACKEND:-anthropic}
+      IGVF_LLM_MODEL:         ${IGVF_LLM_MODEL:-claude-sonnet-4-5}
+      IGVF_LLM_TIMEOUT:       ${IGVF_LLM_TIMEOUT:-300}
+      # The operator's key. Present in the app container only.
+      ANTHROPIC_API_KEY:      ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      IGVF_PROJECT_ROOT:      /workspace
+      IGVF_PORTAL_COOKIE:     ${IGVF_PORTAL_COOKIE:-}
+      IGVF_ARANGO_PASSWORD:   ${IGVF_ARANGO_PASSWORD:-}
+    volumes:
+      # The 2 TB Cinder volume, mounted on the host at /mnt/igvf-data.
+      - /mnt/igvf-data/Data:/workspace/Data
+      - /mnt/igvf-data/Docs:/workspace/Docs
+    expose:
+      - "8501"
+    # Blast radius: the agent runs wrapped CLIs as subprocesses
+    # (Scripts/_tools.py:3679) on prompts from the public internet, so the
+    # container is treated as untrusted and boxed in accordingly.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # Host is m3.medium (8 vCPU / 30 GB). Leave headroom so one runaway
+          # analysis can't wedge the gateway or the tunnel alongside it.
+          cpus: "6"
+          memory: 22G
+          # Compose rejects a top-level `pids_limit` next to this block —
+          # the fork bound has to live here with the other limits.
+          pids: 512
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: &logging
+      driver: json-file
+      options: { max-size: "50m", max-file: "5" }
+
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: igvfagent-gateway
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./nginx/igvfagent.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
+    expose:
+      - "80"
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: igvfagent-tunnel
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    # Token-scoped tunnel: carries its own credentials and the public
+    # hostname mapping, so no cert.pem or config.yml on disk.
+    command: tunnel --no-autoupdate --loglevel info run --token ${CF_TUNNEL_TOKEN:?CF_TUNNEL_TOKEN is required}
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging

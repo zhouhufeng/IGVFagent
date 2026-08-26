@@ -31,12 +31,13 @@ import streamlit as st
 # Dual-mode import (installed package OR running from a checkout).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from igvfagent import _agent, _llm, _tools, _userext, __version__
+    from igvfagent import _agent, _llm, _pathguard, _tools, _userext, __version__
     from igvfagent import load_dotenv as _load_dotenv
     from igvfagent._stcompat import fit
 except Exception:
     import _agent  # type: ignore
     import _llm    # type: ignore
+    import _pathguard  # type: ignore
     import _tools  # type: ignore
     import _userext  # type: ignore
     from _stcompat import fit  # type: ignore
@@ -548,7 +549,29 @@ def _sidebar_user_extensions() -> None:
         st.rerun()
 
 
+def _public_mode() -> bool:
+    """True on a shared/hosted deployment (``IGVF_PUBLIC_MODE=1``).
+
+    Hosted at igvfagent.genohub.org the LLM runs on the *operator's* API
+    key, so the model picker stops being a convenience and becomes a way
+    for any visitor to select the most expensive model available — or to
+    pick Ollama, which isn't running there, and get a confusing failure.
+    Public mode pins the backend/model chosen by the operator via
+    ``IGVF_LLM_BACKEND`` / ``IGVF_LLM_MODEL`` and clamps the run-cost
+    sliders. Local single-user runs are unaffected.
+    """
+    return os.environ.get("IGVF_PUBLIC_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
 def _sidebar() -> dict:
+    public = _public_mode()
     with st.sidebar:
         st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
         st.caption(
@@ -558,21 +581,33 @@ def _sidebar() -> dict:
         st.divider()
 
         st.subheader("Model")
-        kind = _sidebar_backend_kind()
-        if kind == "local":
-            backend, model = _sidebar_local_model_picker()
-        elif kind == "anthropic":
-            backend, model = _sidebar_anthropic_model_picker()
-        elif kind == "openai":
-            backend, model = _sidebar_openai_model_picker()
-        elif kind == "claude_cli":
-            backend, model = _sidebar_claude_cli_picker()
-        elif kind == "codex_cli":
-            backend, model = _sidebar_codex_cli_picker()
+        if public:
+            # Pinned by the operator; no picker, no Load button (the hosted
+            # backend is a cloud API that needs no preloading).
+            backend = os.environ.get("IGVF_LLM_BACKEND", "anthropic")
+            model = os.environ.get("IGVF_LLM_MODEL", "")
+            st.success(f"**Hosted model**\n\n`{model or '(backend default)'}`")
+            st.caption(
+                "Running on the IGVF team's API key. The model is fixed on "
+                "this shared deployment — install IGVFagent locally to use "
+                "your own backend, including free local models via Ollama."
+            )
         else:
-            backend, model = _sidebar_advanced_picker()
+            kind = _sidebar_backend_kind()
+            if kind == "local":
+                backend, model = _sidebar_local_model_picker()
+            elif kind == "anthropic":
+                backend, model = _sidebar_anthropic_model_picker()
+            elif kind == "openai":
+                backend, model = _sidebar_openai_model_picker()
+            elif kind == "claude_cli":
+                backend, model = _sidebar_claude_cli_picker()
+            elif kind == "codex_cli":
+                backend, model = _sidebar_codex_cli_picker()
+            else:
+                backend, model = _sidebar_advanced_picker()
 
-        _sidebar_load_button(backend, model)
+            _sidebar_load_button(backend, model)
 
         # Resolved configuration block — kept for transparency.
         eff = _resolve_effective_config(backend, model)
@@ -590,9 +625,25 @@ def _sidebar() -> dict:
 
         st.divider()
         st.subheader("Run parameters")
-        max_iter = st.slider("Max iterations", 1, 60, 12)
-        max_tokens = st.slider("Max tokens / turn", 256, 16384, 4096, 256)
-        temperature = st.slider("Temperature", 0.0, 1.5, 0.0, 0.05)
+        if public:
+            # Each iteration is a full LLM call, so the iteration cap is the
+            # single biggest lever on what one visitor can spend. Ceilings are
+            # operator-set; the visitor may lower them but never raise them.
+            iter_cap = _env_int("IGVF_PUBLIC_MAX_ITER", 12)
+            token_cap = _env_int("IGVF_PUBLIC_MAX_TOKENS", 4096)
+            max_iter = st.slider("Max iterations", 1, iter_cap,
+                                   min(8, iter_cap))
+            max_tokens = st.slider("Max tokens / turn", 256, token_cap,
+                                     min(4096, token_cap), 256)
+            temperature = 0.0
+            st.caption(
+                f"Shared deployment: capped at {iter_cap} iterations and "
+                f"{token_cap} tokens/turn."
+            )
+        else:
+            max_iter = st.slider("Max iterations", 1, 60, 12)
+            max_tokens = st.slider("Max tokens / turn", 256, 16384, 4096, 256)
+            temperature = st.slider("Temperature", 0.0, 1.5, 0.0, 0.05)
 
         st.divider()
         st.subheader("Tool subset")
@@ -686,7 +737,11 @@ def _extract_paths_from_text(text: str) -> "list[str]":
                         break
                 except OSError:
                     continue
-    return found
+    # Containment: the regexes above match *any* path with a viewable
+    # extension, including ones outside the workspace and credential files
+    # inside it. Everything the UI renders funnels through here, so this is
+    # the one place the guard has to hold. See Scripts/_pathguard.py.
+    return _pathguard.filter_artifacts(found)
 
 
 def _download_button(path: str, key_hint: str = "") -> None:
@@ -824,7 +879,7 @@ def _resolve_md_image_path(raw: str, base_dir: Path) -> "str|None":
                   base_dir / raw,
                   _PROJECT_ROOT / raw):
         try:
-            if cand.is_file():
+            if cand.is_file() and _pathguard.is_safe_artifact(cand):
                 return str(cand)
         except OSError:
             continue
