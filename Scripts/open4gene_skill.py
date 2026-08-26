@@ -41,7 +41,10 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DOC_DIR = ROOT / "Docs/Open4Gene"
 LOG_DIR = ROOT / "Docs/Logs"
 PLAYBOOK_PATH = ROOT / "Docs/Skills/OPEN4GENE_SKILLS.md"

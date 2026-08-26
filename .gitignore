@@ -15,6 +15,12 @@ venv/
 # Local secrets and authenticated session material
 .env
 *.env
+# Hosted-deployment secrets. NOTE: the `*.env` rule above matches files
+# *ending* in .env, so it does NOT cover `.env.prod` — these need their own
+# rules. The .example template stays tracked.
+Deploy/.env.*
+!Deploy/.env.*.example
+Deploy/nginx/htpasswd
 *.cookies
 *.cookie
 *.token

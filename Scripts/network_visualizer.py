@@ -19,6 +19,7 @@ involvement — so it's deterministic and survives backend changes.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,10 @@ except Exception:  # pragma: no cover - checkout / direct-run fallback
     from _stcompat import fit
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 NETWORK_DIR = PROJECT_ROOT / "Docs" / "Network"
 
 

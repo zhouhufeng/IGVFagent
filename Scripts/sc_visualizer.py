@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -30,7 +31,10 @@ except Exception:  # pragma: no cover - checkout / direct-run fallback
 
 logger = logging.getLogger("sc_visualizer")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 SCAN_DIRS = [
     PROJECT_ROOT / "Docs" / "SingleCell",
     PROJECT_ROOT / "Data" / "SingleCell",

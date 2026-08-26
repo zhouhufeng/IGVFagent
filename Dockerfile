@@ -32,9 +32,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Build deps for scientific wheels that occasionally need a compiler.
+#
+# libcurl4-openssl-dev + zlib1g-dev are required by the [hic] extra:
+# hic-straw ships no wheel, so pip compiles src/straw.cpp, which does
+# `#include <curl/curl.h>` (remote .hic reading over HTTP) and links zlib
+# for block decompression. Without the headers `pip install '.[all]'`
+# dies with "fatal error: curl/curl.h: No such file or directory".
+# Builder-stage only — the runtime layer needs just the shared libs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         git \
+        libcurl4-openssl-dev \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build

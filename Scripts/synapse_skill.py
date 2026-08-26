@@ -51,7 +51,10 @@ from typing import Any, Optional
 # Paths + logging
 # ---------------------------------------------------------------------------
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DOC_DIR = ROOT / "Docs/Synapse"
 MANIFEST_DIR = ROOT / "Data/Manifests/Synapse"
 DOWNLOAD_DIR = ROOT / "Data/Synapse"
