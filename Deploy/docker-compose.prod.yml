@@ -100,8 +100,17 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    environment:
+      # Google Analytics measurement ID, spliced into <head> by sub_filter.
+      # Empty = the tag renders with no id and reports nothing, which is the
+      # right default for anyone else deploying this repo.
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      # Substitute ONLY GA_* in the template. Without this filter envsubst
+      # would also replace nginx's own $$host / $$http_upgrade / $$remote_addr
+      # with empty strings and the rendered config would be broken.
+      NGINX_ENVSUBST_FILTER: "^GA_"
     volumes:
-      - ./nginx/igvfagent.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/igvfagent.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
     expose:
       - "80"

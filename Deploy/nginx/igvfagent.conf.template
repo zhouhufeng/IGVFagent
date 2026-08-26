@@ -1,5 +1,12 @@
 # Auth gate + WebSocket-aware reverse proxy in front of Streamlit.
 #
+# This file is an envsubst TEMPLATE, rendered by the nginx image's
+# /docker-entrypoint.d/20-envsubst-on-templates.sh at container start.
+# NGINX_ENVSUBST_FILTER is set to ^GA_ in the compose file so ONLY
+# ${GA_MEASUREMENT_ID} is substituted — without that filter envsubst would
+# also eat nginx's own $host, $http_upgrade, $remote_addr … and the config
+# would render into nonsense.
+#
 # Streamlit is not a plain request/response app: the browser loads a small
 # shell over HTTP and then everything real happens on a long-lived WebSocket
 # at /_stcore/stream. A naive proxy_pass serves the shell and then hangs with
@@ -38,6 +45,21 @@ server {
     location / {
         auth_basic           "IGVFagent — shared lab access";
         auth_basic_user_file /etc/nginx/htpasswd;
+
+        # --- Google Analytics -------------------------------------------
+        # Streamlit serves a fixed SPA shell and offers no head-injection
+        # hook: st.markdown strips <script>, and components.v1.html renders
+        # inside an iframe, so gtag would measure the iframe rather than the
+        # page. Splicing the tag in at the proxy is the only placement that
+        # actually reports this site.
+        #
+        # sub_filter cannot rewrite a compressed body, so ask the upstream
+        # for identity encoding. (Streamlit does not gzip this response
+        # today; this keeps the filter working if that ever changes.)
+        proxy_set_header Accept-Encoding "";
+        sub_filter_once on;
+        sub_filter_types text/html;
+        sub_filter '</head>' "<script async src=\"https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}\"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_MEASUREMENT_ID}');</script></head>";
 
         proxy_pass http://app:8501;
         proxy_http_version 1.1;
