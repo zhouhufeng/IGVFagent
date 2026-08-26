@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = "0.2.9"
 __all__ = ["__version__", "load_dotenv"]
 
 

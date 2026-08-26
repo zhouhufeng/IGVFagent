@@ -31,9 +31,12 @@ services:
       IGVF_PUBLIC_MODE:       "1"
       IGVF_PUBLIC_MAX_ITER:   ${IGVF_PUBLIC_MAX_ITER:-12}
       IGVF_PUBLIC_MAX_TOKENS: ${IGVF_PUBLIC_MAX_TOKENS:-4096}
-      # Backend is fixed here, NOT chosen in the browser.
+      # Backend is fixed here, NOT chosen in the browser. The MODEL is
+      # chosen by the visitor, but only from IGVF_PUBLIC_MODELS — an
+      # operator allowlist. IGVF_LLM_MODEL is the default selection.
       IGVF_LLM_BACKEND:       ${IGVF_LLM_BACKEND:-anthropic}
-      IGVF_LLM_MODEL:         ${IGVF_LLM_MODEL:-claude-sonnet-4-5}
+      IGVF_LLM_MODEL:         ${IGVF_LLM_MODEL:-claude-sonnet-5}
+      IGVF_PUBLIC_MODELS:     ${IGVF_PUBLIC_MODELS:-}
       IGVF_LLM_TIMEOUT:       ${IGVF_LLM_TIMEOUT:-300}
       # The operator's key. Present in the app container only.
       ANTHROPIC_API_KEY:      ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}

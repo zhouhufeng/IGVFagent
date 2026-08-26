@@ -44,7 +44,7 @@ except Exception:
     try:
         from __init__ import __version__, load_dotenv as _load_dotenv  # type: ignore
     except Exception:
-        __version__ = "0.1.0"
+        __version__ = "0.2.9"
         _load_dotenv = None  # type: ignore
 
 # Belt-and-suspenders: ensure the repo-root .env is loaded into THIS
@@ -553,12 +553,12 @@ def _public_mode() -> bool:
     """True on a shared/hosted deployment (``IGVF_PUBLIC_MODE=1``).
 
     Hosted at igvfagent.genohub.org the LLM runs on the *operator's* API
-    key, so the model picker stops being a convenience and becomes a way
-    for any visitor to select the most expensive model available — or to
-    pick Ollama, which isn't running there, and get a confusing failure.
-    Public mode pins the backend/model chosen by the operator via
-    ``IGVF_LLM_BACKEND`` / ``IGVF_LLM_MODEL`` and clamps the run-cost
-    sliders. Local single-user runs are unaffected.
+    key, so the free-form backend picker stops being a convenience: it lets
+    any visitor point the app at Ollama, which isn't running there, and get
+    a confusing connection error. Public mode fixes the backend and offers
+    a curated **allowlist** of models the operator is willing to pay for —
+    visitors still choose, but only from that list. Local single-user runs
+    are unaffected.
     """
     return os.environ.get("IGVF_PUBLIC_MODE", "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -568,6 +568,31 @@ def _env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, "").strip() or default)
     except ValueError:
         return default
+
+
+# Models offered on a shared deployment, in menu order. Override with
+# IGVF_PUBLIC_MODELS as a comma-separated list of ids (unknown ids are shown
+# with the id as their label, so a new model can be enabled without a code
+# change). Prices are per million tokens, input/output, for the operator's
+# own cost awareness — the visitor is spending someone else's money.
+# Ordered cheapest-first so the default sits at the top and the premium
+# models are a deliberate scroll, not an accidental click — on a shared key
+# the difference between Sonnet 5 and Fable 5 is ~3.3x per token.
+_PUBLIC_MODEL_CATALOG = {
+    "claude-sonnet-5":  ("Sonnet 5 — default, fast",      "$3 / $15 per Mtok · 1M context"),
+    "claude-haiku-4-5": ("Haiku 4.5 — fastest, cheapest", "$1 / $5 per Mtok · 200K context"),
+    "claude-opus-5":    ("Opus 5 — more capable",         "$5 / $25 per Mtok · 1M context · premium"),
+    "claude-fable-5":   ("Fable 5 — deepest reasoning",   "$10 / $50 per Mtok · 1M context · most expensive"),
+}
+_PUBLIC_MODELS_DEFAULT = list(_PUBLIC_MODEL_CATALOG)
+
+
+def _public_model_choices() -> "list[str]":
+    raw = os.environ.get("IGVF_PUBLIC_MODELS", "").strip()
+    if not raw:
+        return list(_PUBLIC_MODELS_DEFAULT)
+    picked = [m.strip() for m in raw.split(",") if m.strip()]
+    return picked or list(_PUBLIC_MODELS_DEFAULT)
 
 
 def _sidebar() -> dict:
@@ -582,16 +607,34 @@ def _sidebar() -> dict:
 
         st.subheader("Model")
         if public:
-            # Pinned by the operator; no picker, no Load button (the hosted
-            # backend is a cloud API that needs no preloading).
+            # Backend is fixed by the operator; the model is chosen from a
+            # curated allowlist. No Load button — the hosted backend is a
+            # cloud API with nothing to preload.
             backend = os.environ.get("IGVF_LLM_BACKEND", "anthropic")
-            model = os.environ.get("IGVF_LLM_MODEL", "")
-            st.success(f"**Hosted model**\n\n`{model or '(backend default)'}`")
-            st.caption(
-                "Running on the IGVF team's API key. The model is fixed on "
-                "this shared deployment — install IGVFagent locally to use "
-                "your own backend, including free local models via Ollama."
+            choices = _public_model_choices()
+            default_model = os.environ.get("IGVF_LLM_MODEL", "").strip()
+            try:
+                idx = choices.index(default_model)
+            except ValueError:
+                idx = 0
+            model = st.selectbox(
+                "Model", choices, index=idx,
+                format_func=lambda m: _PUBLIC_MODEL_CATALOG.get(m, (m, ""))[0],
+                key="_public_model_select",
+                help="Models the IGVF team has enabled on this shared "
+                     "deployment. All run on the team's API key.",
             )
+            blurb = _PUBLIC_MODEL_CATALOG.get(model, ("", ""))[1]
+            if blurb:
+                st.caption(blurb)
+            st.caption(
+                "Running on the IGVF team's API key — no key needed. Install "
+                "IGVFagent locally to use another backend, including free "
+                "local models via Ollama."
+            )
+            # Downstream (the active-model banner in main()) branches on this;
+            # the public path never runs the radio that would otherwise set it.
+            kind = "anthropic"
         else:
             kind = _sidebar_backend_kind()
             if kind == "local":
