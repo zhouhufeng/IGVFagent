@@ -3,7 +3,7 @@
 # Three services, and deliberately NO `ports:` on any of them. Nothing is
 # bound to a host interface: cloudflared dials *outbound* to Cloudflare and
 # traffic arrives back down that tunnel. The VM therefore has no inbound web
-# port to scan, and the Jetstream security group only needs SSH.
+# port to scan, and the host firewall only needs SSH.
 #
 #   internet -> Cloudflare (TLS) -> tunnel -> gateway (auth) -> app (Streamlit)
 #
@@ -44,7 +44,7 @@ services:
       IGVF_PORTAL_COOKIE:     ${IGVF_PORTAL_COOKIE:-}
       IGVF_ARANGO_PASSWORD:   ${IGVF_ARANGO_PASSWORD:-}
     volumes:
-      # The 2 TB Cinder volume, mounted on the host at /mnt/igvf-data.
+      # The attached data volume, mounted on the host at /mnt/igvf-data.
       - /mnt/igvf-data/Data:/workspace/Data
       - /mnt/igvf-data/Docs:/workspace/Docs
     expose:
