@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Prepare a freshly-booted Jetstream2 VM to host IGVFagent.
+# Prepare a freshly-booted Hcloud host to run IGVFagent.
 #
-# Idempotent: safe to re-run. Formats the attached Cinder volume ONLY if it
+# Idempotent: safe to re-run. Formats the attached data volume ONLY if it
 # has no filesystem, mounts it at /mnt/igvf-data, and lays out the workspace
 # the app container bind-mounts.
 #
@@ -43,7 +43,7 @@ else
 
   UUID=$(blkid -o value -s UUID "$DEV")
   mkdir -p "$MOUNT"
-  # Mount by UUID: Cinder device names are not stable across reboots.
+  # Mount by UUID: attached-volume device names are not stable across reboots.
   if ! grep -q "$UUID" /etc/fstab; then
     log "Adding to /etc/fstab by UUID=$UUID"
     printf 'UUID=%s  %s  xfs  defaults,noatime,nofail  0  2\n' "$UUID" "$MOUNT" >> /etc/fstab

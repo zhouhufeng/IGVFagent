@@ -24,7 +24,8 @@ _Detailed five-layer architecture: user entry points (terminal, NL agent, browse
 
 **<https://igvfagent.genohub.org>**
 
-A hosted IGVFagent runs on the project's Hcloud allocation, on the team's own
+A hosted IGVFagent runs on the project's
+[Hcloud](https://github.com/zhouhufeng/HCloud) allocation, on the team's own
 API key. Nothing to install, no Python environment to build, and **no API key
 of your own** — open the URL and start asking questions.
 
