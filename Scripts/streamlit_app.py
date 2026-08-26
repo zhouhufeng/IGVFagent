@@ -601,6 +601,21 @@ _ORCHESTRATORS = {
     "codex_cli":  ("💻  External — Codex CLI",       "codex"),
 }
 
+# Which orchestrators a deployment offers. The hosted instance is an
+# Anthropic-only test bed, so it ships "internal,claude_cli" and never shows
+# Codex — an option that can only ever fail is worse than no option. Local
+# installs keep the full list.
+_DEFAULT_PUBLIC_ORCHESTRATORS = "internal,claude_cli"
+
+
+def _allowed_orchestrators() -> "list[str]":
+    raw = os.environ.get("IGVF_PUBLIC_ORCHESTRATORS", "").strip()
+    if not raw:
+        raw = (_DEFAULT_PUBLIC_ORCHESTRATORS if _public_mode()
+               else ",".join(_ORCHESTRATORS))
+    keys = [k.strip() for k in raw.split(",") if k.strip() in _ORCHESTRATORS]
+    return keys or ["internal"]
+
 
 def _sidebar_orchestrator() -> str:
     """Choose who drives the Plan→Act loop.
@@ -617,9 +632,14 @@ def _sidebar_orchestrator() -> str:
     """
     import shutil
 
-    avail = {k: (bin_ is None or shutil.which(bin_) is not None)
-             for k, (_lbl, bin_) in _ORCHESTRATORS.items()}
-    keys = list(_ORCHESTRATORS)
+    keys = _allowed_orchestrators()
+    if len(keys) < 2:
+        # Nothing to choose between — don't render a one-option radio.
+        st.session_state["_orchestrator"] = keys[0]
+        return keys[0]
+    avail = {k: (_ORCHESTRATORS[k][1] is None
+                 or shutil.which(_ORCHESTRATORS[k][1]) is not None)
+             for k in keys}
     labels = [_ORCHESTRATORS[k][0] + ("" if avail[k] else "  — not installed")
               for k in keys]
     prev = st.session_state.get("_orchestrator", "internal")
