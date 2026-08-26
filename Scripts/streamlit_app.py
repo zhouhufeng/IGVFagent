@@ -608,8 +608,7 @@ def _sidebar() -> dict:
         st.subheader("Model")
         if public:
             # Backend is fixed by the operator; the model is chosen from a
-            # curated allowlist. No Load button — the hosted backend is a
-            # cloud API with nothing to preload.
+            # curated allowlist.
             backend = os.environ.get("IGVF_LLM_BACKEND", "anthropic")
             choices = _public_model_choices()
             default_model = os.environ.get("IGVF_LLM_MODEL", "").strip()
@@ -635,6 +634,12 @@ def _sidebar() -> dict:
             # Downstream (the active-model banner in main()) branches on this;
             # the public path never runs the radio that would otherwise set it.
             kind = "anthropic"
+            # Keep the Load button here too. There are no weights to preload
+            # for a cloud API, but it is also the *apply* affordance: it pings
+            # the backend to confirm the model id and credential, and it sets
+            # the `_loaded_status` the active-model banner reads. Without it a
+            # visitor picks a model and gets no confirmation that it took.
+            _sidebar_load_button(backend, model)
         else:
             kind = _sidebar_backend_kind()
             if kind == "local":

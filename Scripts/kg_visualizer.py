@@ -26,6 +26,7 @@ import sqlite3
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,7 +46,10 @@ logger = logging.getLogger("kg_visualizer")
 # KG discovery
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 
 
 @dataclass

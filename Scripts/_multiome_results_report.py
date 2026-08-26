@@ -14,9 +14,13 @@ from __future__ import annotations
 import collections
 import csv
 import sys
+import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 MANIFEST_DIR = ROOT / "Data" / "Manifests" / "MultiomeSurvey"
 REPORT_DIR = ROOT / "Docs" / "MultiomeSurvey"
 OUT_REPORT = REPORT_DIR / "LATEST_RUN_SUMMARY.md"
