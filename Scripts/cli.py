@@ -104,6 +104,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "multiseq":         ("igvfagent.multiseq_analysis_skill",
                           "MULTI-seq / Cell Hashing demultiplexing "
                           "(Python port of deMULTIplex2)"),
+    "extauthor":        ("igvfagent.ext_author_skill",
+                          "Author new IGVFagent tools/skills from the agent "
+                          "itself (opt-in: IGVF_ALLOW_AGENT_AUTHORING=1)"),
     "warehouse":        ("igvfagent.warehouse_skill",
                           "Central DuckDB warehouse — Silver tier for the "
                           "IGVF integrated data layer"),

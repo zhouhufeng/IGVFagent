@@ -595,6 +595,53 @@ def _public_model_choices() -> "list[str]":
     return picked or list(_PUBLIC_MODELS_DEFAULT)
 
 
+_ORCHESTRATORS = {
+    "internal":   ("⚙  Internal (IGVFagent ReAct)", None),
+    "claude_cli": ("🧠  External — Claude Code CLI", "claude"),
+    "codex_cli":  ("💻  External — Codex CLI",       "codex"),
+}
+
+
+def _sidebar_orchestrator() -> str:
+    """Choose who drives the Plan→Act loop.
+
+    *Internal* is IGVFagent's own loop in ``_agent.py`` using native function
+    calling. *External* shells out to a coding CLI — but note what that does
+    and doesn't buy you: ``_llm._chat_claude_cli`` runs ``claude --print`` as a
+    **text-generation backend**, parsing tool calls back out of the reply. The
+    orchestration is still IGVFagent's, and the CLI's own file/shell tools are
+    not used. It is a different transport, not a more capable harness.
+
+    An external option whose binary is absent is shown disabled rather than
+    hidden, so the choice is explicable instead of mysteriously missing.
+    """
+    import shutil
+
+    avail = {k: (bin_ is None or shutil.which(bin_) is not None)
+             for k, (_lbl, bin_) in _ORCHESTRATORS.items()}
+    keys = list(_ORCHESTRATORS)
+    labels = [_ORCHESTRATORS[k][0] + ("" if avail[k] else "  — not installed")
+              for k in keys]
+    prev = st.session_state.get("_orchestrator", "internal")
+    idx = keys.index(prev) if prev in keys else 0
+
+    chosen_label = st.radio(
+        "Orchestrator", labels, index=idx, key="_orchestrator_radio",
+        help="Internal runs IGVFagent's own agent loop with native function "
+             "calling. External shells out to a coding CLI as the text "
+             "backend — same tools, different transport.")
+    chosen = keys[labels.index(chosen_label)]
+
+    if not avail[chosen]:
+        st.warning(
+            f"`{_ORCHESTRATORS[chosen][1]}` is not on PATH in this "
+            "deployment, so this orchestrator cannot run. Falling back to "
+            "the internal loop.")
+        chosen = "internal"
+    st.session_state["_orchestrator"] = chosen
+    return chosen
+
+
 def _sidebar() -> dict:
     public = _public_mode()
     with st.sidebar:
@@ -610,6 +657,9 @@ def _sidebar() -> dict:
             # Backend is fixed by the operator; the model is chosen from a
             # curated allowlist.
             backend = os.environ.get("IGVF_LLM_BACKEND", "anthropic")
+            orch = _sidebar_orchestrator()
+            if orch != "internal":
+                backend = orch
             choices = _public_model_choices()
             default_model = os.environ.get("IGVF_LLM_MODEL", "").strip()
             try:
@@ -677,20 +727,29 @@ def _sidebar() -> dict:
             # Each iteration is a full LLM call, so the iteration cap is the
             # single biggest lever on what one visitor can spend. Ceilings are
             # operator-set; the visitor may lower them but never raise them.
-            iter_cap = _env_int("IGVF_PUBLIC_MAX_ITER", 12)
-            token_cap = _env_int("IGVF_PUBLIC_MAX_TOKENS", 4096)
+            #
+            # The ceiling has to clear the *whole task*, not a typical one: a
+            # bulk job ("download all 76 scE2G sets and integrate them") needs
+            # roughly one iteration per object plus discovery and synthesis. A
+            # ceiling below that doesn't slow the run down, it ends it early
+            # with "Agent run ended before completion".
+            iter_cap = _env_int("IGVF_PUBLIC_MAX_ITER", 100)
+            token_cap = _env_int("IGVF_PUBLIC_MAX_TOKENS", 16384)
             max_iter = st.slider("Max iterations", 1, iter_cap,
-                                   min(8, iter_cap))
+                                   min(_env_int("IGVF_PUBLIC_DEFAULT_ITER", 25),
+                                       iter_cap))
             max_tokens = st.slider("Max tokens / turn", 256, token_cap,
-                                     min(4096, token_cap), 256)
+                                     min(8192, token_cap), 256)
             temperature = 0.0
             st.caption(
-                f"Shared deployment: capped at {iter_cap} iterations and "
-                f"{token_cap} tokens/turn."
+                f"Shared deployment: up to {iter_cap} iterations and "
+                f"{token_cap} tokens/turn. Raise **Max iterations** for bulk "
+                "jobs — each one is a single LLM call, and a long download or "
+                "integration run needs roughly one per object."
             )
         else:
-            max_iter = st.slider("Max iterations", 1, 60, 12)
-            max_tokens = st.slider("Max tokens / turn", 256, 16384, 4096, 256)
+            max_iter = st.slider("Max iterations", 1, 300, 12)
+            max_tokens = st.slider("Max tokens / turn", 256, 32000, 4096, 256)
             temperature = st.slider("Temperature", 0.0, 1.5, 0.0, 0.05)
 
         st.divider()

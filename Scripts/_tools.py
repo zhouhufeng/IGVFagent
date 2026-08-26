@@ -84,6 +84,100 @@ _S_ARRAY_S = {"type": "array", "items": {"type": "string"}}
 
 _TOOLS: "list[Tool]" = [
 
+    # ──────────────────────────────────────────────────────────────────
+    # Self-extension. These are what let the agent add capability instead
+    # of only consuming it: it writes a manifest or a Python module into a
+    # user-extension directory and the loader absorbs it with no restart.
+    # Every write refuses unless IGVF_ALLOW_AGENT_AUTHORING=1, because an
+    # authored skill is Python this host later executes as a subprocess.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "ext_author_tool",
+        "★ CREATE A NEW TOOL ★ that you can call immediately afterwards. "
+        "Writes a declarative manifest wrapping either an `igvfagent` "
+        "subcommand (--cli) or any executable (--command). Use this when the "
+        "user asks for a capability that does not exist yet and it can be "
+        "expressed as a command line. The new tool appears in the registry "
+        "with NO restart. Give `parameters` as a JSON Schema object string.",
+        {
+            "type": "object",
+            "properties": {
+                "name":        {**_S_STRING, "description":
+                                "snake_case tool name, 3-49 chars."},
+                "description": {**_S_STRING, "description":
+                                "What it does and when to call it — this is "
+                                "all a model sees when choosing it."},
+                "cli":         {**_S_STRING, "description":
+                                'igvfagent subcommand tail, e.g. "kg gene".'},
+                "command":     {**_S_STRING, "description":
+                                "argv for any executable (alternative to cli)."},
+                "parameters":  {**_S_STRING, "description":
+                                'JSON Schema object, e.g. {"type":"object",'
+                                '"properties":{"gene":{"type":"string"}}}'},
+                "positional":  {**_S_STRING, "description":
+                                "space-separated params passed positionally."},
+            },
+            "required": ["name", "description"],
+        },
+        ["extauthor", "write-tool"],
+        flag_map={"name": "--name", "description": "--description",
+                   "cli": "--cli", "command": "--command",
+                   "parameters": "--parameters", "positional": "--positional"},
+    ),
+
+    _T(
+        "ext_author_skill",
+        "★ WRITE A NEW PYTHON SKILL ★ and register it as `igvfagent <name>`. "
+        "Pass the COMPLETE module source in `source`; it must define a "
+        "top-level main(). Source is syntax-checked before it is written. Use "
+        "this when the needed capability requires real logic (parsing, "
+        "analysis, a new API client) rather than wrapping a command. After "
+        "writing, call ext_validate to confirm it loaded.",
+        {
+            "type": "object",
+            "properties": {
+                "name":        {**_S_STRING, "description":
+                                "snake_case skill name; registers as "
+                                "`igvfagent <name-with-hyphens>`."},
+                "description": {**_S_STRING, "description": "What it does."},
+                "source":      {**_S_STRING, "description":
+                                "Full Python source, must define main()."},
+                "source_file": {**_S_STRING, "description":
+                                "Alternative: read source from this path."},
+            },
+            "required": ["name", "description"],
+        },
+        ["extauthor", "write-skill"],
+        flag_map={"name": "--name", "description": "--description",
+                   "source": "--source", "source_file": "--source-file"},
+    ),
+
+    _T(
+        "ext_validate",
+        "★ Check an authored extension actually registered ★ and, for a "
+        "skill, that it imports. Call this right after ext_author_skill — a "
+        "module that fails to import is skipped silently by the loader.",
+        {
+            "type": "object",
+            "properties": {
+                "name": {**_S_STRING, "description": "Extension name."},
+            },
+            "required": ["name"],
+        },
+        ["extauthor", "validate"],
+        flag_map={"name": "--name"},
+    ),
+
+    _T(
+        "ext_list",
+        "★ List every user-authored tool and skill ★ currently discovered, "
+        "the directories searched, whether authoring is enabled, and any "
+        "manifests that failed to load. Call this before authoring to avoid "
+        "duplicating something that already exists.",
+        {"type": "object", "properties": {}},
+        ["extauthor", "list"],
+    ),
+
     _T(
         "kg_gene",
         "Comprehensive gene context from the IGVF Catalog KG: variants, "
