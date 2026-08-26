@@ -20,6 +20,39 @@ _Detailed five-layer architecture: user entry points (terminal, NL agent, browse
 | [![Demo 1](https://img.youtube.com/vi/EQVwIEa-gVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=EQVwIEa-gVg) | [![Demo 2](https://img.youtube.com/vi/c-CyIEArEK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=c-CyIEArEK8) |
 | ▶ <https://www.youtube.com/watch?v=EQVwIEa-gVg> | ▶ <https://www.youtube.com/watch?v=c-CyIEArEK8> |
 
+## 🌐 Try it online — no install required
+
+**<https://igvfagent.genohub.org>**
+
+A hosted IGVFagent runs on the project's [Jetstream2](https://jetstream-cloud.org/)
+allocation, on the team's own API key. Nothing to install, no Python
+environment to build, and **no API key of your own** — open the URL and start
+asking questions.
+
+Access is gated by a shared password. Email
+[hufengzhou@g.harvard.edu](mailto:hufengzhou@g.harvard.edu) to request it.
+
+**How the hosted instance differs from a local install:**
+
+| | Hosted | Local install |
+|---|---|---|
+| Setup | none | `pip install -e '.[all]'` |
+| LLM cost | paid by the project | your own API key, or free via Ollama |
+| Model | Claude Sonnet 5 by default; Haiku 4.5 / Opus 5 / Fable 5 selectable | any backend — Anthropic, OpenAI, Ollama, vLLM, TGI, … |
+| Run length | capped (iterations and tokens per turn) | uncapped |
+| Workspace | **shared with other users** — see below | private to you |
+| Your own data | not for anything sensitive | stays on your machine |
+
+> ⚠️ **The hosted workspace is shared.** All signed-in users read and write one
+> `Data/` and `Docs/` tree and one local knowledge graph, so analyses are
+> visible to everyone else using the site. Treat it as a public demo sandbox:
+> good for exploring IGVF/ENCODE public data, **not** for unpublished or
+> sensitive datasets. Install locally for private work.
+
+Heavy or long-running analyses (full multiome pipelines, large downloads) are
+better run locally — see [Quick start](#quick-start). Operators: deployment
+details are in [`Deploy/README.md`](Deploy/README.md).
+
 ## Architecture at a glance
 
 IGVFagent ships **its own internal orchestrator** — a Plan → Action → Results
@@ -62,6 +95,7 @@ In short — **two ways to drive every skill, one shared contract**:
 
 ## Table of contents
 
+- [Try it online (hosted)](#-try-it-online--no-install-required)
 - [Capabilities](#capabilities)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
@@ -74,7 +108,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Advanced variant analysis](#advanced-variant-analysis)
   - [Single-cell, multiome, specialized assays](#single-cell-multiome-specialized-assays)
   - [Cross-source multiome survey](#cross-source-multiome-survey)
-  - [Parse SPLiT-seq pipeline](#parse-splitseq-pipeline)
+  - [Parse SPLiT-seq pipeline](#parse-split-seq-pipeline)
   - [Enhancer–gene linkage](#enhancergene-linkage)
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
   - [CRISPRi / CRISPR-FACS / Perturb-seq](#crispri--crispr-facs--perturb-seq)
@@ -298,6 +332,10 @@ tools are exempt — they are auto-discovered from `~/.igvfagent/` and
 
 ## Quick start
 
+> Just want to try IGVFagent? Skip all of this and use the hosted instance at
+> **<https://igvfagent.genohub.org>** — no install, no API key.
+> See [Try it online](#-try-it-online--no-install-required).
+
 **Recommended — native pip install in a virtual env (best for local LLMs):**
 
 ```bash
@@ -503,8 +541,9 @@ For higher-quality answers, point the agent at Anthropic Claude or OpenAI:
 
 ```bash
 export ANTHROPIC_API_KEY=...
-igvfagent ask --backend anthropic --model claude-sonnet-4-5 \
+igvfagent ask --backend anthropic --model claude-sonnet-5 \
    "Compare DRD1 and DRD2 striatal MSN evidence in the local KG."
+# Other current Claude ids: claude-opus-5, claude-fable-5, claude-haiku-4-5
 
 export OPENAI_API_KEY=...
 igvfagent ask --backend openai --model gpt-4o-mini "..."
