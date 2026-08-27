@@ -62,11 +62,16 @@ _DENY_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".cookie", ".cookies", ".token
 _DENY_NAME_PARTS = ("apikey", "api_key", "credential", "secret", "password", "token")
 
 
-def why_blocked(path: "str | Path") -> "str | None":
+def why_blocked(path: "str | Path", *, require_file: bool = True) -> "str | None":
     """Return a short reason the path is not renderable, or ``None`` if it is.
 
     Resolution follows symlinks, so a symlink planted inside the workspace
     cannot point out of it and slip past the containment check.
+
+    ``require_file=False`` keeps the containment and denylist checks but
+    accepts a directory — for callers that list or search a run directory
+    rather than reading one file. The security-relevant rules are unchanged;
+    only the final "is this a regular file" assertion is relaxed.
     """
     root = project_root()
     try:
@@ -93,16 +98,20 @@ def why_blocked(path: "str | Path") -> "str | None":
     if any(part in name for part in _DENY_NAME_PARTS):
         return "credential-like filename"
 
-    # 3) Must be a real regular file (not a device, FIFO, or directory).
-    if not p.is_file():
-        return "not a regular file"
+    # 3) Must be a real regular file (not a device or FIFO). Directories are
+    #    allowed only for callers that opted in via require_file=False.
+    if require_file:
+        if not p.is_file():
+            return "not a regular file"
+    elif not (p.is_file() or p.is_dir()):
+        return "not a file or directory"
 
     return None
 
 
-def is_safe_artifact(path: "str | Path") -> bool:
+def is_safe_artifact(path: "str | Path", *, require_file: bool = True) -> bool:
     """True when *path* may be rendered or offered for download."""
-    return why_blocked(path) is None
+    return why_blocked(path, require_file=require_file) is None
 
 
 def filter_artifacts(paths) -> "list[str]":

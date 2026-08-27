@@ -104,6 +104,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "multiseq":         ("igvfagent.multiseq_analysis_skill",
                           "MULTI-seq / Cell Hashing demultiplexing "
                           "(Python port of deMULTIplex2)"),
+    "artifact":         ("igvfagent.artifact_read_skill",
+                          "Read back reports/manifests the agent produced "
+                          "(workspace-contained: read / grep / ls)"),
     "extauthor":        ("igvfagent.ext_author_skill",
                           "Author new IGVFagent tools/skills from the agent "
                           "itself (opt-in: IGVF_ALLOW_AGENT_AUTHORING=1)"),

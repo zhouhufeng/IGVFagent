@@ -92,6 +92,68 @@ _TOOLS: "list[Tool]" = [
     # authored skill is Python this host later executes as a subprocess.
     # ──────────────────────────────────────────────────────────────────
     _T(
+        "read_artifact",
+        "★ READ A FILE THIS AGENT PRODUCED ★ — reports, manifests, JSON, CSV, "
+        "TSV, logs. Skills announce outputs as `Report: <path>`; use this to "
+        "OPEN that path and quote what is actually inside. ALWAYS call this "
+        "before summarising a report: without it you only know the counts a "
+        "skill happened to print, so you would say '18 diseases' instead of "
+        "naming them. Use --head/--tail to page a large file.",
+        {
+            "type": "object",
+            "properties": {
+                "path":      {**_S_STRING, "description":
+                              "Workspace-relative or absolute path to read."},
+                "head":      {**_S_INTEGER, "description":
+                              "Return only the first N lines."},
+                "tail":      {**_S_INTEGER, "description":
+                              "Return only the last N lines."},
+                "max_bytes": {**_S_INTEGER, "description":
+                              "Byte cap (default 200000)."},
+            },
+            "required": ["path"],
+        },
+        ["artifact", "read"],
+        flag_map={"path": "--path", "head": "--head", "tail": "--tail",
+                   "max_bytes": "--max-bytes"},
+    ),
+
+    _T(
+        "grep_artifacts",
+        "★ SEARCH INSIDE produced artefacts ★ for a regex — find which report "
+        "mentions a gene, disease, or accession without reading each one. "
+        "Returns file, line number, and the matching line.",
+        {
+            "type": "object",
+            "properties": {
+                "pattern":  {**_S_STRING, "description": "Regex to search for."},
+                "path":     {**_S_STRING, "description":
+                             "Directory or file to search (default Docs)."},
+                "max_hits": {**_S_INTEGER, "description": "Cap on hits (default 50)."},
+            },
+            "required": ["pattern"],
+        },
+        ["artifact", "grep"],
+        flag_map={"pattern": "--pattern", "path": "--path",
+                   "max_hits": "--max-hits"},
+    ),
+
+    _T(
+        "list_artifacts",
+        "★ LIST a run directory ★ to discover what a skill actually wrote "
+        "before reading it. Use on the run dir a skill reported.",
+        {
+            "type": "object",
+            "properties": {
+                "path":  {**_S_STRING, "description": "Directory (default Docs)."},
+                "limit": {**_S_INTEGER, "description": "Max entries (default 200)."},
+            },
+        },
+        ["artifact", "ls"],
+        flag_map={"path": "--path", "limit": "--limit"},
+    ),
+
+    _T(
         "ext_author_tool",
         "★ CREATE A NEW TOOL ★ that you can call immediately afterwards. "
         "Writes a declarative manifest wrapping either an `igvfagent` "
