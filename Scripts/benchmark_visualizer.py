@@ -58,6 +58,17 @@ _STATUS_ICON = {
 }
 
 
+def _public_mode() -> bool:
+    """True on the shared/hosted deployment (``IGVF_PUBLIC_MODE=1``).
+
+    Read from the environment rather than importing ``streamlit_app``,
+    which imports this module — the same contract, without the cycle.
+    """
+    import os
+    return os.environ.get("IGVF_PUBLIC_MODE", "").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
 def benchmarks_root() -> Optional[Path]:
     """Locate the repo's ``Benchmarks/`` directory, or None."""
     import os
@@ -262,7 +273,13 @@ def render_streamlit_panel(st) -> None:  # noqa: C901
         help="All papers are shown by default. Narrow the list to speed up "
              "rendering or to focus on one reproduction.",
     )
-    expand = st.checkbox("Expand all", value=True, key="_bench_expand")
+    # On the hosted deployment every visitor would otherwise pull ~4.7 MB of
+    # figures on first paint. Start collapsed there and let them opt in;
+    # local single-user runs keep the everything-visible default.
+    expand = st.checkbox("Expand all", value=not _public_mode(),
+                          key="_bench_expand",
+                          help="Collapsed by default on the hosted instance "
+                               "to keep first paint light.")
 
     for b in with_figs:
         if b["id"] not in picked:
