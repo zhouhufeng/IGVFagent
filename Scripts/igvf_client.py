@@ -28,6 +28,9 @@ DATA_DIR = ROOT / "Data"
 LOG_DIR = ROOT / "Docs" / "Logs"
 
 PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
+# Data plane. Serves search/object queries anonymously, unlike the
+# browser host above.
+PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 CATALOG_DOCS_BASE = _resolve_endpoint("catalog_docs", "IGVF_CATALOG_DOCS_BASE")
 CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
 ARANGO_BASE = _resolve_endpoint("arango", "IGVF_ARANGO_BASE")
@@ -128,16 +131,41 @@ def check_catalog_index() -> int:
 
 
 def check_portal() -> int:
+    """Report Portal reachability for BOTH hosts, separately.
+
+    The Portal is served from two hosts with different auth behaviour, and
+    conflating them is misleading: the browser host (data.igvf.org) refuses
+    anonymous requests with 403, while the data API (api.data.igvf.org) serves
+    search and object queries anonymously. Probing only the browser host and
+    concluding "authenticated access is likely required" tells a user their
+    setup is broken when every data-access skill in fact works — which is what
+    happened in review.
+    """
     session_cookie = os.environ.get("IGVF_PORTAL_COOKIE")
-    headers = {}
-    if session_cookie:
-        headers["Cookie"] = session_cookie
-    status, content, content_type = fetch(f"{PORTAL_BASE}/", headers=headers)
+    headers = {"Cookie": session_cookie} if session_cookie else {}
+
+    web_status, content, content_type = fetch(f"{PORTAL_BASE}/", headers=headers)
     save_response("portal_home", content, content_type)
-    print(f"IGVF Portal home: HTTP {status}")
-    if status == 403 and not session_cookie:
-        print("Portal returned 403 without IGVF_PORTAL_COOKIE; authenticated access is likely required.")
-    return 0 if 200 <= status < 400 else 1
+    print(f"IGVF Portal (web, {PORTAL_BASE}): HTTP {web_status}")
+
+    api_url = f"{PORTAL_API_BASE}/search/?type=MeasurementSet&limit=1&format=json"
+    api_status, api_content, api_ct = fetch(api_url, headers=headers)
+    save_response("portal_api_probe", api_content, api_ct)
+    print(f"IGVF Portal (data API, {PORTAL_API_BASE}): HTTP {api_status}")
+
+    if 200 <= api_status < 400:
+        print("Anonymous data access works: search, object and file metadata "
+              "queries need no cookie. Every Portal skill uses this host.")
+        if web_status == 403:
+            print(f"The {web_status} above is the browser host only, which "
+                  "declines anonymous requests. It does not affect analysis.")
+        return 0
+
+    if not session_cookie:
+        print("The data API is not reachable anonymously from here. Set "
+              "IGVF_PORTAL_COOKIE for authenticated access, or check network "
+              "egress to the Portal.")
+    return 1
 
 
 def catalog_api_url(path: str, params: dict[str, Any] | None = None) -> str:

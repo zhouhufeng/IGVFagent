@@ -142,8 +142,34 @@ def build_json_url(target: str) -> tuple[str, str, str]:
         else:
             path = f"/search/?searchTerm={urllib.parse.quote(accession)}&format=json"
         return source, f"{IGVF_API_BASE}{path}", safe_label(accession)
-    path = f"/search/?searchTerm={urllib.parse.quote(accession)}&format=json"
+    # Fetch the OBJECT, not a full-text search. `searchTerm=<accession>`
+    # returns whatever mentions the accession — for ENCSR000EMT that is 25
+    # related files and annotations, and not the experiment itself — so a
+    # summary built from those hits describes the wrong thing. ENCODE serves a
+    # bare accession as a 301 to its typed path, and urlopen follows redirects,
+    # so the object endpoint resolves directly.
+    path = f"/{urllib.parse.quote(accession)}/?format=json"
     return source, f"{ENCODE_BASE}{path}", safe_label(accession)
+
+
+def fetch_json_with_fallback(source: str, url: str,
+                              accession: str) -> "tuple[int, Any, str]":
+    """Object endpoint first, search as fallback.
+
+    Returns (status, data, url_used). An accession that is not a resolvable
+    object (a free-text term, a retired id) still needs the search path, so
+    the fallback is kept rather than replaced.
+    """
+    status, data = fetch_json(source, url)
+    if 200 <= status < 400 and isinstance(data, dict) and "@graph" not in data:
+        return status, data, url
+    base = ENCODE_BASE if source == "encode" else IGVF_API_BASE
+    alt = f"{base}/search/?searchTerm={urllib.parse.quote(accession)}&format=json"
+    if alt == url:
+        return status, data, url
+    logging.info("Object endpoint returned %s; falling back to search", status)
+    s2, d2 = fetch_json(source, alt)
+    return s2, d2, alt
 
 
 def fetch_json(source: str, url: str) -> tuple[int, Any]:
@@ -497,7 +523,7 @@ def run_explain(args: argparse.Namespace) -> int:
     mkdirs()
     source, url, label_seed = build_json_url(args.target)
     label = args.label or label_seed
-    status, data = fetch_json(source, url)
+    status, data, url = fetch_json_with_fallback(source, url, args.target.strip().strip("/"))
     raw_path = save_raw(label, data)
     rows = rows_from_response(data)
     hydrated_rows = hydrate_rows(source, rows, args.hydrate_limit) if rows and args.hydrate_limit else []
@@ -531,6 +557,16 @@ def run_explain(args: argparse.Namespace) -> int:
     print(f"HTTP status: {status}")
     print(f"Rows/items: {len(rows) if rows else 1}")
     print(f"Files discovered: {len(files)}")
+    # Structured identity BEFORE the paths, so the model summarises what was
+    # actually retrieved instead of guessing from the accession alone.
+    # rows_from_response only unwraps @graph-style envelopes, so a direct
+    # object fetch yields no rows — fall back to the object itself, which is
+    # precisely the case that carries the identifying metadata.
+    identity_rows = hydrated_rows or rows
+    if not identity_rows and isinstance(data, dict) and data.get("accession"):
+        identity_rows = [data]
+    for line in identity_lines(identity_rows, args.target):
+        print(line)
     print(f"Raw metadata: {raw_path}")
     if hydrated_path:
         print(f"Hydrated item metadata: {hydrated_path}")
@@ -540,6 +576,71 @@ def run_explain(args: argparse.Namespace) -> int:
         download_results = download_files(source, manifest, label, args.max_download_gb)
         print(f"Download results: {download_results}")
     return 0 if 200 <= status < 400 else 1
+
+
+def _scalar(value):
+    """ENCODE/IGVF fields are inconsistently scalar, list, or linked object."""
+    if isinstance(value, dict):
+        return (value.get("term_name") or value.get("label")
+                or value.get("title") or value.get("name"))
+    if isinstance(value, list):
+        vals = [_scalar(v) for v in value]
+        vals = [v for v in vals if v]
+        return "; ".join(dict.fromkeys(str(v) for v in vals)) or None
+    return value
+
+
+def identity_lines(rows, target: str) -> "list[str]":
+    """Human- and model-readable identity of what was actually retrieved.
+
+    Without this the tool printed only counts and file paths, so a model asked
+    what an experiment *is* had nothing but the accession to go on and would
+    confabulate a plausible assay and cell line. (Observed: ENCSR000EMT, a
+    DNase-seq experiment in GM12878, summarised as RNA-seq in K562.) The
+    identifying fields are already in hand here; they simply were never
+    surfaced. Printing them is what makes the final answer checkable against
+    the source rather than invented.
+    """
+    if not rows:
+        return []
+    fields = [("assay_term_name", "Assay"), ("assay_title", "Assay title"),
+              ("biosample_ontology", "Biosample"), ("target", "Target"),
+              ("lab", "Lab"), ("status", "Status"), ("assembly", "Assembly")]
+
+    # The queried accession is not necessarily the first row: an accession
+    # search also returns related annotations and derived items.
+    t = (target or "").strip().upper()
+    primary = next((r for r in rows
+                    if str(r.get("accession", "")).upper() == t), None)
+
+    out = ["Identity:"]
+    if primary is not None:
+        out.append(f"  accession: {primary.get('accession')}  (queried)")
+        for key, lbl in fields:
+            v = _scalar(primary.get(key))
+            if v:
+                out.append(f"  {lbl}: {v}")
+        desc = primary.get("description")
+        if desc:
+            out.append(f"  Description: {str(desc)[:200]}")
+    else:
+        out.append(f"  NOTE: no returned record has accession {target!r}; "
+                   f"the {len(rows)} item(s) below are related records.")
+
+    if len(rows) > 1:
+        out.append(f"  Retrieved {len(rows)} items in total. Distribution:")
+        for key, lbl in (("assay_term_name", "Assay"),
+                          ("biosample_ontology", "Biosample"),
+                          ("@type", "Type")):
+            counts = {}
+            for r in rows:
+                v = _scalar(r.get(key)) or "(none)"
+                counts[str(v)] = counts.get(str(v), 0) + 1
+            if len(counts) > 1 or "(none)" not in counts:
+                top = sorted(counts.items(), key=lambda kv: -kv[1])[:5]
+                out.append("    " + lbl + ": "
+                           + ", ".join(f"{k} ({n})" for k, n in top))
+    return out
 
 
 def write_playbook() -> Path:

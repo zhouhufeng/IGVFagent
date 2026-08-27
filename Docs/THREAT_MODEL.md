@@ -91,6 +91,33 @@ participant-level, or otherwise sensitive.
 
 ---
 
+## 2b. Which resources work without credentials
+
+Measured, not assumed. Anything marked anonymous needs no key, cookie or
+account; the agent's default configuration uses only these.
+
+| Resource | Host used | Anonymous |
+|---|---|---|
+| IGVF Portal — **data API** | `api.data.igvf.org` | **yes** — search, objects, file metadata |
+| IGVF Portal — browser host | `data.igvf.org` | **no** — 403 without a session cookie |
+| IGVF Catalog API | `api.catalogkg.igvf.org` | yes |
+| ENCODE | `www.encodeproject.org` | yes |
+| FAVOR | `api.genohub.org` | yes |
+| GEO (E-utilities) | `eutils.ncbi.nlm.nih.gov` | yes |
+| CELLxGENE Discover | `api.cellxgene.cziscience.com` | yes |
+| Zenodo | `zenodo.org` | yes |
+| ChIP-Atlas | `chip-atlas.dbcls.jp` | yes |
+| Synapse, dbGaP, EGA | — | **no** — credentialed, per-study agreements |
+
+**The Portal's two hosts are a common source of confusion.** The browser host
+declines anonymous API requests with `403`, so probing it alone suggests the
+Portal is unusable without a cookie. It is not: every Portal-facing skill uses
+the data API, which serves anonymously. `igvfagent client portal` reports both
+hosts separately for this reason.
+
+`IGVF_PORTAL_COOKIE` is needed only for unreleased or access-restricted Portal
+records, not for ordinary discovery and retrieval.
+
 ## 3. Threat model
 
 **Assets.** The operator's LLM API key; IGVF Portal credentials
