@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "id": "advanced-variant",
+  "version": "0.2.9",
+  "title": "Integrated variant scoring + logistic + report",
+  "summary": "",
+  "module": "igvfagent.advanced_variant_analysis",
+  "source": "Scripts/advanced_variant_analysis.py",
+  "interfaces": {
+    "cli": "igvfagent advanced-variant",
+    "tools": [
+      {
+        "name": "advanced_variant_analysis",
+        "subcommand": "advanced-variant run",
+        "description": "Integrated variant pipeline: catalog evidence + cCRE overlay + Predicted_Functional composite + optional experimental join + logistic model + markdown report with volcano/Miami/overlap plots.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "experimental": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "gene_list": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/ADVANCED_VARIANT_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

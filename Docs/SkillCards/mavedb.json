@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "id": "mavedb",
+  "version": "0.2.9",
+  "title": "MaveDB scoreset \u2192 genomic coords (chr/pos/ref/alt)",
+  "summary": "MaveDB scoreset \u2192 genomic coordinates mapping skill.",
+  "module": "igvfagent.mavedb_mapping_skill",
+  "source": "Scripts/mavedb_mapping_skill.py",
+  "interfaces": {
+    "cli": "igvfagent mavedb",
+    "tools": [
+      {
+        "name": "mavedb_map_scoreset",
+        "subcommand": "mavedb map-scoreset",
+        "description": "MAP MAVEDB SCORESET VARIANTS TO GENOMIC COORDINATES \u2605. Takes either a MaveDB URN or a gene symbol (looked up in the curated VAMP-seq catalog: PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15), parses every variant's HGVSp, resolves chr/pos/ref/alt via the public Ensembl REST API, and emits TSV + VCF + summary JSON. Clean-room reimplementation of ave-dcd/dcd_mapping (MIT) without UTA / SeqRepo / BLAT \u2014 uses only Ensembl REST + an on-disk JSON cache. For amino acids with multiple alt codons, emits one row per candidate single-nt change with `candidate_idx` + `n_candidates`. USE THIS to make MAVE / VAMP-seq scores cross-referenceable with ClinVar, gnomAD, GWAS catalogues.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "urn": {
+              "type": "string",
+              "description": "MaveDB URN (e.g. urn:mavedb:00000013-a-1)."
+            },
+            "gene": {
+              "type": "string",
+              "description": "HGNC gene symbol (PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15)."
+            },
+            "species": {
+              "type": "string",
+              "default": "human"
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "mavedb_showcase",
+        "subcommand": "mavedb showcase",
+        "description": "ONE-COMMAND MAVEDB DEMO \u2605. Downloads the canonical MaveDB scoreset for a gene, maps every variant to genomic coordinates, writes TSV + VCF + summary JSON + a 2-panel composite figure (per-protein-position variant coverage + mapping-outcome bar) + a narrative report. USE THIS for any 'show me MAVE mapping for <gene>' demo question.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string",
+              "default": "PTEN"
+            },
+            "species": {
+              "type": "string",
+              "default": "human"
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "ensembl_rest"
+  ],
+  "artefact_kinds": [
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "buckley2024_vhl",
+        "paper": {
+          "authors": "Buckley M et al.",
+          "journal": "Nat Genet",
+          "year": 2024,
+          "doi": "10.1038/s41588-024-01800-z",
+          "pmid": "38969834"
+        },
+        "checks": 4,
+        "run": "Benchmarks/buckley2024_vhl/run.sh"
+      },
+      {
+        "benchmark": "matreyek2018_pten_vampseq",
+        "paper": {
+          "authors": "Matreyek KA et al.",
+          "journal": "Nat Genet",
+          "year": 2018,
+          "doi": "10.1038/s41588-018-0122-z",
+          "pmid": "29785012"
+        },
+        "checks": 4,
+        "run": "Benchmarks/matreyek2018_pten_vampseq/run.sh"
+      },
+      {
+        "benchmark": "waters2024_bap1",
+        "paper": {
+          "authors": "Waters AJ et al.",
+          "journal": "Nat Genet",
+          "year": 2024,
+          "doi": "10.1038/s41588-024-01799-3",
+          "pmid": "38969833"
+        },
+        "checks": 5,
+        "run": "Benchmarks/waters2024_bap1/run.sh"
+      }
+    ],
+    "n_checks": 13,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/MAVEDB_MAPPING_SKILL.md",
+  "license": "Apache-2.0"
+}

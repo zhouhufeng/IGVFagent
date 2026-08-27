@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "id": "bench",
+  "version": "0.2.9",
+  "title": "Paper \u2192 reproduction benchmark. Resolve a publication from a title / URL / DOI / PMID / author+journal+year, harvest its Data Availability statement + accessions from the full text, route them onto an IGVFagent analysis chain, and scaffold a runnable Benchmarks/<paper-id>/ that concordance.py scores. Subcommands: resolve, harvest, route, scaffold, run, score, report, pipeline, selftest, list-routes.",
+  "summary": "",
+  "module": "igvfagent.benchmark_skill",
+  "source": "Scripts/benchmark_skill.py",
+  "interfaces": {
+    "cli": "igvfagent bench",
+    "tools": []
+  },
+  "upstream_resources": [
+    "biorxiv_api",
+    "crossref",
+    "europepmc",
+    "pubmed_eutils"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "id": "client",
+  "version": "0.2.9",
+  "title": "IGVF Portal / Catalog / Knowledge Graph / ENCODE client",
+  "summary": "",
+  "module": "igvfagent.igvf_client",
+  "source": "Scripts/igvf_client.py",
+  "interfaces": {
+    "cli": "igvfagent client",
+    "tools": []
+  },
+  "upstream_resources": [
+    "arango",
+    "catalog_api",
+    "catalog_docs",
+    "encode",
+    "portal"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

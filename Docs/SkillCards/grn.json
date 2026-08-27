@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "id": "grn",
+  "version": "0.2.9",
+  "title": "Gene regulatory network (dEx) + protein-variant effects from the Catalog",
+  "summary": "",
+  "module": "igvfagent.catalog_grn_skill",
+  "source": "Scripts/catalog_grn_skill.py",
+  "interfaces": {
+    "cli": "igvfagent grn",
+    "tools": [
+      {
+        "name": "grn_network",
+        "subcommand": "grn network",
+        "description": "Differential-expression gene regulatory network (dEx GRN) edges from the IGVF Catalog. Call this for 'what genes does TF X regulate?', 'what regulates gene Y?', 'is there a Perturb-seq self-edge for TF Z?', or any question about regulator->target effect size or significance. Returns one row per element->gene edge with log2FC, neg_log10_pvalue, significant, crispr_modality and the perturbed element's coordinates. Query from either end: 'regulator' gives that TF's targets, 'response' gives that gene's regulators, and passing BOTH with the same symbol tests the self-edge (many TFs legitimately have none). This is the only tool that reaches /api/gene-regulatory-network \u2014 kg_gene and catalog_find_associations do not cover it.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "regulator": {
+              "type": "string",
+              "description": "Regulator (TF) gene symbol; returns its targets. e.g. EOMES"
+            },
+            "response": {
+              "type": "string",
+              "description": "Response gene symbol; returns its regulators. e.g. ARHGEF3"
+            },
+            "method": {
+              "type": "string",
+              "description": "Assay method: 'Perturb-seq' or 'CRISPR screen'. Omit for all methods."
+            },
+            "p_value": {
+              "type": "number",
+              "description": "Keep edges with p <= this (typical: 0.05). Omit to return all edges regardless of significance."
+            },
+            "host": {
+              "type": "string",
+              "enum": [
+                "prod",
+                "dev"
+              ],
+              "default": "prod",
+              "description": "'dev' queries the pre-release demo Catalog; use only when the user explicitly asks for dev data."
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 10000
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "grn_protein_variants",
+        "subcommand": "grn protein-variants",
+        "description": "Sequence-variant effects on proteins from the IGVF Catalog: allele-specific binding and motif-disruption calls (SEMVAR, ADASTRA). Use for 'which variants alter binding of TF X?' or 'what is the allele-specific binding evidence for this protein?'. Returns sequence_variant, protein_complex, biosample_term, the effect label (e.g. 'allele-specific binding' / 'binding modulated by'), method and source_url. This is the only tool that reaches /api/proteins/variants.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "protein": {
+              "type": "string",
+              "description": "Protein / gene symbol, e.g. ELF2, TP53."
+            },
+            "method": {
+              "type": "string",
+              "description": "Scoring method, e.g. 'SEMVAR' or 'ADASTRA'."
+            },
+            "source": {
+              "type": "string",
+              "description": "Originating source, e.g. IGVF, ADASTRA."
+            },
+            "host": {
+              "type": "string",
+              "enum": [
+                "prod",
+                "dev"
+              ],
+              "default": "prod"
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 10000
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "catalog_api_dev"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

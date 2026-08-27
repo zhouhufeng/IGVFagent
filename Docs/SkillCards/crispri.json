@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "id": "crispri",
+  "version": "0.2.9",
+  "title": "CRISPRi / CRISPR-FACS / Perturb-seq evidence",
+  "summary": "",
+  "module": "igvfagent.crispri_data_skills",
+  "source": "Scripts/crispri_data_skills.py",
+  "interfaces": {
+    "cli": "igvfagent crispri",
+    "tools": [
+      {
+        "name": "crispri_pull",
+        "subcommand": "crispri pull",
+        "description": "Pull CRISPRi/CRISPR-FACS/Perturb-seq evidence from the Catalog. Backed by /api/genes/genomic-elements, where the IGVF assay that produced an element->gene link is carried by the Catalog 'method' field \u2014 'Perturb-seq' and 'CRISPR screen' are the two values on this collection (source='IGVF'). For per-edge effect sizes and significance from the same perturbation experiments, use grn_network instead; this tool returns the element/gene evidence records, not the dEx statistics.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "portal"
+              ],
+              "default": "catalog"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "portal"
+  ],
+  "artefact_kinds": [
+    "Manifest"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/CRISPRI_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

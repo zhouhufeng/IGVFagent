@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "se-targets",
+  "version": "0.2.9",
+  "title": "Super-enhancer \u2192 target-gene pipeline (ENCODE)",
+  "summary": "",
+  "module": "igvfagent.se_target_pipeline",
+  "source": "Scripts/se_target_pipeline.py",
+  "interfaces": {
+    "cli": "igvfagent se-targets",
+    "tools": [
+      {
+        "name": "se_targets_discover",
+        "subcommand": "se-targets discover",
+        "description": "List candidate ChIP-seq + DNase/ATAC + Hi-C/ChIA-PET experiments for a biosample without downloading or analyzing anything. Use this to scope what's available before running the full pipeline.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "biosample": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string",
+              "default": "H3K27ac"
+            },
+            "assembly": {
+              "type": "string",
+              "default": "GRCh38"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "biosample"
+          ]
+        }
+      },
+      {
+        "name": "se_targets_pipeline",
+        "subcommand": "se-targets pipeline",
+        "description": "End-to-end super-enhancer \u2192 target-gene pipeline. For a chosen biosample (GM12878 / K562 / HepG2 / liver / brain / ...): discovers H3K27ac (or BRD4/MED1/P300) ChIP-seq + optional Hi-C/ChIA-PET 3D experiments, downloads peak BED, calls super-enhancers ROSE-style, and links each SE to candidate target genes via four streams (3D loops, IGVF Catalog rE2G/ABC predictions, proximity, SCREEN cCRE composition). Outputs a ranked SE\u2194gene table, network plot, and report.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "biosample": {
+              "type": "string",
+              "description": "ENCODE biosample term (GM12878, K562, liver, hippocampus, ...)."
+            },
+            "target": {
+              "type": "string",
+              "default": "H3K27ac"
+            },
+            "assembly": {
+              "type": "string",
+              "default": "GRCh38"
+            },
+            "include_3d": {
+              "type": "boolean",
+              "default": false
+            },
+            "gene": {
+              "type": "string",
+              "description": "Optional gene to focus a per-locus browser view on."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "biosample"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "wenglab_dl"
+  ],
+  "artefact_kinds": [
+    "Manifest"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/SE_TARGET_PIPELINE_SKILLS.md",
+  "license": "Apache-2.0"
+}

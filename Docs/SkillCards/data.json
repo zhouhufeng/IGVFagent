@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "id": "data",
+  "version": "0.2.9",
+  "title": "Catalog / Portal / ENCODE overview + smoke summaries",
+  "summary": "",
+  "module": "igvfagent.igvf_data_skills",
+  "source": "Scripts/igvf_data_skills.py",
+  "interfaces": {
+    "cli": "igvfagent data",
+    "tools": []
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "portal"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md",
+  "license": "Apache-2.0"
+}

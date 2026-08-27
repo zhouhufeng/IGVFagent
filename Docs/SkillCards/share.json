@@ -1,0 +1,212 @@
+{
+  "schema_version": "1.0",
+  "id": "share",
+  "version": "0.2.9",
+  "title": "SHARE-seq joint scATAC+scRNA QC (Ma 2020 / Broad pipeline)",
+  "summary": "",
+  "module": "igvfagent.share_seq_skill",
+  "source": "Scripts/share_seq_skill.py",
+  "interfaces": {
+    "cli": "igvfagent share",
+    "tools": [
+      {
+        "name": "share_demultiplex_bcs",
+        "subcommand": "share demultiplex-bcs",
+        "description": "SHARE-seq round-1/2/3 24-mer barcode demultiplex on a gz FASTQ. Exact match + 1-Hamming-mismatch lookup + optional +/-1 bp shift correction. Pure stdlib; no pysam/dnaio. Mirrors correct_fastq.py from broadinstitute/epi-SHARE-seq-pipeline.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fastq": {
+              "type": "string"
+            },
+            "whitelist": {
+              "type": "string",
+              "description": "24-mer whitelist (one barcode per line)."
+            },
+            "out": {
+              "type": "string"
+            },
+            "r1_offset": {
+              "type": "integer",
+              "default": 14
+            },
+            "r2_offset": {
+              "type": "integer",
+              "default": 52
+            },
+            "r3_offset": {
+              "type": "integer",
+              "default": 90
+            },
+            "shift_correct": {
+              "type": "boolean",
+              "default": false
+            },
+            "max_reads": {
+              "type": "integer",
+              "default": 0
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fastq",
+            "whitelist",
+            "out"
+          ]
+        }
+      },
+      {
+        "name": "share_fragment_qc",
+        "subcommand": "share fragment-qc",
+        "description": "Per-barcode ATAC QC from a SHARE-seq fragments BED: total fragments, reads in TSS +/-2kb window, reads in flanking 100bp regions, TSS enrichment (Ma 2020 formula with 0.2 floor), reads in peaks, FRIP. Mirrors qc_atac_compute_tss_enrichment.py + qc_atac_compute_reads_in_peaks.py.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fragments": {
+              "type": "string"
+            },
+            "tss_bed": {
+              "type": "string",
+              "description": "Optional TSS BED."
+            },
+            "peaks_bed": {
+              "type": "string",
+              "description": "Optional peaks BED."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fragments"
+          ]
+        }
+      },
+      {
+        "name": "share_joint_qc",
+        "subcommand": "share joint-qc",
+        "description": "Merge SHARE-seq RNA + ATAC per-barcode tables and apply the Ma 2020 joint cell-calling thresholds (UMIs>=min_umis AND genes>=min_genes AND TSS>=min_tss AND fragments>=min_frags). Mirrors joint_cell_plotting.py.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "rna_qc": {
+              "type": "string"
+            },
+            "atac_qc": {
+              "type": "string"
+            },
+            "min_umis": {
+              "type": "integer",
+              "default": 100
+            },
+            "min_genes": {
+              "type": "integer",
+              "default": 200
+            },
+            "min_tss": {
+              "type": "number",
+              "default": 4.0
+            },
+            "min_frags": {
+              "type": "integer",
+              "default": 100
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rna_qc",
+            "atac_qc"
+          ]
+        }
+      },
+      {
+        "name": "share_multiplet_detect",
+        "subcommand": "share multiplet-detect",
+        "description": "Pairwise Jaccard multiplet detection on a SHARE-seq fragments BED. Builds a per-barcode set of (chrom, start) coordinates, samples a null Jaccard distribution from 10000 random pairs, and flags any pair whose Jaccard exceeds the 99-th percentile of null. Mirrors detect_multiplets.py.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fragments": {
+              "type": "string"
+            },
+            "min_fragments": {
+              "type": "integer",
+              "default": 1000
+            },
+            "max_pairs": {
+              "type": "integer",
+              "default": 200000
+            },
+            "null_samples": {
+              "type": "integer",
+              "default": 10000
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fragments"
+          ]
+        }
+      },
+      {
+        "name": "share_pull_portal",
+        "subcommand": "share pull-portal",
+        "description": "Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets (`preferred_assay_titles=SHARE-seq`). Writes a TSV manifest covering both processed AnalysisSets (h5ad + fragments BED) and raw MeasurementSets (FASTQ + seqspec).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "share_rna_qc",
+        "subcommand": "share rna-qc",
+        "description": "Per-barcode RNA QC from a SHARE-seq h5ad sparse gene-count matrix: total UMIs, expressed genes, percent mitochondrial (genes auto-detected by MT-/mt- prefix).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "h5ad": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "h5ad"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/SHARESEQ_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

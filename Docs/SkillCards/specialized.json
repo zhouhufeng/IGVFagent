@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "id": "specialized",
+  "version": "0.2.9",
+  "title": "Specialized IGVF assay catalog (Parse SPLiT-seq, etc.)",
+  "summary": "",
+  "module": "igvfagent.igvf_specialized_data_skills",
+  "source": "Scripts/igvf_specialized_data_skills.py",
+  "interfaces": {
+    "cli": "igvfagent specialized",
+    "tools": []
+  },
+  "upstream_resources": [
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Manifest"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/IGVF_SPECIALIZED_DATA_SKILLS.md",
+  "license": "Apache-2.0"
+}

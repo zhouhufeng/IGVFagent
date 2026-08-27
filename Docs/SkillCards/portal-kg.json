@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "id": "portal-kg",
+  "version": "0.2.9",
+  "title": "Portal \u2192 local Knowledge Graph ETL",
+  "summary": "",
+  "module": "igvfagent.portal_to_kg_skill",
+  "source": "Scripts/portal_to_kg_skill.py",
+  "interfaces": {
+    "cli": "igvfagent portal-kg",
+    "tools": [
+      {
+        "name": "portal_kg_annotate",
+        "subcommand": "portal-kg annotate",
+        "description": "Mine local-KG Portal node descriptions for gene/variant mentions, confirm via Catalog, add mentions_gene / mentions_variant edges.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "portal_kg_enrich",
+        "subcommand": "portal-kg enrich",
+        "description": "For each Gene node in the local KG, hydrate Catalog evidence (variants, transcripts, cCREs, diseases, pathways).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "symbols": {
+              "type": "string",
+              "description": "Comma-separated gene symbols. Default = all."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        }
+      },
+      {
+        "name": "portal_kg_pull",
+        "subcommand": "portal-kg pull",
+        "description": "ETL: pull Portal entities by tissue/gene/assay/lab into the local SQLite KG; expands linked samples/donors/files at depth 1.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "AnalysisSet",
+                "MeasurementSet",
+                "Sample",
+                "Donor",
+                "File",
+                "FileSet",
+                "Document"
+              ],
+              "default": "AnalysisSet"
+            },
+            "tissue": {
+              "type": "string"
+            },
+            "gene": {
+              "type": "string"
+            },
+            "assay": {
+              "type": "string"
+            },
+            "lab": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "depth": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        }
+      },
+      {
+        "name": "portal_kg_query",
+        "subcommand": "portal-kg query",
+        "description": "Query the local KG by gene / tissue / node-id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string"
+            },
+            "tissue": {
+              "type": "string"
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        }
+      },
+      {
+        "name": "portal_kg_stats",
+        "subcommand": "portal-kg stats",
+        "description": "Local KG counts (node/edge/source) + recent run history.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/PORTAL_TO_KG_SKILLS.md",
+  "license": "Apache-2.0"
+}

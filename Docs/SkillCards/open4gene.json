@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "id": "open4gene",
+  "version": "0.2.9",
+  "title": "Open4Gene peak-to-gene linkage \u2014 clean-room reimpl of hbliu/Open4Gene (Liu et al. Science 2025). Hurdle model (logit zero + zero-truncated NB count) linking snATAC peaks to snRNA genes across multiome cells, per cell type, with covariates. Subcommands: link. statsmodels-based; validated vs the R pscl::hurdle reference.",
+  "summary": "Open4Gene \u2014 hurdle-model peak-to-gene linkage (IGVFagent port).",
+  "module": "igvfagent.open4gene_skill",
+  "source": "Scripts/open4gene_skill.py",
+  "interfaces": {
+    "cli": "igvfagent open4gene",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "liu2025_open4gene",
+        "paper": {
+          "authors": "Hongbo Liu et al.",
+          "journal": "Science",
+          "year": 2025,
+          "doi": "10.1126/science.adp4753",
+          "pmid": "39913582"
+        },
+        "checks": 4,
+        "run": "Benchmarks/liu2025_open4gene/run.sh"
+      }
+    ],
+    "n_checks": 4,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,478 @@
+{
+  "schema_version": "1.0",
+  "id": "multiome",
+  "version": "0.2.9",
+  "title": "10x Multiome retrieval pipeline",
+  "summary": "",
+  "module": "igvfagent.multiome_10x_pipeline",
+  "source": "Scripts/multiome_10x_pipeline.py",
+  "interfaces": {
+    "cli": "igvfagent multiome",
+    "tools": [
+      {
+        "name": "multiome_atac_spectral",
+        "subcommand": "multiome atac-spectral",
+        "description": "Jaccard-Laplacian spectral embedding alternative to LSI for ATAC peak matrices (snapATAC2-style). Robust to depth differences without explicit depth-correction drop. Good for datasets where TF-IDF + LSI gives a strong depth axis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "n_components": {
+              "type": "integer",
+              "default": 30
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 20
+            },
+            "max_cells": {
+              "type": "integer",
+              "default": 5000
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "multiome_chromvar",
+        "subcommand": "multiome chromvar",
+        "description": "Clean-room chromVAR-style TF motif activity per cell. For each (cell, motif) pair, computes raw deviations from expected accessibility, then bias-corrects via K=50 GC-content + log-mean-accessibility-matched background motif sets, yielding a per-cell z-score for every motif. Output: cells \u00d7 motifs z-score TSV.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "ATAC h5ad (peak \u00d7 cell)."
+            },
+            "motif_hits": {
+              "type": "string",
+              "description": "Peak \u00d7 motif binary TSV."
+            },
+            "gc_content": {
+              "type": "string",
+              "description": "Optional per-peak GC content TSV."
+            },
+            "k_background": {
+              "type": "integer",
+              "default": 50
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input",
+            "motif_hits"
+          ]
+        }
+      },
+      {
+        "name": "multiome_css",
+        "subcommand": "multiome css",
+        "description": "Cluster Similarity Spectrum batch correction (He 2020 Genome Biol). Per-batch HVG \u2192 per-batch Leiden \u2192 per-batch cluster centroids \u2192 represent each cell as its vector of correlations to all batch\u00d7cluster centroids. Apache/BSD-friendly alternative to GPL Harmony.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "batch_key": {
+              "type": "string"
+            },
+            "n_hvg": {
+              "type": "integer",
+              "default": 2000
+            },
+            "n_pca": {
+              "type": "integer",
+              "default": 50
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 20
+            },
+            "resolution": {
+              "type": "number",
+              "default": 1.0
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input",
+            "batch_key"
+          ]
+        }
+      },
+      {
+        "name": "multiome_da_peaks",
+        "subcommand": "multiome da-peaks",
+        "description": "Differential accessibility on TF-IDF-normalized peaks via Wilcoxon rank-genes. Pairs naturally with peak2gene \u2014 peak2gene gives enhancer\u2192gene candidates; da-peaks tells you WHICH peaks are differentially open between user-defined clusters / cell-types.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "ATAC h5ad (peaks will be TF-IDF normalized)."
+            },
+            "cluster_key": {
+              "type": "string",
+              "default": "leiden_wnn"
+            },
+            "top_n": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "multiome_joint_qc",
+        "subcommand": "multiome joint-qc",
+        "description": "Merge ATAC + RNA per-barcode QC tables and apply Signac-convention joint thresholds (RNA: 1k-25k UMIs, \u2265200 genes, \u226420%% MT; ATAC: 1.8k-100k frags, TSS>1, nucleosome<2, FRIP>0.15). Outputs a per-barcode QC TSV with 'qc' label (both / RNA only / ATAC only / neither).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "rna_qc": {
+              "type": "string"
+            },
+            "atac_qc": {
+              "type": "string"
+            },
+            "min_umis": {
+              "type": "integer",
+              "default": 1000
+            },
+            "max_umis": {
+              "type": "integer",
+              "default": 25000
+            },
+            "min_genes": {
+              "type": "integer",
+              "default": 200
+            },
+            "max_pct_mt": {
+              "type": "number",
+              "default": 0.2
+            },
+            "min_frags": {
+              "type": "integer",
+              "default": 1800
+            },
+            "max_frags": {
+              "type": "integer",
+              "default": 100000
+            },
+            "min_tss": {
+              "type": "number",
+              "default": 1.0
+            },
+            "max_nuc": {
+              "type": "number",
+              "default": 2.0
+            },
+            "min_frip": {
+              "type": "number",
+              "default": 0.15
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rna_qc",
+            "atac_qc"
+          ]
+        }
+      },
+      {
+        "name": "multiome_lsi",
+        "subcommand": "multiome lsi",
+        "description": "TF-IDF normalization + truncated SVD on a peak \u00d7 cell matrix. Drops dim 1 (correlates with sequencing depth) per Signac RunSVD + DepthCor convention. Writes the embedding to obsm['X_lsi'] of the input h5ad and saves a new h5ad.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "n_components": {
+              "type": "integer",
+              "default": 50
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "multiome_multivi",
+        "subcommand": "multiome multivi",
+        "description": "MultiVI deep joint VAE (Ashuach 2023) via scvi-tools. Optional dep \u2014 install with `pip install scvi-tools` to enable. Joint generative model over RNA (ZINB) + ATAC (Bernoulli on binarized peaks) yielding a shared latent z, with batch-key-conditioned encoder/decoder.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "rna_h5ad": {
+              "type": "string"
+            },
+            "atac_h5ad": {
+              "type": "string"
+            },
+            "batch_key": {
+              "type": "string",
+              "default": "batch"
+            },
+            "epochs": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rna_h5ad",
+            "atac_h5ad"
+          ]
+        }
+      },
+      {
+        "name": "multiome_peak2gene",
+        "subcommand": "multiome peak2gene",
+        "description": "Peak-to-gene correlation. For each peak, identify genes whose TSS is within --window bp (default 500 kb) and compute Pearson/Spearman correlation between peak accessibility and gene expression across cells. BH-FDR adjusted p-values. Sign of correlation indicates enhancer-like (positive) vs repressor-like (negative) association.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "rna_h5ad": {
+              "type": "string"
+            },
+            "atac_h5ad": {
+              "type": "string"
+            },
+            "tss_bed": {
+              "type": "string"
+            },
+            "window": {
+              "type": "integer",
+              "default": 500000
+            },
+            "method": {
+              "type": "string",
+              "default": "pearson",
+              "enum": [
+                "pearson",
+                "spearman"
+              ]
+            },
+            "max_pairs": {
+              "type": "integer",
+              "default": 200000
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rna_h5ad",
+            "atac_h5ad",
+            "tss_bed"
+          ]
+        }
+      },
+      {
+        "name": "multiome_qc_atac",
+        "subcommand": "multiome qc-atac",
+        "description": "Per-barcode ATAC QC from a fragments TSV/BED \u2605. Computes fragments per barcode, TSS enrichment (Signac TSSEnrichment formula: center reads / max(0.2, flank reads), \u00b1100 bp center / \u00b1900-1000 bp flank), nucleosome signal (mono-nucleosome / NFR fragment-length ratio), and FRIP (reads in peaks). Use this BEFORE joint-qc.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fragments": {
+              "type": "string",
+              "description": "Path to fragments TSV/BED (.gz OK)."
+            },
+            "tss_bed": {
+              "type": "string",
+              "description": "Optional TSS BED for TSS enrichment."
+            },
+            "peaks_bed": {
+              "type": "string",
+              "description": "Optional peaks BED for FRIP."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fragments"
+          ]
+        }
+      },
+      {
+        "name": "multiome_retrieve",
+        "subcommand": "multiome retrieve",
+        "description": "Discover IGVF 10x Multiome AnalysisSets; writes file/sample/donor manifest.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "default": 25
+            },
+            "fetch_file_details": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      },
+      {
+        "name": "multiome_showcase",
+        "subcommand": "multiome showcase",
+        "description": "ONE-COMMAND 10x MULTIOME QC SHOWCASE \u2605. Runs qc-atac + (optional) joint-qc + builds a 6-panel composite figure (fragments/cell, TSS enrichment, nucleosome signal, FRIP, reads in TSS, reads in peaks \u2014 each with Signac thresholds as red dashed lines) + writes a narrative report. THIS IS THE RIGHT TOOL FOR ANY 10x MULTIOME QC DEMO QUESTION.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fragments": {
+              "type": "string"
+            },
+            "tss_bed": {
+              "type": "string"
+            },
+            "peaks_bed": {
+              "type": "string"
+            },
+            "rna_qc": {
+              "type": "string",
+              "description": "Optional RNA QC TSV (output of share rna-qc)."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fragments"
+          ]
+        }
+      },
+      {
+        "name": "multiome_wnn",
+        "subcommand": "multiome wnn",
+        "description": "Joint weighted-nearest-neighbor embedding via muon (BSD-3). Equivalent to Seurat 5 FindMultiModalNeighbors. Requires both AnnData inputs to share per-cell barcodes; ATAC must have obsm['X_lsi'] (run `multiome lsi` first). Optionally clusters the joint graph with Leiden.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "rna_h5ad": {
+              "type": "string"
+            },
+            "atac_h5ad": {
+              "type": "string"
+            },
+            "n_pca": {
+              "type": "integer",
+              "default": 50
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 20
+            },
+            "min_dist": {
+              "type": "number",
+              "default": 0.3
+            },
+            "cluster": {
+              "type": "boolean",
+              "default": false
+            },
+            "resolution": {
+              "type": "number",
+              "default": 1.0
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rna_h5ad",
+            "atac_h5ad"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Report"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "mitra2024_scarlink",
+        "paper": {
+          "authors": "Mitra S et al.",
+          "journal": "Nat Genet",
+          "year": 2024,
+          "doi": "10.1038/s41588-024-01689-8",
+          "pmid": null,
+          "pmcid": "PMC11018525"
+        },
+        "checks": 1,
+        "run": "Benchmarks/mitra2024_scarlink/run.sh"
+      },
+      {
+        "benchmark": "trevino2021_cortex_multiome",
+        "paper": {
+          "authors": "Trevino AE, M\u00fcller F, Andersen J, et al.",
+          "journal": "Cell",
+          "year": 2021,
+          "doi": "10.1016/j.cell.2021.07.039",
+          "pmid": "34390642",
+          "pmcid": "PMC8422961"
+        },
+        "checks": 4,
+        "run": "Benchmarks/trevino2021_cortex_multiome/run.sh"
+      }
+    ],
+    "n_checks": 5,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/10X_MULTIOME_SKILLS.md",
+  "license": "Apache-2.0"
+}

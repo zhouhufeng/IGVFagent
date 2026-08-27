@@ -1,0 +1,259 @@
+{
+  "schema_version": "1.0",
+  "id": "multiseq",
+  "version": "0.2.9",
+  "title": "MULTI-seq / Cell Hashing demultiplexing (Python port of deMULTIplex2)",
+  "summary": "MULTI-seq / Cell Hashing demultiplexing skill.",
+  "module": "igvfagent.multiseq_analysis_skill",
+  "source": "Scripts/multiseq_analysis_skill.py",
+  "interfaces": {
+    "cli": "igvfagent multiseq",
+    "tools": [
+      {
+        "name": "multiseq_demultiplex",
+        "subcommand": "multiseq demultiplex",
+        "description": "Demultiplex a MULTI-seq / Cell Hashing tag-count matrix into singlet / multiplet / negative calls. Python port of deMULTIplex2 (Zhu et al. Nat Methods 2024). Fits a two-component negative-binomial mixture per tag via EM and writes classifications.csv + posteriors + residuals + diagnostic plots. The headline tool when the user asks 'who is each cell in a multiplexed run?'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Tag counts: .h5ad / 10x .h5 / .csv / .tsv."
+            },
+            "label": {
+              "type": "string"
+            },
+            "obsm_key": {
+              "type": "string",
+              "description": ".h5ad obsm key with the multiplexing matrix."
+            },
+            "init_cos_cut": {
+              "type": "number",
+              "default": 0.5
+            },
+            "max_iter": {
+              "type": "integer",
+              "default": 10
+            },
+            "prob_cut": {
+              "type": "number",
+              "default": 0.5
+            },
+            "residual_type": {
+              "type": "string",
+              "default": "rqr",
+              "description": "rqr | pearson"
+            },
+            "seed": {
+              "type": "integer",
+              "default": 1
+            },
+            "transpose": {
+              "type": "boolean",
+              "default": false
+            },
+            "skip_diagnostics": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "multiseq_discover",
+        "subcommand": "multiseq discover",
+        "description": "List MULTI-seq tag-count files available on the IGVF Portal. Defaults to content_type='cell hashing barcodes'. The output is a ranked manifest (largest files first) the user / agent can pick from to feed into `multiseq_pipeline`.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "content_type": {
+              "type": "string",
+              "default": "cell hashing barcodes"
+            },
+            "assay_title": {
+              "type": "string",
+              "description": "Restrict to one preferred_assay_titles."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 20
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "multiseq_pipeline",
+        "subcommand": "multiseq pipeline",
+        "description": "End-to-end MULTI-seq workflow: load tag counts, run EM demultiplexing, generate per-tag histograms + call heatmap + per-tag 4-panel diagnostics + markdown report. Accepts either a local file via `input` OR an IGVF Portal accession via `igvf_accession` (auto-pulls then runs). Optional ground-truth CSV produces an accuracy table for benchmarking.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Local tag counts (.h5ad / 10x .h5 / .csv / .tsv)."
+            },
+            "igvf_accession": {
+              "type": "string",
+              "description": "IGVF Portal file accession (auto-pull). Mutually exclusive with `input`."
+            },
+            "label": {
+              "type": "string"
+            },
+            "obsm_key": {
+              "type": "string"
+            },
+            "ground_truth": {
+              "type": "string"
+            },
+            "init_cos_cut": {
+              "type": "number",
+              "default": 0.5
+            },
+            "max_iter": {
+              "type": "integer",
+              "default": 10
+            },
+            "prob_cut": {
+              "type": "number",
+              "default": 0.5
+            },
+            "residual_type": {
+              "type": "string",
+              "default": "rqr"
+            },
+            "seed": {
+              "type": "integer",
+              "default": 1
+            },
+            "transpose": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      },
+      {
+        "name": "multiseq_pull_igvf",
+        "subcommand": "multiseq pull-igvf",
+        "description": "Download a single MULTI-seq tag-count file from the IGVF Portal by accession into Data/MultiSeq/. Returns the local path which can be passed straight to `multiseq_pipeline`'s `input`.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "accession": {
+              "type": "string",
+              "description": "IGVF file accession, e.g. IGVFFI7138DMIL."
+            }
+          },
+          "required": [
+            "accession"
+          ]
+        }
+      },
+      {
+        "name": "multiseq_showcase",
+        "subcommand": "multiseq showcase",
+        "description": "ONE-COMMAND COMPREHENSIVE MULTI-SEQ DEMO \u2605. Generates synthetic tag matrix by default (2000 cells \u00d7 6 tags), OR pulls an IGVF Portal tag-count file via --igvf-accession, OR consumes a local --input matrix. Runs the deMULTIplex2 EM classifier (NB-GLM-based singlet/doublet/negative call), emits per-tag UMI histograms + call-group heatmap + per-tag posterior diagnostics (8+ plots), builds a publication composite figure, and writes a deep narrative report (including accuracy vs ground truth when available \u2014 typical synthetic run hits \u226585% singlet recovery). USE THIS TOOL for any 'show me MULTI-seq', 'demonstrate cell hashing', 'demultiplex MULTI-seq tags' question \u2014 do NOT call multiseq_pipeline + multiseq_histogram + multiseq_heatmap separately.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "igvf_accession": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "n_cells": {
+              "type": "integer",
+              "default": 2000
+            },
+            "n_tags": {
+              "type": "integer",
+              "default": 6
+            },
+            "doublet_rate": {
+              "type": "number",
+              "default": 0.08
+            },
+            "negative_rate": {
+              "type": "number",
+              "default": 0.05
+            },
+            "seed": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        }
+      },
+      {
+        "name": "multiseq_simulate",
+        "subcommand": "multiseq simulate",
+        "description": "Generate a synthetic MULTI-seq cell \u00d7 tag UMI matrix with ground truth. Useful for smoke-testing the demultiplexer or for the user to walk through the workflow without real data.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "n_cells": {
+              "type": "integer",
+              "default": 1000
+            },
+            "n_tags": {
+              "type": "integer",
+              "default": 4
+            },
+            "doublet_rate": {
+              "type": "number",
+              "default": 0.05
+            },
+            "negative_rate": {
+              "type": "number",
+              "default": 0.05
+            },
+            "pos_mean": {
+              "type": "number",
+              "default": 1000.0
+            },
+            "bg_mean": {
+              "type": "number",
+              "default": 20.0
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            },
+            "label": {
+              "type": "string",
+              "default": "sim"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Output",
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/MULTISEQ_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

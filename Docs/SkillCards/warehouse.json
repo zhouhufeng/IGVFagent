@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "id": "warehouse",
+  "version": "0.2.9",
+  "title": "Central DuckDB warehouse \u2014 Silver tier for the IGVF integrated data layer",
+  "summary": "Integrated data-warehouse skill \u2014 central DuckDB layer.",
+  "module": "igvfagent.warehouse_skill",
+  "source": "Scripts/warehouse_skill.py",
+  "interfaces": {
+    "cli": "igvfagent warehouse",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/WAREHOUSE_SKILLS.md",
+  "license": "Apache-2.0"
+}

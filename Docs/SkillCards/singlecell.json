@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "id": "singlecell",
+  "version": "0.2.9",
+  "title": "Single-cell discovery and example analysis",
+  "summary": "",
+  "module": "igvfagent.single_cell_data_skills",
+  "source": "Scripts/single_cell_data_skills.py",
+  "interfaces": {
+    "cli": "igvfagent singlecell",
+    "tools": []
+  },
+  "upstream_resources": [
+    "encode",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Manifest"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/SINGLECELL_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

@@ -104,6 +104,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "multiseq":         ("igvfagent.multiseq_analysis_skill",
                           "MULTI-seq / Cell Hashing demultiplexing "
                           "(Python port of deMULTIplex2)"),
+    "skillcard":        ("igvfagent.skillcard_skill",
+                          "Machine-readable skill specifications (skill cards) "
+                          "with validation status derived from the benchmarks"),
     "variant-list":     ("igvfagent.variant_list_skill",
                           "Annotate a pasted/file variant list in any notation "
                           "(chr-pos-ref-alt, rsID, SPDI, HGVS, VCF) via FAVOR + "

@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "id": "geo",
+  "version": "0.2.9",
+  "title": "NCBI GEO retrieval (search / metadata / download)",
+  "summary": "",
+  "module": "igvfagent.geo_retrieval_skill",
+  "source": "Scripts/geo_retrieval_skill.py",
+  "interfaces": {
+    "cli": "igvfagent geo",
+    "tools": [
+      {
+        "name": "geo_download",
+        "subcommand": "geo download",
+        "description": "Download supplementary / matrix files for a GEO Series. Filter by category (matrix / suppl / soft) and a regex over filenames; cap by --max-download-gb.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gse": {
+              "type": "string"
+            },
+            "only": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Subset of [matrix, suppl, soft]."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Case-insensitive regex over filenames."
+            },
+            "max_download_gb": {
+              "type": "number",
+              "default": 1.0
+            }
+          },
+          "required": [
+            "gse"
+          ]
+        }
+      },
+      {
+        "name": "geo_search",
+        "subcommand": "geo search",
+        "description": "Search NCBI GEO Series by keyword / organism / platform (e.g. 'GM12878 RNA-seq' organism 'Homo sapiens').",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "organism": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "string"
+            },
+            "study_type": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "geo_series",
+        "subcommand": "geo series",
+        "description": "Pull metadata + sample sheet for one GEO Series accession (e.g. GSE9574). Writes a markdown report and a per-GSM CSV ready to feed to rnaseq_pipeline.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gse": {
+              "type": "string",
+              "description": "GSE accession, e.g. GSE9574."
+            },
+            "full_samples": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "gse"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "geo_ftp",
+    "pubmed_eutils"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "weinstock2024_cd4_crispr",
+        "paper": {
+          "authors": "Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A, Battle A, Pritchard JK",
+          "journal": "Cell Genomics",
+          "volume": 4,
+          "issue": 11,
+          "article_number": 100671,
+          "year": 2024,
+          "month": "November",
+          "doi": "10.1016/j.xgen.2024.100671",
+          "pmid": "39395408",
+          "pmc": "PMC11605694",
+          "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 \u2014 fixed during execution."
+        },
+        "checks": 1,
+        "run": "Benchmarks/weinstock2024_cd4_crispr/run.sh"
+      },
+      {
+        "benchmark": "zheng2024_invivo_perturbseq",
+        "paper": {
+          "authors": "Zheng X et al.",
+          "journal": "Cell",
+          "year": 2024,
+          "doi": "10.1016/j.cell.2024.04.050",
+          "pmid": "38772369"
+        },
+        "checks": 1,
+        "run": "Benchmarks/zheng2024_invivo_perturbseq/run.sh"
+      }
+    ],
+    "n_checks": 2,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/GEO_RETRIEVAL_SKILLS.md",
+  "license": "Apache-2.0"
+}
