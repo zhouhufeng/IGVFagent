@@ -1294,11 +1294,13 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
     k = event.kind
     p = event.payload
     if k == "run_start":
-        # Name the orchestrator actually selected. Hardcoding "Internal" here
-        # contradicts the sidebar whenever the external orchestrator is chosen
-        # — the same defect the model banner had.
-        which = ("Internal" if st.session_state.get("_orchestrator", "internal")
-                 == "internal" else "External")
+        # Derive the orchestrator from the EVENT PAYLOAD, not session state.
+        # The payload's `backend` is what the run actually used, so the label
+        # cannot disagree with the run it describes — whereas session state is
+        # a UI value that may be unset, stale, or absent from the context this
+        # renderer executes in.
+        which = ("External" if str(p.get("backend", "")).endswith("_cli")
+                 else "Internal")
         return (f"▶ **{which} orchestrator engaged** — Plan → Action → "
                 f"Results → Evaluation loop · backend `{p.get('backend')}`, "
                 f"model `{p.get('model')}`, {p.get('n_tools')} tools, "
