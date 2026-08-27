@@ -294,7 +294,13 @@ def biorxiv_search(query: str, limit: int = 25, server: str = "biorxiv",
                    days_back: int = 730) -> list[dict]:
     """Crossref-backed search of bioRxiv/medRxiv preprints."""
     base = _resolve_endpoint("crossref", "CROSSREF_API_BASE")
-    member = "246" if server == "biorxiv" else "31795"  # Cold Spring Harbor / medRxiv
+    # bioRxiv and medRxiv both moved from Cold Spring Harbor Laboratory
+    # (member 246) to openRxiv (member 54368). 246 alone now returns CSHL
+    # *journal* content (Genome Research, CSH Press) rather than preprints,
+    # so query both and let the caller disambiguate via api.biorxiv.org.
+    # (The previous medRxiv id, 31795, is "Front Matter" — an unrelated
+    # publisher that returned podcast metadata.)
+    member_filter = "member:54368,member:246"
     today = time.strftime("%Y-%m-%d")
     from_date = time.strftime(
         "%Y-%m-%d",
@@ -304,10 +310,13 @@ def biorxiv_search(query: str, limit: int = 25, server: str = "biorxiv",
         "crossref", f"{base}/works",
         params={
             "query": query,
-            "filter": (f"member:{member},from-pub-date:{from_date},"
+            "filter": (f"{member_filter},from-pub-date:{from_date},"
                         f"until-pub-date:{today}"),
             "rows": limit,
-            "select": "title,author,issued,DOI,abstract,container-title,subtype",
+            # NB: `subtype` is NOT a valid Crossref select field — including it
+            # makes the whole request fail with HTTP 400 (select-not-available),
+            # silently dropping bioRxiv/medRxiv from every free-text search.
+            "select": "title,author,issued,DOI,abstract,container-title",
         },
     )
     if status != 200 or not body:

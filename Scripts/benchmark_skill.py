@@ -67,6 +67,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import re
 import subprocess
@@ -639,6 +640,22 @@ ACCESSION_WEIGHT = {
     "encode_series": 5.0, "cellxgene": 5.0, "scp": 4.0, "arrayexpress": 3.0,
     "pride": 4.0, "geo_series": 1.5, "geo_sample": 1.0, "bioproject": 1.0,
     "sra_project": 1.0, "dbgap": 1.0, "ega": 1.0, "github_repo": 0.5,
+}
+
+# Repositories that essentially every assay deposits into. Their presence says
+# "this paper released sequencing data" — it does NOT say which assay produced
+# it, so they must never decide *between* analysis routes. They are still
+# reported as evidence (and still score as a *primary* match, which is what the
+# geo_retrieval / synapse / figshare fallback routes are for); they just carry
+# no weight when they appear as a route's `support_accessions`.
+#
+# Without this, a paper's GEO + Synapse ids were credited only to whichever
+# routes happened to list those repos (`mpra` was the sole assay route with
+# any `support_accessions`), which sent an open-access CRISPRi enhancer screen
+# — CRISPRi mentioned 201x, MPRA 6x — to the MPRA chain.
+GENERIC_DEPOSIT_ACCESSIONS = {
+    "geo_series", "geo_sample", "sra_project", "bioproject",
+    "dbgap", "ega", "arrayexpress", "synapse", "github_repo",
 }
 
 # Section titles come through in two flavours: prose ("Data availability",
@@ -1433,19 +1450,26 @@ def route(harvest: Dict[str, Any], *, top: int = 3) -> Dict[str, Any]:
     """Rank routes against a harvest. Accession evidence outweighs prose."""
     acc = harvest.get("accessions") or {}
     assays = {a["assay"]: a["mentions"] for a in (harvest.get("assays") or [])}
+    total_assay_mentions = float(sum(assays.values())) or 1.0
     ranked: List[Dict[str, Any]] = []
 
     for spec in ROUTES:
         score = 0.0
         why: List[str] = []
 
-        def _acc_score(key: str) -> float:
+        def _acc_score(key: str, *, support: bool = False) -> float:
             entries = acc.get(key) or []
             if not entries:
                 return 0.0
             in_da = any(e.get("in_data_availability") for e in entries)
+            generic = support and key in GENERIC_DEPOSIT_ACCESSIONS
             why.append(f"{key}={entries[0]['value']}"
-                        + (" (Data Availability)" if in_da else " (in text)"))
+                        + (" (Data Availability)" if in_da else " (in text)")
+                        + (" [generic deposit, unscored]" if generic else ""))
+            # A repository every assay uses cannot discriminate between assay
+            # routes — report it, but do not let it rank them.
+            if generic:
+                return 0.0
             # Being named in a Data/Code Availability section means it is the
             # paper's own deposit, not a citation of someone else's.
             return ACCESSION_WEIGHT.get(key, 3.0) * (2.0 if in_da else 1.0)
@@ -1454,10 +1478,19 @@ def route(harvest: Dict[str, Any], *, top: int = 3) -> Dict[str, Any]:
         assay_score = 0.0
         for a in spec["match"].get("assays", []) or []:
             if a in assays:
-                # Diminishing returns on mention count; presence is what
-                # matters, weighted by how diagnostic the term is.
-                assay_score += 3.0 * _ASSAY_SPEC.get(a, 1.0) + min(assays[a], 20) / 20.0
-                why.append(f"assay:{a}×{assays[a]}")
+                n = assays[a]
+                # Three signals, in decreasing order of trust:
+                #   spec       how diagnostic the term itself is
+                #   log(n)     how much the paper talks about it — log-scaled so
+                #              a heavily-used assay separates from an incidental
+                #              mention without a single term running away
+                #   share      that assay's fraction of ALL assay mentions, which
+                #              is what actually distinguishes "this paper IS a
+                #              CRISPRi screen" from "it cites one"
+                assay_score += (3.0 * _ASSAY_SPEC.get(a, 1.0)
+                                 + 1.2 * math.log10(1.0 + n)
+                                 + 2.0 * (n / total_assay_mentions))
+                why.append(f"assay:{a}×{n}")
         score += assay_score
 
         # Primary accessions are diagnostic on their own (a MaveDB URN means
@@ -1471,7 +1504,7 @@ def route(harvest: Dict[str, Any], *, top: int = 3) -> Dict[str, Any]:
         # which sent a lung cell atlas to the MPRA chain.
         if assay_score > 0:
             for key in spec["match"].get("support_accessions", []) or []:
-                score += _acc_score(key)
+                score += _acc_score(key, support=True)
 
         if score <= 0:
             continue
