@@ -80,6 +80,16 @@ except Exception:
     except Exception:
         _nwviz = None
 
+# Benchmark figure gallery — stdlib only (reads committed PNG/SVG off disk),
+# so unlike the other visualizers it has no optional scientific deps.
+try:
+    from igvfagent import benchmark_visualizer as _bmviz  # type: ignore
+except Exception:
+    try:
+        import benchmark_visualizer as _bmviz  # type: ignore
+    except Exception:
+        _bmviz = None
+
 
 # --------------------------- Page config -----------------------------------
 
@@ -279,8 +289,13 @@ def _do_ollama_pull(model_name: str) -> None:
 def _sidebar_anthropic_model_picker() -> "tuple[str, str]":
     """Curated Claude model dropdown + key check."""
     options = list(_llm.ANTHROPIC_MODELS) + ["(custom...)"]
-    prev = st.session_state.get("_anthropic_model_choice", options[1])
-    idx = options.index(prev) if prev in options else 1
+    # Preselect the backend's own default rather than a hardcoded index, so
+    # reordering ANTHROPIC_MODELS can't silently open the picker on a model
+    # other than the one _DEFAULT_MODELS says the backend will actually use.
+    default_model = _llm._DEFAULT_MODELS.get("anthropic", "")
+    fallback_idx = options.index(default_model) if default_model in options else 0
+    prev = st.session_state.get("_anthropic_model_choice", options[fallback_idx])
+    idx = options.index(prev) if prev in options else fallback_idx
     chosen = st.selectbox("Claude model", options, index=idx,
                             key="_anthropic_model_select")
     if chosen == "(custom...)":
@@ -1188,16 +1203,19 @@ def main() -> None:
     st.divider()
 
     # ------------------------------------------------------------------
-    # Three tabs:
+    # Five tabs:
     #   Chat              — the existing LLM-driven flow
     #   Knowledge Graph   — interactive view of the local SQLite KGs
     #   Single-cell       — UMAP / t-SNE / cluster / marker viewer over
     #                       any .h5ad produced by sc-analyze
-    # The KG and Single-cell tabs are independent of the loaded LLM.
+    #   Network           — context-specific subnetwork views
+    #   Benchmarks        — every committed reproducibility figure, the
+    #                       suite dashboard, and the latest concordance run
+    # Every tab except Chat is independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab, sc_tab, nw_tab = st.tabs(
+    chat_tab, kg_tab, sc_tab, nw_tab, bm_tab = st.tabs(
         ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell",
-         "🔗 Network"]
+         "🔗 Network", "📊 Benchmarks"]
     )
 
     with kg_tab:
@@ -1248,6 +1266,21 @@ def main() -> None:
             except Exception as exc:  # pylint: disable=broad-except
                 import traceback
                 st.error(f"Network visualizer error: {exc}")
+                with st.expander("Traceback", expanded=False):
+                    st.code(traceback.format_exc())
+
+    with bm_tab:
+        if _bmviz is None:
+            st.warning(
+                "Benchmark visualizer not available — "
+                "`Scripts/benchmark_visualizer.py` could not be imported."
+            )
+        else:
+            try:
+                _bmviz.render_streamlit_panel(st)
+            except Exception as exc:  # pylint: disable=broad-except
+                import traceback
+                st.error(f"Benchmark visualizer error: {exc}")
                 with st.expander("Traceback", expanded=False):
                     st.code(traceback.format_exc())
 

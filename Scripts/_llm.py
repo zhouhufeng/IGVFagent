@@ -1100,10 +1100,15 @@ OLLAMA_LIBRARY = [
 # Per-backend curated model lists used by the LM Studio-style sidebar
 # dropdowns. Real model availability is checked separately (e.g.
 # Anthropic API access requires the key + tier).
+# The four current Claude tiers. Haiku 4.5 is the only one that still
+# accepts temperature/top_p/top_k (see _NO_SAMPLING_PARAM_MODELS), which
+# makes it the cheap tier for high-volume runs. Earlier generations are
+# reachable through the picker's "(custom...)" field for comparison runs.
 ANTHROPIC_MODELS = [
     "claude-opus-5",
     "claude-sonnet-5",
     "claude-fable-5",
+    "claude-haiku-4-5",
 ]
 
 OPENAI_MODELS = [
