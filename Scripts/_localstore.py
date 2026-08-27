@@ -260,6 +260,248 @@ def record_analysis(skill: str, *, subcommand: str = "", label: str = "",
     return {"recorded": True, "entities": len(uniq), "edges_added": n_edges}
 
 
+# --------------------------- artefact ingestion -----------------------------
+#
+# The framework recorded that a tool ran and regex-scraped its stdout, but
+# never opened the tables those tools produced. So an rE2G run could emit 113
+# element->gene linkages and the graph would gain an `analyzed` edge and
+# nothing else: the biology stayed in a CSV on disk. These recognisers read
+# structured artefacts and turn their rows into real entity-to-entity edges,
+# which is what makes retrieval actually accumulate into the knowledge graph.
+#
+# Conservative by design: a table is ingested only when its columns are an
+# unambiguous match. An unrecognised table is left alone rather than guessed
+# at, because a wrong edge is worse than a missing one.
+
+_MAX_INGEST_BYTES = 12_000_000      # skip very large tables
+_MAX_INGEST_ROWS = 20_000
+
+
+def _norm_header(fieldnames) -> "dict[str, str]":
+    """lowercased-stripped -> original, so `Chrom`/`chrom`/` gene ` all match."""
+    return {(f or "").strip().lower(): f for f in (fieldnames or [])}
+
+
+def _region_id(chrom, start, end) -> str:
+    return f"{str(chrom).strip()}:{str(start).strip()}-{str(end).strip()}"
+
+
+def _first(cols: dict, *names):
+    """Original column name for the first alias present."""
+    for n in names:
+        if n in cols:
+            return cols[n]
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Recognisers. Each is (label, applies(cols) -> bool, emit(row, cols) -> edges)
+# where an edge is (src_type, src_name, edge_type, dst_type, dst_name, props).
+#
+# Ordered most-specific first; the first match wins. A table matching nothing
+# is left alone — a wrong edge is worse than a missing one, and guessing at an
+# unknown schema is how a knowledge graph fills with noise.
+# ---------------------------------------------------------------------------
+
+def _props(row, cols, keys) -> dict:
+    out = {}
+    for k in keys:
+        c = cols.get(k)
+        if c and row.get(c) not in (None, ""):
+            out[k] = row.get(c)
+    return out
+
+
+def _emit_element_gene(row, cols):
+    gene = (row.get(cols["gene"]) or "").strip()
+    ch = _first(cols, "chrom", "chr", "element_chr")
+    st = _first(cols, "start", "element_start")
+    en = _first(cols, "end", "element_end")
+    if not (gene and ch and st and en):
+        return []
+    c, a, b = row.get(ch), row.get(st), row.get(en)
+    if not (c and a and b):
+        return []
+    pr = _props(row, cols, ("score", "source", "tss", "element_type",
+                            "cell_type", "model", "effect_size", "method"))
+    return [("regulatory_element", _region_id(c, a, b), "regulates",
+             "gene", gene, pr)]
+
+
+def _emit_gene_disease(row, cols):
+    g = _first(cols, "gene_symbol", "gene")
+    d = _first(cols, "disease")
+    if not (g and d):
+        return []
+    gene, dis = (row.get(g) or "").strip(), (row.get(d) or "").strip()
+    if not (gene and dis):
+        return []
+    pr = _props(row, cols, ("method", "source", "association_status",
+                            "orphanet_association_type", "classification",
+                            "pmids"))
+    return [("gene", gene, "associated_with", "disease",
+             dis.replace("_", " "), pr)]
+
+
+def _emit_gene_pathway(row, cols):
+    g, pw = _first(cols, "gene", "gene_symbol"), _first(cols, "pathway")
+    if not (g and pw):
+        return []
+    gene, path = (row.get(g) or "").strip(), (row.get(pw) or "").strip()
+    if not (gene and path):
+        return []
+    pr = _props(row, cols, ("source", "method", "organism"))
+    return [("gene", gene, "member_of_pathway", "pathway", path, pr)]
+
+
+def _emit_ppi(row, cols):
+    a, b = _first(cols, "id_a", "protein_a", "symbol_a"), \
+           _first(cols, "id_b", "protein_b", "symbol_b")
+    if not (a and b):
+        return []
+    x, y = (row.get(a) or "").strip(), (row.get(b) or "").strip()
+    if not (x and y):
+        return []
+    pr = _props(row, cols, ("source", "detection_method", "evidence_type",
+                            "confidence_score", "pubmed_id", "taxon"))
+    return [("protein", x, "interacts_with", "protein", y, pr)]
+
+
+def _emit_qtl(row, cols):
+    g = _first(cols, "gene")
+    if not g:
+        return []
+    gene = (row.get(g) or "").strip()
+    if not gene:
+        return []
+    pr = _props(row, cols, ("qtl_type", "effect_size", "neg_log10_pvalue",
+                            "biological_context", "biosample_term", "method"))
+    v = _first(cols, "variant", "rsid", "variant_id", "_variant", "name")
+    vname = (row.get(v) or "").strip() if v else ""
+    if not vname:
+        return []
+    return [("variant", vname, "qtl_affects_gene", "gene", gene, pr)]
+
+
+def _emit_variant_gene(row, cols):
+    g = _first(cols, "gene", "gene_symbol")
+    v = _first(cols, "variant", "rsid", "variant_id", "_variant", "raw")
+    if not (g and v):
+        return []
+    gene, var = (row.get(g) or "").strip(), (row.get(v) or "").strip()
+    if not (gene and var):
+        return []
+    return [("variant", var, "variant_in_gene", "gene", gene,
+             _props(row, cols, ("source", "method", "consequence")))]
+
+
+_RECOGNISERS = [
+    # (label, required-any groups, emit)
+    ("ppi",           lambda c: bool({"id_a", "protein_a", "symbol_a"} & set(c))
+                                and bool({"id_b", "protein_b", "symbol_b"} & set(c)),
+                      _emit_ppi),
+    ("element_gene",  lambda c: "gene" in c and
+                                bool({"chrom", "chr", "element_chr"} & set(c)) and
+                                bool({"start", "element_start"} & set(c)) and
+                                bool({"end", "element_end"} & set(c)),
+                      _emit_element_gene),
+    ("gene_disease",  lambda c: bool({"gene_symbol", "gene"} & set(c)) and "disease" in c,
+                      _emit_gene_disease),
+    ("gene_pathway",  lambda c: bool({"gene", "gene_symbol"} & set(c)) and "pathway" in c,
+                      _emit_gene_pathway),
+    ("qtl",           lambda c: "gene" in c and "qtl_type" in c,
+                      _emit_qtl),
+    ("variant_gene",  lambda c: bool({"gene", "gene_symbol"} & set(c)) and
+                                bool({"variant", "rsid", "variant_id", "_variant", "raw"} & set(c)),
+                      _emit_variant_gene),
+]
+
+
+def ingest_table(path, *, source: str, con=None) -> dict:
+    """Ingest one delimited artefact into the KG. Returns counts."""
+    import csv as _csv
+
+    added = {"nodes": 0, "edges": 0, "rows": 0, "kind": None}
+    _edge_ids: "set[str]" = set()
+    _node_ids: "set[str]" = set()
+    p = Path(path)
+    try:
+        if not p.is_file() or p.suffix.lower() not in (".csv", ".tsv", ".txt"):
+            return added
+        if p.stat().st_size > _MAX_INGEST_BYTES:
+            return added
+    except OSError:
+        return added
+
+    own = con is None
+    con = con or _connect()
+    try:
+        delim = "\t" if p.suffix.lower() in (".tsv", ".txt") else ","
+        with open(p, newline="", encoding="utf-8", errors="replace") as fh:
+            reader = _csv.DictReader(fh, delimiter=delim)
+            cols = _norm_header(reader.fieldnames)
+            if not cols:
+                return added
+            match = next(((lbl, emit) for lbl, applies, emit in _RECOGNISERS
+                          if applies(cols)), None)
+            if not match:
+                return added                    # unrecognised: leave alone
+            label, emit = match
+            added["kind"] = label
+
+            for i, row in enumerate(reader):
+                if i >= _MAX_INGEST_ROWS:
+                    break
+                added["rows"] += 1
+                try:
+                    edges = emit(row, cols)
+                except Exception:
+                    continue
+                for st, sn, et, dt, dn, pr in edges:
+                    sid = upsert_node(con, st, sn,
+                                      source=pr.get("source") or source,
+                                      properties=pr or None)
+                    did = upsert_node(con, dt, dn, source=source)
+                    _edge_ids.add(upsert_edge(
+                        con, sid, did, et,
+                        source=pr.get("source") or source, properties=pr))
+                    _node_ids.update((sid, did))
+
+        added["nodes"] = len(_node_ids)
+        added["edges"] = len(_edge_ids)
+        if own:
+            con.commit()
+    except (OSError, UnicodeDecodeError, _csv.Error):
+        return added
+    finally:
+        if own:
+            con.close()
+    return added
+
+
+def ingest_artifacts(paths, *, source: str, con=None) -> dict:
+    total = {"nodes": 0, "edges": 0, "rows": 0, "tables": 0, "kinds": []}
+    own = con is None
+    con = con or _connect()
+    try:
+        for path in paths or []:
+            r = ingest_table(path, source=source, con=con)
+            if r.get("edges"):
+                total["tables"] += 1
+                total["nodes"] += r["nodes"]
+                total["edges"] += r["edges"]
+                total["rows"] += r["rows"]
+                if r.get("kind"):
+                    total["kinds"].append(r["kind"])
+        if own:
+            con.commit()
+    finally:
+        if own:
+            con.close()
+    total["kinds"] = sorted(set(total["kinds"]))
+    return total
+
+
 def record_tool_call(tool_name: str, arguments: dict, *,
                      stdout: str = "", artifacts: Optional[dict] = None) -> dict:
     """Convenience hook for the agent runtime: grow the KG from one tool call."""
@@ -271,8 +513,17 @@ def record_tool_call(tool_name: str, arguments: dict, *,
     for paths in (artifacts or {}).values():
         outputs.extend(paths)
     text = " ".join(str(v) for v in (arguments or {}).values()) + "\n" + (stdout or "")
-    return record_analysis(tool_name, subcommand="tool", inputs=list((arguments or {}).values()),
-                           outputs=outputs, entities=entities, text=text)
+    result = record_analysis(tool_name, subcommand="tool",
+                             inputs=list((arguments or {}).values()),
+                             outputs=outputs, entities=entities, text=text)
+    # Absorb the CONTENT of the tables the tool produced, not just the fact
+    # that it ran. Best-effort: a parse failure must never break the run.
+    try:
+        result["ingested"] = ingest_artifacts(outputs,
+                                              source=f"igvfagent:{tool_name}")
+    except Exception:
+        result["ingested"] = {"error": True}
+    return result
 
 
 # ----------------------------- warehouse (opt) ------------------------------
@@ -313,7 +564,8 @@ def harvest(roots: "Optional[list[Path]]" = None) -> dict:
     roots = roots or [ROOT / "Docs", ROOT / "Data" / "Manifests",
                       ROOT / "Benchmarks" / "_data"]
     con = _connect()
-    added = {"analyses": 0, "downloads": 0, "nodes_before": 0, "nodes_after": 0}
+    added = {"analyses": 0, "downloads": 0, "nodes_before": 0,
+             "nodes_after": 0, "ingested_tables": 0, "ingested_edges": 0}
     added["nodes_before"] = con.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
 
     def _ledger_has(key: str) -> bool:
@@ -343,6 +595,20 @@ def harvest(roots: "Optional[list[Path]]" = None) -> dict:
                 text = label + " " + " ".join(p.name for p in run_dir.rglob("*"))
                 record_analysis(skill_dir.name, subcommand="harvest",
                                 label=label, outputs=outs, text=text, con=con)
+                # Absorb the table CONTENT too, not just the provenance. The
+                # agent path does this via record_tool_call; without it here a
+                # direct `igvfagent kg gene BRCA1` would record that it ran and
+                # discard every linkage, disease and pathway row it retrieved.
+                try:
+                    ing = ingest_artifacts([str(ROOT / o) for o in outs],
+                                           source=f"igvfagent:{skill_dir.name}",
+                                           con=con)
+                    added["ingested_edges"] = (added.get("ingested_edges", 0)
+                                               + ing.get("edges", 0))
+                    added["ingested_tables"] = (added.get("ingested_tables", 0)
+                                                + ing.get("tables", 0))
+                except Exception:
+                    pass
                 _ledger_add(key, "analysis")
                 added["analyses"] += 1
 
@@ -379,6 +645,43 @@ def harvest(roots: "Optional[list[Path]]" = None) -> dict:
     return added
 
 
+def backfill(roots=None, *, limit_files: int = 20000) -> dict:
+    """Ingest table content from runs already recorded in the harvest ledger.
+
+    harvest() is idempotent by design: a run directory it has seen is skipped
+    forever. That is right for provenance, but it means artefacts produced
+    before table ingestion existed can never be absorbed — the ledger says
+    "seen" and the rows stay on disk. This walks the output tree and ingests
+    the tables regardless of ledger state. Upserts make it safe to repeat.
+    """
+    roots = roots or [ROOT / "Docs", ROOT / "Data" / "Manifests"]
+    con = _connect()
+    before_n = con.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+    before_e = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    seen = 0
+    per_kind: "dict[str, int]" = {}
+    try:
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for path in root.rglob("*"):
+                if seen >= limit_files:
+                    break
+                if not path.is_file() or path.suffix.lower() not in (".csv", ".tsv"):
+                    continue
+                seen += 1
+                r = ingest_table(path, source=f"igvfagent:backfill", con=con)
+                if r.get("edges"):
+                    per_kind[r["kind"]] = per_kind.get(r["kind"], 0) + r["edges"]
+        con.commit()
+        after_n = con.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+        after_e = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    finally:
+        con.close()
+    return {"files_scanned": seen, "nodes_added": after_n - before_n,
+            "edges_added": after_e - before_e, "by_kind": per_kind}
+
+
 def stats() -> dict:
     """Current size of the growing local KG + database."""
     con = _connect()
@@ -401,4 +704,5 @@ def stats() -> dict:
 
 
 __all__ = ["record_download", "record_analysis", "record_tool_call",
+           "ingest_table", "ingest_artifacts", "backfill",
            "upsert_node", "upsert_edge", "harvest", "stats", "entities_from"]

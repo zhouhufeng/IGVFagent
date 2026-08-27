@@ -381,6 +381,9 @@ def _run_localstore(args: "list[str]") -> int:
     Subcommands:
       stats     show current KG/DB size (nodes, edges, downloads, analyses)
       harvest   scan Docs/ + Benchmarks/_data and ingest anything new
+      backfill  re-ingest table CONTENT from runs the ledger already saw
+                (harvest skips those forever, so artefacts produced before
+                table ingestion existed need this once)
     """
     import json
     try:
@@ -392,6 +395,11 @@ def _run_localstore(args: "list[str]") -> int:
     if sub == "harvest":
         print("Harvesting on-disk downloads + analyses into the local KG/DB …")
         print(json.dumps(ls.harvest(), indent=2, default=str))
+        print(json.dumps(ls.stats(), indent=2, default=str))
+        return 0
+    if sub == "backfill":
+        print("Back-filling entity edges from existing artefact tables …")
+        print(json.dumps(ls.backfill(), indent=2, default=str))
         print(json.dumps(ls.stats(), indent=2, default=str))
         return 0
     if sub in ("stats", "", "--help", "-h"):
