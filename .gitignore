@@ -112,6 +112,8 @@ Docs/Enrichment/2*
 Docs/MaveDB/2*
 Docs/PortalQuery/2*
 Docs/CatalogQuery/2*
+# variant-list annotate run dirs (Docs/VariantList/<ts>_<label>/)
+Docs/VariantList/2*
 Docs/ChIPAtlas/2*
 Docs/Calibration/2*
 Docs/Benchmarks/*/2*
