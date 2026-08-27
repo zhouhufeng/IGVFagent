@@ -1294,7 +1294,12 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
     k = event.kind
     p = event.payload
     if k == "run_start":
-        return (f"▶ **Internal orchestrator engaged** — Plan → Action → "
+        # Name the orchestrator actually selected. Hardcoding "Internal" here
+        # contradicts the sidebar whenever the external orchestrator is chosen
+        # — the same defect the model banner had.
+        which = ("Internal" if st.session_state.get("_orchestrator", "internal")
+                 == "internal" else "External")
+        return (f"▶ **{which} orchestrator engaged** — Plan → Action → "
                 f"Results → Evaluation loop · backend `{p.get('backend')}`, "
                 f"model `{p.get('model')}`, {p.get('n_tools')} tools, "
                 f"max {p.get('max_iterations')} iters")
