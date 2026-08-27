@@ -47,6 +47,13 @@ Data/Input/*
 Data/Input/VariantList/*
 !Data/Input/VariantList/README.md
 !Data/Input/VariantList/example_variants.csv
+# Worked APOB loss-of-function example set (public FAVOR annotation only) —
+# doubles as the format fixture for `variant-list annotate`.
+!Data/Input/VariantList/gene-variants-APOB.tsv
+!Data/Input/VariantList/gene-variants-APOB-LoF.tsv
+!Data/Input/VariantList/apob_lof_hg38.txt
+!Data/Input/VariantList/apob_lof_rsids.txt
+!Data/Input/VariantList/apob_lof_mixed_notation.txt
 # Reference data (small, version-controlled): SPLiT-seq barcode
 # whitelist, future canonical lookups.
 !Data/Reference/

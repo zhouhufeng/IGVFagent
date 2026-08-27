@@ -147,12 +147,29 @@ def _vcf_records(text: str) -> "list[str]":
     return out
 
 
+def _tokenize(text: str) -> "list[str]":
+    """Split a blob into variant tokens, line by line.
+
+    Per-line rather than whole-blob, because a file may legitimately mix
+    notations: an earlier version detected a VCF-shaped line and then parsed
+    *only* VCF records, silently discarding every rsID and chr-pos-ref-alt in
+    the same file. Comments and blank lines are dropped here so that a `#`
+    header does not surface as a batch of unparseable tokens.
+    """
+    out: "list[str]" = []
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()        # strip comments
+        if not line:
+            continue
+        vcf = _vcf_records(line)                     # a VCF record for THIS line
+        out.extend(vcf if vcf else
+                   [t for t in re.split(r"[\s,]+", line) if t])
+    return out
+
+
 def parse_variants(text: str) -> "tuple[list[dict], list[dict]]":
     """Parse a free-form blob. Returns (parsed, failures)."""
-    # A VCF-shaped body is recognised first; otherwise split on any whitespace
-    # or comma so pasted columns, spaces and newlines all work.
-    vcf = _vcf_records(text)
-    tokens = vcf if vcf else re.split(r"[\s,]+", text.strip())
+    tokens = _tokenize(text)
 
     parsed: "list[dict]" = []
     failures: "list[dict]" = []
