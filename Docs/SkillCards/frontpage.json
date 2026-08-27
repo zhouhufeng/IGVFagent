@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "id": "frontpage",
+  "version": "0.2.9",
+  "title": "Refresh front-page Portal + Knowledge Graph stats",
+  "summary": "",
+  "module": "igvfagent.igvf_frontpage_summary",
+  "source": "Scripts/igvf_frontpage_summary.py",
+  "interfaces": {
+    "cli": "igvfagent frontpage",
+    "tools": [
+      {
+        "name": "frontpage_summary",
+        "subcommand": "frontpage refresh",
+        "description": "Refresh IGVF Portal + KG front-page summary stats.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "update_readme": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "arango",
+    "catalog_api",
+    "portal_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/IGVF_FRONT_PAGE_SUMMARY_SKILLS.md",
+  "license": "Apache-2.0"
+}

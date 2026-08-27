@@ -1,9 +1,16 @@
 # IGVF Agent
 
-A local, auditable AI agent for discovering, retrieving, and analyzing data
-from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge
-Graph) and related public resources (ENCODE, FAVOR), with a built-in
+An **auditable, local-execution** AI agent for discovering, retrieving, and
+analyzing data from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog,
+Knowledge Graph) and related public resources (ENCODE, FAVOR), with a built-in
 **Plan → Action → Results → Evaluation** orchestration loop.
+
+> **"Local" means tool execution, not inference.** Skills run as subprocesses
+> on your machine and all files stay in the project folder. With a hosted model
+> backend the prompt — including tool output the agent has read — still goes to
+> the provider, and federated data access contacts public archives under every
+> backend. See [`Docs/THREAT_MODEL.md`](Docs/THREAT_MODEL.md) for the per-mode
+> data flow.
 
 ![IGVF Agent — system overview](Docs/Figures/IGVFagent_system_overview.png)
 
@@ -19,6 +26,39 @@ _Detailed five-layer architecture: user entry points (terminal, NL agent, browse
 |---|---|
 | [![Demo 1](https://img.youtube.com/vi/EQVwIEa-gVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=EQVwIEa-gVg) | [![Demo 2](https://img.youtube.com/vi/c-CyIEArEK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=c-CyIEArEK8) |
 | ▶ <https://www.youtube.com/watch?v=EQVwIEa-gVg> | ▶ <https://www.youtube.com/watch?v=c-CyIEArEK8> |
+
+## 🌐 Try it online — no install required
+
+**<https://igvfagent.genohub.org>**
+
+A hosted IGVFagent runs on the project's
+[Hcloud](https://github.com/zhouhufeng/HCloud) allocation, on the team's own
+API key. Nothing to install, no Python environment to build, and **no API key
+of your own** — open the URL and start asking questions.
+
+Access is gated by a shared password. Email
+[hufengzhou@g.harvard.edu](mailto:hufengzhou@g.harvard.edu) to request it.
+
+**How the hosted instance differs from a local install:**
+
+| | Hosted | Local install |
+|---|---|---|
+| Setup | none | `pip install -e '.[all]'` |
+| LLM cost | paid by the project | your own API key, or free via Ollama |
+| Model | Claude Sonnet 5 by default; Haiku 4.5 / Opus 5 / Fable 5 selectable | any backend — Anthropic, OpenAI, Ollama, vLLM, TGI, … |
+| Run length | capped (iterations and tokens per turn) | uncapped |
+| Workspace | **shared with other users** — see below | private to you |
+| Your own data | not for anything sensitive | stays on your machine |
+
+> ⚠️ **The hosted workspace is shared.** All signed-in users read and write one
+> `Data/` and `Docs/` tree and one local knowledge graph, so analyses are
+> visible to everyone else using the site. Treat it as a public demo sandbox:
+> good for exploring IGVF/ENCODE public data, **not** for unpublished or
+> sensitive datasets. Install locally for private work.
+
+Heavy or long-running analyses (full multiome pipelines, large downloads) are
+better run locally — see [Quick start](#quick-start). Operators: deployment
+details are in [`Deploy/README.md`](Deploy/README.md).
 
 ## Architecture at a glance
 
@@ -62,6 +102,7 @@ In short — **two ways to drive every skill, one shared contract**:
 
 ## Table of contents
 
+- [Try it online (hosted)](#-try-it-online--no-install-required)
 - [Capabilities](#capabilities)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
@@ -74,7 +115,7 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Advanced variant analysis](#advanced-variant-analysis)
   - [Single-cell, multiome, specialized assays](#single-cell-multiome-specialized-assays)
   - [Cross-source multiome survey](#cross-source-multiome-survey)
-  - [Parse SPLiT-seq pipeline](#parse-splitseq-pipeline)
+  - [Parse SPLiT-seq pipeline](#parse-split-seq-pipeline)
   - [Enhancer–gene linkage](#enhancergene-linkage)
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
   - [CRISPRi / CRISPR-FACS / Perturb-seq](#crispri--crispr-facs--perturb-seq)
@@ -145,9 +186,13 @@ In short — **two ways to drive every skill, one shared contract**:
   VAMP-seq / SGE / cell-fitness scores into **PS3 / BS3 evidence strengths**
   (supporting → very strong) with the score window for each, so an assay score
   can be used directly in clinical variant classification.
-- **Reproducibility benchmark suite** — nineteen recent Nature / Cell / Science /
-  Nat Genet / Nat Methods / Genome Biol papers reproduced directly from public
-  data, each scored against machine-readable ground-truth checks. Includes
+- **Skill-correctness benchmark suite** — twenty-one recent Nature / Cell /
+  Science / Nat Genet / Nat Methods / Genome Biol papers reproduced directly
+  from public data, each scored against machine-readable ground-truth checks.
+  **Scope:** every `run.sh` invokes skills directly as shell commands, with no
+  model in the loop, so the suite establishes that the *implementations* are
+  correct. It does not evaluate planning, tool selection, or the validity of an
+  end-to-end conclusion — see [`Docs/EVALUATION.md`](Docs/EVALUATION.md). Includes
   **five full single-cell / multiome local reproductions** that download the
   public data and run IGVFagent's real analytical chain end-to-end — Travaglini
   2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`),
@@ -298,6 +343,10 @@ tools are exempt — they are auto-discovered from `~/.igvfagent/` and
 
 ## Quick start
 
+> Just want to try IGVFagent? Skip all of this and use the hosted instance at
+> **<https://igvfagent.genohub.org>** — no install, no API key.
+> See [Try it online](#-try-it-online--no-install-required).
+
 **Recommended — native pip install in a virtual env (best for local LLMs):**
 
 ```bash
@@ -437,7 +486,7 @@ Side-by-side trade-offs:
 |---|---|---|---|
 | Cost | free | ~$0.001 – $0.01 / query (Haiku → Sonnet) | covered by your Claude Code plan |
 | Latency | 30 – 90s (35B bf16) / 8 – 20s (gemma4:31b) / 2 – 5s (qwen3:8b) | 2 – 10s | 5 – 15s (CLI subprocess + auth) |
-| Privacy | data never leaves your machine | prompts go to Anthropic | prompts go to Anthropic via Claude Code |
+| Privacy | prompts stay local; **archive queries still leave** (Catalog/ENCODE/GEO) | prompts + tool output go to Anthropic | prompts + tool output go to Anthropic via Claude Code |
 | Tool-call quality | strong on Qwen 3.6 35B / Gemma 4 31B; weak on < 7B | best-in-class (native function calling) | best-in-class (Claude Code drives natively) |
 | Setup effort | install Ollama + pull a model | one env var, one sidebar click | already installed if you use Claude Code |
 | Multi-turn context | full | full | reset per `claude -p` call |
@@ -503,8 +552,9 @@ For higher-quality answers, point the agent at Anthropic Claude or OpenAI:
 
 ```bash
 export ANTHROPIC_API_KEY=...
-igvfagent ask --backend anthropic --model claude-sonnet-4-5 \
+igvfagent ask --backend anthropic --model claude-sonnet-5 \
    "Compare DRD1 and DRD2 striatal MSN evidence in the local KG."
+# Other current Claude ids: claude-opus-5, claude-fable-5, claude-haiku-4-5
 
 export OPENAI_API_KEY=...
 igvfagent ask --backend openai --model gpt-4o-mini "..."
@@ -540,13 +590,22 @@ repository directory.
 
 ## Consistent results across LLM backends
 
-IGVFagent is designed so the **same query resolves to the same plan and the
-same substantive answer no matter which model drives the loop** — Claude Code,
-the Anthropic/OpenAI APIs, Codex, or a local Qwen/Gemma via Ollama. Four
-mechanisms make this hold:
+IGVFagent is designed to **reduce cross-backend variance**, not to eliminate
+it. Pinned command sequences and playbooks are reproducible because no model
+decides anything. Free-form agent planning is not: measured artefact agreement
+across repeated free-form runs is well below 1.0, and the mechanisms below
+narrow the spread rather than remove it. Treat identical output as a property
+of pinned workflows, and auditability — every action recorded as a typed,
+re-runnable command — as the property that holds in general.
+
+Four mechanisms reduce the variance:
 
 1. **Identical tool set on every backend.** The runtime exposes one canonical,
-   deterministically-ordered set of ≤128 tools to *all* backends (previously
+   deterministically-ordered tool set to *all* backends, capped at
+   `IGVF_LLM_MAX_TOOLS` (default 128, matching OpenAI's function limit;
+   Anthropic accepts the full catalogue, and the hosted deployment raises it so
+   nothing is hidden). **The cap truncates alphabetically**, so leaving it below
+   the catalogue size silently removes whole families of tools — previously
    OpenAI-family models were silently trimmed to 128 while others saw more, so
    the same query could pick a tool that didn't exist elsewhere). Override the
    cap with `IGVF_LLM_MAX_TOOLS`.

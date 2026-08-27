@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "id": "figshare",
+  "version": "0.2.9",
+  "title": "figshare retrieval \u2014 article / files / download / search. Resolves numeric id, DOI, article URL, or private /s/<token> share link (as printed in paper Data Availability statements). Downloads with md5 verify. Pure urllib + json; the general-purpose counterpart to Zenodo for research-data deposits.",
+  "summary": "figshare data-discovery + download skill.",
+  "module": "igvfagent.figshare_skill",
+  "source": "Scripts/figshare_skill.py",
+  "interfaces": {
+    "cli": "igvfagent figshare",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "liu2025_open4gene",
+        "paper": {
+          "authors": "Hongbo Liu et al.",
+          "journal": "Science",
+          "year": 2025,
+          "doi": "10.1126/science.adp4753",
+          "pmid": "39913582"
+        },
+        "checks": 4,
+        "run": "Benchmarks/liu2025_open4gene/run.sh"
+      }
+    ],
+    "n_checks": 4,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

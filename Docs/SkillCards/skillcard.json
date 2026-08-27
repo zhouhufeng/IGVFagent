@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "id": "skillcard",
+  "version": "0.2.9",
+  "title": "Machine-readable skill specifications (skill cards) with validation status derived from the benchmarks",
+  "summary": "Skill cards \u2014 a machine-readable specification for every IGVFagent skill.",
+  "module": "igvfagent.skillcard_skill",
+  "source": "Scripts/skillcard_skill.py",
+  "interfaces": {
+    "cli": "igvfagent skillcard",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Output",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

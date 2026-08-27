@@ -26,6 +26,7 @@ import sqlite3
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,7 +46,10 @@ logger = logging.getLogger("kg_visualizer")
 # KG discovery
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 
 
 @dataclass
@@ -96,19 +100,39 @@ def discover_local_kgs(root: Optional[Path] = None) -> "list[KGDescriptor]":
         enabled=bool(tables) and "interactions" in tables,
     ))
 
-    portal = root / "Data" / "KG" / "portal_kg.sqlite"
-    tables = _sqlite_table_names(portal)
+    # The growing integrated graph. NOTE the filename: every writer
+    # (_localstore, portal_to_kg_skill, sce2g_kg_skill, variant-list) uses
+    # local_kg.sqlite. This discovery previously looked for portal_kg.sqlite,
+    # a name nothing in the codebase writes — so the main knowledge graph was
+    # invisible in the UI while quietly accumulating on disk.
+    local = root / "Data" / "KG" / "local_kg.sqlite"
+    tables = _sqlite_table_names(local)
     out.append(KGDescriptor(
-        key="portal",
-        label="IGVF Portal → KG",
-        path=portal,
+        key="local",
+        label="IGVF integrated KG",
+        path=local,
         kind="portal",
         description=(
-            "Generic nodes/edges mirror of the IGVF Portal "
-            "(`portal-kg pull`)."
+            "The growing local graph: annotated variants, genes, regulatory "
+            "elements, diseases and pathways, plus analysis provenance. Fed "
+            "by `variant-list annotate`, `portal-kg pull`, `sce2g`, and every "
+            "agent tool call."
         ),
         enabled=bool(tables) and "nodes" in tables and "edges" in tables,
     ))
+
+    # Legacy path, kept so an older checkout's data is still reachable.
+    portal = root / "Data" / "KG" / "portal_kg.sqlite"
+    tables = _sqlite_table_names(portal)
+    if tables:
+        out.append(KGDescriptor(
+            key="portal",
+            label="IGVF Portal → KG (legacy path)",
+            path=portal,
+            kind="portal",
+            description="Older portal_kg.sqlite mirror, if present.",
+            enabled="nodes" in tables and "edges" in tables,
+        ))
 
     return out
 

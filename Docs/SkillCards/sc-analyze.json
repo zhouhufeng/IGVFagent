@@ -1,0 +1,254 @@
+{
+  "schema_version": "1.0",
+  "id": "sc-analyze",
+  "version": "0.2.9",
+  "title": "Single-cell analysis: QC, PCA, UMAP, t-SNE, Leiden, markers, publication figures (Scanpy-driven)",
+  "summary": "Single-cell analysis skill \u2014 UMAP / t-SNE / clustering / markers.",
+  "module": "igvfagent.singlecell_analysis",
+  "source": "Scripts/singlecell_analysis.py",
+  "interfaces": {
+    "cli": "igvfagent sc-analyze",
+    "tools": [
+      {
+        "name": "sc_cluster",
+        "subcommand": "sc-analyze cluster",
+        "description": "Leiden clustering on the k-NN graph (falls back to Louvain if leidenalg missing). Saves UMAP colored by leiden cluster.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "resolution": {
+              "type": "number",
+              "default": 1.0
+            },
+            "n_pcs": {
+              "type": "integer",
+              "default": 40
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 15
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "sc_pipeline",
+        "subcommand": "sc-analyze pipeline",
+        "description": "Full single-cell analysis pipeline: QC + filter, log-normalize, HVG selection, PCA, k-NN graph, UMAP, t-SNE, Leiden clustering, and marker-gene DE. Accepts .h5ad / 10x .h5 / .mtx / .csv / .tsv. Saves processed.h5ad, markers.csv, and publication PNGs (UMAP colored by cluster / sample / top markers). The headline tool when a user asks for a UMAP / t-SNE / cluster analysis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Counts file path (.h5ad/.h5/.mtx/.csv)."
+            },
+            "label": {
+              "type": "string"
+            },
+            "min_genes": {
+              "type": "integer",
+              "default": 200
+            },
+            "min_cells": {
+              "type": "integer",
+              "default": 3
+            },
+            "max_mito": {
+              "type": "number",
+              "default": 20.0
+            },
+            "mito_prefix": {
+              "type": "string",
+              "default": "MT-"
+            },
+            "n_hvg": {
+              "type": "integer",
+              "default": 2000
+            },
+            "n_pcs": {
+              "type": "integer",
+              "default": 50
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 15
+            },
+            "resolution": {
+              "type": "number",
+              "default": 1.0
+            },
+            "n_markers": {
+              "type": "integer",
+              "default": 25
+            },
+            "sample_col": {
+              "type": "string",
+              "description": "Obs column to color UMAP by (sample, batch)."
+            },
+            "highlight_genes": {
+              "type": "string",
+              "description": "Comma-separated gene symbols to overlay."
+            },
+            "skip_tsne": {
+              "type": "boolean",
+              "default": false
+            },
+            "transpose": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "sc_plot_embedding",
+        "subcommand": "sc-analyze plot-embedding",
+        "description": "Re-render UMAP or t-SNE coloured by any combination of obs columns and/or gene symbols. Use when the user asks 'show me APOE on the UMAP we just made' or wants a sample/batch overlay.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "embedding": {
+              "type": "string",
+              "default": "umap",
+              "description": "umap | tsne | both"
+            },
+            "color": {
+              "type": "string",
+              "description": "Comma-separated obs cols + genes."
+            },
+            "ncols": {
+              "type": "integer",
+              "default": 2
+            }
+          },
+          "required": [
+            "input",
+            "color"
+          ]
+        }
+      },
+      {
+        "name": "sc_qc",
+        "subcommand": "sc-analyze qc",
+        "description": "Standalone QC pass: load counts, filter cells (min-genes), filter genes (min-cells), drop high-mito cells, write QC violins, save a cleaned processed.h5ad. Use when the user wants QC numbers before committing to a full pipeline run.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "min_genes": {
+              "type": "integer",
+              "default": 200
+            },
+            "min_cells": {
+              "type": "integer",
+              "default": 3
+            },
+            "max_mito": {
+              "type": "number",
+              "default": 20.0
+            },
+            "mito_prefix": {
+              "type": "string",
+              "default": "MT-"
+            },
+            "transpose": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "sc_umap",
+        "subcommand": "sc-analyze umap",
+        "description": "Run k-NN + UMAP on an already-PCA'd anndata, write a UMAP figure colored by clusters (if present) or QC. Skips PCA if X_pca exists.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "n_pcs": {
+              "type": "integer",
+              "default": 40
+            },
+            "n_neighbors": {
+              "type": "integer",
+              "default": 15
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Output",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "joung2025_tf_perturbseq",
+        "paper": {
+          "authors": "Joung J et al.",
+          "journal": "Nat Genet",
+          "year": 2025,
+          "doi": "10.1038/s41588-025-02283-2"
+        },
+        "checks": 1,
+        "run": "Benchmarks/joung2025_tf_perturbseq/run.sh"
+      },
+      {
+        "benchmark": "zheng2024_invivo_perturbseq",
+        "paper": {
+          "authors": "Zheng X et al.",
+          "journal": "Cell",
+          "year": 2024,
+          "doi": "10.1016/j.cell.2024.04.050",
+          "pmid": "38772369"
+        },
+        "checks": 1,
+        "run": "Benchmarks/zheng2024_invivo_perturbseq/run.sh"
+      }
+    ],
+    "n_checks": 2,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/SINGLECELL_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

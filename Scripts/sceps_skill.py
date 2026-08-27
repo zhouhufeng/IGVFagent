@@ -39,7 +39,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DOC_DIR = ROOT / "Docs/scEPS"
 LOG_DIR = ROOT / "Docs/Logs"
 PLAYBOOK_PATH = ROOT / "Docs/Skills/SCEPS_SKILLS.md"

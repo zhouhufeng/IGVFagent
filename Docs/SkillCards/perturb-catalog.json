@@ -1,0 +1,257 @@
+{
+  "schema_version": "1.0",
+  "id": "perturb-catalog",
+  "version": "0.2.9",
+  "title": "Perturbation Catalogue retrieval: MAVE / CRISPR-screen / Perturb-seq datasets, per-row effects, GSEA, downloads",
+  "summary": "Perturbation Catalogue retrieval skill.",
+  "module": "igvfagent.perturbation_catalog_skill",
+  "source": "Scripts/perturbation_catalog_skill.py",
+  "interfaces": {
+    "cli": "igvfagent perturb-catalog",
+    "tools": [
+      {
+        "name": "perturb_catalog_dataset",
+        "subcommand": "perturb-catalog dataset",
+        "description": "Fetch the full record for one Perturbation Catalogue dataset by id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "dataset_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "dataset_id"
+          ]
+        }
+      },
+      {
+        "name": "perturb_catalog_dataset_rows",
+        "subcommand": "perturb-catalog dataset-rows",
+        "description": "Paginate the per-perturbation rows inside one dataset (variant- or gRNA-level effect scores).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "modality": {
+              "type": "string",
+              "description": "mave|crispr-screen|perturb-seq"
+            },
+            "dataset_id": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 100
+            },
+            "offset": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          "required": [
+            "modality",
+            "dataset_id"
+          ]
+        }
+      },
+      {
+        "name": "perturb_catalog_gsea",
+        "subcommand": "perturb-catalog gsea",
+        "description": "Perturb-seq GSEA hallmark/pathway enrichment table. Pass a gene `query` and/or a specific `dataset_id`.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "dataset_id": {
+              "type": "string"
+            },
+            "page": {
+              "type": "integer",
+              "default": 0
+            },
+            "size": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        }
+      },
+      {
+        "name": "perturb_catalog_pipeline",
+        "subcommand": "perturb-catalog pipeline",
+        "description": "End-to-end gene-centric pull from the Perturbation Catalogue: summary + global gene search + modality-scoped searches for MAVE / CRISPR-screen / Perturb-seq, writing a markdown report. The default tool when the user asks 'show me all perturbation data for gene X'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "dataset_limit": {
+              "type": "integer",
+              "default": 10
+            },
+            "rows_per_dataset_limit": {
+              "type": "integer",
+              "default": 3
+            }
+          },
+          "required": [
+            "gene"
+          ]
+        }
+      },
+      {
+        "name": "perturb_catalog_search",
+        "subcommand": "perturb-catalog search",
+        "description": "Global gene/term search across the Perturbation Catalogue. Returns one row per perturbed gene with counts across MAVE / CRISPR-screen / Perturb-seq and the top GSEA terms. Headline tool when the user asks 'what perturbation data exists for gene X?'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Gene symbol or free-text query."
+            },
+            "size": {
+              "type": "integer",
+              "default": 25
+            },
+            "page": {
+              "type": "integer",
+              "default": 0
+            },
+            "facets": {
+              "type": "string",
+              "description": "Comma-separated facet names."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "perturb_catalog_search_modality",
+        "subcommand": "perturb-catalog search-modality",
+        "description": "Modality-scoped search of the Perturbation Catalogue. Use `modality='mave'` for VAMP-seq / DMS data, `'crispr-screen'` for pooled CRISPR screens, `'perturb-seq'` for single-cell. Supports filters on gene name, position range, score name/value, tissue, cell line, disease, study year.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "modality": {
+              "type": "string",
+              "description": "mave | crispr-screen | perturb-seq"
+            },
+            "query": {
+              "type": "string"
+            },
+            "perturbation_gene_name": {
+              "type": "string",
+              "description": "Filter to one perturbed gene."
+            },
+            "perturbation_position": {
+              "type": "string",
+              "description": "Position or range '100_300'."
+            },
+            "effect_score_name": {
+              "type": "string"
+            },
+            "effect_score_value": {
+              "type": "string",
+              "description": "Score range e.g. '0.5_1.0'."
+            },
+            "dataset_limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "dataset_offset": {
+              "type": "integer",
+              "default": 0
+            },
+            "rows_per_dataset_limit": {
+              "type": "integer",
+              "default": 5
+            },
+            "sort": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "modality"
+          ]
+        }
+      },
+      {
+        "name": "perturb_catalog_summary",
+        "subcommand": "perturb-catalog summary",
+        "description": "Landing-page stats for the Perturbation Catalogue: total datasets / experiments, top tissues / cell types / cell lines / diseases / perturbation types. Use to orient before deeper queries.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "perturb_cat"
+  ],
+  "artefact_kinds": [
+    "Output",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "deng2024_cortex_mpra",
+        "paper": {
+          "authors": "Deng C, Whalen S et al.",
+          "journal": "Science",
+          "year": 2024,
+          "doi": "10.1126/science.adh0559",
+          "pmid": "38781390",
+          "pmc": "PMC12085231"
+        },
+        "checks": 1,
+        "run": "Benchmarks/deng2024_cortex_mpra/run.sh"
+      },
+      {
+        "benchmark": "joung2025_tf_perturbseq",
+        "paper": {
+          "authors": "Joung J et al.",
+          "journal": "Nat Genet",
+          "year": 2025,
+          "doi": "10.1038/s41588-025-02283-2"
+        },
+        "checks": 1,
+        "run": "Benchmarks/joung2025_tf_perturbseq/run.sh"
+      },
+      {
+        "benchmark": "weinstock2024_cd4_crispr",
+        "paper": {
+          "authors": "Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A, Battle A, Pritchard JK",
+          "journal": "Cell Genomics",
+          "volume": 4,
+          "issue": 11,
+          "article_number": 100671,
+          "year": 2024,
+          "month": "November",
+          "doi": "10.1016/j.xgen.2024.100671",
+          "pmid": "39395408",
+          "pmc": "PMC11605694",
+          "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 \u2014 fixed during execution."
+        },
+        "checks": 1,
+        "run": "Benchmarks/weinstock2024_cd4_crispr/run.sh"
+      }
+    ],
+    "n_checks": 3,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/PERTURBATION_CATALOG_SKILLS.md",
+  "license": "Apache-2.0"
+}

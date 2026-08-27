@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "id": "extauthor",
+  "version": "0.2.9",
+  "title": "Author new IGVFagent tools/skills from the agent itself (opt-in: IGVF_ALLOW_AGENT_AUTHORING=1)",
+  "summary": "Agent-authored extensions \u2014 let IGVFagent write its own tools and skills.",
+  "module": "igvfagent.ext_author_skill",
+  "source": "Scripts/ext_author_skill.py",
+  "interfaces": {
+    "cli": "igvfagent extauthor",
+    "tools": [
+      {
+        "name": "ext_author_skill",
+        "subcommand": "extauthor write-skill",
+        "description": "WRITE A NEW CAPABILITY FROM SCRATCH \u2605 \u2014 the right tool whenever the user asks for something IGVFagent cannot currently do. Writes a Python module AND registers a matching callable tool in one step, so you can invoke it immediately afterwards. Pass the COMPLETE module source in `source` (must define a top-level main(); it is syntax-checked before writing) and declare `tool_parameters` as a JSON Schema object so the new tool can receive arguments. Prefer this over ext_author_tool for any new logic \u2014 parsing, analysis, a new API client. Then call ext_validate to confirm it loaded.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "snake_case skill name; registers as `igvfagent <name-with-hyphens>`."
+            },
+            "description": {
+              "type": "string",
+              "description": "What it does."
+            },
+            "source": {
+              "type": "string",
+              "description": "Full Python source, must define main()."
+            },
+            "source_file": {
+              "type": "string",
+              "description": "Alternative: read source from this path."
+            },
+            "tool_parameters": {
+              "type": "string",
+              "description": "JSON Schema object for the auto-registered tool, e.g. {\"type\":\"object\",\"properties\":{\"variants\":{\"type\":\"string\"}}}. Without it the new tool takes no arguments."
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ]
+        }
+      },
+      {
+        "name": "ext_author_tool",
+        "subcommand": "extauthor write-tool",
+        "description": "WRAP AN EXISTING COMMAND as a new tool \u2605. Use ONLY when the command already exists \u2014 an igvfagent subcommand (--cli) or a real executable like `cat` or `sort` (--command). It is REJECTED if the --cli subcommand does not exist, because such a tool registers cleanly and then fails on every call. **If the capability does not exist yet, use ext_author_skill instead** \u2014 it writes the implementation AND registers the tool in one step. Give `parameters` as a JSON Schema object string, or the model cannot pass it input.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "snake_case tool name, 3-49 chars."
+            },
+            "description": {
+              "type": "string",
+              "description": "What it does and when to call it \u2014 this is all a model sees when choosing it."
+            },
+            "cli": {
+              "type": "string",
+              "description": "igvfagent subcommand tail, e.g. \"kg gene\"."
+            },
+            "command": {
+              "type": "string",
+              "description": "argv for any executable (alternative to cli)."
+            },
+            "parameters": {
+              "type": "string",
+              "description": "JSON Schema object, e.g. {\"type\":\"object\",\"properties\":{\"gene\":{\"type\":\"string\"}}}"
+            },
+            "positional": {
+              "type": "string",
+              "description": "space-separated params passed positionally."
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ]
+        }
+      },
+      {
+        "name": "ext_list",
+        "subcommand": "extauthor list",
+        "description": "List every user-authored tool and skill \u2605 currently discovered, the directories searched, whether authoring is enabled, and any manifests that failed to load. Call this before authoring to avoid duplicating something that already exists.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "ext_validate",
+        "subcommand": "extauthor validate",
+        "description": "Check an authored extension actually registered \u2605 and, for a skill, that it imports. Call this right after ext_author_skill \u2014 a module that fails to import is skipped silently by the loader.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Extension name."
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

@@ -460,8 +460,14 @@ def _pandas_or_none():
 
 
 def ingest_portal_kg(con) -> dict:
-    """Pull from Data/KG/portal_kg.sqlite → entities + edges."""
-    src = ROOT / "Data" / "KG" / "portal_kg.sqlite"
+    """Pull from Data/KG/local_kg.sqlite → entities + edges.
+
+    Was pointed at portal_kg.sqlite, which no writer in the codebase creates,
+    so this producer silently returned zeros on every run.
+    """
+    src = ROOT / "Data" / "KG" / "local_kg.sqlite"
+    if not src.exists():
+        src = ROOT / "Data" / "KG" / "portal_kg.sqlite"   # legacy fallback
     if not src.exists():
         return {"portal_kg_nodes": 0, "portal_kg_edges": 0}
     sqlite_con = sqlite3.connect(f"file:{src}?mode=ro", uri=True)

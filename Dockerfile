@@ -32,9 +32,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Build deps for scientific wheels that occasionally need a compiler.
+#
+# libcurl4-openssl-dev + zlib1g-dev are required by the [hic] extra:
+# hic-straw ships no wheel, so pip compiles src/straw.cpp, which does
+# `#include <curl/curl.h>` (remote .hic reading over HTTP) and links zlib
+# for block decompression. Without the headers `pip install '.[all]'`
+# dies with "fatal error: curl/curl.h: No such file or directory".
+# Builder-stage only — the runtime layer needs just the shared libs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         git \
+        libcurl4-openssl-dev \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -67,7 +76,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user with a writable home + workspace.
+# Optional: the Claude Code CLI, which backs the "External orchestrator"
+# choice in the UI (_llm._chat_claude_cli shells out to `claude --print`).
+# Without it that option can only ever report "not installed", because the
+# backend needs the *program* on PATH — an ANTHROPIC_API_KEY alone does not
+# put it there. Headless `--print` authenticates from ANTHROPIC_API_KEY, so
+# no extra credential is required. Build with
+# --build-arg INSTALL_CLAUDE_CLI=0 to skip it and keep the image lean.
+ARG INSTALL_CLAUDE_CLI=1
+RUN if [ "$INSTALL_CLAUDE_CLI" = "1" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            nodejs npm \
+        && npm install -g --no-fund --no-audit @anthropic-ai/claude-code \
+        && npm cache clean --force \
+        && rm -rf /var/lib/apt/lists/* ; \
+    fi
+
+# Non-root user with a writable home + workspace. Claude Code writes its
+# config under $HOME, so the home directory is load-bearing, not cosmetic.
 RUN useradd --create-home --shell /bin/bash --uid 1000 igvf \
  && mkdir -p /workspace/Data /workspace/Docs \
  && chown -R igvf:igvf /workspace

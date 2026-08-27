@@ -32,7 +32,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("IGVF_PROJECT_ROOT")
+    or Path(__file__).resolve().parents[1]
+).resolve()
 DATA_DIR = ROOT / "Data"
 DOCS_DIR = ROOT / "Docs"
 LOG_DIR = DOCS_DIR / "Logs"

@@ -15,6 +15,12 @@ venv/
 # Local secrets and authenticated session material
 .env
 *.env
+# Hosted-deployment secrets. NOTE: the `*.env` rule above matches files
+# *ending* in .env, so it does NOT cover `.env.prod` — these need their own
+# rules. The .example template stays tracked.
+Deploy/.env.*
+!Deploy/.env.*.example
+Deploy/nginx/htpasswd
 *.cookies
 *.cookie
 *.token
@@ -41,6 +47,13 @@ Data/Input/*
 Data/Input/VariantList/*
 !Data/Input/VariantList/README.md
 !Data/Input/VariantList/example_variants.csv
+# Worked APOB loss-of-function example set (public FAVOR annotation only) —
+# doubles as the format fixture for `variant-list annotate`.
+!Data/Input/VariantList/gene-variants-APOB.tsv
+!Data/Input/VariantList/gene-variants-APOB-LoF.tsv
+!Data/Input/VariantList/apob_lof_hg38.txt
+!Data/Input/VariantList/apob_lof_rsids.txt
+!Data/Input/VariantList/apob_lof_mixed_notation.txt
 # Reference data (small, version-controlled): SPLiT-seq barcode
 # whitelist, future canonical lookups.
 !Data/Reference/
@@ -99,6 +112,8 @@ Docs/Enrichment/2*
 Docs/MaveDB/2*
 Docs/PortalQuery/2*
 Docs/CatalogQuery/2*
+# variant-list annotate run dirs (Docs/VariantList/<ts>_<label>/)
+Docs/VariantList/2*
 Docs/ChIPAtlas/2*
 Docs/Calibration/2*
 Docs/Benchmarks/*/2*

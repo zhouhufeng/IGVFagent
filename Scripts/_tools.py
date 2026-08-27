@@ -84,6 +84,208 @@ _S_ARRAY_S = {"type": "array", "items": {"type": "string"}}
 
 _TOOLS: "list[Tool]" = [
 
+    # ──────────────────────────────────────────────────────────────────
+    # Self-extension. These are what let the agent add capability instead
+    # of only consuming it: it writes a manifest or a Python module into a
+    # user-extension directory and the loader absorbs it with no restart.
+    # Every write refuses unless IGVF_ALLOW_AGENT_AUTHORING=1, because an
+    # authored skill is Python this host later executes as a subprocess.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "annotate_variant_list",
+        "★ ANNOTATE A LIST OF VARIANTS PASTED BY THE USER ★ and add them to "
+        "the local knowledge graph as variant vertices. Pass the list "
+        "VERBATIM in `variants` — any notation and any separator works "
+        "(2-21001846-G-A, chr2:21001846:G:A, rs763341676, SPDI, HGVS, VCF "
+        "lines; spaces, commas or newlines). THIS IS THE RIGHT TOOL whenever "
+        "someone pastes variants and asks to annotate, characterise, or "
+        "add them to the KG — do NOT ask them for a CSV file first. Queries "
+        "FAVOR (CADD, ClinVar, GENCODE, enhancer/promoter overlap) and the "
+        "IGVF Catalog, writes a report plus CSV/JSON, and upserts variant "
+        "nodes with edges to genes and diseases.",
+        {
+            "type": "object",
+            "properties": {
+                "variants":  {**_S_STRING, "description":
+                              "The variant list verbatim, any notation."},
+                "input":     {**_S_STRING, "description":
+                              "Alternative: path to a file of variants."},
+                "label":     {**_S_STRING, "description":
+                              "Short label for the run directory."},
+                "sources":   {**_S_STRING, "description":
+                              "Comma list: favor, catalog (default both)."},
+                "max_rows":  {**_S_INTEGER, "description": "0 = all."},
+                "no_kg":     {**_S_BOOLEAN, "description":
+                              "Annotate without writing to the KG."},
+            },
+        },
+        ["variant-list", "annotate"],
+        flag_map={"variants": "--variants", "input": "--input",
+                   "label": "--label", "sources": "--sources",
+                   "max_rows": "--max-rows", "no_kg": "--no-kg"},
+        bool_flags=("no_kg",),
+    ),
+
+    _T(
+        "read_artifact",
+        "★ READ A FILE THIS AGENT PRODUCED ★ — reports, manifests, JSON, CSV, "
+        "TSV, logs. Skills announce outputs as `Report: <path>`; use this to "
+        "OPEN that path and quote what is actually inside. ALWAYS call this "
+        "before summarising a report: without it you only know the counts a "
+        "skill happened to print, so you would say '18 diseases' instead of "
+        "naming them. Use --head/--tail to page a large file.",
+        {
+            "type": "object",
+            "properties": {
+                "path":      {**_S_STRING, "description":
+                              "Workspace-relative or absolute path to read."},
+                "head":      {**_S_INTEGER, "description":
+                              "Return only the first N lines."},
+                "tail":      {**_S_INTEGER, "description":
+                              "Return only the last N lines."},
+                "max_bytes": {**_S_INTEGER, "description":
+                              "Byte cap (default 200000)."},
+            },
+            "required": ["path"],
+        },
+        ["artifact", "read"],
+        flag_map={"path": "--path", "head": "--head", "tail": "--tail",
+                   "max_bytes": "--max-bytes"},
+    ),
+
+    _T(
+        "grep_artifacts",
+        "★ SEARCH INSIDE produced artefacts ★ for a regex — find which report "
+        "mentions a gene, disease, or accession without reading each one. "
+        "Returns file, line number, and the matching line.",
+        {
+            "type": "object",
+            "properties": {
+                "pattern":  {**_S_STRING, "description": "Regex to search for."},
+                "path":     {**_S_STRING, "description":
+                             "Directory or file to search (default Docs)."},
+                "max_hits": {**_S_INTEGER, "description": "Cap on hits (default 50)."},
+            },
+            "required": ["pattern"],
+        },
+        ["artifact", "grep"],
+        flag_map={"pattern": "--pattern", "path": "--path",
+                   "max_hits": "--max-hits"},
+    ),
+
+    _T(
+        "list_artifacts",
+        "★ LIST a run directory ★ to discover what a skill actually wrote "
+        "before reading it. Use on the run dir a skill reported.",
+        {
+            "type": "object",
+            "properties": {
+                "path":  {**_S_STRING, "description": "Directory (default Docs)."},
+                "limit": {**_S_INTEGER, "description": "Max entries (default 200)."},
+            },
+        },
+        ["artifact", "ls"],
+        flag_map={"path": "--path", "limit": "--limit"},
+    ),
+
+    _T(
+        "ext_author_tool",
+        "★ WRAP AN EXISTING COMMAND as a new tool ★. Use ONLY when the "
+        "command already exists — an igvfagent subcommand (--cli) or a real "
+        "executable like `cat` or `sort` (--command). It is REJECTED if the "
+        "--cli subcommand does not exist, because such a tool registers "
+        "cleanly and then fails on every call. **If the capability does not "
+        "exist yet, use ext_author_skill instead** — it writes the "
+        "implementation AND registers the tool in one step. Give `parameters` "
+        "as a JSON Schema object string, or the model cannot pass it input.",
+        {
+            "type": "object",
+            "properties": {
+                "name":        {**_S_STRING, "description":
+                                "snake_case tool name, 3-49 chars."},
+                "description": {**_S_STRING, "description":
+                                "What it does and when to call it — this is "
+                                "all a model sees when choosing it."},
+                "cli":         {**_S_STRING, "description":
+                                'igvfagent subcommand tail, e.g. "kg gene".'},
+                "command":     {**_S_STRING, "description":
+                                "argv for any executable (alternative to cli)."},
+                "parameters":  {**_S_STRING, "description":
+                                'JSON Schema object, e.g. {"type":"object",'
+                                '"properties":{"gene":{"type":"string"}}}'},
+                "positional":  {**_S_STRING, "description":
+                                "space-separated params passed positionally."},
+            },
+            "required": ["name", "description"],
+        },
+        ["extauthor", "write-tool"],
+        flag_map={"name": "--name", "description": "--description",
+                   "cli": "--cli", "command": "--command",
+                   "parameters": "--parameters", "positional": "--positional"},
+    ),
+
+    _T(
+        "ext_author_skill",
+        "★ WRITE A NEW CAPABILITY FROM SCRATCH ★ — the right tool whenever "
+        "the user asks for something IGVFagent cannot currently do. Writes a "
+        "Python module AND registers a matching callable tool in one step, so "
+        "you can invoke it immediately afterwards. Pass the COMPLETE module "
+        "source in `source` (must define a top-level main(); it is "
+        "syntax-checked before writing) and declare `tool_parameters` as a "
+        "JSON Schema object so the new tool can receive arguments. Prefer "
+        "this over ext_author_tool for any new logic — parsing, analysis, a "
+        "new API client. Then call ext_validate to confirm it loaded.",
+        {
+            "type": "object",
+            "properties": {
+                "name":        {**_S_STRING, "description":
+                                "snake_case skill name; registers as "
+                                "`igvfagent <name-with-hyphens>`."},
+                "description": {**_S_STRING, "description": "What it does."},
+                "source":      {**_S_STRING, "description":
+                                "Full Python source, must define main()."},
+                "source_file": {**_S_STRING, "description":
+                                "Alternative: read source from this path."},
+                "tool_parameters": {**_S_STRING, "description":
+                                "JSON Schema object for the auto-registered "
+                                'tool, e.g. {"type":"object","properties":'
+                                '{"variants":{"type":"string"}}}. Without it '
+                                "the new tool takes no arguments."},
+            },
+            "required": ["name", "description"],
+        },
+        ["extauthor", "write-skill"],
+        flag_map={"name": "--name", "description": "--description",
+                   "source": "--source", "source_file": "--source-file",
+                   "tool_parameters": "--tool-parameters"},
+    ),
+
+    _T(
+        "ext_validate",
+        "★ Check an authored extension actually registered ★ and, for a "
+        "skill, that it imports. Call this right after ext_author_skill — a "
+        "module that fails to import is skipped silently by the loader.",
+        {
+            "type": "object",
+            "properties": {
+                "name": {**_S_STRING, "description": "Extension name."},
+            },
+            "required": ["name"],
+        },
+        ["extauthor", "validate"],
+        flag_map={"name": "--name"},
+    ),
+
+    _T(
+        "ext_list",
+        "★ List every user-authored tool and skill ★ currently discovered, "
+        "the directories searched, whether authoring is enabled, and any "
+        "manifests that failed to load. Call this before authoring to avoid "
+        "duplicating something that already exists.",
+        {"type": "object", "properties": {}},
+        ["extauthor", "list"],
+    ),
+
     _T(
         "kg_gene",
         "Comprehensive gene context from the IGVF Catalog KG: variants, "
@@ -232,7 +434,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "splitseq_retrieve",
-        "Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. "
+        "★ Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. "
         "Writes a manifest with donor + founder-strain metadata.",
         {
             "type": "object",
@@ -860,7 +1062,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ref_design",
-        "Recommend a study workflow + cognate published studies + matching "
+        "★ Recommend a study workflow + cognate published studies + matching "
         "IGVF Portal AnalysisSets for an assay type.",
         {
             "type": "object",
@@ -930,7 +1132,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "sce2g_kg_pull",
-        "BULK-ingest scE2G element→gene regulatory linkages from the IGVF "
+        "★ BULK-ingest scE2G element→gene regulatory linkages from the IGVF "
         "Catalog into the local KG as `regulates` edges. Deterministic, "
         "resumable, runs to completion over the whole genome regardless of "
         "size (adaptive region tiling around the API's 500-row cap) with a "
@@ -1269,7 +1471,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "se_targets_pipeline",
-        "End-to-end super-enhancer → target-gene pipeline. For a chosen "
+        "★ End-to-end super-enhancer → target-gene pipeline. For a chosen "
         "biosample (GM12878 / K562 / HepG2 / liver / brain / ...): "
         "discovers H3K27ac (or BRD4/MED1/P300) ChIP-seq + optional "
         "Hi-C/ChIA-PET 3D experiments, downloads peak BED, calls "
@@ -1391,7 +1593,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "rnaseq_pipeline",
-        "End-to-end bulk RNA-seq: QC + PCA + differential expression "
+        "★ End-to-end bulk RNA-seq: QC + PCA + differential expression "
         "(pyDESeq2 if installed, Welch's t-test + BH FDR fallback) + "
         "volcano/MA/heatmap plots + DEG → controlling cCRE linkage "
         "via the IGVF Catalog. Inputs: counts matrix + sample sheet + "
@@ -1590,7 +1792,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "proteomics_vampseq_pull",
-        "Download canonical published VAMP-seq scoresets from MaveDB "
+        "★ Download canonical published VAMP-seq scoresets from MaveDB "
         "(PTEN, TPMT, VKOR, PRKN, CYP2C9, NUDT15). Pulls per-replicate "
         "score CSVs for downstream analysis.",
         {
@@ -1681,7 +1883,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "sc_pipeline",
-        "Full single-cell analysis pipeline: QC + filter, log-normalize, "
+        "★ Full single-cell analysis pipeline: QC + filter, log-normalize, "
         "HVG selection, PCA, k-NN graph, UMAP, t-SNE, Leiden clustering, "
         "and marker-gene DE. Accepts .h5ad / 10x .h5 / .mtx / .csv / .tsv. "
         "Saves processed.h5ad, markers.csv, and publication PNGs (UMAP "
@@ -2402,7 +2604,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "starr_pull_portal",
-        "Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
+        "★ Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
         "manifest with accession, assay_titles, n_files, status.",
         {"type": "object", "properties": {
             "limit": {**_S_INTEGER, "default": 50},
@@ -2468,7 +2670,7 @@ _TOOLS: "list[Tool]" = [
     # ------------------------------------------------------------------
     _T(
         "share_pull_portal",
-        "Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets "
+        "★ Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets "
         "(`preferred_assay_titles=SHARE-seq`). Writes a TSV manifest "
         "covering both processed AnalysisSets (h5ad + fragments BED) and "
         "raw MeasurementSets (FASTQ + seqspec).",

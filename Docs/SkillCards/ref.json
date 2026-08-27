@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "id": "ref",
+  "version": "0.2.9",
+  "title": "Literature retrieval / validation / study design",
+  "summary": "",
+  "module": "igvfagent.reference_skill",
+  "source": "Scripts/reference_skill.py",
+  "interfaces": {
+    "cli": "igvfagent ref",
+    "tools": [
+      {
+        "name": "ref_design",
+        "subcommand": "ref design",
+        "description": "Recommend a study workflow + cognate published studies + matching IGVF Portal AnalysisSets for an assay type.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "data_type": {
+              "type": "string",
+              "enum": [
+                "10x_multiome",
+                "parse_split_seq",
+                "mpra",
+                "crispri",
+                "enhancer_gene"
+              ]
+            },
+            "assay_title": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "data_type"
+          ]
+        }
+      },
+      {
+        "name": "ref_learn",
+        "subcommand": "ref learn",
+        "description": "Multi-source literature search (PubMed/bioRxiv/arXiv/SemanticScholar/OpenAlex). Ranks by journal+citations; extracts methods + plot vocabulary; emits a consensus figure recipe.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "top": {
+              "type": "integer",
+              "default": 12
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "topic"
+          ]
+        }
+      },
+      {
+        "name": "ref_validate",
+        "subcommand": "ref validate",
+        "description": "Cross-check a CSV of genes/variants/regulatory elements against prior literature.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "context": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Disease / tissue / phenotype context terms."
+            },
+            "limit_per_item": {
+              "type": "integer",
+              "default": 5
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "arxiv_api",
+    "crossref",
+    "openalex",
+    "portal_api",
+    "pubmed_eutils",
+    "semanticscholar"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/REFERENCE_SKILLS.md",
+  "license": "Apache-2.0"
+}

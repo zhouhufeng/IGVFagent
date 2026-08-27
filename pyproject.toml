@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "igvfagent"
-version = "0.1.0"
+version = "0.2.9"
 description = "Local, auditable AI agent for IGVF / ENCODE data analysis with a built-in Plan → Action → Results → Evaluation orchestrator."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Hufeng Zhou" }]
+authors = [{ name = "Hufeng Zhou", email = "zhouhufeng@gmail.com" }]
+maintainers = [{ name = "Hufeng Zhou", email = "zhouhufeng@gmail.com" }]
 keywords = [
     "igvf",
     "encode",

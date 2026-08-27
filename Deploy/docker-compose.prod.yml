@@ -1,0 +1,132 @@
+# IGVFagent — hosted deployment (igvfagent.genohub.org)
+#
+# Three services, and deliberately NO `ports:` on any of them. Nothing is
+# bound to a host interface: cloudflared dials *outbound* to Cloudflare and
+# traffic arrives back down that tunnel. The VM therefore has no inbound web
+# port to scan, and the host firewall only needs SSH.
+#
+#   internet -> Cloudflare (TLS) -> tunnel -> gateway (auth) -> app (Streamlit)
+#
+# Usage on the VM:
+#   cd /srv/igvfagent/Deploy
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Secrets come from Deploy/.env.prod (gitignored) — see .env.prod.example.
+
+name: igvfagent
+
+services:
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: igvfagent:latest
+    container_name: igvfagent-app
+    restart: unless-stopped
+    environment:
+      # --- Hosted-mode guardrails (see Scripts/streamlit_app.py:_public_mode) ---
+      # Pins the model picker, clamps the cost sliders, and drops the
+      # "Load Model" button that only makes sense for local Ollama.
+      IGVF_PUBLIC_MODE:       "1"
+      # Long jobs (bulk download + KG integration) need roughly one iteration
+      # per object. A low ceiling doesn't slow them down, it ends them early
+      # with "Agent run ended before completion".
+      IGVF_PUBLIC_MAX_ITER:    ${IGVF_PUBLIC_MAX_ITER:-100}
+      IGVF_PUBLIC_DEFAULT_ITER: ${IGVF_PUBLIC_DEFAULT_ITER:-25}
+      IGVF_PUBLIC_MAX_TOKENS:  ${IGVF_PUBLIC_MAX_TOKENS:-16384}
+      # Expose the FULL tool catalog. The 128 default silently truncates the
+      # alphabetical tail (sc_*, sce2g_*, se_*, share_*, splitseq_*, starr_*),
+      # which hides sce2g_kg_pull and friends from the model entirely.
+      IGVF_LLM_MAX_TOOLS:      ${IGVF_LLM_MAX_TOOLS:-200}
+      # Backend is fixed here, NOT chosen in the browser. The MODEL is
+      # chosen by the visitor, but only from IGVF_PUBLIC_MODELS — an
+      # operator allowlist. IGVF_LLM_MODEL is the default selection.
+      IGVF_LLM_BACKEND:       ${IGVF_LLM_BACKEND:-anthropic}
+      IGVF_LLM_MODEL:         ${IGVF_LLM_MODEL:-claude-sonnet-5}
+      IGVF_PUBLIC_MODELS:     ${IGVF_PUBLIC_MODELS:-}
+      IGVF_LLM_TIMEOUT:       ${IGVF_LLM_TIMEOUT:-300}
+      # The operator's key. Present in the app container only.
+      ANTHROPIC_API_KEY:      ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      IGVF_PROJECT_ROOT:      /workspace
+      # Self-extension: let the agent author new tools/skills from chat.
+      # An authored skill is Python this container later executes, so on a
+      # shared deployment this turns "knows the password" into "can run code
+      # here". Set to 0 to make the agent read-only again.
+      IGVF_ALLOW_AGENT_AUTHORING: ${IGVF_ALLOW_AGENT_AUTHORING:-0}
+      # Authored extensions MUST land on the mounted volume — the container
+      # filesystem is recreated on every redeploy, and ~/.igvfagent would be
+      # silently wiped along with everything users had written.
+      IGVF_USER_EXT_DIR:      ${IGVF_USER_EXT_DIR:-/workspace/Data/UserExtensions}
+      IGVF_PORTAL_COOKIE:     ${IGVF_PORTAL_COOKIE:-}
+      IGVF_ARANGO_PASSWORD:   ${IGVF_ARANGO_PASSWORD:-}
+    volumes:
+      # The attached data volume, mounted on the host at /mnt/igvf-data.
+      - /mnt/igvf-data/Data:/workspace/Data
+      - /mnt/igvf-data/Docs:/workspace/Docs
+    expose:
+      - "8501"
+    # Blast radius: the agent runs wrapped CLIs as subprocesses
+    # (Scripts/_tools.py:3679) on prompts from the public internet, so the
+    # container is treated as untrusted and boxed in accordingly.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # Host is m3.medium (8 vCPU / 30 GB). Leave headroom so one runaway
+          # analysis can't wedge the gateway or the tunnel alongside it.
+          cpus: "6"
+          memory: 22G
+          # Compose rejects a top-level `pids_limit` next to this block —
+          # the fork bound has to live here with the other limits.
+          pids: 512
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: &logging
+      driver: json-file
+      options: { max-size: "50m", max-file: "5" }
+
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: igvfagent-gateway
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      # Google Analytics measurement ID, spliced into <head> by sub_filter.
+      # Empty = the tag renders with no id and reports nothing, which is the
+      # right default for anyone else deploying this repo.
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      # Substitute ONLY GA_* in the template. Without this filter envsubst
+      # would also replace nginx's own $$host / $$http_upgrade / $$remote_addr
+      # with empty strings and the rendered config would be broken.
+      NGINX_ENVSUBST_FILTER: "^GA_"
+    volumes:
+      - ./nginx/igvfagent.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
+    expose:
+      - "80"
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: igvfagent-tunnel
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    # Token-scoped tunnel: carries its own credentials and the public
+    # hostname mapping, so no cert.pem or config.yml on disk.
+    command: tunnel --no-autoupdate --loglevel info run --token ${CF_TUNNEL_TOKEN:?CF_TUNNEL_TOKEN is required}
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging

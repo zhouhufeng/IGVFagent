@@ -1,0 +1,9 @@
+# Mixed-notation fixture: every supported form in one file.
+# All rows denote APOB stopgain variants; the parser normalises and dedupes.
+2-21001846-G-A
+chr2-21002560-G-A
+2:21002683:G:A
+rs1466172660
+chr2:g.21002815G>A
+2_21002893_G_A
+2	21002965	.	G	A
