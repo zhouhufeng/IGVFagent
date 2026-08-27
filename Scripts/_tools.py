@@ -92,6 +92,41 @@ _TOOLS: "list[Tool]" = [
     # authored skill is Python this host later executes as a subprocess.
     # ──────────────────────────────────────────────────────────────────
     _T(
+        "annotate_variant_list",
+        "★ ANNOTATE A LIST OF VARIANTS PASTED BY THE USER ★ and add them to "
+        "the local knowledge graph as variant vertices. Pass the list "
+        "VERBATIM in `variants` — any notation and any separator works "
+        "(2-21001846-G-A, chr2:21001846:G:A, rs763341676, SPDI, HGVS, VCF "
+        "lines; spaces, commas or newlines). THIS IS THE RIGHT TOOL whenever "
+        "someone pastes variants and asks to annotate, characterise, or "
+        "add them to the KG — do NOT ask them for a CSV file first. Queries "
+        "FAVOR (CADD, ClinVar, GENCODE, enhancer/promoter overlap) and the "
+        "IGVF Catalog, writes a report plus CSV/JSON, and upserts variant "
+        "nodes with edges to genes and diseases.",
+        {
+            "type": "object",
+            "properties": {
+                "variants":  {**_S_STRING, "description":
+                              "The variant list verbatim, any notation."},
+                "input":     {**_S_STRING, "description":
+                              "Alternative: path to a file of variants."},
+                "label":     {**_S_STRING, "description":
+                              "Short label for the run directory."},
+                "sources":   {**_S_STRING, "description":
+                              "Comma list: favor, catalog (default both)."},
+                "max_rows":  {**_S_INTEGER, "description": "0 = all."},
+                "no_kg":     {**_S_BOOLEAN, "description":
+                              "Annotate without writing to the KG."},
+            },
+        },
+        ["variant-list", "annotate"],
+        flag_map={"variants": "--variants", "input": "--input",
+                   "label": "--label", "sources": "--sources",
+                   "max_rows": "--max-rows", "no_kg": "--no-kg"},
+        bool_flags=("no_kg",),
+    ),
+
+    _T(
         "read_artifact",
         "★ READ A FILE THIS AGENT PRODUCED ★ — reports, manifests, JSON, CSV, "
         "TSV, logs. Skills announce outputs as `Report: <path>`; use this to "
@@ -155,12 +190,14 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ext_author_tool",
-        "★ CREATE A NEW TOOL ★ that you can call immediately afterwards. "
-        "Writes a declarative manifest wrapping either an `igvfagent` "
-        "subcommand (--cli) or any executable (--command). Use this when the "
-        "user asks for a capability that does not exist yet and it can be "
-        "expressed as a command line. The new tool appears in the registry "
-        "with NO restart. Give `parameters` as a JSON Schema object string.",
+        "★ WRAP AN EXISTING COMMAND as a new tool ★. Use ONLY when the "
+        "command already exists — an igvfagent subcommand (--cli) or a real "
+        "executable like `cat` or `sort` (--command). It is REJECTED if the "
+        "--cli subcommand does not exist, because such a tool registers "
+        "cleanly and then fails on every call. **If the capability does not "
+        "exist yet, use ext_author_skill instead** — it writes the "
+        "implementation AND registers the tool in one step. Give `parameters` "
+        "as a JSON Schema object string, or the model cannot pass it input.",
         {
             "type": "object",
             "properties": {
@@ -189,12 +226,15 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ext_author_skill",
-        "★ WRITE A NEW PYTHON SKILL ★ and register it as `igvfagent <name>`. "
-        "Pass the COMPLETE module source in `source`; it must define a "
-        "top-level main(). Source is syntax-checked before it is written. Use "
-        "this when the needed capability requires real logic (parsing, "
-        "analysis, a new API client) rather than wrapping a command. After "
-        "writing, call ext_validate to confirm it loaded.",
+        "★ WRITE A NEW CAPABILITY FROM SCRATCH ★ — the right tool whenever "
+        "the user asks for something IGVFagent cannot currently do. Writes a "
+        "Python module AND registers a matching callable tool in one step, so "
+        "you can invoke it immediately afterwards. Pass the COMPLETE module "
+        "source in `source` (must define a top-level main(); it is "
+        "syntax-checked before writing) and declare `tool_parameters` as a "
+        "JSON Schema object so the new tool can receive arguments. Prefer "
+        "this over ext_author_tool for any new logic — parsing, analysis, a "
+        "new API client. Then call ext_validate to confirm it loaded.",
         {
             "type": "object",
             "properties": {
@@ -206,12 +246,18 @@ _TOOLS: "list[Tool]" = [
                                 "Full Python source, must define main()."},
                 "source_file": {**_S_STRING, "description":
                                 "Alternative: read source from this path."},
+                "tool_parameters": {**_S_STRING, "description":
+                                "JSON Schema object for the auto-registered "
+                                'tool, e.g. {"type":"object","properties":'
+                                '{"variants":{"type":"string"}}}. Without it '
+                                "the new tool takes no arguments."},
             },
             "required": ["name", "description"],
         },
         ["extauthor", "write-skill"],
         flag_map={"name": "--name", "description": "--description",
-                   "source": "--source", "source_file": "--source-file"},
+                   "source": "--source", "source_file": "--source-file",
+                   "tool_parameters": "--tool-parameters"},
     ),
 
     _T(

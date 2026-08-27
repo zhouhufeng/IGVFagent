@@ -98,6 +98,32 @@ def _target_dir() -> Path:
     )
 
 
+def known_subcommands() -> "set[str]":
+    """Every `igvfagent <sub>` that actually resolves — built-in and user.
+
+    ``write_tool`` validates against this. Without the check the agent can
+    write a manifest pointing at a subcommand it never implemented, which is
+    exactly what happened in practice: ``catfile_tool`` -> `igvfagent catfile`,
+    ``run_create_variant_csv`` -> `igvfagent create-variant-csv`. Both parsed
+    as valid manifests, registered cleanly, and failed only when called.
+    """
+    names: "set[str]" = set()
+    try:
+        from igvfagent import cli
+    except Exception:  # pragma: no cover
+        try:
+            import cli  # type: ignore
+        except Exception:
+            return names
+    names |= set(getattr(cli, "SKILLS", {}))
+    names |= set(getattr(cli, "TOP_LEVEL", ()))
+    try:
+        names |= set(_userext.discover_skills())
+    except Exception:
+        pass
+    return names
+
+
 def _check_name(name: str, *, kind: str) -> str:
     name = (name or "").strip()
     if not _NAME_RE.match(name):
@@ -153,9 +179,30 @@ def write_tool(*, name: str, description: str,
     manifest: dict = {"name": name, "description": description.strip(),
                       "parameters": schema}
     if cli:
-        manifest["cli"] = cli.split()
+        parts = cli.split()
+        sub = parts[0] if parts else ""
+        known = known_subcommands()
+        if known and sub not in known:
+            raise InvalidExtension(
+                f"`igvfagent {sub}` does not exist, so this tool would "
+                f"register successfully and then fail on every call.\n"
+                f"If {sub!r} is meant to be NEW functionality, write the "
+                f"implementation first with ext_author_skill (which registers "
+                f"its own tool), instead of wrapping a command that isn't "
+                f"there. To wrap an arbitrary executable rather than an "
+                f"igvfagent subcommand, use --command.")
+        manifest["cli"] = parts
     else:
         manifest["command"] = command.split() if isinstance(command, str) else command
+
+    # A tool with no parameters can never receive input. That is legitimate for
+    # something like `ext_list`, but it was the second half of the observed
+    # failure: run_create_variant_csv declared {} and so could not have been
+    # given a variant list even if its subcommand had existed.
+    if not schema.get("properties"):
+        print(f"note: `{name}` declares no parameters, so the model cannot "
+              f"pass it any input. If it needs arguments, re-author it with "
+              f"--parameters.", file=sys.stderr)
     if positional:
         manifest["positional"] = positional.split()
 
@@ -194,8 +241,18 @@ if __name__ == "__main__":
 
 def write_skill(*, name: str, description: str,
                 source: "str | None" = None,
-                source_file: "str | None" = None) -> Path:
-    """Write a Python skill module exposing ``main()``."""
+                source_file: "str | None" = None,
+                register_tool: bool = True,
+                tool_parameters: "str | None" = None,
+                flag_map: "str | None" = None) -> Path:
+    """Write a Python skill module exposing ``main()``.
+
+    By default this also writes the matching tool manifest, pointing at the
+    subcommand the module actually registers. That pairing is the whole point:
+    writing the wrapper and the implementation as two independent steps is how
+    every previous attempt failed — a manifest naming a subcommand that was
+    never implemented registers cleanly and fails only when called.
+    """
     _require_enabled()
     name = _check_name(name, kind="skill")
     if not (description or "").strip():
@@ -226,6 +283,40 @@ def write_skill(*, name: str, description: str,
     d.mkdir(parents=True, exist_ok=True)
     path = d / f"{name}.py"
     path.write_text(source if source.endswith("\n") else source + "\n")
+
+    if register_tool:
+        # Write the module FIRST so the subcommand exists by the time the
+        # manifest referencing it is discovered.
+        schema: dict = {"type": "object", "properties": {}}
+        if tool_parameters:
+            try:
+                schema = json.loads(tool_parameters)
+            except json.JSONDecodeError as e:
+                raise InvalidExtension(
+                    f"--tool-parameters is not valid JSON: {e}") from e
+        fmap = {}
+        if flag_map:
+            try:
+                fmap = json.loads(flag_map)
+            except json.JSONDecodeError as e:
+                raise InvalidExtension(f"--flag-map is not valid JSON: {e}") from e
+        elif schema.get("properties"):
+            # Sensible default: every declared property becomes --property-name,
+            # which is what an argparse-based skill expects.
+            fmap = {k: "--" + k.replace("_", "-") for k in schema["properties"]}
+
+        manifest = {"name": name, "description": description.strip(),
+                    "parameters": schema, "cli": [_subcommand_for(name)]}
+        if fmap:
+            manifest["flag_map"] = fmap
+        td = _target_dir() / "tools"
+        td.mkdir(parents=True, exist_ok=True)
+        (td / f"{name}.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+        if not schema.get("properties"):
+            print(f"note: `{name}` was registered with no parameters, so the "
+                  f"model cannot pass it input. Re-author with "
+                  f"--tool-parameters if it takes arguments.", file=sys.stderr)
     return path
 
 
@@ -323,6 +414,13 @@ def main(argv=None) -> int:
     s.add_argument("--description", required=True)
     s.add_argument("--source", help="Full Python source (must define main())")
     s.add_argument("--source-file", help="Read the source from this path")
+    s.add_argument("--tool-parameters",
+                   help="JSON Schema object for the auto-registered tool.")
+    s.add_argument("--flag-map",
+                   help="JSON map of parameter name -> CLI flag. Defaults to "
+                        "--param-name for each declared property.")
+    s.add_argument("--no-register-tool", action="store_true",
+                   help="Write the module only; do not register a tool.")
 
     v = sub.add_parser("validate", help="Check an extension is registered")
     v.add_argument("--name", required=True)
@@ -344,8 +442,13 @@ def main(argv=None) -> int:
             print(f"Tool `{args.name}` is now callable — no restart needed.")
         elif args.cmd == "write-skill":
             p = write_skill(name=args.name, description=args.description,
-                            source=args.source, source_file=args.source_file)
+                            source=args.source, source_file=args.source_file,
+                            register_tool=not args.no_register_tool,
+                            tool_parameters=args.tool_parameters,
+                            flag_map=args.flag_map)
             print(f"Wrote: {p}")
+            if not args.no_register_tool:
+                print(f"Tool `{args.name}` registered and callable now.")
             # Report the SUBCOMMAND, not the filename: the loader maps
             # underscores to hyphens, and the agent calls what this line says.
             print(f"Skill `{args.name}` is now "

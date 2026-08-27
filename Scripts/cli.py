@@ -104,6 +104,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "multiseq":         ("igvfagent.multiseq_analysis_skill",
                           "MULTI-seq / Cell Hashing demultiplexing "
                           "(Python port of deMULTIplex2)"),
+    "variant-list":     ("igvfagent.variant_list_skill",
+                          "Annotate a pasted/file variant list in any notation "
+                          "(chr-pos-ref-alt, rsID, SPDI, HGVS, VCF) via FAVOR + "
+                          "IGVF Catalog, and add the results to the local KG"),
     "artifact":         ("igvfagent.artifact_read_skill",
                           "Read back reports/manifests the agent produced "
                           "(workspace-contained: read / grep / ls)"),
