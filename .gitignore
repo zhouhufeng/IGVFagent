@@ -114,6 +114,9 @@ Docs/PortalQuery/2*
 Docs/CatalogQuery/2*
 # variant-list annotate run dirs (Docs/VariantList/<ts>_<label>/)
 Docs/VariantList/2*
+# eval-tiers run outputs
+Docs/EvalTiers/2*
+Docs/VariantVerify/2*
 Docs/ChIPAtlas/2*
 Docs/Calibration/2*
 Docs/Benchmarks/*/2*

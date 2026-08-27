@@ -455,6 +455,17 @@ def write_report(
         f"Raw metadata JSON: `{raw_path}`",
         f"File/download manifest: `{manifest_path}`",
         "",
+        # Persist the identity fields, not just print them. They were reaching
+        # the model on stdout but were absent from every artefact, so a claim
+        # like "assembly GRCh38, status released" was correct and yet
+        # unevidenced in the record — a Tier-3 verifier flagged exactly that.
+        # An auditable answer needs the evidence written down, not only shown.
+        "## Identity",
+        "",
+        *(["```", *identity_lines(rows or ([data] if isinstance(data, dict)
+                                            and data.get("accession") else []),
+                                  target), "```", ""]
+          if (rows or (isinstance(data, dict) and data.get("accession"))) else []),
         "## What This Data Appears To Be",
         "",
         *plain_summary(source, data, rows, files, total),

@@ -1,0 +1,24 @@
+{
+  "id": "gene_context_basic",
+  "question": "What are the genomic coordinates of TP53, and which diseases is it associated with?",
+  "rationale": "Single-entity lookup. Tests that the agent reaches a Catalog entity route rather than improvising, and that it reads the report back instead of reporting only counts.",
+  "any_of": [
+    [
+      "catalog_get_entity",
+      "kg_gene"
+    ]
+  ],
+  "required_args": {
+    "catalog_get_entity": [
+      "id"
+    ]
+  },
+  "forbidden_tools": [],
+  "inject_failures": [
+    "catalog_get_entity"
+  ],
+  "expected_in_answer": [
+    "chr17",
+    "TP53"
+  ]
+}

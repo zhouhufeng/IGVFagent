@@ -3866,6 +3866,20 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
     tool = get_tool(name)
     if not tool:
         raise KeyError(f"Unknown tool: {name}")
+
+    # Evaluation hook: force named tools to fail so recovery becomes
+    # observable (Scripts/eval_tiers_skill.py, Tier 2). A run that cannot
+    # proceed when an archive errors has a planning defect, not a skill
+    # defect, and nothing else in the suite exercises that path. Inert
+    # unless IGVF_EVAL_FAIL_TOOL is set, and it is never set in normal use.
+    _fail = os.environ.get("IGVF_EVAL_FAIL_TOOL", "")
+    if _fail and name in {t.strip() for t in _fail.split(",") if t.strip()}:
+        logger.warning("tool=%s failed by IGVF_EVAL_FAIL_TOOL (evaluation)", name)
+        return {"name": name, "argv": [], "exit_code": 1, "stdout": "",
+                "stderr": f"injected failure for evaluation: {name} "
+                          f"unavailable (simulated upstream error)",
+                "timed_out": False, "artifacts": {}}
+
     argv = _build_argv(tool, arguments or {})
     # Built-in tools carry a leading "igvfagent" placeholder — replace it
     # with whatever runner works here (binary or `python -m igvfagent.cli`).

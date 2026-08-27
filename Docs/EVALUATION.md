@@ -42,7 +42,7 @@ right, not that coverage is representative.
 
 ---
 
-## Tier 2 — Planning and tool selection *(specified; not yet implemented)*
+## Tier 2 — Planning and tool selection *(implemented)*
 
 Measures the decision layer with the skills held fixed and known-good.
 
@@ -76,7 +76,7 @@ reported separately.
 
 ---
 
-## Tier 3 — Conclusion validity *(specified; not yet implemented)*
+## Tier 3 — Conclusion validity *(implemented)*
 
 Tier 3 asks the only question a biologist cares about: **is the answer right?**
 
@@ -120,3 +120,78 @@ across both would hide the very thing worth measuring.
 
 See [`Docs/THREAT_MODEL.md`](THREAT_MODEL.md) for the parallel distinction
 between auditability, repeatability, and validity.
+
+---
+
+## Running the tiers
+
+```bash
+igvfagent eval-tiers list                       # the Tier-2 cases
+igvfagent eval-tiers tier2 --all                # planning only
+igvfagent eval-tiers tier2 --all --inject-failures
+igvfagent eval-tiers tier3 --case <case.json> --verifier-model claude-opus-5
+```
+
+Cases live in `Benchmarks/tier2/*.json`; the schema is in that directory's
+README. Each existing case encodes a failure actually observed in this system,
+so the suite is a regression test rather than a hypothetical.
+
+Use a **different** model for the verifier than the one under test. A model
+asked to check its own output is a weak judge, and the verifier never sees the
+reasoning trace precisely so it cannot be led by the chain that produced an
+error.
+
+## First results
+
+Four cases, Claude Sonnet 5 planning, Opus 5 verifying.
+
+**Planning (Tier 2).** All four reached the required tools — recall 1.0
+throughout. Precision varies sharply: 1.0 on the focused cases, 0.33 and 0.10
+on the broader ones, where the agent made ten calls to satisfy a one-call
+plan. Precision is reported but does not gate the verdict, since redundant
+calls cost tokens rather than correctness.
+
+**Recovery is the weak spot, and it is a real finding.** With a load-bearing
+tool forced to fail:
+
+| induced failure | recovered |
+|---|---|
+| `explain_dataset` | yes |
+| `catalog_get_entity` | yes |
+| `read_artifact` | **no** — retried 5×, ended `max_iterations_wrapped` |
+| `annotate_variant_list` | **no** — retried 3×, ended `max_iterations_wrapped` |
+
+When an *alternative route exists*, the agent finds it. When the failing tool
+is the only route, it retries until the budget is exhausted instead of
+reporting the failure and concluding. Nothing in the Tier-1 suite exercises
+this path, because Tier 1 never lets a tool fail.
+
+**Conclusion validity (Tier 3) caught an auditability gap.** On the ENCODE
+identity case the verifier returned `PARTIALLY_SUPPORTED`, flagging *assembly*
+and *status* as unsupported. Both claims were **true**, and the model had seen
+them — but they were printed to stdout and never written into any artefact, so
+they were unevidenced in the record. Persisting the identity block into the
+report moved the verdict to `VALID` (7 supported, 0 contradicted).
+
+That is the distinction the threat model draws, caught mechanically: an answer
+can be correct and still not auditable. It is also the clearest argument for
+Tier 3 — no agreement metric would have found it, because a second run would
+have produced the same unevidenced-but-correct claim and scored perfect
+agreement.
+
+The one remaining unsupported claim, *"GM12878 is a lymphoblastoid cell
+line"*, is correct background knowledge absent from the artefacts. Flagging it
+is the desired behaviour: the verifier separates evidence from model prior.
+
+## Limitations of the harness itself
+
+- **Four cases is a seed, not a suite.** They are regression tests for known
+  failures, so they are in-distribution by construction — the same criticism
+  that applies to Tier 1.
+- **Gold plans are authored by the system's developers.** Held-out cases
+  should come from people who did not build it and who are not shown the tool
+  list; that protocol is specified above and not yet executed.
+- **The verifier is unvalidated.** Its agreement with human expert judgement
+  has not been measured, so it moves the problem rather than closing it. It
+  should be calibrated against expert labels before any headline number rests
+  on it.

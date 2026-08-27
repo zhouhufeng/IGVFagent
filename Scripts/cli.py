@@ -107,6 +107,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "skillcard":        ("igvfagent.skillcard_skill",
                           "Machine-readable skill specifications (skill cards) "
                           "with validation status derived from the benchmarks"),
+    "eval-tiers":       ("igvfagent.eval_tiers_skill",
+                          "Tier 2 (planning / tool selection) and Tier 3 "
+                          "(conclusion validity) evaluation"),
     "variant-verify":   ("igvfagent.variant_verify_skill",
                           "Cross-source verification of variant annotations "
                           "(FAVOR snapshot vs live ClinVar)"),

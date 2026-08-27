@@ -1,0 +1,23 @@
+{
+  "id": "variant_list_annotation",
+  "question": "Functionally annotate these variants and add them to the knowledge graph: 2-21001846-G-A 2-21002560-G-A rs121918390",
+  "rationale": "The case that motivated variant_list_skill. A correct plan passes the pasted list straight to annotate_variant_list; a wrong one asks the user for a CSV or tries to author a tool.",
+  "required_tools": [
+    "annotate_variant_list"
+  ],
+  "required_args": {
+    "annotate_variant_list": [
+      "variants"
+    ]
+  },
+  "forbidden_tools": [
+    "ext_author_tool",
+    "ext_author_skill"
+  ],
+  "inject_failures": [
+    "annotate_variant_list"
+  ],
+  "expected_in_answer": [
+    "APOB"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "encode_experiment_identity",
+  "question": "What is ENCODE experiment ENCSR000EMT? Give the assay and the cell line.",
+  "rationale": "The confabulation case: the agent previously answered RNA-seq/K562 for a DNase-seq/GM12878 experiment because the tool returned only file paths. Scored on plan here; the factual check belongs to Tier 3.",
+  "any_of": [
+    [
+      "explain_dataset",
+      "encode_describe"
+    ]
+  ],
+  "required_args": {
+    "explain_dataset": [
+      "accession_or_url"
+    ]
+  },
+  "inject_failures": [
+    "explain_dataset"
+  ],
+  "expected_in_answer": [
+    "DNase-seq",
+    "GM12878"
+  ]
+}

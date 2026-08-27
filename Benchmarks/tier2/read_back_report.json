@@ -1,0 +1,26 @@
+{
+  "id": "read_back_report",
+  "question": "Pull the BRCA1 gene context from the Catalog and then tell me the specific diseases named in the report you produced.",
+  "rationale": "Tests the read-back loop. Before read_artifact existed the agent could only report counts ('18 diseases') because it could not open the file it had just written. A correct plan produces the report and then reads it.",
+  "required_tools": [
+    "kg_gene"
+  ],
+  "any_of": [
+    [
+      "read_artifact",
+      "grep_artifacts"
+    ]
+  ],
+  "ordering": [
+    [
+      "kg_gene",
+      "read_artifact"
+    ]
+  ],
+  "inject_failures": [
+    "read_artifact"
+  ],
+  "expected_in_answer": [
+    "Fanconi"
+  ]
+}
