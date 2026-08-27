@@ -434,7 +434,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "splitseq_retrieve",
-        "Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. "
+        "★ Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. "
         "Writes a manifest with donor + founder-strain metadata.",
         {
             "type": "object",
@@ -1062,7 +1062,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "ref_design",
-        "Recommend a study workflow + cognate published studies + matching "
+        "★ Recommend a study workflow + cognate published studies + matching "
         "IGVF Portal AnalysisSets for an assay type.",
         {
             "type": "object",
@@ -1132,7 +1132,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "sce2g_kg_pull",
-        "BULK-ingest scE2G element→gene regulatory linkages from the IGVF "
+        "★ BULK-ingest scE2G element→gene regulatory linkages from the IGVF "
         "Catalog into the local KG as `regulates` edges. Deterministic, "
         "resumable, runs to completion over the whole genome regardless of "
         "size (adaptive region tiling around the API's 500-row cap) with a "
@@ -1471,7 +1471,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "se_targets_pipeline",
-        "End-to-end super-enhancer → target-gene pipeline. For a chosen "
+        "★ End-to-end super-enhancer → target-gene pipeline. For a chosen "
         "biosample (GM12878 / K562 / HepG2 / liver / brain / ...): "
         "discovers H3K27ac (or BRD4/MED1/P300) ChIP-seq + optional "
         "Hi-C/ChIA-PET 3D experiments, downloads peak BED, calls "
@@ -1593,7 +1593,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "rnaseq_pipeline",
-        "End-to-end bulk RNA-seq: QC + PCA + differential expression "
+        "★ End-to-end bulk RNA-seq: QC + PCA + differential expression "
         "(pyDESeq2 if installed, Welch's t-test + BH FDR fallback) + "
         "volcano/MA/heatmap plots + DEG → controlling cCRE linkage "
         "via the IGVF Catalog. Inputs: counts matrix + sample sheet + "
@@ -1792,7 +1792,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "proteomics_vampseq_pull",
-        "Download canonical published VAMP-seq scoresets from MaveDB "
+        "★ Download canonical published VAMP-seq scoresets from MaveDB "
         "(PTEN, TPMT, VKOR, PRKN, CYP2C9, NUDT15). Pulls per-replicate "
         "score CSVs for downstream analysis.",
         {
@@ -1883,7 +1883,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "sc_pipeline",
-        "Full single-cell analysis pipeline: QC + filter, log-normalize, "
+        "★ Full single-cell analysis pipeline: QC + filter, log-normalize, "
         "HVG selection, PCA, k-NN graph, UMAP, t-SNE, Leiden clustering, "
         "and marker-gene DE. Accepts .h5ad / 10x .h5 / .mtx / .csv / .tsv. "
         "Saves processed.h5ad, markers.csv, and publication PNGs (UMAP "
@@ -2604,7 +2604,7 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "starr_pull_portal",
-        "Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
+        "★ Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV "
         "manifest with accession, assay_titles, n_files, status.",
         {"type": "object", "properties": {
             "limit": {**_S_INTEGER, "default": 50},
@@ -2670,7 +2670,7 @@ _TOOLS: "list[Tool]" = [
     # ------------------------------------------------------------------
     _T(
         "share_pull_portal",
-        "Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets "
+        "★ Discover IGVF Portal SHARE-seq AnalysisSets and MeasurementSets "
         "(`preferred_assay_titles=SHARE-seq`). Writes a TSV manifest "
         "covering both processed AnalysisSets (h5ad + fragments BED) and "
         "raw MeasurementSets (FASTQ + seqspec).",
