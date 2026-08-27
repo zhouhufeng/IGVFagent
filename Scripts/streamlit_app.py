@@ -1363,20 +1363,11 @@ def main() -> None:
     scale = (f"{n_exposed} of {n_tools} tools exposed"
              if n_tools and n_exposed < n_tools else f"{n_tools} tools")
 
-    if orch == "internal":
-        how = (f"Every chat query runs through IGVFagent's **internal "
-               f"orchestrator** (Plan → Action → Results → Evaluation). "
-               f"This LLM plans; your IGVFagent skills are the tools it "
-               f"calls ({scale}).")
-    else:
-        # Say what external actually does. _llm._chat_claude_cli uses the CLI
-        # as a text backend and parses tool calls out of its reply — the loop
-        # is still IGVFagent's, and the CLI's own file/shell tools never run.
-        how = (f"Queries run through IGVFagent's Plan → Action → Results → "
-               f"Evaluation loop, with the **external CLI supplying the "
-               f"model's replies** instead of a direct API call. IGVFagent "
-               f"still plans and calls the tools ({scale}); the CLI's own "
-               f"file and shell tools are not used.")
+    # One line, no explanation: which orchestrator is active, and the scale
+    # of the tool set. The mechanics of internal vs external belong in the
+    # docs, not in a status banner the user reads on every query.
+    orch_name = "Internal orchestrator" if orch == "internal" else "External orchestrator"
+    how = f"**{orch_name}**  ·  {scale}"
 
     if status and status.get("ok"):
         st.success(
