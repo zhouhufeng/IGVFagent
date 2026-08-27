@@ -66,7 +66,16 @@ ROOT = Path(
     os.environ.get("IGVF_PROJECT_ROOT")
     or Path(__file__).resolve().parents[1]
 ).resolve()
-CASE_DIR = ROOT / "Benchmarks" / "tier2"
+# Prefer the workspace copy; fall back to the checkout that ships alongside
+# Scripts/. The runtime container installs only the package, not Benchmarks/,
+# so on a hosted deployment neither exists — eval-tiers is a development and CI
+# tool, and the error below says that rather than reporting a bare path.
+_CASE_CANDIDATES = [
+    ROOT / "Benchmarks" / "tier2",
+    Path(__file__).resolve().parents[1] / "Benchmarks" / "tier2",
+]
+CASE_DIR = next((d for d in _CASE_CANDIDATES if d.is_dir()),
+                _CASE_CANDIDATES[0])
 OUT_DIR = ROOT / "Docs" / "EvalTiers"
 
 
@@ -320,19 +329,29 @@ def verify_conclusion(question: str, answer: str, artefacts,
 # ---------------------------------------------------------------------------
 
 def _load_cases(args) -> "list[dict]":
+    global CASE_DIR
+    if getattr(args, "case_dir", None):
+        d = Path(args.case_dir)
+        CASE_DIR = d if d.is_absolute() else ROOT / d
     if args.case:
         p = Path(args.case)
         if not p.is_absolute():
             p = ROOT / p
         return [json.loads(p.read_text())]
     if not CASE_DIR.is_dir():
-        raise SystemExit(f"error: no case directory at {CASE_DIR}")
+        raise SystemExit(
+            "error: Tier-2 cases not found. eval-tiers is a development and CI "
+            "tool and needs the repository checkout — the runtime container "
+            "ships only the installed package, not Benchmarks/.\n"
+            "  Run it from a clone, or pass --case-dir <path>.\n"
+            f"  Looked in: {', '.join(str(d) for d in _CASE_CANDIDATES)}")
     return [json.loads(p.read_text())
             for p in sorted(CASE_DIR.glob("*.json"))]
 
 
 def cmd_list(args) -> int:
-    cases = _load_cases(argparse.Namespace(case=None))
+    cases = _load_cases(argparse.Namespace(
+        case=None, case_dir=getattr(args, "case_dir", None)))
     print(f"{'CASE':<26} {'REQUIRED TOOLS':<46} QUESTION")
     for c in cases:
         req = ",".join((c.get("required_tools") or [])
@@ -432,7 +451,8 @@ def main(argv=None) -> int:
         description="Tier 2 (planning) and Tier 3 (conclusion validity) "
                     "evaluation. Tier 1 lives in Benchmarks/.")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", help="List Tier-2 cases")
+    lst = sub.add_parser("list", help="List Tier-2 cases")
+    lst.add_argument("--case-dir", help="Directory of Tier-2 case JSON files")
     for name in ("tier2", "tier3"):
         s = sub.add_parser(name)
         s.add_argument("--case", help="One case JSON (default: all)")
@@ -440,6 +460,7 @@ def main(argv=None) -> int:
         s.add_argument("--backend")
         s.add_argument("--model")
         s.add_argument("--max-iterations", type=int, default=12)
+        s.add_argument("--case-dir", help="Directory of Tier-2 case JSON files")
         if name == "tier2":
             s.add_argument("--inject-failures", action="store_true",
                            help="Also run each case with induced tool failures")
