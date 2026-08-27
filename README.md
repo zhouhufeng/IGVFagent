@@ -1,9 +1,16 @@
 # IGVF Agent
 
-A local, auditable AI agent for discovering, retrieving, and analyzing data
-from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog, Knowledge
-Graph) and related public resources (ENCODE, FAVOR), with a built-in
+An **auditable, local-execution** AI agent for discovering, retrieving, and
+analyzing data from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog,
+Knowledge Graph) and related public resources (ENCODE, FAVOR), with a built-in
 **Plan → Action → Results → Evaluation** orchestration loop.
+
+> **"Local" means tool execution, not inference.** Skills run as subprocesses
+> on your machine and all files stay in the project folder. With a hosted model
+> backend the prompt — including tool output the agent has read — still goes to
+> the provider, and federated data access contacts public archives under every
+> backend. See [`Docs/THREAT_MODEL.md`](Docs/THREAT_MODEL.md) for the per-mode
+> data flow.
 
 ![IGVF Agent — system overview](Docs/Figures/IGVFagent_system_overview.png)
 
@@ -179,9 +186,13 @@ In short — **two ways to drive every skill, one shared contract**:
   VAMP-seq / SGE / cell-fitness scores into **PS3 / BS3 evidence strengths**
   (supporting → very strong) with the score window for each, so an assay score
   can be used directly in clinical variant classification.
-- **Reproducibility benchmark suite** — nineteen recent Nature / Cell / Science /
-  Nat Genet / Nat Methods / Genome Biol papers reproduced directly from public
-  data, each scored against machine-readable ground-truth checks. Includes
+- **Skill-correctness benchmark suite** — twenty-one recent Nature / Cell /
+  Science / Nat Genet / Nat Methods / Genome Biol papers reproduced directly
+  from public data, each scored against machine-readable ground-truth checks.
+  **Scope:** every `run.sh` invokes skills directly as shell commands, with no
+  model in the loop, so the suite establishes that the *implementations* are
+  correct. It does not evaluate planning, tool selection, or the validity of an
+  end-to-end conclusion — see [`Docs/EVALUATION.md`](Docs/EVALUATION.md). Includes
   **five full single-cell / multiome local reproductions** that download the
   public data and run IGVFagent's real analytical chain end-to-end — Travaglini
   2020 lung (`sc-analyze`), Trevino 2021 cortex multiome (`multiome peak2gene`),
@@ -475,7 +486,7 @@ Side-by-side trade-offs:
 |---|---|---|---|
 | Cost | free | ~$0.001 – $0.01 / query (Haiku → Sonnet) | covered by your Claude Code plan |
 | Latency | 30 – 90s (35B bf16) / 8 – 20s (gemma4:31b) / 2 – 5s (qwen3:8b) | 2 – 10s | 5 – 15s (CLI subprocess + auth) |
-| Privacy | data never leaves your machine | prompts go to Anthropic | prompts go to Anthropic via Claude Code |
+| Privacy | prompts stay local; **archive queries still leave** (Catalog/ENCODE/GEO) | prompts + tool output go to Anthropic | prompts + tool output go to Anthropic via Claude Code |
 | Tool-call quality | strong on Qwen 3.6 35B / Gemma 4 31B; weak on < 7B | best-in-class (native function calling) | best-in-class (Claude Code drives natively) |
 | Setup effort | install Ollama + pull a model | one env var, one sidebar click | already installed if you use Claude Code |
 | Multi-turn context | full | full | reset per `claude -p` call |
@@ -579,13 +590,22 @@ repository directory.
 
 ## Consistent results across LLM backends
 
-IGVFagent is designed so the **same query resolves to the same plan and the
-same substantive answer no matter which model drives the loop** — Claude Code,
-the Anthropic/OpenAI APIs, Codex, or a local Qwen/Gemma via Ollama. Four
-mechanisms make this hold:
+IGVFagent is designed to **reduce cross-backend variance**, not to eliminate
+it. Pinned command sequences and playbooks are reproducible because no model
+decides anything. Free-form agent planning is not: measured artefact agreement
+across repeated free-form runs is well below 1.0, and the mechanisms below
+narrow the spread rather than remove it. Treat identical output as a property
+of pinned workflows, and auditability — every action recorded as a typed,
+re-runnable command — as the property that holds in general.
+
+Four mechanisms reduce the variance:
 
 1. **Identical tool set on every backend.** The runtime exposes one canonical,
-   deterministically-ordered set of ≤128 tools to *all* backends (previously
+   deterministically-ordered tool set to *all* backends, capped at
+   `IGVF_LLM_MAX_TOOLS` (default 128, matching OpenAI's function limit;
+   Anthropic accepts the full catalogue, and the hosted deployment raises it so
+   nothing is hidden). **The cap truncates alphabetically**, so leaving it below
+   the catalogue size silently removes whole families of tools — previously
    OpenAI-family models were silently trimmed to 128 while others saw more, so
    the same query could pick a tool that didn't exist elsewhere). Override the
    cap with `IGVF_LLM_MAX_TOOLS`.
