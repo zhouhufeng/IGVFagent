@@ -1343,15 +1343,46 @@ def main() -> None:
     eff = cfg.get("effective", {})
     kind = cfg.get("kind", "local")
     kind_label = _BACKEND_KIND_LABELS.get(kind, kind)
+
+    # The banner must reflect the ORCHESTRATOR actually selected, not the
+    # backend family. In public mode `kind` is pinned to "anthropic", so
+    # reading it alone reported "Anthropic Claude API · internal orchestrator"
+    # even when the external orchestrator was chosen.
+    orch = st.session_state.get("_orchestrator", "internal")
+    if orch != "internal":
+        kind_label = _ORCHESTRATORS.get(orch, (kind_label, None))[0]
+
+    # Counts were hardcoded ("your 34 IGVFagent skills") and had drifted.
+    try:
+        n_tools = len(_tools.list_tools())
+        n_exposed = len(_llm.canonical_tools(
+            [{"name": t.name, "description": t.description or ""}
+             for t in _tools.list_tools()]) or [])
+    except Exception:
+        n_tools = n_exposed = 0
+    scale = (f"{n_exposed} of {n_tools} tools exposed"
+             if n_tools and n_exposed < n_tools else f"{n_tools} tools")
+
+    if orch == "internal":
+        how = (f"Every chat query runs through IGVFagent's **internal "
+               f"orchestrator** (Plan → Action → Results → Evaluation). "
+               f"This LLM plans; your IGVFagent skills are the tools it "
+               f"calls ({scale}).")
+    else:
+        # Say what external actually does. _llm._chat_claude_cli uses the CLI
+        # as a text backend and parses tool calls out of its reply — the loop
+        # is still IGVFagent's, and the CLI's own file/shell tools never run.
+        how = (f"Queries run through IGVFagent's Plan → Action → Results → "
+               f"Evaluation loop, with the **external CLI supplying the "
+               f"model's replies** instead of a direct API call. IGVFagent "
+               f"still plans and calls the tools ({scale}); the CLI's own "
+               f"file and shell tools are not used.")
+
     if status and status.get("ok"):
         st.success(
             f"### {kind_label}  ·  `{status['model']}`  "
             f"·  ✅ Loaded  "
-            f"_(in {status['secs']:.1f}s)_\n\n"
-            f"Every chat query runs through IGVFagent's **internal "
-            f"orchestrator** (Plan → Action → Results → Evaluation). "
-            f"This LLM is the brain at the planning step; your 34 "
-            f"IGVFagent skills are the tools the orchestrator calls."
+            f"_(in {status['secs']:.1f}s)_\n\n" + how
         )
     elif status and not status.get("ok"):
         st.error(

@@ -56,10 +56,12 @@ try:
     from igvfagent import annotate_variant_list as avl
     from igvfagent import _localstore as ls
     from igvfagent import ccre_linkage_annotation_skills as ccre
+    from igvfagent import variant_verify_skill as vv
 except Exception:  # pragma: no cover - direct-script execution
     import annotate_variant_list as avl  # type: ignore
     import _localstore as ls  # type: ignore
     import ccre_linkage_annotation_skills as ccre  # type: ignore
+    import variant_verify_skill as vv  # type: ignore
 
 __all__ = ["main", "parse_variant_token", "parse_variants"]
 
@@ -220,6 +222,48 @@ def _annotate_favor(rec: dict) -> dict:
     return flat
 
 
+def _apply_live_clinvar(rec: dict, annotation: dict) -> dict:
+    """Overlay current ClinVar on top of FAVOR's snapshot.
+
+    FAVOR bundles a ClinVar snapshot that can lag the live database, and the
+    lag is not cosmetic: rs145143533 is *Benign / familial hypercholesterolemia
+    2* in FAVOR and **Pathogenic / familial hypobetalipoproteinemia** in current
+    ClinVar — a reversal of both significance and implied direction of effect.
+    Downstream consumers (the report, and the disease edges written to the
+    knowledge graph) therefore use the live values.
+
+    FAVOR's fields are **kept, not overwritten**, under their original
+    `favor_*` names, and `clinvar_diverges_from_favor` records the
+    disagreement. Erasing the snapshot would make the annotation
+    unreproducible and hide exactly the discrepancy worth knowing about.
+    """
+    rsid = rec.get("rsid") or annotation.get("favor_rsid")
+    if not rsid or not str(rsid).startswith("rs"):
+        annotation["clinvar_source"] = "not_queried_no_rsid"
+        return annotation
+    cv = vv.clinvar_lookup(str(rsid))
+    annotation["clinvar_source"] = f"live:{cv.get('status')}"
+    if cv.get("status") != "ok":
+        return annotation
+
+    live_sig = cv.get("significance") or ""
+    live_dis = "; ".join(cv.get("traits") or [])
+    annotation["clinvar_significance"] = live_sig
+    annotation["clinvar_diseases"] = live_dis
+    annotation["clinvar_last_evaluated"] = cv.get("last_evaluated") or ""
+    annotation["clinvar_uid"] = cv.get("uid") or ""
+
+    f_sig = (annotation.get("favor_clnsig") or "").replace("_", " ").strip()
+    f_dis = (annotation.get("favor_clndn") or "").replace("_", " ").strip()
+    diverges = bool(
+        (f_sig and live_sig and vv._norm_sig(f_sig) != vv._norm_sig(live_sig))
+        or (f_dis and live_dis and not (set(f_dis.lower().split())
+                                        & set(live_dis.lower().split())))
+    )
+    annotation["clinvar_diverges_from_favor"] = "yes" if diverges else "no"
+    return annotation
+
+
 def _to_csv_row(rec: dict) -> dict:
     """Shape a parsed record into the column names annotate_row expects."""
     if rec["kind"] == "rsid":
@@ -271,7 +315,9 @@ def _kg_ingest(records: "list[dict]", *, label: str) -> dict:
                 did = ls.upsert_node(con, "disease", dis,
                                      source="igvfagent:variant-list")
                 ls.upsert_edge(con, vid, did, "associated_with",
-                                source="clinvar/igvf_catalog")
+                                source=("clinvar_live"
+                                        if ann.get("clinvar_diseases")
+                                        else "favor_snapshot/igvf_catalog"))
                 added["disease_edges"] += 1
             for kind, elem in _regulatory_from(ann):
                 rid = ls.upsert_node(con, "regulatory_element", elem,
@@ -306,17 +352,27 @@ def _genes_from(ann: dict) -> "list[str]":
 
 
 def _diseases_from(ann: dict) -> "list[str]":
-    """ClinVar disease names (FAVOR `clndn`) plus Catalog phenotypes.
+    """Disease names for the KG, preferring LIVE ClinVar over FAVOR.
+
+    When a live lookup succeeded, its traits are authoritative and FAVOR's
+    snapshot is not used for graph edges — otherwise the KG would accumulate
+    superseded terms (e.g. rs145143533 as *familial hypercholesterolemia 2*
+    when current ClinVar says *familial hypobetalipoproteinemia*), and every
+    downstream traversal would inherit the error. FAVOR's values remain in the
+    annotation columns for provenance.
 
     ClinVar joins names with `|` and uses underscores for spaces; both are
-    normalised so `Familial_hypercholesterolemia` and the Catalog's
-    `Familial hypercholesterolemia` collapse to one node.
+    normalised so variants of the same term collapse to one node.
     """
     out = []
-    for raw in _split_multi(ann.get("favor_clndn", "")):
-        name = raw.replace("_", " ").strip()
-        if name and name.lower() not in ("not provided", "not specified", "na"):
-            out.append(name)
+    live = ann.get("clinvar_diseases")
+    if live:
+        out += [d.strip() for d in _split_multi(live) if d.strip()]
+    else:
+        for raw in _split_multi(ann.get("favor_clndn", "")):
+            name = raw.replace("_", " ").strip()
+            if name and name.lower() not in ("not provided", "not specified", "na"):
+                out.append(name)
     out += [d.replace("_", " ") for d in _split_multi(ann.get("igvf_kg_phenotypes", ""))]
     seen, uniq = set(), []
     for d in out:
@@ -380,7 +436,7 @@ def cmd_annotate(args) -> int:
     run_dir = OUT_DIR / f"{ts}_{avl.safe_label(label)}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    sources = {x.strip().lower() for x in (args.sources or "favor,catalog").split(",")}
+    sources = {x.strip().lower() for x in (args.sources or "favor,catalog,clinvar").split(",")}
     limit = args.max_rows if args.max_rows and args.max_rows > 0 else len(parsed)
     # The constant is DEFAULT_ENDPOINTS; an empty dict here would make
     # every annotation silently return nothing, so fail loudly instead.
@@ -405,6 +461,8 @@ def cmd_annotate(args) -> int:
             annotation = {"igvf_kg_query_status": f"error: {type(e).__name__}"}
         if "favor" in sources:
             annotation.update(_annotate_favor(rec))
+        if "clinvar" in sources:
+            annotation = _apply_live_clinvar(rec, annotation)
         rec = dict(rec)
         rec["annotation"] = annotation
         annotated.append(rec)
@@ -484,8 +542,11 @@ def main(argv=None) -> int:
                             help="0 = all.")
             sp.add_argument("--no-kg", action="store_true",
                             help="Annotate but do not touch the KG.")
-            sp.add_argument("--sources", default="favor,catalog",
-                            help="Comma list: favor, catalog. Default both.")
+            sp.add_argument("--sources", default="favor,catalog,clinvar",
+                            help="Comma list: favor, catalog, clinvar. "
+                                 "`clinvar` queries the LIVE database and "
+                                 "supersedes FAVOR's snapshot for the report "
+                                 "and the KG. Default: all three.")
             sp.add_argument("--no-cache", action="store_true")
             sp.add_argument("--sleep", type=float, default=0.1)
 
