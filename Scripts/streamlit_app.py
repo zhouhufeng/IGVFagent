@@ -801,6 +801,16 @@ def _sidebar() -> dict:
         _sidebar_user_extensions()
 
         st.divider()
+        st.subheader("⬇ Export session")
+        if st.session_state.get("messages"):
+            st.caption("Download this session's transcript and artefacts. "
+                       "File paths shown in answers are on the server; these "
+                       "buttons give you the files.")
+            _export_controls(key="sidebar")
+        else:
+            st.caption("Ask something first — exports appear here.")
+
+        st.divider()
         if st.button("🗑 Clear conversation", **fit(st.button)):
             st.session_state.messages = []
             st.rerun()
@@ -1686,12 +1696,101 @@ def main() -> None:
             meta_caption += f"  ·  report `{result.report_path}`"
         st.caption(meta_caption)
 
+        # Hand over the bytes, not a path the user cannot reach.
+        answer_md = (f"# {query}\n\n{result.final_answer or ''}\n\n"
+                     + ("\n".join(f"- `{a}`" for a in artefacts) if artefacts else "")
+                     + f"\n\n_{meta_caption}_\n")
+        dl = st.columns([1, 1, 2])
+        with dl[0]:
+            st.download_button(
+                "⬇ Answer (.md)", data=answer_md,
+                file_name=f"igvfagent_answer_{time.strftime('%Y%m%d_%H%M%S')}.md",
+                mime="text/markdown",
+                key=f"dl_ans_{len(st.session_state.get('messages', []))}",
+                **fit(st.download_button, stretch=False))
+        with dl[1]:
+            if result.report_path and _pathguard.is_safe_artifact(result.report_path):
+                _download_button(result.report_path, key_hint="agent_report")
+
     st.session_state.messages.append({
         "role": "assistant",
         "content": result.final_answer,
         "artefacts": artefacts,
         "meta": meta_caption,
     })
+
+
+def _session_markdown() -> str:
+    """The whole conversation as one self-contained markdown document.
+
+    Printing a server-side path — `report /workspace/Docs/Agent/…/report.md` —
+    tells a hosted user where a file they cannot reach lives. Users were
+    copy-pasting answers out of the browser instead. These exports hand over
+    the actual bytes.
+    """
+    lines = [f"# IGVFagent session", "",
+             f"Exported: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
+             f"Version: {__version__}", ""]
+    for m in st.session_state.get("messages", []):
+        who = "You" if m.get("role") == "user" else "IGVFagent"
+        lines += [f"## {who}", "", (m.get("content") or "").strip(), ""]
+        arts = m.get("artefacts") or []
+        if arts:
+            lines += ["**Artefacts produced**", ""]
+            lines += [f"- `{a}`" for a in arts] + [""]
+        if m.get("meta"):
+            lines += [f"_{m['meta']}_", ""]
+    return "\n".join(lines)
+
+
+def _session_zip() -> "bytes | None":
+    """Session markdown plus every artefact the session produced.
+
+    Artefacts are filtered through _pathguard, so an export cannot become a
+    route to files outside the workspace or to secret material inside it.
+    """
+    import io
+    import zipfile
+    msgs = st.session_state.get("messages", [])
+    if not msgs:
+        return None
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("session.md", _session_markdown())
+        seen = set()
+        for m in msgs:
+            for a in (m.get("artefacts") or []):
+                if a in seen or not _pathguard.is_safe_artifact(a):
+                    continue
+                seen.add(a)
+                pa = Path(a)
+                try:
+                    z.write(pa, arcname=f"artefacts/{pa.name}")
+                except OSError:
+                    continue
+    return buf.getvalue()
+
+
+def _export_controls(*, key: str) -> None:
+    """Download buttons for the current session."""
+    msgs = st.session_state.get("messages", [])
+    if not msgs:
+        return
+    md = _session_markdown()
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    cols = st.columns(2)
+    with cols[0]:
+        st.download_button("⬇ Session (.md)", data=md,
+                           file_name=f"igvfagent_session_{stamp}.md",
+                           mime="text/markdown", key=f"dl_md_{key}",
+                           **fit(st.download_button, stretch=True))
+    with cols[1]:
+        blob = _session_zip()
+        if blob:
+            st.download_button("⬇ Session + artefacts (.zip)", data=blob,
+                               file_name=f"igvfagent_session_{stamp}.zip",
+                               mime="application/zip", key=f"dl_zip_{key}",
+                               **fit(st.download_button, stretch=True))
 
 
 def _diagnostics_panel() -> None:

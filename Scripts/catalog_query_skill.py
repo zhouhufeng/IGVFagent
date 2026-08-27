@@ -129,15 +129,20 @@ _ID_PATTERNS: list[tuple[str, str, re.Pattern]] = [
     ("protein", "uniprot",  re.compile(r"^[OPQ][0-9][A-Z0-9]{3}[0-9]$"
                                            r"|^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$")),
     # ----- Ontology / phenotype terms -----
-    ("ontology_term", "mondo",  re.compile(r"^MONDO:\d+$")),
-    ("ontology_term", "efo",    re.compile(r"^EFO:\d+$")),
-    ("ontology_term", "go",     re.compile(r"^GO:\d+$")),
-    ("ontology_term", "doid",   re.compile(r"^DOID:\d+$")),
-    ("ontology_term", "uberon", re.compile(r"^UBERON:\d+$")),
-    ("ontology_term", "cl",     re.compile(r"^CL:\d+$")),
-    ("ontology_term", "chebi",  re.compile(r"^CHEBI:\d+$")),
-    ("ontology_term", "oba",    re.compile(r"^OBA:\d+$")),
-    ("ontology_term", "hpo",    re.compile(r"^HP:\d+$")),
+    # Accept BOTH separators and the bare IRI path. The Catalog emits the
+    # underscore form in its own records (a biosample reads
+    # `ontology_terms/EFO_0001187`), so a detector matching only `EFO:0001187`
+    # sent every real-world id to the gene endpoint, which returned 0 rows and
+    # looked like "HepG2 is not in the Catalog".
+    ("ontology_term", "mondo",  re.compile(r"^(?:ontology_terms/)?MONDO[:_]\d+$", re.I)),
+    ("ontology_term", "efo",    re.compile(r"^(?:ontology_terms/)?EFO[:_]\d+$", re.I)),
+    ("ontology_term", "go",     re.compile(r"^(?:ontology_terms/)?GO[:_]\d+$", re.I)),
+    ("ontology_term", "doid",   re.compile(r"^(?:ontology_terms/)?DOID[:_]\d+$", re.I)),
+    ("ontology_term", "uberon", re.compile(r"^(?:ontology_terms/)?UBERON[:_]\d+$", re.I)),
+    ("ontology_term", "cl",     re.compile(r"^(?:ontology_terms/)?CL[:_]\d+$", re.I)),
+    ("ontology_term", "chebi",  re.compile(r"^(?:ontology_terms/)?CHEBI[:_]\d+$", re.I)),
+    ("ontology_term", "oba",    re.compile(r"^(?:ontology_terms/)?OBA[:_]\d+$", re.I)),
+    ("ontology_term", "hpo",    re.compile(r"^(?:ontology_terms/)?HP[:_]\d+$", re.I)),
     # ----- Drugs -----
     ("drug", "drugbank", re.compile(r"^DB\d{5,}$")),
     ("drug", "chembl",   re.compile(r"^CHEMBL\d+$")),
@@ -481,7 +486,11 @@ def _node_query_param(entity: str, form: str, value: str) -> dict[str, str]:
         if form == "uniprot":  return {"uniprot_id": value}
         return {"protein_id":  value}
     if entity == "ontology_term":
-        return {"term_id":     value}
+        # The API keys term_id on the UNDERSCORE form: `EFO_0001187` returns
+        # the record, `EFO:0001187` returns zero rows. Normalise here so a
+        # caller may pass either, or the `ontology_terms/...` IRI verbatim.
+        term = value.split("/")[-1].replace(":", "_")
+        return {"term_id": term}
     if entity == "drug":
         return {"drug_id":     value}
     if entity == "complex":

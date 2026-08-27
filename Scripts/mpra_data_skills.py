@@ -14,6 +14,7 @@ import collections
 import csv
 import html
 import json
+import re
 import logging
 import math
 import os
@@ -45,6 +46,66 @@ from _endpoints import resolve as _resolve_endpoint
 CATALOG_API_BASE = _resolve_endpoint("catalog_api", "IGVF_CATALOG_API_BASE")
 PORTAL_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_BASE")
 ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
+
+
+def _resolve_biosample_terms(spec: str) -> "set[str]":
+    """Ontology term ids for a biosample name or id.
+
+    Accepts `HepG2`, `EFO_0001187`, `EFO:0001187`, or
+    `ontology_terms/EFO_0001187`. A bare name is looked up against the
+    Catalog's ontology-terms endpoint, because the biosample field in
+    variant-biosample records is an ontology IRI and is otherwise unreadable
+    (a user cannot tell which of EFO_0001182 / EFO_0001187 is theirs).
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return set()
+    tail = spec.split("/")[-1].replace(":", "_")
+    if re.match(r"^[A-Za-z]+_\d+$", tail):
+        return {tail}
+    out: "set[str]" = set()
+    try:
+        url = (f"{CATALOG_API_BASE}/api/ontology-terms?"
+               + urllib.parse.urlencode({"name": spec.lower(), "limit": "25"}))
+        with urllib.request.urlopen(url, timeout=40) as r:
+            for row in json.load(r) or []:
+                tid = row.get("term_id")
+                if tid:
+                    out.add(str(tid))
+    except Exception:
+        pass
+    return out
+
+
+def _fetch_catalog_paged(path: str, base_params: dict, label: str, *,
+                         max_rows: int, page_size: int = 100):
+    """Page through a Catalog collection until exhausted or max_rows.
+
+    The endpoint accepts `page` and returns distinct rows per page, but the
+    pull previously requested page 0 only — so a query over tens of thousands
+    of variant records silently returned the first page and looked complete.
+    That is what made large variant pulls appear truncated.
+    """
+    rows: "list[dict]" = []
+    last_status = 0
+    saved = None
+    page = 0
+    while len(rows) < max_rows:
+        q = dict(base_params)
+        q["limit"] = str(min(page_size, max_rows - len(rows)))
+        q["page"] = str(page)
+        last_status, data, saved = fetch_json(CATALOG_API_BASE, path,
+                                             f"{label}_p{page}", q)
+        batch = rows_from_response(data)
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < int(q["limit"]):
+            break                       # short page: collection exhausted
+        page += 1
+        if page > 500:                  # hard stop against a non-terminating API
+            break
+    return last_status, rows, saved
 
 
 CATALOG_MPRA_QUERIES = [
@@ -403,13 +464,29 @@ def run_pull(args: argparse.Namespace) -> int:
     sources = ["catalog", "portal", "encode"] if args.source == "all" else [args.source]
     for source in sources:
         if source == "catalog":
+            wanted = _resolve_biosample_terms(getattr(args, "biosample", "") or "")
+            if getattr(args, "biosample", "") and not wanted:
+                print(f"warning: could not resolve biosample "
+                      f"{args.biosample!r} to an ontology term; not filtering")
             for label, path, params, description in CATALOG_MPRA_QUERIES:
                 query = dict(params)
-                query["limit"] = str(args.limit)
-                status, data, saved = fetch_json(CATALOG_API_BASE, path, label, query)
+                status, data, saved = _fetch_catalog_paged(
+                    path, query, label, max_rows=int(args.limit))
+                n_raw = len(data)
+                if wanted:
+                    # The API accepts `biosample=` but ignores it — verified
+                    # against live data — so filtering must happen here.
+                    data = [r for r in data
+                            if str(r.get("biosample", "")).split("/")[-1] in wanted]
+                if getattr(args, "significant_only", False):
+                    data = [r for r in data
+                            if str(r.get("significant", "")).lower() in ("true", "1")]
                 summaries.append(summarize_remote(label, description, status, data, saved))
                 manifest.extend(manifest_rows(label, description, data))
-                print(f"{label}: HTTP {status}, rows={len(rows_from_response(data))}")
+                extra = ""
+                if wanted or getattr(args, "significant_only", False):
+                    extra = f" (filtered from {n_raw})"
+                print(f"{label}: HTTP {status}, rows={len(data)}{extra}")
         elif source == "portal":
             for label, params, description in PORTAL_MPRA_QUERIES:
                 query = dict(params)
@@ -1502,6 +1579,13 @@ def main(argv: list[str] | None = None) -> int:
                        help="Output label; defaults to 'mpra_pull'. "
                              "Accepted (and used by save_json) so the tool "
                              "dispatcher's --label flag isn't a hard error.")
+    pull.add_argument("--biosample", default="",
+                       help="Filter catalog rows to a biosample: a name "
+                            "(HepG2) or an ontology id (EFO_0001187). Applied "
+                            "client-side — the API accepts this parameter and "
+                            "ignores it.")
+    pull.add_argument("--significant-only", action="store_true",
+                       help="Keep only rows flagged significant.")
     portal = subparsers.add_parser("portal-manifest", help="Pull many IGVF Portal MPRA/STARR/reporter datasets into a manifest with plots.")
     portal.add_argument("--limit", type=int, default=100)
     portal.add_argument("--label", default="igvf_portal_mpra_many")
