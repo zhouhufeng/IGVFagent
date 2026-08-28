@@ -6,7 +6,10 @@
     "doi": "10.1038/s41592-024-02216-7",
     "pmid": "38504114"
   },
-  "data_source": { "type": "encode", "assay": "CRISPR screen" },
+  "data_source": {
+    "type": "encode",
+    "assay": "CRISPR screen"
+  },
   "skill_output_dir": "ENCODE",
   "label": "yao2024_encode4",
   "primary_artefact": "experiments.csv",
@@ -42,5 +45,8 @@
       "value": "Flow-FISH CRISPR screen",
       "min_rows": 100
     }
-  ]
+  ],
+  "class": "retrieval-verification",
+  "class_code": "C",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

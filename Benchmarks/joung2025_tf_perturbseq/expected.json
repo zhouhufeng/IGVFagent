@@ -5,7 +5,10 @@
     "year": 2025,
     "doi": "10.1038/s41588-025-02283-2"
   },
-  "data_source": { "type": "perturb_catalogue", "modality": "perturb-seq" },
+  "data_source": {
+    "type": "perturb_catalogue",
+    "modality": "perturb-seq"
+  },
   "skill_output_dir": "Perturbation",
   "label": "joung2025_tf_perturbseq",
   "primary_artefact": "search.json",
@@ -15,5 +18,8 @@
       "type": "artefact",
       "filename": "search.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

@@ -6,7 +6,10 @@
     "doi": "10.1038/s41588-024-01799-3",
     "pmid": "38969833"
   },
-  "data_source": { "type": "mavedb", "urn": "urn:mavedb:00000662-0-1" },
+  "data_source": {
+    "type": "mavedb",
+    "urn": "urn:mavedb:00000662-0-1"
+  },
   "skill_output_dir": "MaveDB",
   "label": "waters2024_bap1",
   "primary_artefact": "summary.json",
@@ -31,7 +34,9 @@
       "name": "Canonical Ensembl transcript resolved (BAP1)",
       "type": "in_set",
       "path": "gene",
-      "allowed": ["BAP1"]
+      "allowed": [
+        "BAP1"
+      ]
     },
     {
       "name": "VCF artefact written",
@@ -46,5 +51,8 @@
       "max": 80000,
       "expected": 17000
     }
-  ]
+  ],
+  "class": "retrieval-verification",
+  "class_code": "C",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

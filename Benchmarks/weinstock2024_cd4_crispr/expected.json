@@ -10,7 +10,7 @@
     "doi": "10.1016/j.xgen.2024.100671",
     "pmid": "39395408",
     "pmc": "PMC11605694",
-    "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 — fixed during execution."
+    "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 \u2014 fixed during execution."
   },
   "data_source": {
     "type": "perturb_catalogue",
@@ -32,5 +32,8 @@
       "type": "artefact",
       "filename": "search.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

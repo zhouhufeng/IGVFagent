@@ -16,7 +16,7 @@
     "mpra_subfolder_name": "MPRA_CapstoneII",
     "access_policy": "PsychENCODE Data-Use Agreement; SYNAPSE_AUTH_TOKEN PAT required for file download (anonymous-read works for metadata + tree walk)"
   },
-  "data_source_note": "Original scaffold listed GEO GSE236018 — that's a renal fibrosis paper, NOT Deng 2024. Corrected during execution; Deng deposits exclusively to Synapse / PsychENCODE.",
+  "data_source_note": "Original scaffold listed GEO GSE236018 \u2014 that's a renal fibrosis paper, NOT Deng 2024. Corrected during execution; Deng deposits exclusively to Synapse / PsychENCODE.",
   "skill_output_dir": "MPRA",
   "label": "deng2024_cortex_mpra",
   "primary_artefact": "summary.json",
@@ -26,5 +26,8 @@
       "type": "artefact",
       "filename": "summary.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

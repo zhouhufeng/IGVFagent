@@ -19,23 +19,38 @@
     },
     {
       "name": "AD-GWAS genes explain more variance than control (OMEGA_GWAS > OMEGA_CONTROL)",
-      "type": "range", "artefact": "results/sceps_microglia_AD.json",
-      "path": "OMEGA_GWAS_mean", "min": 1e-5, "max": 1e-4
+      "type": "range",
+      "artefact": "results/sceps_microglia_AD.json",
+      "path": "OMEGA_GWAS_mean",
+      "min": 1e-05,
+      "max": 0.0001
     },
     {
       "name": "per-neighborhood d predominantly positive",
-      "type": "range", "artefact": "results/sceps_microglia_AD.json",
-      "path": "d_frac_positive", "min": 0.5, "max": 1.0
+      "type": "range",
+      "artefact": "results/sceps_microglia_AD.json",
+      "path": "d_frac_positive",
+      "min": 0.5,
+      "max": 1.0
     },
     {
       "name": "aggregated microglia AD-association significant (Z > 3)",
-      "type": "range", "artefact": "results/sceps_microglia_AD.json",
-      "path": "aggregated_Z", "min": 3.0, "max": 15.0
+      "type": "range",
+      "artefact": "results/sceps_microglia_AD.json",
+      "path": "aggregated_Z",
+      "min": 3.0,
+      "max": 15.0
     },
     {
       "name": "aggregated p-value significant (P < 1e-3)",
-      "type": "range", "artefact": "results/sceps_microglia_AD.json",
-      "path": "aggregated_P", "min": 0.0, "max": 0.001
+      "type": "range",
+      "artefact": "results/sceps_microglia_AD.json",
+      "path": "aggregated_P",
+      "min": 0.0,
+      "max": 0.001
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

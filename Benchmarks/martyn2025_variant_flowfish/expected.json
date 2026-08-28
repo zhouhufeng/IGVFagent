@@ -6,7 +6,9 @@
     "doi": "10.1016/j.cell.2025.03.034",
     "pmid": "40245860"
   },
-  "data_source": { "type": "igvf_portal_flowfish" },
+  "data_source": {
+    "type": "igvf_portal_flowfish"
+  },
   "skill_output_dir": "FlowFISH",
   "label": "martyn2025_variant_flowfish",
   "primary_artefact": "summary.json",
@@ -16,5 +18,8 @@
       "type": "artefact",
       "filename": "manifest.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

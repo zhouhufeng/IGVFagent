@@ -6,7 +6,10 @@
     "doi": "10.1038/s41588-024-01800-z",
     "pmid": "38969834"
   },
-  "data_source": { "type": "mavedb", "urn": "urn:mavedb:00000675-a-1" },
+  "data_source": {
+    "type": "mavedb",
+    "urn": "urn:mavedb:00000675-a-1"
+  },
   "skill_output_dir": "MaveDB",
   "label": "buckley2024_vhl",
   "primary_artefact": "summary.json",
@@ -23,7 +26,9 @@
       "name": "Canonical gene resolved as VHL",
       "type": "in_set",
       "path": "gene",
-      "allowed": ["VHL"]
+      "allowed": [
+        "VHL"
+      ]
     },
     {
       "name": "VCF artefact written",
@@ -38,5 +43,8 @@
       "max": 20000,
       "expected": 2000
     }
-  ]
+  ],
+  "class": "retrieval-verification",
+  "class_code": "C",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

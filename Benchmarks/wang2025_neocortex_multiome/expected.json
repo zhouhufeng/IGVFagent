@@ -66,5 +66,8 @@
       "type": "artefact",
       "filename": "markers.csv"
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

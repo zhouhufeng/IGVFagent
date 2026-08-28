@@ -9,40 +9,64 @@
     "type": "portal+synapse+github",
     "scE2G_predictionset": "IGVFDS5428HHMB",
     "scE2G_coronary": "IGVFDS7543BJBA",
-    "rE2G_synapse": ["syn53019593", "syn53019595"],
+    "rE2G_synapse": [
+      "syn53019593",
+      "syn53019595"
+    ],
     "crispr_ground_truth": "EngreitzLab/CRISPR_comparison training_K562 (10356 pairs / 471 positive)"
   },
   "label": "e2g_crispr_benchmark",
   "checks": [
     {
       "name": "ground truth has 471 positives / 10356 pairs",
-      "type": "range", "artefact": "results/k562_rE2G_base_vs_crispr.json",
-      "path": "n_positive", "min": 471, "max": 471
+      "type": "range",
+      "artefact": "results/k562_rE2G_base_vs_crispr.json",
+      "path": "n_positive",
+      "min": 471,
+      "max": 471
     },
     {
       "name": "ENCODE-rE2G base AUPRC reproduces published 0.634 (+/- 0.02)",
-      "type": "range", "artefact": "results/k562_rE2G_base_vs_crispr.json",
-      "path": "methods.Full.Score.auprc", "min": 0.61, "max": 0.66
+      "type": "range",
+      "artefact": "results/k562_rE2G_base_vs_crispr.json",
+      "path": "methods.Full.Score.auprc",
+      "min": 0.61,
+      "max": 0.66
     },
     {
       "name": "ENCODE-rE2G base precision@70%recall ~ 0.543",
-      "type": "range", "artefact": "results/k562_rE2G_base_vs_crispr.json",
-      "path": "methods.Full.Score.precision_at_70_recall", "min": 0.50, "max": 0.58
+      "type": "range",
+      "artefact": "results/k562_rE2G_base_vs_crispr.json",
+      "path": "methods.Full.Score.precision_at_70_recall",
+      "min": 0.5,
+      "max": 0.58
     },
     {
       "name": "ENCODE-rE2G extended is the top model (AUPRC > 0.72)",
-      "type": "range", "artefact": "results/k562_rE2G_extended_vs_crispr.json",
-      "path": "methods.FullModel.Score.auprc", "min": 0.72, "max": 0.80
+      "type": "range",
+      "artefact": "results/k562_rE2G_extended_vs_crispr.json",
+      "path": "methods.FullModel.Score.auprc",
+      "min": 0.72,
+      "max": 0.8
     },
     {
       "name": "scE2G beats ABC baseline (ignoreTPM AUPRC > ABC AUPRC)",
-      "type": "range", "artefact": "results/k562_scE2G_vs_crispr.json",
-      "path": "methods.Score.ignoreTPM.auprc", "min": 0.55, "max": 0.62
+      "type": "range",
+      "artefact": "results/k562_scE2G_vs_crispr.json",
+      "path": "methods.Score.ignoreTPM.auprc",
+      "min": 0.55,
+      "max": 0.62
     },
     {
       "name": "scE2G element-overlap match rate >= 0.85",
-      "type": "range", "artefact": "results/k562_scE2G_vs_crispr.json",
-      "path": "match_rate", "min": 0.85, "max": 1.0
+      "type": "range",
+      "artefact": "results/k562_scE2G_vs_crispr.json",
+      "path": "match_rate",
+      "min": 0.85,
+      "max": 1.0
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

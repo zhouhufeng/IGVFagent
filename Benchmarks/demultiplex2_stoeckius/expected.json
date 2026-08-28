@@ -20,36 +20,56 @@
   "checks": [
     {
       "name": "Cell count matches bundled matrix",
-      "type": "range", "path": "n_cells",
-      "min": 15113, "max": 15113, "expected": 15113
+      "type": "range",
+      "path": "n_cells",
+      "min": 15113,
+      "max": 15113,
+      "expected": 15113
     },
     {
       "name": "All 8 HTO tags modeled",
-      "type": "range", "path": "n_tags",
-      "min": 8, "max": 8, "expected": 8
+      "type": "range",
+      "path": "n_tags",
+      "min": 8,
+      "max": 8,
+      "expected": 8
     },
     {
       "name": "All 8 donor HTO singlet groups recovered",
-      "type": "range", "path": "n_singlet_hto_groups",
-      "min": 8, "max": 8, "expected": 8
+      "type": "range",
+      "path": "n_singlet_hto_groups",
+      "min": 8,
+      "max": 8,
+      "expected": 8
     },
     {
       "name": "Singlet rate in the expected cell-hashing range",
-      "type": "range", "path": "singlet_rate",
-      "min": 0.70, "max": 0.92, "expected": 0.83
+      "type": "range",
+      "path": "singlet_rate",
+      "min": 0.7,
+      "max": 0.92,
+      "expected": 0.83
     },
     {
       "name": "8-donor pool is balanced (min/max singlet count)",
-      "type": "range", "path": "hto_balance_min_over_max",
-      "min": 0.55, "max": 1.0, "expected": 0.79
+      "type": "range",
+      "path": "hto_balance_min_over_max",
+      "min": 0.55,
+      "max": 1.0,
+      "expected": 0.79
     },
     {
       "name": "Per-cell classification table written",
-      "type": "artefact", "filename": "classifications.csv"
+      "type": "artefact",
+      "filename": "classifications.csv"
     },
     {
       "name": "Demultiplex summary written",
-      "type": "artefact", "filename": "summary.json"
+      "type": "artefact",
+      "filename": "summary.json"
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

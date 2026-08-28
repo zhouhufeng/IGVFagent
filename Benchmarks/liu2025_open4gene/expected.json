@@ -16,23 +16,38 @@
   "checks": [
     {
       "name": "port reproduces R zero-component beta exactly (corr=1.0)",
-      "type": "range", "artefact": "results/concordance.json",
-      "path": "validation_vs_R.zero_beta_corr", "min": 0.999, "max": 1.0
+      "type": "range",
+      "artefact": "results/concordance.json",
+      "path": "validation_vs_R.zero_beta_corr",
+      "min": 0.999,
+      "max": 1.0
     },
     {
       "name": "port vs R zero-beta max abs diff ~ 0",
-      "type": "range", "artefact": "results/concordance.json",
-      "path": "validation_vs_R.zero_beta_max_abs_diff", "min": 0.0, "max": 0.001
+      "type": "range",
+      "artefact": "results/concordance.json",
+      "path": "validation_vs_R.zero_beta_max_abs_diff",
+      "min": 0.0,
+      "max": 0.001
     },
     {
       "name": "paper table unique peaks = 125,699 (headline match)",
-      "type": "range", "artefact": "results/concordance.json",
-      "path": "paper_table.unique_peaks", "min": 125699, "max": 125699
+      "type": "range",
+      "artefact": "results/concordance.json",
+      "path": "paper_table.unique_peaks",
+      "min": 125699,
+      "max": 125699
     },
     {
       "name": "zero-component beta predominantly positive (open chromatin -> expression)",
-      "type": "range", "artefact": "results/concordance.json",
-      "path": "paper_table.zero_beta_frac_positive", "min": 0.9, "max": 1.0
+      "type": "range",
+      "artefact": "results/concordance.json",
+      "path": "paper_table.zero_beta_frac_positive",
+      "min": 0.9,
+      "max": 1.0
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

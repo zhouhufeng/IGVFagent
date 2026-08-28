@@ -6,11 +6,16 @@
     "doi": "10.1038/s41586-024-08430-9",
     "pmid": "39814879"
   },
-  "data_source": { "type": "igvf_portal_mpra" },
+  "data_source": {
+    "type": "igvf_portal_mpra"
+  },
   "skill_output_dir": "MPRA",
   "label": "agarwal2025_lentimpra",
   "primary_artefact": "2*_agarwal2025_lentimpra_portal_many_summary.json",
-  "extra_search_dirs": ["Data/Manifests/MPRA", "Data"],
+  "extra_search_dirs": [
+    "Data/Manifests/MPRA",
+    "Data"
+  ],
   "checks": [
     {
       "name": "MPRA portal manifest CSV written",
@@ -27,5 +32,8 @@
       "type": "artefact",
       "filename": "2*_agarwal2025_lentimpra_*_summary.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

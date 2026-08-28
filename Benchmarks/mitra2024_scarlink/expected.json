@@ -7,7 +7,9 @@
     "pmid": null,
     "pmcid": "PMC11018525"
   },
-  "data_source": { "type": "igvf_portal_multiome" },
+  "data_source": {
+    "type": "igvf_portal_multiome"
+  },
   "skill_output_dir": "Multiome10x",
   "label": "mitra2024_scarlink",
   "primary_artefact": "manifest.json",
@@ -17,5 +19,8 @@
       "type": "artefact",
       "filename": "manifest.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

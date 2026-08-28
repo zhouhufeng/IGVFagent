@@ -1,6 +1,6 @@
 {
   "paper": {
-    "authors": "Trevino AE, Müller F, Andersen J, et al.",
+    "authors": "Trevino AE, M\u00fcller F, Andersen J, et al.",
     "journal": "Cell",
     "year": 2021,
     "doi": "10.1016/j.cell.2021.07.039",
@@ -28,19 +28,28 @@
       "name": "All panel genes get a significant positive cis-link",
       "type": "range",
       "path": "genes_with_significant_positive_link",
-      "min": 22, "max": 26, "expected": 26
+      "min": 22,
+      "max": 26,
+      "expected": 26
     },
     {
       "name": "Significant positive cis peak-gene links recovered",
       "type": "range",
       "path": "significant_positive_pairs",
-      "min": 1200, "max": 6000, "expected": 2138
+      "min": 1200,
+      "max": 6000,
+      "expected": 2138
     },
     {
       "name": "Cis links are positive-dominated (enhancer-gene activation)",
       "type": "range",
       "path": "positive_fraction_of_significant",
-      "min": 0.80, "max": 1.0, "expected": 0.93
+      "min": 0.8,
+      "max": 1.0,
+      "expected": 0.93
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

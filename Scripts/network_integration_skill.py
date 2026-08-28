@@ -68,6 +68,37 @@ DOCS_DIR = ROOT / "Docs" / "Network"
 LOG_DIR = ROOT / "Docs" / "Logs"
 WAREHOUSE_DB = ROOT / "Data" / "Warehouse" / "igvf.duckdb"
 PROTEOMICS_KG = ROOT / "Data" / "Proteomics" / "KG" / "proteomics.sqlite"
+
+
+def solver_provenance(solver: str) -> dict:
+    """Solver identity for the run record.
+
+    The Methods text and the code disagreed on the solver (ECOS_BB vs SCIP),
+    which is only discoverable by reading both. Recording the solver actually
+    used, and its version, makes the run self-describing — so a replay that
+    silently picks a different solver is visible rather than assumed away.
+    """
+    info = {"solver_requested": solver, "solver_used": solver,
+            "solver_version": None, "installed_solvers": []}
+    try:
+        import cvxpy
+        info["cvxpy_version"] = cvxpy.__version__
+        info["installed_solvers"] = sorted(cvxpy.installed_solvers())
+        if solver not in info["installed_solvers"]:
+            info["warning"] = (f"{solver} is not installed; cvxpy will choose "
+                               f"a fallback and results may differ")
+    except Exception:
+        pass
+    try:
+        if solver.upper() == "SCIP":
+            import pyscipopt
+            info["solver_version"] = getattr(pyscipopt, "__version__", None) \
+                or str(pyscipopt.Model().version())
+    except Exception:
+        pass
+    return info
+
+
 PLAYBOOK_PATH = ROOT / "Docs" / "Skills" / "NETWORK_INTEGRATION_SKILLS.md"
 
 logger = logging.getLogger("network_integration")

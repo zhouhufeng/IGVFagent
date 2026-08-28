@@ -5,7 +5,12 @@
     "year": 2024,
     "doi": "10.1093/nar/gkae358"
   },
-  "data_source": { "type": "chipatlas", "genome": "hg38", "antigen": "GATA1", "cell_class": "Blood" },
+  "data_source": {
+    "type": "chipatlas",
+    "genome": "hg38",
+    "antigen": "GATA1",
+    "cell_class": "Blood"
+  },
   "skill_output_dir": "ChIPAtlas",
   "label": "zou2024_chipatlas_gata1",
   "primary_artefact": "assemble.json",
@@ -15,5 +20,8 @@
       "type": "artefact",
       "filename": "assemble.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

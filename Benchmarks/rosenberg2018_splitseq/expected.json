@@ -18,23 +18,38 @@
   "checks": [
     {
       "name": "Full CNS atlas nucleus count matches the paper (156,049)",
-      "type": "range", "path": "full_atlas_nuclei",
-      "min": 156049, "max": 156049, "expected": 156049
+      "type": "range",
+      "path": "full_atlas_nuclei",
+      "min": 156049,
+      "max": 156049,
+      "expected": 156049
     },
     {
       "name": "Canonical CNS lineages recovered by the mouse-brain panel",
-      "type": "range", "path": "n_cns_lineages_recovered",
-      "min": 6, "max": 8, "expected": 8
+      "type": "range",
+      "path": "n_cns_lineages_recovered",
+      "min": 6,
+      "max": 8,
+      "expected": 8
     },
     {
       "name": "Leiden resolves multiple sub-clusters",
-      "type": "range", "path": "n_leiden_clusters",
-      "min": 10, "max": 45, "expected": 24
+      "type": "range",
+      "path": "n_leiden_clusters",
+      "min": 10,
+      "max": 45,
+      "expected": 24
     },
     {
       "name": "Cell-type annotations assigned",
-      "type": "range", "path": "n_cell_types",
-      "min": 5, "max": 12, "expected": 8
+      "type": "range",
+      "path": "n_cell_types",
+      "min": 5,
+      "max": 12,
+      "expected": 8
     }
-  ]
+  ],
+  "class": "retrieval-verification",
+  "class_code": "C",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

@@ -223,6 +223,78 @@ def _user_skills() -> "dict[str, dict]":
             if name not in reserved}
 
 
+def _print_counts(*, json_out: bool = False) -> int:
+    """Authoritative inventory: skills, tools, benchmarks, checks.
+
+    Derived at call time from the CLI registry, the tool registry and
+    Benchmarks/taxonomy.py — the same sources the software itself uses — so
+    the paper and the repository cannot disagree.
+    """
+    import json as _json
+    import subprocess as _sp
+    from pathlib import Path as _P
+
+    root = _P(os.environ.get("IGVF_PROJECT_ROOT")
+              or _P(__file__).resolve().parents[1]).resolve()
+
+    counts = {"version": __version__,
+              "skills": len(SKILLS),
+              "top_level_commands": len(TOP_LEVEL)}
+    try:
+        from igvfagent import _tools, _llm
+    except Exception:
+        import _tools, _llm  # type: ignore
+    tools = _tools.list_tools()
+    dicts = [{"name": t.name, "description": t.description or ""} for t in tools]
+    exposed = _llm.canonical_tools(dicts) or []
+    counts["tools_registered"] = len(tools)
+    counts["tools_exposed_default"] = len(exposed)
+    counts["tool_cap"] = int(os.environ.get("IGVF_LLM_MAX_TOOLS",
+                                             _llm._DEFAULT_MAX_TOOLS))
+    counts["tools_starred"] = sum(
+        1 for t in tools if (t.description or "").lstrip().startswith("★"))
+
+    tax_path = root / "Benchmarks" / "taxonomy.py"
+    if tax_path.is_file():
+        try:
+            out = _sp.run([sys.executable, str(tax_path), "--json"],
+                          capture_output=True, text=True, timeout=120).stdout
+            tax = _json.loads(out)
+            counts["benchmarks"] = tax["n_benchmarks"]
+            counts["benchmark_checks"] = sum(b["n_checks"] for b in tax["benchmarks"])
+            counts["benchmarks_by_class"] = tax["summary"]
+        except Exception:
+            pass
+
+    try:
+        counts["git_commit"] = _sp.run(
+            ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=20).stdout.strip() or None
+    except Exception:
+        counts["git_commit"] = None
+
+    if json_out:
+        print(_json.dumps(counts, indent=2))
+        return 0
+    print(f"igvfagent {counts['version']}"
+          + (f"  (commit {counts['git_commit']})" if counts.get("git_commit") else ""))
+    print(f"  skills                 {counts['skills']}"
+          f"   (+{counts['top_level_commands']} top-level commands)")
+    print(f"  tools registered       {counts['tools_registered']}")
+    print(f"  tools exposed default  {counts['tools_exposed_default']}"
+          f"   (cap IGVF_LLM_MAX_TOOLS={counts['tool_cap']}, "
+          f"{counts['tools_starred']} starred kept first)")
+    if "benchmarks" in counts:
+        c = counts["benchmarks_by_class"]
+        print(f"  benchmarks             {counts['benchmarks']}"
+              f"   ({counts['benchmark_checks']} machine-checked criteria)")
+        print(f"    quantitative reproduction {c.get('A', 0)}"
+              f"  ·  method validation {c.get('B', 0)}"
+              f"  ·  retrieval {c.get('C', 0)}"
+              f"  ·  artefact {c.get('D', 0)}")
+    return 0
+
+
 def _print_help() -> None:
     print(f"igvfagent {__version__}")
     print()
@@ -280,6 +352,12 @@ def main(argv: Optional["list[str]"] = None) -> int:
         _print_help()
         return 0
     if args[0] in ("--version", "-V", "version"):
+        # `--counts` prints authoritative, machine-derived inventory numbers so
+        # a manuscript can cite one frozen artefact instead of hand-copied
+        # figures that drift. Every number here is read from the running
+        # system, never typed in.
+        if "--counts" in args[1:]:
+            return _print_counts(json_out="--json" in args[1:])
         print(__version__)
         return 0
     if args[0] in ("--list", "list"):

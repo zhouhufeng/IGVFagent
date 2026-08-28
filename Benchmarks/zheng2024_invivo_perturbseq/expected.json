@@ -6,7 +6,10 @@
     "doi": "10.1016/j.cell.2024.04.050",
     "pmid": "38772369"
   },
-  "data_source": { "type": "geo", "accession": "GSE249416" },
+  "data_source": {
+    "type": "geo",
+    "accession": "GSE249416"
+  },
   "skill_output_dir": "SingleCell",
   "label": "zheng2024_invivo_perturbseq",
   "primary_artefact": "summary.json",
@@ -16,5 +19,8 @@
       "type": "artefact",
       "filename": "summary.json"
     }
-  ]
+  ],
+  "class": "synthetic-smoke",
+  "class_code": "D",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

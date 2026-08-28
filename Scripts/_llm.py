@@ -112,6 +112,11 @@ def _infer_backend(model: Optional[str]) -> str:
     return os.environ.get("IGVF_LLM_BACKEND", "ollama")
 
 
+# Backends whose inference runs on hardware the user controls. Everything
+# else transmits the prompt to a third party, whatever it is called.
+_LOCAL_BACKENDS = frozenset({"ollama", "vllm", "tgi"})
+
+
 def _resolve_backend(backend: Optional[str], model: Optional[str]) -> str:
     if backend:
         return backend.lower()
@@ -656,6 +661,22 @@ def chat(
     if seed is not None:
         kwargs.setdefault("seed", seed)
     bk = _resolve_backend(backend, model)
+
+    # Local-only mode. "Local tool execution" and "local inference" are
+    # different guarantees, and conflating them is how prompts, metadata and
+    # findings reach a vendor from a deployment believed to be self-contained.
+    # With IGVF_LOCAL_ONLY=1 a hosted backend is refused outright rather than
+    # silently used — a warning would be read past.
+    if os.environ.get("IGVF_LOCAL_ONLY", "").strip().lower() in ("1", "true", "yes", "on"):
+        if bk not in _LOCAL_BACKENDS:
+            raise RuntimeError(
+                f"IGVF_LOCAL_ONLY=1 refuses the hosted backend {bk!r}: the "
+                f"prompt — which accumulates tool output over a session — "
+                f"would be transmitted to a third-party provider.\n"
+                f"Locally served backends: {', '.join(sorted(_LOCAL_BACKENDS))}.\n"
+                f"Note this bounds INFERENCE only; federated data access still "
+                f"contacts public archives under every backend, so query terms "
+                f"leave the machine regardless (see Docs/THREAT_MODEL.md).")
     chosen_model = (
         model
         or os.environ.get("IGVF_LLM_MODEL")

@@ -22,31 +22,41 @@
       "name": "Cell count recovered (loaded from atlas)",
       "type": "range",
       "path": "n_cells",
-      "min": 65000, "max": 66000, "expected": 65662
+      "min": 65000,
+      "max": 66000,
+      "expected": 65662
     },
     {
       "name": "Leiden cluster count comparable to 46 author cell types",
       "type": "range",
       "path": "n_leiden_clusters",
-      "min": 35, "max": 65, "expected": 49
+      "min": 35,
+      "max": 65,
+      "expected": 49
     },
     {
       "name": "Cluster concordance AMI vs author cell types",
       "type": "range",
       "path": "AMI",
-      "min": 0.70, "max": 1.0, "expected": 0.81
+      "min": 0.7,
+      "max": 1.0,
+      "expected": 0.81
     },
     {
       "name": "Cluster homogeneity vs author cell types",
       "type": "range",
       "path": "homogeneity",
-      "min": 0.80, "max": 1.0, "expected": 0.89
+      "min": 0.8,
+      "max": 1.0,
+      "expected": 0.89
     },
     {
       "name": "Canonical lung markers peak in expected cell type (top-3)",
       "type": "range",
       "path": "canonical_markers_peaking_in_target_top3",
-      "min": 8, "max": 10, "expected": 9
+      "min": 8,
+      "max": 10,
+      "expected": 9
     },
     {
       "name": "Processed AnnData artefact written",
@@ -63,5 +73,8 @@
       "type": "artefact",
       "filename": "qc_summary.json"
     }
-  ]
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

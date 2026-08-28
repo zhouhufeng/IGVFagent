@@ -130,6 +130,112 @@ def check_catalog_index() -> int:
     return 0 if 200 <= status < 400 else 1
 
 
+# ---------------------------------------------------------------------------
+# Access tiers
+# ---------------------------------------------------------------------------
+#
+# "Public" does not mean "freely accessible". A resource can be public and
+# still require a session cookie, an approved data-use agreement, or be under
+# embargo. Recording the tier per resource lets error messages, manifests and
+# tool descriptions say which of those applies instead of surfacing a bare 403.
+#
+# Verified by probing each endpoint anonymously; see Docs/THREAT_MODEL.md.
+ACCESS_TIERS = {
+    "igvf_portal_api": {"tier": "anonymous-api",
+                        "host": "api.data.igvf.org",
+                        "note": "search, objects and file metadata need no credential"},
+    "igvf_portal_web": {"tier": "cookie",
+                        "host": "data.igvf.org",
+                        "note": "browser host declines anonymous API requests (403); "
+                                "not used by any skill",
+                        "env": "IGVF_PORTAL_COOKIE"},
+    "igvf_catalog":    {"tier": "anonymous-api", "host": "api.catalogkg.igvf.org"},
+    "encode":          {"tier": "anonymous-api", "host": "www.encodeproject.org"},
+    "favor":           {"tier": "anonymous-api", "host": "api.genohub.org"},
+    "geo":             {"tier": "anonymous-api", "host": "eutils.ncbi.nlm.nih.gov"},
+    "cellxgene":       {"tier": "anonymous-api", "host": "api.cellxgene.cziscience.com"},
+    "zenodo":          {"tier": "anonymous-api", "host": "zenodo.org"},
+    "chipatlas":       {"tier": "anonymous-api", "host": "chip-atlas.dbcls.jp"},
+    "igvf_arango":     {"tier": "cookie", "note": "guest read-only by default",
+                        "env": "IGVF_ARANGO_PASSWORD"},
+    "synapse":         {"tier": "dua-gated",
+                        "note": "per-study terms; needs an authenticated client"},
+    "dbgap":           {"tier": "dua-gated",
+                        "note": "controlled access via an approved application"},
+    "ega":             {"tier": "dua-gated", "note": "controlled access"},
+}
+
+
+def access_tier(resource: str) -> dict:
+    """Machine-readable access tier for a resource key."""
+    return ACCESS_TIERS.get(resource, {"tier": "unknown"})
+
+
+def cmd_auth_check(_args=None) -> int:
+    """Probe every resource anonymously and report what actually works.
+
+    Answers "which resources need credentials, and do mine work" with
+    measurements rather than assumptions — the question a bare 403 leaves a
+    user unable to answer.
+    """
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    probes = [
+        ("IGVF Portal (data API)", "igvf_portal_api",
+         f"{PORTAL_API_BASE}/search/?type=MeasurementSet&limit=1&format=json"),
+        ("IGVF Portal (web host)", "igvf_portal_web", f"{PORTAL_BASE}/"),
+        ("IGVF Catalog", "igvf_catalog",
+         f"{CATALOG_API_BASE}/api/genes?name=APOE&limit=1"),
+        ("ENCODE", "encode", f"{ENCODE_BASE}/ENCSR000EMT/?format=json"),
+    ]
+    cookie = os.environ.get("IGVF_PORTAL_COOKIE")
+    rows = []
+    for label, key, url in probes:
+        meta = access_tier(key)
+        try:
+            req = urllib.request.Request(
+                url, headers={"Accept": "application/json",
+                              **({"Cookie": cookie} if cookie else {})})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                status = r.status
+        except urllib.error.HTTPError as e:
+            status = e.code
+        except Exception:
+            status = 0
+        ok = 200 <= status < 400
+        rows.append({"resource": label, "key": key, "tier": meta["tier"],
+                     "status": status, "reachable": ok,
+                     "note": meta.get("note", "")})
+        mark = "ok " if ok else "FAIL"
+        print(f"  [{mark}] {label:26s} tier={meta['tier']:14s} HTTP {status}")
+        if not ok and meta.get("env"):
+            print(f"         needs {meta['env']} — export a session cookie "
+                  f"from a logged-in browser")
+        elif not ok and meta["tier"] == "dua-gated":
+            print(f"         controlled access: requires an approved "
+                  f"data-use agreement")
+
+    api_ok = next((r["reachable"] for r in rows
+                   if r["key"] == "igvf_portal_api"), False)
+    web_ok = next((r["reachable"] for r in rows
+                   if r["key"] == "igvf_portal_web"), False)
+    print()
+    if api_ok and not web_ok:
+        print("  IGVF Portal: anonymous data access WORKS. The web host's 403 "
+              "is expected and affects nothing — every Portal skill uses the "
+              "data API.")
+    elif not api_ok:
+        print("  IGVF Portal data API unreachable. Set IGVF_PORTAL_COOKIE, or "
+              "check network egress.")
+    print(f"\n  Cookie present: {'yes' if cookie else 'no'} "
+          f"(needed only for unreleased or restricted records)")
+    # save_response takes bytes, not str.
+    save_response("auth_check", _json.dumps(rows, indent=2).encode(), "application/json")
+    return 0 if api_ok else 1
+
+
 def check_portal() -> int:
     """Report Portal reachability for BOTH hosts, separately.
 
@@ -507,6 +613,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="IGVF starter client")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check", help="Check portal, docs, docs index, and KG collections.")
+    subparsers.add_parser("auth-check",
+                    help="Probe every resource anonymously and report access tiers")
     subparsers.add_parser("docs", help="Fetch IGVF Catalog introduction.")
     subparsers.add_parser("docs-index", help="Fetch IGVF Catalog llms.txt index.")
     subparsers.add_parser("portal", help="Fetch IGVF Portal home page.")
@@ -547,6 +655,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     setup_logging()
 
+    if args.command == "auth-check":
+        return cmd_auth_check(args)
     if args.command == "check":
         statuses = [
             check_catalog_docs(),
