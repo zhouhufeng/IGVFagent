@@ -107,6 +107,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "skillcard":        ("igvfagent.skillcard_skill",
                           "Machine-readable skill specifications (skill cards) "
                           "with validation status derived from the benchmarks"),
+    "mcp":              ("igvfagent.mcp_server_skill",
+                          "Serve the skill registry over the Model Context "
+                          "Protocol so other agents can call IGVF skills"),
+    "playbook-freeze":  ("igvfagent.playbook_freeze_skill",
+                          "Freeze a recorded session into a deterministic "
+                          "playbook with pinned args and artefact hashes"),
     "document":         ("igvfagent.document_ingest_skill",
                           "Read an uploaded manuscript (PDF/DOCX/text) and "
                           "derive accessions, assays and a reproduction plan"),
