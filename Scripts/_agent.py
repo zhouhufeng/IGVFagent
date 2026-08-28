@@ -438,6 +438,42 @@ def _persist_transcript(query: str, transcript: "list[dict]",
     return str(transcript_path), str(report_path)
 
 
+# Conversation history carried between turns. Kept deliberately small: the
+# tool catalogue and system prompt already dominate the context window, and an
+# unbounded transcript would push them out — so history is trimmed by turn
+# count and by characters, oldest first, keeping the most recent exchanges.
+_HISTORY_MAX_TURNS = 12
+_HISTORY_MAX_CHARS = 24000
+
+
+def _prepare_history(history) -> "list[dict]":
+    """Normalise prior turns into plain user/assistant messages.
+
+    Assistant turns are truncated rather than dropped: what matters for
+    continuity is *what was found* — accessions, paths, gene names — and those
+    appear early in an answer, while the closing suggestions do not.
+    """
+    if not history:
+        return []
+    out: "list[dict]" = []
+    for m in history[-_HISTORY_MAX_TURNS:]:
+        role = m.get("role")
+        content = (m.get("content") or "").strip()
+        if role not in ("user", "assistant") or not content:
+            continue
+        if role == "assistant" and len(content) > 4000:
+            content = content[:4000] + "\n…[earlier answer truncated]"
+        out.append({"role": role, "content": content})
+
+    # Trim oldest-first until the budget holds, and never begin on an
+    # assistant turn — several providers reject a leading assistant message.
+    while out and sum(len(m["content"]) for m in out) > _HISTORY_MAX_CHARS:
+        out.pop(0)
+    while out and out[0]["role"] != "user":
+        out.pop(0)
+    return out
+
+
 def run(
     query: str,
     *,
@@ -451,6 +487,7 @@ def run(
     templated_answer: bool = True,
     system_prompt: Optional[str] = None,
     extra_context: Optional[str] = None,
+    history: "Optional[list[dict]]" = None,
     tools_subset: Optional["list[str]"] = None,
     callback: Optional[Callable[[AgentEvent], None]] = _print_callback,
     persist: bool = True,
@@ -504,7 +541,15 @@ def run(
     }
 
     user_text = query if not extra_context else f"{query}\n\n{extra_context}"
-    messages: "list[dict]" = [{"role": "user", "content": user_text}]
+
+    # Prior turns of the SAME conversation. Without them every message is a
+    # cold start: a user who uploads a paper and then says "reproduce the
+    # analysis" gets an agent that has never heard of the paper. Only role and
+    # content are carried — tool-call blocks are backend-specific and cannot
+    # be replayed verbatim across providers — so earlier findings survive as
+    # text while the current turn owns the tool loop.
+    prior = _prepare_history(history)
+    messages: "list[dict]" = prior + [{"role": "user", "content": user_text}]
 
     transcript: "list[dict]" = [{"role": "user", "content": user_text}]
     artefacts: "list[str]" = []

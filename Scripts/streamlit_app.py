@@ -1727,6 +1727,18 @@ def main() -> None:
                               expanded=state != "complete")
 
         try:
+            # Prior turns, excluding the one just appended for this query.
+            # Artefact paths are folded into the assistant text because a
+            # follow-up ("reproduce that analysis") needs the paths, and those
+            # live in message metadata rather than in the prose.
+            prior = []
+            for m in st.session_state.messages[:-1]:
+                content = m.get("content") or ""
+                if m.get("role") == "assistant" and m.get("artefacts"):
+                    paths = "\n".join(f"- {a}" for a in m["artefacts"][:12])
+                    content = f"{content}\n\nArtefacts produced:\n{paths}"
+                prior.append({"role": m.get("role"), "content": content})
+
             result = _agent.run(
                 query,
                 backend=cfg["backend"],
@@ -1735,6 +1747,7 @@ def main() -> None:
                 max_tokens=cfg["max_tokens"],
                 temperature=cfg["temperature"],
                 tools_subset=cfg["tool_filter"],
+                history=prior,
                 callback=cb,
             )
         except RuntimeError as exc:
