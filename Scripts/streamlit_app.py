@@ -500,6 +500,59 @@ def _sidebar_load_button(backend: str, model: str) -> None:
             )
 
 
+def _sidebar_document_upload() -> None:
+    """Upload a manuscript or figure and make it available to the agent.
+
+    Uploaded files land in the workspace so every skill can reach them by
+    path, which is what lets a user say "reproduce the analysis in this
+    paper": `document plan` turns the PDF into accessions, assays and a bench
+    chain, and the agent takes it from there.
+    """
+    st.subheader("📄 Documents")
+    st.caption(
+        "Upload a manuscript (PDF/DOCX/text) and ask IGVFagent to reproduce "
+        "its analysis, or upload figures to discuss. Files are stored in the "
+        "workspace and referenced by path."
+    )
+    ups = st.file_uploader(
+        "Upload documents or images",
+        type=["pdf", "docx", "txt", "md", "csv", "tsv",
+              "png", "jpg", "jpeg", "gif", "svg"],
+        accept_multiple_files=True,
+        key="_doc_uploader",
+        help="PDFs and DOCX are text-extracted for accession/assay detection. "
+             "Images are stored and viewable but not OCR'd.",
+    )
+    if ups and st.button("📥 Add to workspace", **fit(st.button),
+                          key="_doc_add"):
+        dest_dir = _PROJECT_ROOT / "Data" / "Uploads"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        saved = []
+        for up in ups:
+            # Basename only: an uploaded filename is untrusted input and must
+            # never be able to escape the upload directory.
+            dest = dest_dir / Path(up.name).name
+            dest.write_bytes(up.getbuffer())
+            saved.append(dest)
+        st.session_state["_uploaded_docs"] = [
+            str(p) for p in sorted(dest_dir.iterdir()) if p.is_file()]
+        st.success(f"Added {len(saved)} file(s) to `Data/Uploads/`.")
+
+    docs = st.session_state.get("_uploaded_docs") or []
+    if not docs:
+        d = _PROJECT_ROOT / "Data" / "Uploads"
+        if d.is_dir():
+            docs = [str(p) for p in sorted(d.iterdir()) if p.is_file()]
+            st.session_state["_uploaded_docs"] = docs
+    if docs:
+        with st.expander(f"In workspace ({len(docs)})", expanded=False):
+            for f in docs[:25]:
+                st.markdown(f"- `{Path(f).name}`")
+            st.caption("Ask, for example: _\"Read the uploaded paper and "
+                       "reproduce its analysis\"_ — the agent calls "
+                       "`document plan` on it.")
+
+
 def _sidebar_user_extensions() -> None:
     """User-extension panel: show discovered custom tools/skills and let
     the user install new ones from the browser (saved to ~/.igvfagent/,
@@ -796,6 +849,9 @@ def _sidebar() -> dict:
             help="Empty = all tools allowed. Smaller subsets cut prompt "
                  "size and noticeably speed up local LLMs.",
         )
+
+        st.divider()
+        _sidebar_document_upload()
 
         st.divider()
         _sidebar_user_extensions()

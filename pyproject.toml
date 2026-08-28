@@ -70,6 +70,9 @@ analysis = [
     "leidenalg>=0.10,<1",
     "python-igraph>=0.11,<2",  # already shipped 1.0; <2 keeps that valid
     "networkx>=3.0,<4",
+    # Manuscript ingestion: `igvfagent document` extracts text from
+    # uploaded PDFs so a paper can be turned into a reproduction plan.
+    "pypdf>=4.0,<7",
 ]
 # Web UI for natural-language interaction (Streamlit)
 # Streamlit is migrating `use_container_width=` to `width=` on a

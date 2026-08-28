@@ -107,6 +107,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "skillcard":        ("igvfagent.skillcard_skill",
                           "Machine-readable skill specifications (skill cards) "
                           "with validation status derived from the benchmarks"),
+    "document":         ("igvfagent.document_ingest_skill",
+                          "Read an uploaded manuscript (PDF/DOCX/text) and "
+                          "derive accessions, assays and a reproduction plan"),
     "eqtl-mpra":        ("igvfagent.eqtl_mpra_concordance_skill",
                           "Tissue-filtered fine-mapped eQTLs and MPRA-vs-eQTL "
                           "correlation / sign-concordance"),

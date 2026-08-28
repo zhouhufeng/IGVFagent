@@ -127,6 +127,47 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "document_plan",
+        "★ READ AN UPLOADED PAPER AND PLAN ITS REPRODUCTION ★. Give it the "
+        "path of a PDF/DOCX/text manuscript (uploads land in "
+        "`Data/Uploads/`). Extracts the text, finds every repository "
+        "accession (GEO, IGVF, ENCODE, MaveDB, Synapse, dbGaP…) and assay "
+        "family, and returns a concrete `igvfagent bench` chain to reproduce "
+        "the analysis. THIS IS THE RIGHT TOOL whenever someone uploads a "
+        "paper and asks to reproduce, replicate or analyse it.",
+        {
+            "type": "object",
+            "properties": {
+                "path":  {**_S_STRING, "description":
+                          "Path to the manuscript, e.g. Data/Uploads/paper.pdf"},
+                "label": {**_S_STRING, "description": "Short run label."},
+            },
+            "required": ["path"],
+        },
+        ["document", "plan"],
+        flag_map={"path": "--path", "label": "--label"},
+    ),
+
+    _T(
+        "document_read",
+        "★ Extract the text of an uploaded document ★ (PDF/DOCX/text) so it "
+        "can be quoted or searched. Use document_plan instead when the goal "
+        "is to reproduce the paper's analysis. Reports honestly when a PDF "
+        "has no text layer rather than returning an empty result.",
+        {
+            "type": "object",
+            "properties": {
+                "path": {**_S_STRING, "description": "Path to the document."},
+                "head": {**_S_INTEGER, "description":
+                         "Print only the first N characters."},
+            },
+            "required": ["path"],
+        },
+        ["document", "read"],
+        flag_map={"path": "--path", "head": "--head"},
+    ),
+
+    _T(
         "read_artifact",
         "★ READ A FILE THIS AGENT PRODUCED ★ — reports, manifests, JSON, CSV, "
         "TSV, logs. Skills announce outputs as `Report: <path>`; use this to "
