@@ -1599,11 +1599,53 @@ def main() -> None:
 
     # Page-level chat input — Streamlit auto-pins this to the bottom of
     # the viewport because it is not inside a tab / column / container.
-    query = st.chat_input(
-        "Ask IGVFagent — natural-language query (e.g. 'Walk the KG for APOE')"
+    submitted = st.chat_input(
+        "Ask IGVFagent — natural-language query, or attach a paper (📎)",
+        accept_file="multiple",
+        file_type=["pdf", "docx", "txt", "md", "csv", "tsv",
+                   "png", "jpg", "jpeg", "svg"],
     )
-    if not query:
+    if not submitted:
         return
+
+    # With accept_file set, chat_input returns an object carrying .text and
+    # .files rather than a bare string. Handle both so the widget can be
+    # reverted without breaking this path.
+    if isinstance(submitted, str):
+        query, attachments = submitted, []
+    else:
+        query = (getattr(submitted, "text", "") or "").strip()
+        attachments = list(getattr(submitted, "files", []) or [])
+
+    saved_paths: "list[str]" = []
+    if attachments:
+        dest_dir = _PROJECT_ROOT / "Data" / "Uploads"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for up in attachments:
+            # Basename only: an uploaded filename is untrusted input and must
+            # not be able to escape the upload directory.
+            dest = dest_dir / Path(up.name).name
+            dest.write_bytes(up.getbuffer())
+            saved_paths.append(str(dest.relative_to(_PROJECT_ROOT)))
+        st.session_state["_uploaded_docs"] = [
+            str(q) for q in sorted(dest_dir.iterdir()) if q.is_file()]
+
+    if not query and not saved_paths:
+        return
+
+    if saved_paths:
+        # Name the files in the query itself. The agent selects tools from the
+        # text it is given, so an attachment it is never told about may as well
+        # not exist — and document_plan needs the path, not the bytes.
+        listed = ", ".join(f"`{p}`" for p in saved_paths)
+        if query:
+            query = (f"{query}\n\n[Attached file(s), saved in the workspace: "
+                     f"{listed}]")
+        else:
+            query = (f"Read the attached file(s) — {listed} — and summarise "
+                     f"what they contain. If a file is a manuscript, use "
+                     f"document_plan to extract its accessions, assays and a "
+                     f"reproduction plan.")
 
     # Everything below renders the new turn — keep it inside the chat
     # tab so the new exchange lands above the docked input.
