@@ -455,6 +455,56 @@ def parse_wikipathways(cache: Path, idx: GeneIndex) -> "list[dict]":
     return out
 
 
+def parse_gmt(path: Path, label: str, idx: GeneIndex) -> "list[dict]":
+    """Read any GMT as one more source database.
+
+    This is how a database that cannot be fetched anonymously still gets
+    integrated. BioCyc/HumanCyc -- IntPath's third source -- is the case that
+    motivated it: its bulk download now requires a paid subscription, so
+    IGVFagent cannot pull it, but a user who holds a licence can export the
+    pathways they have rights to and point this at the file. The export then
+    goes through exactly the same identifier normalisation, unification and
+    knowledge-graph ingestion as the fetched sources, and shows up in the
+    per-fact source list like any other database.
+
+    Nothing licensed is redistributed: the file stays on the user's machine.
+    """
+    if not path.is_file():
+        return []
+    out = []
+    for line in path.read_text(errors="replace").splitlines():
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) < 3:
+            continue
+        pathway = clean_name(parts[0].split("%")[0])
+        pid = parts[1].strip()
+        for ident in parts[2:]:
+            g = idx.resolve(ident.strip())
+            if g:
+                out.append({"pathway": pathway, "gene": g, "source": label,
+                            "pathway_id": pid})
+    return out
+
+
+def _parse_extra(specs, idx) -> "tuple[list, dict]":
+    """``--extra-gmt LABEL=path`` entries -> membership rows."""
+    rows, counts = [], {}
+    for spec in specs or ():
+        if "=" not in spec:
+            print(f"warning: --extra-gmt expects LABEL=path, got {spec!r}",
+                  file=sys.stderr)
+            continue
+        label, _, raw = spec.partition("=")
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = ROOT / raw
+        r = parse_gmt(path, label.strip(), idx)
+        if not r:
+            print(f"warning: no gene sets read from {path}", file=sys.stderr)
+        counts[label.strip()] = len(r)
+        rows += r
+    return rows, counts
+
 # ---------------------------------------------------------------------------
 # Typed gene-gene relations
 # ---------------------------------------------------------------------------
@@ -613,36 +663,404 @@ def canon_pathway(name: str) -> str:
     return n
 
 
-def merge_by_overlap(rows, *, jaccard: float = 0.7, min_genes: int = 5):
-    """Merge pathways across databases whose gene sets nearly coincide.
+# ---------------------------------------------------------------------------
+# Pathway-name unification — IntPath's method (Zhou et al. 2012, BMC Syst Biol
+# 6(Suppl 2):S2), reimplemented from the published description
+# ---------------------------------------------------------------------------
+#
+# IntPath identifies two pathway names as the same pathway by longest common
+# subsequence, and reports LCS as more reliable for this than gene-set
+# overlap. Its acceptance rule, verbatim from the paper:
+#
+#     alignment score = number of aligned characters (the LCS length)
+#     alignment ratio = 2 x score / (len(a) + len(b))
+#
+#     accept if EITHER
+#       (1) score > len(shorter) - 1  AND  ratio >= 0.5
+#       (2) ratio > 0.91
+#
+# then filter with an "error-prone words pair list", group with a disjoint-set
+# structure, and name each group by its SHORTEST member name.
 
-    Name matching alone is far too weak: it merges only ~40 of KEGG's 354
-    pathways against WikiPathways, while Reactome describes the same biology
-    with entirely different wording ('Adherens junction' vs 'Adherens
-    junctions interactions'). Gene membership is the stronger and more
-    defensible criterion — two pathways from different databases annotating
-    nearly the same genes are the same pathway, whatever they are called.
+# Pairs of words that make two different pathways look alike. The paper names
+# the first two; "VEGF signaling pathway" vs "EGFR1 Signaling Pathway" scores
+# ratio 0.933, which clears rule (2) on its own, so without this filter the
+# rule actively merges them. Extend via --error-pairs.
+ERROR_PRONE_PAIRS = [
+    ("egfr", "vegf"), ("t cell", "b cell"), ("type i", "type ii"),
+    ("alpha", "beta"), ("her2", "egfr"), ("insulin", "igf"),
+    ("mapk", "erk5"), ("wnt", "shh"), ("tgf beta", "bmp"),
+    # Measured false merges: "eukaryotic transcription initiation" scores
+    # ratio 0.94 against "eukaryotic translation initiation".
+    ("transcription", "translation"), ("replication", "repair"),
+    ("anabolism", "catabolism"), ("import", "export"),
+    ("il 2", "il 4"), ("smooth muscle", "cardiac muscle"),
+    ("male", "female"), ("mitochondrial", "cytosolic"),
+]
 
-    Only *cross-database* pairs are merged. Two pathways within one database
-    are that database's own deliberate distinction (Reactome's hierarchy
-    nests broad parents over specific children) and collapsing them would
-    destroy real structure while inventing corroboration that does not exist.
+# Words that invert or restrict a pathway's meaning. The paper's error-prone
+# list is pairwise; this is the unary case, and it is needed because modern
+# Reactome names the negative and defective forms of a pathway explicitly:
+# "Apoptosis" and "Suppression of apoptosis" satisfy the published rule (the
+# shorter is a subsequence of the longer, ratio 0.58 >= 0.5) yet mean opposite
+# things. If one name carries such a qualifier and the other does not, they
+# are different pathways.
+QUALIFIERS = (
+    "suppression", "defective", "non", "negative", "positive", "anti",
+    "resistance", "deficiency", "aberrant", "abnormal", "loss", "gain",
+    "inhibition", "dysregulated", "impaired", "reduced", "escape",
+    # Measured: "downregulation of tgf beta receptor signaling" merged with
+    # "tgf beta receptor signaling", and "diseases of base excision repair"
+    # with "base excision repair".
+    "downregulation", "upregulation", "diseases", "defects", "novo",
+    "checkpoints", "mitotic", "meiotic",
+    # Stage words: "dna replication" and "dna replication pre initiation" are
+    # a pathway and one phase of it. Only a one-sided occurrence rejects, so
+    # two names that both name the same stage still merge.
+    "initiation", "preinitiation", "elongation", "termination", "formation",
+)
 
-    Returns ``{(source, canon): group_key}`` for every pathway that merged.
+# Tokens carrying a number distinguish members of a family: vitamin B12 is
+# not vitamin B6, IL-2 is not IL-4, type I is not type II. Character-level
+# similarity cannot see this -- "vitamin b12 metabolism" and "vitamin b6
+# metabolism" align almost perfectly -- so it is checked explicitly.
+_ROMAN = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"}
+
+
+def _numeric_mismatch(a: str, b: str) -> bool:
+    def marks(name):
+        out = set()
+        for t in name.split():
+            if any(ch.isdigit() for ch in t) or t in _ROMAN:
+                out.add(t)
+        return out
+    ma, mb = marks(a), marks(b)
+    return bool(ma or mb) and ma != mb
+
+
+def lcs_length(a: str, b: str) -> int:
+    """Longest common subsequence length, bit-parallel.
+
+    The plain dynamic program is O(len(a) x len(b)) per pair, and unification
+    compares millions of name pairs; this is the Crochemore/Iliopoulos/Pinzon
+    bit-vector formulation, which does a machine word of the DP table at a
+    time. Verified identical to the DP over random strings.
     """
+    m = len(a)
+    if not m or not b:
+        return 0
+    pm: "dict[str, int]" = {}
+    for i, ch in enumerate(a):
+        pm[ch] = pm.get(ch, 0) | (1 << i)
+    full = (1 << m) - 1
+    v = full
+    for ch in b:
+        u = v & pm.get(ch, 0)
+        v = ((v + u) | (v - u)) & full
+    return m - bin(v).count("1")
+
+
+def alignment_ratio(score: int, a: str, b: str) -> float:
+    n = len(a) + len(b)
+    return (2.0 * score / n) if n else 0.0
+
+
+def _error_prone(a: str, b: str, pairs) -> bool:
+    """True if the pair trips the error-prone word list.
+
+    Checked in both directions: one name carrying one partner while the other
+    carries the other partner is the signature of a near-name collision
+    between genuinely different pathways.
+    """
+    for w1, w2 in pairs:
+        if (w1 in a and w2 in b and w1 not in b and w2 not in a):
+            return True
+        if (w2 in a and w1 in b and w2 not in b and w1 not in a):
+            return True
+    return False
+
+
+def names_related(a: str, b: str, *, pairs=ERROR_PRONE_PAIRS) -> bool:
+    """IntPath's two-condition acceptance rule, plus the mismatch filter."""
+    if a == b:
+        return True
+    shorter = min(len(a), len(b))
+    longer = max(len(a), len(b))
+    # Both rules need score >= (len(a)+len(b))/4 at best, and score can never
+    # exceed the shorter length, so wildly different lengths cannot qualify.
+    if shorter * 4 < (shorter + longer):
+        return False
+    score = lcs_length(a, b)
+    ratio = alignment_ratio(score, a, b)
+    return _accept(a, b, score, ratio, pairs)
+
+
+def _qualifier_mismatch(a: str, b: str) -> bool:
+    ta, tb = set(a.split()), set(b.split())
+    for q in QUALIFIERS:
+        if (q in ta) != (q in tb):
+            return True
+    return False
+
+
+def _accept(a: str, b: str, score: int, ratio: float, pairs) -> bool:
+    """The published acceptance rule plus two guards it needs on current data.
+
+    Rule (1) — the shorter name is a subsequence of the longer, lengths within
+    about 3x — is permissive when the shorter name is a single generic word.
+    Reactome (which IntPath did not include) has top-level pathways literally
+    named "Disease" and "Metabolism", and "disease" is a subsequence of
+    "alzheimer disease" at ratio 0.58, so the rule as published merges
+    Alzheimer, Chagas and prion disease into one group through that shared
+    parent. Requiring two tokens before rule (1) applies confines
+    single-word names to the much stricter rule (2).
+    """
+    shorter_name = a if len(a) <= len(b) else b
+    shorter = len(shorter_name)
+    multiword = len(shorter_name.split()) >= 2
+    ok = ((multiword and score > shorter - 1 and ratio >= 0.5)
+          or (ratio > 0.91))
+    if not ok:
+        return False
+    if _qualifier_mismatch(a, b) or _numeric_mismatch(a, b):
+        return False
+    return not _error_prone(a, b, pairs)
+
+
+def reactome_ancestry(cache: Path) -> "set[tuple]":
+    """Canonical-name pairs that Reactome itself declares parent and child.
+
+    Two names in an ancestor/descendant relation are a deliberate distinction
+    by the source curators, not two labels for one pathway, so they must never
+    be unified however similar the strings look. Reactome publishes the
+    hierarchy, so this is read rather than inferred — the heuristics only need
+    to cover cases where no database states the answer.
+    """
+    rel = cache / "ReactomePathwaysRelation.txt"
+    names_f = cache / "NCBI2Reactome_All_Levels.txt"
+    if not (rel.is_file() and names_f.is_file()):
+        return set()
+
+    name: "dict[str, str]" = {}
+    with open(names_f, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            f = line.rstrip("\n").split("\t")
+            if len(f) >= 6 and f[5] == "Homo sapiens" and f[1] not in name:
+                name[f[1]] = canon_pathway(clean_name(f[3]))
+
+    children: "dict[str, list]" = {}
+    for line in rel.read_text(errors="replace").splitlines():
+        f = line.split("\t")
+        if len(f) >= 2 and f[0].startswith("R-HSA") and f[1].startswith("R-HSA"):
+            children.setdefault(f[0], []).append(f[1])
+
+    # Transitive closure, so a grandparent is blocked from merging with a
+    # grandchild too. The human hierarchy is small enough to walk directly.
+    pairs = set()
+    for root in list(children):
+        stack, seen = list(children.get(root, ())), set()
+        while stack:
+            c = stack.pop()
+            if c in seen:
+                continue
+            seen.add(c)
+            a, b = name.get(root), name.get(c)
+            if a and b and a != b:
+                pairs.add((a, b))
+                pairs.add((b, a))
+            stack.extend(children.get(c, ()))
+    return pairs
+
+def merge_by_name(rows, *, within_db: bool = False,
+                  pairs=ERROR_PRONE_PAIRS, forbidden=None, report=None):
+    """Group pathway names by IntPath's best-hit + disjoint-set unification.
+
+    For each name in one database's list, the best hit in another database's
+    list is the candidate with the highest alignment ratio; the acceptance
+    rule then decides whether that best hit is actually the same pathway.
+
+    ``within_db`` also compares names inside one database, which IntPath does
+    deliberately. It is off by default here because Reactome — which IntPath
+    did not include — is explicitly hierarchical, so 'Signaling by EGFR' and
+    'Signaling by EGFR in Cancer' are a parent and child the database means to
+    keep apart, not two names for one thing.
+    """
+    keys: "dict[str, set]" = {}
+    for r in rows:
+        canon = canon_pathway(r.get("pathway", ""))
+        if canon:
+            keys.setdefault(r["source"], set()).add(canon)
+    by_db = {db: sorted(v) for db, v in keys.items()}
+
+    parent: "dict[tuple, tuple]" = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            lo, hi = (ra, rb) if ra <= rb else (rb, ra)
+            parent[hi] = lo
+
+    for db, names in by_db.items():
+        for n in names:
+            find((db, n))
+
+    dbs = sorted(by_db)
+    comparisons = []
+    for i, da in enumerate(dbs):
+        for dbb in dbs[i + 1:]:
+            comparisons.append((da, dbb))
+        if within_db:
+            comparisons.append((da, da))
+
+    for da, dbb in comparisons:
+        xs, ys = by_db[da], by_db[dbb]
+        for x in xs:
+            best, best_ratio = None, 0.0
+            lx = len(x)
+            for y in ys:
+                if da == dbb and y == x:
+                    continue
+                ly = len(y)
+                # Cheap length gate before the LCS: the acceptance rule can
+                # never fire when one name is more than ~3x the other.
+                if min(lx, ly) * 4 < lx + ly:
+                    continue
+                sc = lcs_length(x, y)
+                ra = alignment_ratio(sc, x, y)
+                if ra > best_ratio:
+                    best, best_ratio, best_sc = y, ra, sc
+            if best is None:
+                continue
+            if forbidden and (x, best) in forbidden:
+                continue
+            if _accept(x, best, best_sc, best_ratio, pairs):
+                union((da, x), (dbb, best))
+                if report is not None:
+                    report.append({"a_db": da, "a": x, "b_db": dbb,
+                                   "b": best, "score": best_sc,
+                                   "ratio": round(best_ratio, 4)})
+
+    groups: "dict[tuple, tuple]" = {}
+    for k in list(parent):
+        groups[k] = find(k)
+    return groups
+
+# ---------------------------------------------------------------------------
+# Alternative unification criteria
+# ---------------------------------------------------------------------------
+#
+# LCS is IntPath's published choice and is the default, but it is one signal
+# among several and it is purely lexical: it cannot tell that two differently
+# worded names annotate the same genes, and it cannot tell that two similarly
+# worded names annotate different ones. These are the other criteria worth
+# measuring against it. None is assumed better -- `pathwaydb evaluate` scores
+# them on the same data.
+
+def pathway_gene_sets(rows) -> "dict[tuple, set]":
     sets: "dict[tuple, set]" = {}
     for r in rows:
         canon = canon_pathway(r.get("pathway", ""))
         gene = (r.get("gene") or "").strip().upper()
         if canon and gene:
             sets.setdefault((r["source"], canon), set()).add(gene)
-    keys = [k for k, v in sets.items() if len(v) >= min_genes]
+    return sets
 
-    by_db: "dict[str, list]" = {}
-    for k in keys:
-        by_db.setdefault(k[0], []).append(k)
 
-    parent: "dict[tuple, tuple]" = {k: k for k in keys}
+def jaccard(a: set, b: set) -> float:
+    u = len(a | b)
+    return (len(a & b) / u) if u else 0.0
+
+
+def overlap_coefficient(a: set, b: set) -> float:
+    """|A n B| / min(|A|,|B|) -- Szymkiewicz-Simpson.
+
+    Tolerates size asymmetry where Jaccard does not. That matters here: a
+    Reactome sub-pathway of 12 genes fully contained in a KEGG pathway of 200
+    scores 1.0 here and 0.06 by Jaccard. Whether that should count as "the
+    same pathway" is exactly the question -- it is a containment signal, not
+    an equivalence signal, so it is offered as a distinct criterion rather
+    than folded into the Jaccard one.
+    """
+    m = min(len(a), len(b))
+    return (len(a & b) / m) if m else 0.0
+
+
+def _log_hypergeom_sf(k: int, K: int, n: int, N: int) -> float:
+    """log P(X >= k) for the hypergeometric, in log space.
+
+    Computed with lgamma rather than factorials so pathway sizes in the
+    thousands do not overflow, and without scipy so the base install stays
+    dependency-free -- the same reason the enrichment code works this way.
+    """
+    from math import lgamma, exp, log
+    def lc(n_, r_):
+        if r_ < 0 or r_ > n_:
+            return float("-inf")
+        return lgamma(n_ + 1) - lgamma(r_ + 1) - lgamma(n_ - r_ + 1)
+    denom = lc(N, n)
+    total = 0.0
+    hi = min(K, n)
+    for i in range(k, hi + 1):
+        t = lc(K, i) + lc(N - K, n - i) - denom
+        total += exp(t)
+    return log(total) if total > 0 else -745.0
+
+
+def token_similarity(a: str, b: str) -> float:
+    """Word-level Jaccard over content tokens.
+
+    Character-level LCS is blind to word order and happily aligns letters
+    across unrelated words, which is how "disease" scores 0.58 against
+    "alzheimer disease". Comparing word sets instead removes that failure
+    mode, at the cost of missing pure spelling variants.
+    """
+    stop = {"pathway", "pathways", "signaling", "signalling", "of", "the",
+            "in", "and", "a", "by"}
+    ta = {t for t in a.split() if t not in stop}
+    tb = {t for t in b.split() if t not in stop}
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def candidate_pairs(sets, *, cross_db_only: bool = True):
+    """Pathway pairs sharing at least one gene, keyed for the gene criteria.
+
+    Only pairs with a shared gene can score above zero on any gene-based
+    criterion, so an inverted index over genes enumerates every candidate
+    without touching the quadratic number of pairs that share nothing.
+    """
+    index: "dict[str, list]" = {}
+    for k, genes in sets.items():
+        for g in genes:
+            index.setdefault(g, []).append(k)
+    seen = set()
+    for keys in index.values():
+        if len(keys) > 400:      # a gene in hundreds of pathways contributes
+            continue             # noise, not signal, and dominates the cost
+        for i, a in enumerate(keys):
+            for b in keys[i + 1:]:
+                if cross_db_only and a[0] == b[0]:
+                    continue
+                pair = (a, b) if a <= b else (b, a)
+                if pair not in seen:
+                    seen.add(pair)
+                    yield pair
+
+
+def merge_by_genes(rows, *, criterion: str = "jaccard", cutoff: float = 0.7,
+                   within_db: bool = False, forbidden=None, report=None):
+    """Unify pathways whose gene sets agree, by one of three criteria."""
+    sets = pathway_gene_sets(rows)
+    universe = len({g for v in sets.values() for g in v})
+    parent: "dict[tuple, tuple]" = {k: k for k in sets}
 
     def find(x):
         while parent[x] != x:
@@ -653,48 +1071,240 @@ def merge_by_overlap(rows, *, jaccard: float = 0.7, min_genes: int = 5):
     def union(a, b):
         ra, rb = find(a), find(b)
         if ra != rb:
-            # Deterministic representative, so a rebuild groups identically.
+            lo, hi = (ra, rb) if ra <= rb else (rb, ra)
+            parent[hi] = lo
+
+    for a, b in candidate_pairs(sets, cross_db_only=not within_db):
+        ga, gb = sets[a], sets[b]
+        if len(ga) < 5 or len(gb) < 5:
+            continue
+        if forbidden and (a[1], b[1]) in forbidden:
+            continue
+        if criterion == "jaccard":
+            score = jaccard(ga, gb)
+            ok = score >= cutoff
+        elif criterion == "containment":
+            score = overlap_coefficient(ga, gb)
+            ok = score >= cutoff
+        elif criterion == "hypergeom":
+            shared = len(ga & gb)
+            if shared < 3:
+                continue
+            score = -_log_hypergeom_sf(shared, len(ga), len(gb), universe)
+            # cutoff is -log(p); 30 is about p < 1e-13, strict enough that
+            # chance overlap between large pathways does not qualify.
+            ok = score >= cutoff
+        else:
+            raise ValueError(f"unknown criterion: {criterion}")
+        if ok:
+            union(a, b)
+            if report is not None:
+                report.append({"a_db": a[0], "a": a[1], "b_db": b[0],
+                               "b": b[1], "score": round(score, 4),
+                               "ratio": round(score, 4)})
+    return {k: find(k) for k in sets}
+
+
+def merge_by_tokens(rows, *, cutoff: float = 0.75, within_db: bool = False,
+                    forbidden=None, report=None):
+    sets = pathway_gene_sets(rows)
+    names: "dict[str, list]" = {}
+    for db, canon in sets:
+        names.setdefault(db, []).append(canon)
+    parent: "dict[tuple, tuple]" = {k: k for k in sets}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            lo, hi = (ra, rb) if ra <= rb else (rb, ra)
+            parent[hi] = lo
+
+    dbs = sorted(names)
+    for i, da in enumerate(dbs):
+        others = dbs[i + 1:] + ([da] if within_db else [])
+        for dbb in others:
+            for x in names[da]:
+                for y in names[dbb]:
+                    if da == dbb and y <= x:
+                        continue
+                    if forbidden and (x, y) in forbidden:
+                        continue
+                    sc = token_similarity(x, y)
+                    if sc >= cutoff and not _qualifier_mismatch(x, y) \
+                            and not _numeric_mismatch(x, y) \
+                            and not _error_prone(x, y, ERROR_PRONE_PAIRS):
+                        union((da, x), (dbb, y))
+                        if report is not None:
+                            report.append({"a_db": da, "a": x, "b_db": dbb,
+                                           "b": y, "score": round(sc, 4),
+                                           "ratio": round(sc, 4)})
+    return {k: find(k) for k in sets}
+
+def merge_consensus(rows, *, within_db: bool = False, forbidden=None,
+                    report=None, votes_needed: int = 2,
+                    pairs=ERROR_PRONE_PAIRS):
+    """Unify pathways only where independent signals agree.
+
+    Measured on the current releases, no single criterion is sufficient:
+
+      LCS name similarity   highest recall, but its false positives are all
+                            specialisations ("cell cycle" vs "cell cycle
+                            mitotic") that read as near-identical strings
+      token overlap         no hierarchy violations, but misses spelling
+                            variants that share no whole word
+      gene-set Jaccard      does not separate the two classes at all -- true
+                            merges run as low as 0.034 while nested pairs
+                            reach 0.471, so any threshold trades one error
+                            for the other
+
+    So this asks three cheap, genuinely independent questions -- do the names
+    align, do they share words, do they annotate the same genes -- and merges
+    on agreement rather than on any one of them. The candidate set still comes
+    from the LCS rule, which is what keeps recall; the votes are what keep
+    precision.
+
+    The hard constraint comes first and is not a vote: when a source database
+    declares two pathways to be a parent and a child, that is curated fact and
+    outranks every similarity score computed here.
+    """
+    sets = pathway_gene_sets(rows)
+    by_db: "dict[str, list]" = {}
+    for db, canon in sets:
+        by_db.setdefault(db, []).append(canon)
+    for db in by_db:
+        by_db[db].sort()
+
+    parent: "dict[tuple, tuple]" = {k: k for k in sets}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
             lo, hi = (ra, rb) if ra <= rb else (rb, ra)
             parent[hi] = lo
 
     dbs = sorted(by_db)
-    for i, da in enumerate(dbs):
-        for db in dbs[i + 1:]:
-            # Index the larger side, scan the smaller: candidate lookup then
-            # touches only pathways that actually share a gene, instead of
-            # every pair of the two databases.
-            small, large = ((by_db[da], by_db[db])
-                            if len(by_db[da]) <= len(by_db[db])
-                            else (by_db[db], by_db[da]))
-            index: "dict[str, list]" = {}
-            for k in large:
-                for g in sets[k]:
-                    index.setdefault(g, []).append(k)
-            for k in small:
-                a = sets[k]
-                counts: "dict[tuple, int]" = {}
-                for g in a:
-                    for other in index.get(g, ()):
-                        counts[other] = counts.get(other, 0) + 1
-                for other, shared in counts.items():
-                    b = sets[other]
-                    # Jaccard >= t forces |shared| >= t * max(|a|,|b|), so a
-                    # cheap size check discards most candidates first.
-                    if shared < jaccard * max(len(a), len(b)):
-                        continue
-                    if shared / float(len(a | b)) >= jaccard:
-                        union(k, other)
-    return {k: find(k) for k in keys if find(k) != k or
-            sum(1 for x in keys if find(x) == k) > 1}
+    comparisons = [(dbs[i], dbs[j]) for i in range(len(dbs))
+                   for j in range(i + 1, len(dbs))]
+    if within_db:
+        comparisons += [(d, d) for d in dbs]
+
+    for da, dbb in comparisons:
+        for x in by_db[da]:
+            lx = len(x)
+            best, best_ratio, best_sc = None, 0.0, 0
+            best_tok, best_tok_score = None, 0.0
+            for y in by_db[dbb]:
+                if da == dbb and y == x:
+                    continue
+                ly = len(y)
+                tk = token_similarity(x, y)
+                if tk > best_tok_score:
+                    best_tok, best_tok_score = y, tk
+                if min(lx, ly) * 4 < lx + ly:
+                    continue
+                sc = lcs_length(x, y)
+                ra = alignment_ratio(sc, x, y)
+                if ra > best_ratio:
+                    best, best_ratio, best_sc = y, ra, sc
+
+            # Two independent nominations: the closest name alignment and the
+            # closest word overlap. LCS alone never proposes "signaling by
+            # hippo" for "hippo signaling pathway" -- the words are reordered,
+            # so the characters do not align -- and word overlap alone never
+            # proposes a pure spelling variant. Voting on the union of both
+            # candidate sets is what lifts recall without lowering precision.
+            for cand in {c for c in (best, best_tok) if c}:
+                if forbidden and (x, cand) in forbidden:
+                    continue
+                if _qualifier_mismatch(x, cand) or _numeric_mismatch(x, cand) \
+                        or _error_prone(x, cand, pairs):
+                    continue
+                sc = lcs_length(x, cand)
+                ra = alignment_ratio(sc, x, cand)
+                ga, gb = sets[(da, x)], sets[(dbb, cand)]
+                tok = token_similarity(x, cand)
+                gj = jaccard(ga, gb) if ga and gb else 0.0
+                # Identical names need no corroboration -- there is nothing to
+                # disambiguate -- so they pass on the name vote alone.
+                if x == cand:
+                    votes = 3
+                else:
+                    votes = sum((ra > 0.91, tok >= 0.5, gj >= 0.20))
+                if votes >= votes_needed:
+                    union((da, x), (dbb, cand))
+                    if report is not None:
+                        report.append({"a_db": da, "a": x, "b_db": dbb,
+                                       "b": cand, "score": sc,
+                                       "ratio": round(ra, 4),
+                                       "tokens": round(tok, 3),
+                                       "gene_jaccard": round(gj, 3),
+                                       "votes": votes})
+    return {k: find(k) for k in sets}
+
+METHODS = ("consensus", "lcs", "tokens", "jaccard", "containment",
+           "hypergeom", "none")
+
+_DEFAULT_CUTOFF = {"jaccard": 0.7, "containment": 0.8, "hypergeom": 30.0,
+                   "tokens": 0.75}
 
 
-def integrate(rows, *, overlap_jaccard: "float | None" = 0.7) -> "list[dict]":
-    """Merge memberships across databases, keeping every supporting source."""
-    groups = (merge_by_overlap(rows, jaccard=overlap_jaccard)
-              if overlap_jaccard else {})
+def _run_method(m: str, rows, *, within_db=False, forbidden=None, report=None,
+                cutoff=None):
+    if m == "none":
+        return {}
+    if m == "consensus":
+        return merge_consensus(rows, within_db=within_db, forbidden=forbidden,
+                               report=report)
+    if m == "lcs":
+        return merge_by_name(rows, within_db=within_db, forbidden=forbidden,
+                             report=report)
+    if m == "tokens":
+        return merge_by_tokens(rows, cutoff=cutoff or _DEFAULT_CUTOFF["tokens"],
+                               within_db=within_db, forbidden=forbidden,
+                               report=report)
+    if m in ("jaccard", "containment", "hypergeom"):
+        return merge_by_genes(rows, criterion=m,
+                              cutoff=cutoff or _DEFAULT_CUTOFF[m],
+                              within_db=within_db, forbidden=forbidden,
+                              report=report)
+    raise ValueError(f"unknown method: {m}")
+
+
+def integrate(rows, *, method: str = "consensus", within_db: bool = False,
+              forbidden=None, report=None) -> "list[dict]":
+    """Merge memberships across databases, keeping every supporting source.
+
+    ``method`` names one criterion, or several joined by ``+`` to take their
+    union (e.g. ``lcs+jaccard``). ``pathwaydb evaluate`` measures each one on
+    the current data rather than assuming which is best.
+    """
+    groups: "dict[tuple, tuple]" = {}
+    for m in [x.strip() for x in method.split("+") if x.strip()]:
+        g = _run_method(m, rows, within_db=within_db, forbidden=forbidden,
+                        report=report)
+        # Each criterion returns its own disjoint-set map over the same keys;
+        # composing them takes the union of the criteria, which is what
+        # "lcs+jaccard" should mean. Intersection is a different question and
+        # is answered by `evaluate`, not by silently changing this.
+        for k, v in g.items():
+            if v == k:
+                continue
+            groups[k] = groups.get(v, v)
     # A merged group is addressed by its representative's canonical name, so
     # rows from either database land in the same bucket.
-    remap = {k: v[1] for k, v in groups.items()}
+    remap = {k: v[1] for k, v in groups.items() if v != k}
 
     merged: "dict[tuple, dict]" = {}
     display: "dict[str, str]" = {}
@@ -873,7 +1483,8 @@ def cmd_pull(args) -> int:
 
 
 def build(cache: Path, *, sources, relations: bool = False,
-          overlap_jaccard: "float | None" = 0.7, log=print) -> dict:
+          method: str = "consensus", within_db: bool = False,
+          use_hierarchy: bool = True, extra_gmt=None, log=print) -> dict:
     idx = _load_index(cache)
     log(f"Normaliser:    {len(idx):,} human genes from NCBI gene_info")
 
@@ -887,6 +1498,12 @@ def build(cache: Path, *, sources, relations: bool = False,
         rows += r
         log(f"  {key:<14}{len(r):>9,} memberships")
 
+    extra_rows, extra_counts = _parse_extra(extra_gmt, idx)
+    for label, n in extra_counts.items():
+        log(f"  {label:<14}{n:>9,} memberships (local)")
+    rows += extra_rows
+    per_source.update(extra_counts)
+
     rel_rows = []
     if relations:
         for key, fn in (("kegg", parse_kegg_relations),
@@ -897,10 +1514,17 @@ def build(cache: Path, *, sources, relations: bool = False,
             rel_rows += r
             log(f"  {key:<14}{len(r):>9,} typed relations")
 
-    merged = integrate(rows, overlap_jaccard=overlap_jaccard)
+    forbidden = reactome_ancestry(cache) if use_hierarchy else set()
+    if forbidden:
+        log(f"  hierarchy    {len(forbidden)//2:>9,} parent/child pairs "
+            f"protected from merging")
+    report: "list[dict]" = []
+    merged = integrate(rows, method=method, within_db=within_db,
+                       forbidden=forbidden, report=report)
     merged_rel = integrate_relations(rel_rows)
     return {"memberships": merged, "relations": merged_rel,
-            "per_source": per_source, "genes_indexed": len(idx)}
+            "per_source": per_source, "genes_indexed": len(idx),
+            "merge_report": report}
 
 
 def cmd_build(args) -> int:
@@ -918,8 +1542,9 @@ def cmd_build(args) -> int:
             pull_kgml(cache)
             print()
     res = build(cache, sources=srcs, relations=args.relations,
-                overlap_jaccard=(None if args.no_overlap_merge
-                                 else args.overlap))
+                method=args.merge, within_db=args.within_db,
+                use_hierarchy=not args.no_hierarchy,
+                extra_gmt=args.extra_gmt)
     merged, rel = res["memberships"], res["relations"]
     if not merged:
         print("error: nothing parsed — run `igvfagent pathwaydb pull` first",
@@ -949,13 +1574,25 @@ def cmd_build(args) -> int:
                             "+".join(r["sources"]), r["n_sources"],
                             r.get("subtype", "")])
 
+    rep = res.get("merge_report") or []
+    if rep:
+        with open(run / "merges.csv", "w", newline="", encoding="utf-8") as fh:
+            cols = []
+            for r in rep:
+                for k in r:
+                    if k not in cols:
+                        cols.append(k)
+            w = csv.DictWriter(fh, fieldnames=cols, restval="")
+            w.writeheader()
+            w.writerows(rep)
+
     release = _release_string(cache)
     summary = {"built_at": ts, "release": release,
                "per_source": res["per_source"],
                "genes_indexed": res["genes_indexed"],
                "memberships": len(merged), "pathways": pathways,
                "genes": genes, "multi_source_memberships": multi,
-               "relations": len(rel)}
+               "relations": len(rel), "name_merges": len(rep)}
     (run / "summary.json").write_text(json.dumps(summary, indent=2))
 
     print(f"\nIntegrated:    {len(merged):,} gene-pathway memberships")
@@ -1070,7 +1707,7 @@ def cmd_query(args) -> int:
         print("No cached data for those genes. Run: igvfagent pathwaydb pull")
         return 1
 
-    merged = integrate(rows, overlap_jaccard=None)
+    merged = integrate(rows, method=args.merge)
     by_pathway: "dict[str, dict]" = {}
     for m in merged:
         e = by_pathway.setdefault(m["pathway"], {"genes": set(), "sources": set()})
@@ -1095,6 +1732,108 @@ def cmd_query(args) -> int:
     if shared:
         print(f"\nShared by >= {max(2, len(want)//2)} of the query genes: "
               f"{len(shared)}")
+    return 0
+
+
+def cmd_evaluate(args) -> int:
+    """Score each unification criterion on the current data.
+
+    There is no gold standard for "these two pathways are the same", so this
+    reports two signals that are objective rather than a single invented
+    accuracy number:
+
+      hierarchy violations  merges that Reactome itself declares to be a
+                            parent and a child. These are known-wrong: the
+                            source curators deliberately kept them apart.
+                            Lower is better; this is a precision signal.
+
+      identical-name recall of the cross-database pairs whose names are
+                            already identical -- unambiguously the same
+                            pathway -- how many does the criterion find?
+                            This is a recall signal, and it is BIASED IN
+                            FAVOUR of the name-based criteria, which get it
+                            for free. It is meaningful for comparing the
+                            gene-based criteria with each other.
+
+    Both are proxies and are reported as such. The guard is disabled during
+    evaluation so violations can be counted rather than silently prevented.
+    """
+    cache = _cache_dir(args)
+    idx = _load_index(cache)
+    srcs = {x.strip().lower() for x in args.sources.split(",") if x.strip()}
+    rows = []
+    for key, fn in (("kegg", parse_kegg), ("reactome", parse_reactome),
+                    ("wikipathways", parse_wikipathways)):
+        if key in srcs:
+            rows += fn(cache, idx)
+    if not rows:
+        print("error: nothing cached — run `igvfagent pathwaydb pull` first",
+              file=sys.stderr)
+        return 1
+
+    forbidden = reactome_ancestry(cache)
+    sets = pathway_gene_sets(rows)
+    by_db: "dict[str, set]" = {}
+    for db, canon in sets:
+        by_db.setdefault(db, set()).add(canon)
+    dbs = sorted(by_db)
+    identical = set()
+    for i, da in enumerate(dbs):
+        for dbb in dbs[i + 1:]:
+            for n in by_db[da] & by_db[dbb]:
+                identical.add(frozenset({(da, n), (dbb, n)}))
+
+    print(f"Pathways:      {len(sets):,} across {len(dbs)} databases")
+    print(f"Reactome hierarchy: {len(forbidden)//2:,} parent/child pairs "
+          f"(known-different)")
+    print(f"Identical names across databases: {len(identical):,} pairs "
+          f"(known-same)\n")
+
+    methods = [m.strip() for m in args.methods.split(",") if m.strip()]
+    results = {}
+    print(f"  {'criterion':<14}{'merges':>9}{'hier.viol':>11}"
+          f"{'viol.rate':>11}{'ident.found':>13}{'recall':>9}")
+    for m in methods:
+        report: "list[dict]" = []
+        t0 = time.time()
+        try:
+            _run_method(m, rows, forbidden=None, report=report,
+                        cutoff=args.cutoff)
+        except ValueError as e:
+            print(f"  {m:<14} {e}")
+            continue
+        pairs = {frozenset({(r["a_db"], r["a"]), (r["b_db"], r["b"])})
+                 for r in report}
+        viol = sum(1 for r in report if (r["a"], r["b"]) in forbidden)
+        found = len(pairs & identical)
+        rate = (100.0 * viol / len(report)) if report else 0.0
+        rec = (100.0 * found / len(identical)) if identical else 0.0
+        results[m] = {"pairs": pairs, "merges": len(report),
+                       "violations": viol, "found": found,
+                       "seconds": round(time.time() - t0, 1)}
+        print(f"  {m:<14}{len(report):>9,}{viol:>11,}{rate:>10.1f}%"
+              f"{found:>13,}{rec:>8.1f}%")
+
+    if len(results) > 1 and args.agreement:
+        print("\n  pairwise agreement (Jaccard over proposed merges):")
+        ms = list(results)
+        for i, a in enumerate(ms):
+            for b in ms[i + 1:]:
+                pa, pb = results[a]["pairs"], results[b]["pairs"]
+                u = len(pa | pb)
+                print(f"    {a:<13} vs {b:<13} "
+                      f"{(len(pa & pb)/u if u else 0):.3f}  "
+                      f"({len(pa & pb):,} shared)")
+
+    if args.out:
+        out = Path(args.out)
+        if not out.is_absolute():
+            out = ROOT / args.out
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(
+            {m: {k: v for k, v in r.items() if k != "pairs"}
+             for m, r in results.items()}, indent=2))
+        print(f"\n  wrote {out}")
     return 0
 
 
@@ -1129,11 +1868,24 @@ def main(argv=None) -> int:
                    help="Only ingest facts supported by >= N databases")
     b.add_argument("--no-kg", action="store_true",
                    help="Write files but do not touch the knowledge graph")
-    b.add_argument("--overlap", type=float, default=0.7,
-                   help="Gene-set Jaccard above which pathways from different "
-                        "databases are treated as the same pathway")
-    b.add_argument("--no-overlap-merge", action="store_true",
-                   help="Merge on pathway name only, never on gene overlap")
+    b.add_argument("--merge", default="consensus",
+                   help="Pathway unification criterion, or several joined by "
+                        "'+' for their union. One of: " + ", ".join(METHODS) +
+                        ". Default consensus (IntPath's LCS rule as the "
+                        "candidate generator, confirmed by independent "
+                        "signals); 'lcs' is the published rule alone.")
+    b.add_argument("--extra-gmt", action="append", metavar="LABEL=PATH",
+                   help="Integrate a local GMT as another source database, "
+                        "e.g. --extra-gmt HumanCyc=~/humancyc.gmt. Repeatable. "
+                        "The route for databases that cannot be fetched "
+                        "anonymously, such as BioCyc/HumanCyc.")
+    b.add_argument("--no-hierarchy", action="store_true",
+                   help="Do not read Reactome's own parent/child hierarchy "
+                        "when deciding which pathways may be unified")
+    b.add_argument("--within-db", action="store_true",
+                   help="Also unify names inside one database, as IntPath "
+                        "does. Off by default because Reactome's hierarchy "
+                        "means parent and child pathways to stay distinct")
     b.add_argument("--no-prune", action="store_true",
                    help="Keep pathway nodes from earlier pathwaydb builds "
                         "that this build no longer produces")
@@ -1144,15 +1896,29 @@ def main(argv=None) -> int:
             with_sources=False)
     sub.add_parser("sources", help="Databases, licences and coverage")
 
+    e = _common(sub.add_parser("evaluate",
+                                help="Score each unification criterion"))
+    e.add_argument("--methods", default="lcs,tokens,jaccard,containment,"
+                                        "hypergeom",
+                   help="Comma-separated criteria to score")
+    e.add_argument("--cutoff", type=float,
+                   help="Override the criterion's cutoff")
+    e.add_argument("--agreement", action="store_true",
+                   help="Also print pairwise agreement between criteria")
+    e.add_argument("--out", help="Write the scores to a JSON file")
+
     q = _common(sub.add_parser("query", help="Pathways for a gene list"))
     q.add_argument("--genes", required=True)
     q.add_argument("--top", type=int, default=25)
+    q.add_argument("--merge", default="consensus",
+                   help="Pathway unification criterion (default consensus)")
     q.add_argument("--verbose", action="store_true",
                    help="Also list which query genes hit each pathway")
 
     args = p.parse_args(argv)
     return {"pull": cmd_pull, "build": cmd_build, "status": cmd_status,
-            "query": cmd_query, "sources": cmd_sources}[args.cmd](args)
+            "query": cmd_query, "sources": cmd_sources,
+            "evaluate": cmd_evaluate}[args.cmd](args)
 
 
 if __name__ == "__main__":

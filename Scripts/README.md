@@ -97,6 +97,26 @@ python3 Scripts/data_illustration_interpretation.py explain IGVFDS2544COZH --dow
 python3 Scripts/data_illustration_interpretation.py write-playbook
 ```
 
+## Pathway databases (KEGG + Reactome + WikiPathways, integrated)
+
+Pulls current releases, normalises identifiers through NCBI `gene_info`,
+unifies pathways across databases and loads them into the local KG.
+Full documentation: [`Docs/PATHWAYDB.md`](../Docs/PATHWAYDB.md).
+
+```bash
+igvfagent pathwaydb sources                     # databases, licences, coverage
+igvfagent pathwaydb pull --kgml                 # download current releases
+igvfagent pathwaydb build --relations           # normalise, unify, ingest
+igvfagent pathwaydb query --genes CLU,BIN1,PICALM
+igvfagent pathwaydb evaluate --agreement        # score the unification criteria
+igvfagent pathwaydb status
+igvfagent intpath status                        # the 2012 IntPath release
+```
+
+Licensed databases that cannot be fetched anonymously (BioCyc/HumanCyc) are
+integrated from a local export:
+`igvfagent pathwaydb build --extra-gmt HumanCyc=~/humancyc.gmt`
+
 ## Enhancer-gene linkage
 
 ```bash
