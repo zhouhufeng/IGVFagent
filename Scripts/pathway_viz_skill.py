@@ -331,6 +331,86 @@ def pathway_enrichment(pathway_edges, n_genes: int,
     return out
 
 
+def ingest_to_kg(genes, edges, *, label: str) -> dict:
+    """Write the network back into the local knowledge graph.
+
+    Retrieval that does not accumulate is retrieval done twice. These edges —
+    STRING interactions, KEGG and Reactome membership — are exactly the
+    biological structure the graph exists to hold, so a pathway search
+    performed once should answer the next question locally.
+
+    Sources are preserved on every edge, so a later reader can tell a STRING
+    text-mining association from a curated KEGG membership rather than
+    inheriting an undifferentiated blob.
+    """
+    try:
+        from igvfagent import _localstore as ls
+    except Exception:
+        try:
+            import _localstore as ls  # type: ignore
+        except Exception:
+            return {"error": "local store unavailable"}
+
+    added = {"gene_nodes": 0, "pathway_nodes": 0,
+             "interacts_with": 0, "member_of_pathway": 0}
+    try:
+        con = ls._connect()
+        run = ls.upsert_node(
+            con, "analysis", f"pathway_viz_{label}",
+            source="igvfagent:pathway-viz",
+            label=f"pathway network {label}",
+            properties={"skill": "pathway-viz", "n_genes": len(genes)})
+
+        gene_ids = {}
+        for g in genes:
+            gid = ls.upsert_node(con, "gene", g, source="igvfagent:pathway-viz")
+            gene_ids[g] = gid
+            ls.upsert_edge(con, run, gid, "analyzed",
+                            source="igvfagent:pathway-viz")
+        added["gene_nodes"] = len(gene_ids)
+
+        seen_pw = set()
+        for e in edges:
+            src, tgt = e.get("source"), e.get("target")
+            if not (src and tgt):
+                continue
+            props = {k: v for k, v in e.items()
+                     if k in ("score", "evidence", "kegg_id", "stId",
+                              "experimental", "database", "textmining")}
+            if e.get("kind") == "ppi":
+                a = gene_ids.get(src) or ls.upsert_node(
+                    con, "gene", src, source="igvfagent:pathway-viz")
+                b = gene_ids.get(tgt) or ls.upsert_node(
+                    con, "gene", tgt, source="igvfagent:pathway-viz")
+                # Source is the EVIDENCE database, matching what the
+                # artefact recogniser records when harvest re-reads
+                # edges.csv. Using a skill-specific label instead would
+                # produce a second, near-identical edge for the same fact,
+                # because the edge id hashes the source.
+                ls.upsert_edge(con, a, b, "interacts_with",
+                                source=e.get("evidence", "STRING"),
+                                properties=props)
+                added["interacts_with"] += 1
+            elif e.get("kind") == "pathway":
+                g = gene_ids.get(src) or ls.upsert_node(
+                    con, "gene", src, source="igvfagent:pathway-viz")
+                pw = ls.upsert_node(con, "pathway", tgt,
+                                    source=e.get("evidence", "pathway"),
+                                    properties=props)
+                if tgt not in seen_pw:
+                    seen_pw.add(tgt)
+                ls.upsert_edge(con, g, pw, "member_of_pathway",
+                                source=e.get("evidence", "pathway"),
+                                properties=props)
+                added["member_of_pathway"] += 1
+        added["pathway_nodes"] = len(seen_pw)
+        con.commit()
+        con.close()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+    return added
+
+
 # ---------------------------------------------------------------------------
 # Graph + figure
 # ---------------------------------------------------------------------------
@@ -460,6 +540,12 @@ def cmd_network(args) -> int:
                title=args.title or f"Pathway / interaction network — {len(genes)} genes",
                layout=args.layout)
 
+    # Absorb into the growing knowledge graph before drawing: the figure is
+    # one view of this evidence, the graph is where it persists.
+    kg = {"skipped": True}
+    if not args.no_kg:
+        kg = ingest_to_kg(genes, edges, label=label)
+
     kegg_maps = []
     if kegg_ids and not args.no_kegg_maps:
         # KEGG's own rendered diagram is what most biologists mean by "the
@@ -476,6 +562,8 @@ def cmd_network(args) -> int:
     for k, v in counts.items():
         print(f"  {k:12s} {v} edge(s)")
     print(f"Nodes/edges:   {G.number_of_nodes()} / {G.number_of_edges()}")
+    if not kg.get("skipped"):
+        print(f"KG:            {json.dumps(kg)}")
     if isolated:
         print(f"Unconnected:   {', '.join(isolated)}  "
               f"(no edge in the selected sources — shown as isolated nodes)")
@@ -549,6 +637,8 @@ def main(argv=None) -> int:
     n.add_argument("--no-kegg-maps", action="store_true",
                    help="Skip downloading KEGG's rendered pathway diagrams")
     n.add_argument("--kegg-map-limit", type=int, default=4)
+    n.add_argument("--no-kg", action="store_true",
+                   help="Draw the figure without writing to the knowledge graph")
     args = p.parse_args(argv)
     return cmd_network(args)
 

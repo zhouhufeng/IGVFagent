@@ -395,8 +395,43 @@ def _emit_variant_gene(row, cols):
              _props(row, cols, ("source", "method", "consequence")))]
 
 
+def _emit_network_edge(row, cols):
+    """A generic source/target/kind edge table (pathway-viz `edges.csv`).
+
+    Typed by the row's own `kind` so a STRING interaction and a KEGG pathway
+    membership land as different edge types rather than one undifferentiated
+    relation.
+    """
+    a = _first(cols, "source", "source_node", "from")
+    b = _first(cols, "target", "target_node", "to")
+    if not (a and b):
+        return []
+    x, y = (row.get(a) or "").strip(), (row.get(b) or "").strip()
+    if not (x and y):
+        return []
+    kind = (row.get(cols.get("kind", "")) or "").strip().lower()
+    pr = _props(row, cols, ("score", "evidence", "kegg_id", "stId"))
+    # `evidence` becomes the edge source (upsert_edge reads props["source"]),
+    # so a row ingested here collapses onto the edge the skill already wrote
+    # rather than duplicating it under a different label.
+    if "evidence" in pr and "source" not in pr:
+        pr["source"] = pr["evidence"]
+    if kind == "ppi":
+        return [("gene", x, "interacts_with", "gene", y, pr)]
+    if kind == "pathway":
+        return [("gene", x, "member_of_pathway", "pathway", y, pr)]
+    if kind in ("regulates", "interacts_with", "member_of_pathway",
+                "associated_with"):
+        return [("gene", x, kind, "gene", y, pr)]
+    return []
+
+
 _RECOGNISERS = [
     # (label, required-any groups, emit)
+    ("network_edges", lambda c: bool({"source", "source_node", "from"} & set(c))
+                                and bool({"target", "target_node", "to"} & set(c))
+                                and "kind" in c,
+                      _emit_network_edge),
     ("ppi",           lambda c: bool({"id_a", "protein_a", "symbol_a"} & set(c))
                                 and bool({"id_b", "protein_b", "symbol_b"} & set(c)),
                       _emit_ppi),
