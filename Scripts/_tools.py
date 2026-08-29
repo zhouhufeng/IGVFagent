@@ -168,6 +168,39 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "pathway_network_viz",
+        "★ VISUALISE PATHWAY / INTERACTION NETWORKS FOR A GENE LIST ★. Pass "
+        "the gene symbols INLINE in `genes` (comma-separated) — no file "
+        "staging is needed and no file-writing tool exists. Draws a network "
+        "from STRING protein interactions, Reactome and KEGG pathway "
+        "membership, and the local knowledge graph, and downloads KEGG's own "
+        "rendered pathway diagrams. THIS IS THE RIGHT TOOL whenever someone "
+        "asks to visualise pathways, networks or interactions for a set of "
+        "genes. Produces PNG + SVG, an edge-list CSV, and enrichment.",
+        {
+            "type": "object",
+            "properties": {
+                "genes":    {**_S_STRING, "description":
+                             "Gene symbols, comma-separated, e.g. "
+                             "'CLU,BIN1,PICALM'. A file path also works."},
+                "sources":  {**_S_STRING, "description":
+                             "Comma list: string, reactome, kegg, local. "
+                             "Default all four."},
+                "min_score": {**_S_STRING, "description":
+                              "STRING confidence cutoff, default 0.4."},
+                "layout":   {**_S_STRING, "description":
+                             "spring | circular | kamada"},
+                "label":    {**_S_STRING, "description": "Run label."},
+            },
+            "required": ["genes"],
+        },
+        ["pathway-viz", "network"],
+        flag_map={"genes": "--genes", "sources": "--sources",
+                   "min_score": "--min-score", "layout": "--layout",
+                   "label": "--label"},
+    ),
+
+    _T(
         "read_artifact",
         "★ READ A FILE THIS AGENT PRODUCED ★ — reports, manifests, JSON, CSV, "
         "TSV, logs. Skills announce outputs as `Report: <path>`; use this to "

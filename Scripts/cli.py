@@ -107,6 +107,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "skillcard":        ("igvfagent.skillcard_skill",
                           "Machine-readable skill specifications (skill cards) "
                           "with validation status derived from the benchmarks"),
+    "pathway-viz":      ("igvfagent.pathway_viz_skill",
+                          "Pathway / PPI network figure for a gene list "
+                          "(STRING + Reactome + local KG)"),
     "mcp":              ("igvfagent.mcp_server_skill",
                           "Serve the skill registry over the Model Context "
                           "Protocol so other agents can call IGVF skills"),
