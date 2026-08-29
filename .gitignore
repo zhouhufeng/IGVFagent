@@ -85,6 +85,12 @@ Docs/DataIllustration/2*
 Docs/AdvancedVariantAnalysis/2*
 Docs/AdvancedVariantAnalysis/PutamenMultiome/
 Docs/References/2*
+Docs/PathwayDB/2*
+Docs/PathwayViz/2*
+Docs/IntPath/2*
+Docs/eQTLMPRA/2*
+Docs/Documents/2*
+Docs/BugZilla/2*
 # Reference notebooks pulled from IGVF QA/Colab. Every one of them embeds a
 # plaintext ArangoDB `guest` password in its connection cell, so the whole
 # tree stays local — never commit it. Skills may cite these paths in

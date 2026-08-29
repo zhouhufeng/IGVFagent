@@ -168,6 +168,70 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "pathway_db_query",
+        "Pathways for a gene list, from the locally integrated KEGG + "
+        "Reactome + WikiPathways release. Faster and broader than querying a "
+        "single pathway API, and reports WHICH databases assert each "
+        "pathway, so agreement between them is visible. Use this to ask "
+        "which pathways a gene set shares. If nothing is cached yet, call "
+        "pathway_db_refresh first.",
+        {
+            "type": "object",
+            "properties": {
+                "genes":   {**_S_STRING, "description":
+                            "Gene symbols, comma-separated, e.g. "
+                            "'CLU,BIN1,PICALM'."},
+                "sources": {**_S_STRING, "description":
+                            "Comma list: kegg, reactome, wikipathways. "
+                            "Default all three."},
+                "top":     {**_S_INTEGER, "description":
+                            "How many pathways to show (default 25)."},
+                "verbose": {**_S_BOOLEAN, "description":
+                            "Also list which query genes hit each pathway."},
+            },
+            "required": ["genes"],
+        },
+        ["pathwaydb", "query"],
+        flag_map={"genes": "--genes", "sources": "--sources",
+                   "top": "--top", "verbose": "--verbose"},
+        bool_flags=("verbose",),
+    ),
+
+    _T(
+        "pathway_db_refresh",
+        "Download the CURRENT KEGG, Reactome and WikiPathways releases, "
+        "normalise gene identifiers through NCBI gene_info, merge pathways "
+        "that different databases describe differently, and load the result "
+        "into the local knowledge graph. Use when pathway data is missing or "
+        "stale, or when the user asks to pull/refresh pathway databases. "
+        "Downloads ~180 MB the first time; later runs reuse the cache.",
+        {
+            "type": "object",
+            "properties": {
+                "sources":   {**_S_STRING, "description":
+                              "Comma list: kegg, reactome, wikipathways. "
+                              "Default all three."},
+                "relations": {**_S_BOOLEAN, "description":
+                              "Also build typed gene-gene relations from "
+                              "KEGG KGML and Reactome interactions. Adds a "
+                              "few minutes on the first run."},
+                "min_sources": {**_S_INTEGER, "description":
+                                "Only store facts asserted by at least N "
+                                "databases (default 1)."},
+                "label":     {**_S_STRING, "description": "Run label."},
+                "no_kg":     {**_S_BOOLEAN, "description":
+                              "Write files without touching the KG."},
+            },
+            "required": [],
+        },
+        ["pathwaydb", "build"],
+        flag_map={"sources": "--sources", "relations": "--relations",
+                   "min_sources": "--min-sources", "label": "--label",
+                   "no_kg": "--no-kg"},
+        bool_flags=("relations", "no_kg"),
+    ),
+
+    _T(
         "pathway_network_viz",
         "★ VISUALISE PATHWAY / INTERACTION NETWORKS FOR A GENE LIST ★. Pass "
         "the gene symbols INLINE in `genes` (comma-separated) — no file "

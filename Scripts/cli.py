@@ -107,6 +107,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "skillcard":        ("igvfagent.skillcard_skill",
                           "Machine-readable skill specifications (skill cards) "
                           "with validation status derived from the benchmarks"),
+    "intpath":          ("igvfagent.intpath_skill",
+                          "Integrated pathway data (KEGG + WikiPathways + "
+                          "BioCyc) via IntPath"),
+    "pathwaydb":        ("igvfagent.pathwaydb_skill",
+                          "Pull CURRENT KEGG / Reactome / WikiPathways "
+                          "releases, normalise and integrate them locally"),
     "pathway-viz":      ("igvfagent.pathway_viz_skill",
                           "Pathway / PPI network figure for a gene list "
                           "(STRING + Reactome + local KG)"),

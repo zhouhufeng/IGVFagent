@@ -863,6 +863,37 @@ python3 Scripts/splitseq_pipeline.py write-playbook
 Bundled mouse marker panels: `gonad`, `adrenal`, `brain`, `liver`, `heart`,
 `kidney`, `muscle` — covers the full Mortazavi 8-cube founder atlas tissues.
 
+### Pathway databases (KEGG + Reactome + WikiPathways, integrated locally)
+
+Pulls the **current** releases, normalises every gene identifier into one
+namespace, merges pathways that different databases describe differently, and
+loads the result into the local knowledge graph — so pathway structure is
+retrieved once and then queried offline. Each stored fact records which
+databases assert it, so agreement between them is visible rather than
+flattened into a duplicate. The integration method follows IntPath
+(Zhou et al. 2012, cited under [References](#references)); the data is pulled
+fresh, not taken from that release.
+
+```bash
+igvfagent pathwaydb sources                    # databases, licences, coverage
+igvfagent pathwaydb pull                       # download current releases (~180 MB)
+igvfagent pathwaydb pull --kgml                # + KEGG maps, for typed relations
+igvfagent pathwaydb build --relations          # normalise, merge, load into the KG
+igvfagent pathwaydb query --genes CLU,BIN1,PICALM,APOE,TREM2
+igvfagent pathwaydb status                     # what is cached, how old, which release
+```
+
+A pull on 2026-08-28 (KEGG 2026/08/27 · WikiPathways 20260810 · Reactome
+current) yielded **211,173 gene-pathway memberships over 4,052 pathways and
+14,870 genes**, plus **73,925 typed gene-gene relations** (PPrel 54,002 ·
+ECrel 15,996 · GErel 3,197 · PCrel 730). Downloads are cached under
+`Data/Reference/PathwayDB/` (gitignored) with a per-file release stamp and
+SHA-256, so a figure can be traced back to the exact release behind it.
+
+BioCyc/HumanCyc is deliberately excluded — its flat-file download now requires
+a paid subscription and cannot be pulled reproducibly. `pathwaydb sources`
+says so rather than silently returning fewer databases than expected.
+
 ### Enhancer–gene linkage
 
 ```bash
@@ -2115,6 +2146,7 @@ maintainers for releasing their code openly.
 | **Open4Gene** peak→gene linkage (`open4gene link`) | [hbliu/Open4Gene](https://github.com/hbliu/Open4Gene) (Liu et al. *Science* 2025, PMID 39913582; **no LICENSE**) | clean-room Python reimpl — no source copied; upstream is R/`pscl::hurdle` | Two-component hurdle model per peak-gene pair: logistic zero component `I(RNA>0) ~ ATAC + covariates` + zero-truncated negative-binomial count component `RNA|RNA>0 ~ ATAC + covariates`, via statsmodels `Logit` + `TruncatedLFNegativeBinomialP`; per-cell-type / All / Each modes; Spearman; AIC/BIC. **Validated vs the R `pscl::hurdle` reference: zero-component β correlation 1.0, max abs Δ 0.0.** |
 | **scEPS** GWAS × single-cell neighborhood d-statistic (`sceps estimate`) | [Genentech/sceps](https://github.com/Genentech/sceps) (Zou/Shi et al. medRxiv 2026; **no LICENSE**) | clean-room Python reimpl — no source copied | Random-walk NAM neighborhood diffusion, per-donor pseudobulk, method-of-moments variance-component model decomposing disease variance into GWAS-gene / mean-expression-matched-control / rest components; per-neighborhood d-statistic (OMEGA_GWAS − OMEGA_CONTROL) with bootstrap disattenuation + delta-method SEs. **Validated vs upstream `test/` fixtures: step size, GWAS-gene count, neighborhood sizes, num-donors, expression variances all match exactly.** |
 | **Functional-assay calibration → ACMG/AMP evidence** (`calibrate thresholds / prepare / run / assign / selftest`) | [rosstewart/exCALIBR](https://github.com/rosstewart/exCALIBR) (R. Stewart, Northeastern; MIT) — implements Zeiberg et al. *bioRxiv* 2025.04.29.651326 | clean-room Python reimpl — no source copied; stdlib + numpy/scipy (joblib and the SLURM job-array generator replaced by `concurrent.futures` + a resumable ledger) | Multi-sample skew-normal mixture (components shared across samples, per-sample mixing weights) fitted by EM in Azzalini's (loc, Δ, Γ) parameterisation with truncated-normal moments; monotone density-ratio constraint between adjacent components enforced by binary search on every parameter update; per-sample bootstrap with best-of-N fit selection on held-out likelihood; Saerens-style EM estimate of the population prior; LR⁺ envelope across bootstraps; Tavtigian C = O_PVSt search and C^(points/8) evidence thresholds; LR⁺ → per-strength score ranges with monotonicity repair; paired Wilcoxon / 5th-percentile 2c-vs-3c model selection; ClinVar-star + gnomAD + SpliceAI variant labelling of IGVF/Pillar-format scoresets. **Validated vs upstream: Tavtigian C identical over a 12-prior grid (plus `original` / `strict` variants); constrained-EM iterates bit-identical for 60 steps at K=2 and K=3; prior EM, point-range conversion and model-selection statistics identical to machine precision; scoreset labelling reproduces upstream's variant-ID sets exactly.** |
+| **Integrated pathway databases** (`pathwaydb pull / build / query / status / sources`) | [IntPath](https://link.springer.com/article/10.1186/1752-0509-6-S2-S2) (Zhou H, Jin J, Zhang H, Yi B, Wozniak M, Wong L. *BMC Syst Biol* 2012; **method, not code**) + [KEGG REST](https://rest.kegg.jp) + [Reactome downloads](https://reactome.org/download-data) + [WikiPathways GMT](https://data.wikipathways.org) | IntPath: method absorbed from the paper only — the published 2012 dataset is not redistributed. KEGG (academic use), Reactome (CC-BY), WikiPathways (CC0) fetched at runtime, never vendored. | IntPath's integration method applied to **current** releases: normalise every gene identifier into one namespace (here NCBI `gene_info`, Entrez → symbol with synonyms), map each database's own relation vocabulary onto one shared set (KEGG's PPrel / ECrel / GPrel / GErel), merge pathways that different databases describe under different names, and record **every** supporting database per fact so cross-database agreement stays queryable instead of collapsing into a duplicate. Extends the original with gene-set-overlap merging (Jaccard over membership, cross-database only), typed relations parsed from current KEGG KGML maps, Reactome's curated interactor file, and per-file release stamps + SHA-256 so any result traces to the exact data behind it. The 2012 release covered 582 pathways; a current pull yields ~4,050 pathways / ~211k memberships / ~74k typed relations, all loaded into the local knowledge graph. |
 | **figshare** data retrieval (`figshare article / files / download / search`) | [figshare API v2](https://docs.figshare.com) (Zenodo-style research-data deposit) | clean-room, urllib + json only | Resolve an article from numeric id, DOI, article URL, or private `/s/<token>` share link; list files (size + md5); md5-verified downloads (single file or whole article); public full-text article search. The general-purpose counterpart to the `synapse` skill for author-deposited supplementary data. |
 
 ### Methods papers cited in the skills
@@ -2134,6 +2166,7 @@ maintainers for releasing their code openly.
 - **Fabregat A et al. (2018)** "The Reactome Pathway Knowledgebase." *Nucleic Acids Res* 46:D649–D655. doi:[10.1093/nar/gkx1132](https://doi.org/10.1093/nar/gkx1132) — Reactome library used in `enrich pathways`.
 - **Kanehisa M & Goto S (2000)** "KEGG: Kyoto Encyclopedia of Genes and Genomes." *Nucleic Acids Res* 28:27–30. doi:[10.1093/nar/28.1.27](https://doi.org/10.1093/nar/28.1.27) — KEGG library used in `enrich pathways`.
 - **Slenter DN et al. (2018)** "WikiPathways: a multifaceted pathway database bridging metabolomics to other omics research." *Nucleic Acids Res* 46:D661–D667. doi:[10.1093/nar/gkx1064](https://doi.org/10.1093/nar/gkx1064) — WikiPathways library used in `enrich pathways`.
+- **Zhou H, Jin J, Zhang H, Yi B, Wozniak M, Wong L (2012)** "IntPath — an integrated pathway gene relationship database for model organisms and important pathogens." *BMC Systems Biology* 6(Suppl 2):S2. doi:[10.1186/1752-0509-6-S2-S2](https://doi.org/10.1186/1752-0509-6-S2-S2) — the cross-database pathway integration method (identifier normalisation, shared relation vocabulary, per-fact source provenance) that `pathwaydb` applies to current KEGG / Reactome / WikiPathways releases.
 - **Liberzon A et al. (2015)** "The Molecular Signatures Database (MSigDB) hallmark gene set collection." *Cell Syst* 1:417–425. doi:[10.1016/j.cels.2015.12.004](https://doi.org/10.1016/j.cels.2015.12.004) — MSigDB Hallmark library used in `enrich pathways`.
 - **Kuleshov MV et al. (2016)** "Enrichr: a comprehensive gene set enrichment analysis web server 2016 update." *Nucleic Acids Res* 44:W90–W97. doi:[10.1093/nar/gkw377](https://doi.org/10.1093/nar/gkw377) — Enrichr proxy backing `enrich ora`.
 - **Fang Z, Liu X, Peltz G (2023)** "GSEApy: a comprehensive package for performing gene set enrichment analysis in Python." *Bioinformatics* 39:btac757. doi:[10.1093/bioinformatics/btac757](https://doi.org/10.1093/bioinformatics/btac757) — gseapy library powering `enrich`.
