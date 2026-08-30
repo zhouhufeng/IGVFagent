@@ -276,7 +276,11 @@ GENE_RELATIONS = {
     "proteins":            ("/api/genes/proteins",                      {"gene_name": "{symbol}"}),
     "regulatory_elements": ("/api/genes/genomic-elements",              {"gene_name": "{symbol}"}),
     "diseases":            ("/api/genes/diseases",                      {"gene_name": "{symbol}"}),
-    "pathways":            ("/api/genes/pathways",                      {"gene_name": "{symbol}"}),
+    # `verbose=true` inlines the full pathway node on each edge, so the
+    # manifest carries the human-readable name directly. Without it the
+    # edge only yields `pathways/R-HSA-n` refs and every name needs a
+    # separate node lookup.
+    "pathways":            ("/api/genes/pathways",                      {"gene_name": "{symbol}", "verbose": "true"}),
     "coding_variant_scores": ("/api/genes/coding-variants/scores",      {"gene_name": "{symbol}"}),
 }
 
@@ -312,6 +316,53 @@ def gene_metadata(symbol: str) -> dict:
     return rows[0] if rows else {"name": symbol, "_not_found": True}
 
 
+# Nested-node key -> ArangoDB collection, so a lifted node can be collapsed
+# back to the exact `<collection>/<id>` ref the non-verbose response gives.
+_NODE_COLLECTION = {
+    "gene": "genes", "pathway": "pathways", "parent_pathway": "pathways",
+    "child_pathway": "pathways", "protein": "proteins",
+    "transcript": "transcripts", "variant": "variants",
+    "ontology_term": "ontology_terms", "drug": "drugs",
+    "complex": "complexes", "genomic_element": "genomic_elements",
+    "study": "studies",
+}
+
+
+def lift_nested_nodes(rows: list[dict]) -> list[dict]:
+    """Flatten `verbose=true` edge rows for CSV.
+
+    An edge fetched with ``verbose=true`` inlines the endpoint node as a
+    nested dict (``{"pathway": {"_id": "R-HSA-174824", "name": "..."}}``),
+    which ``_flatten_cell`` would JSON-dump into a single unreadable
+    cell. Lift each nested node's id and name into ``<key>_id`` /
+    ``<key>_name`` columns and collapse the dict back to the plain
+    ``pathways/R-HSA-n`` ref the non-verbose response would have given —
+    so the row shape stays comparable across runs, plus two useful
+    columns. Rows without nested nodes pass through untouched.
+    """
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key, val in list(row.items()):
+            if not isinstance(val, dict):
+                continue
+            node_id, node_name = val.get("_id"), val.get("name")
+            if node_id is None and node_name is None:
+                continue          # not a node record — leave it alone
+            if node_id is not None:
+                row.setdefault(f"{key}_id", node_id)
+            if node_name is not None:
+                row.setdefault(f"{key}_name", node_name)
+            # Collapse back to the ref string (`pathways/R-HSA-174824`).
+            # Never guess the collection by pluralising the key — that turns
+            # `parent_pathway` into `parent_pathways/`. Unknown keys keep the
+            # bare id.
+            if node_id is not None:
+                coll = _NODE_COLLECTION.get(key)
+                row[key] = f"{coll}/{node_id}" if coll else node_id
+    return rows
+
+
 def fetch_gene_relations(symbol: str, limit: int) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     for rel, (path, tpl) in GENE_RELATIONS.items():
@@ -319,7 +370,7 @@ def fetch_gene_relations(symbol: str, limit: int) -> dict[str, list[dict]]:
         params["limit"] = limit
         status, data = catalog_get(path, **params)
         if status == 200:
-            rows = listify(data)
+            rows = lift_nested_nodes(listify(data))
             out[rel] = rows
             logging.info("[%s] %d rows", rel, len(rows))
         else:
@@ -624,8 +675,11 @@ def _row_oneline(r: dict) -> str:
         return str(r)
     # Try the most useful fields first
     parts = []
-    for k in ("name", "symbol", "term_name", "label", "id", "_key", "_id",
-              "spdi", "rsid", "hgvs", "variant_id", "uniprot_id", "accession"):
+    # `<key>_name` (lifted from a verbose edge) comes first: on an edge row
+    # the bare `name` is the edge label ("belongs to"), not the node's name.
+    for k in ("pathway_name", "name", "symbol", "term_name", "label", "id",
+              "_key", "_id", "spdi", "rsid", "hgvs", "variant_id",
+              "uniprot_id", "accession"):
         if r.get(k):
             parts.append(str(r[k])[:80])
             break

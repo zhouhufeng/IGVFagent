@@ -255,6 +255,15 @@ EDGE_ENDPOINTS: dict[str, EdgeSpec] = {
     "genes_pathways":           {"path": "/api/genes/pathways",
                                    "from": "gene", "to": "pathway",
                                    "semantic": "functional"},
+    # Reverse direction + Reactome hierarchy: without these, a pathway ID
+    # matched no edge whose `from` side was `pathway`, so
+    # find-associations on an R-HSA-n returned "Hit endpoints: 0".
+    "pathways_genes":           {"path": "/api/pathways/genes",
+                                   "from": "pathway", "to": "gene",
+                                   "semantic": "functional"},
+    "pathways_pathways":        {"path": "/api/pathways/pathways",
+                                   "from": "pathway", "to": "pathway",
+                                   "semantic": "functional"},
     "genes_genes":              {"path": "/api/genes/genes",
                                    "from": "gene", "to": "gene",
                                    "semantic": "regulatory"},
@@ -290,7 +299,8 @@ RELATIONSHIP_TYPE_MAPPING: dict[str, list[str]] = {
     "regulatory":       ["variants_genomic_elements", "genes_genes",
                           "genomic_elements_genes", "motifs_proteins"],
     "physical":         ["proteins_proteins", "complexes_proteins"],
-    "functional":       ["genes_pathways"],
+    "functional":       ["genes_pathways", "pathways_genes",
+                          "pathways_pathways"],
     "pharmacological":  ["variants_drugs"],
     "ld":               ["variants_variant_ld"],
     "coding":           ["variants_coding_variants",
@@ -482,9 +492,10 @@ def _node_query_param(entity: str, form: str, value: str) -> dict[str, str]:
         if form == "ensembl":  return {"transcript_id": value}
         return {"transcript_id": value}
     if entity == "protein":
-        if form == "ensembl":  return {"protein_id": value}
-        if form == "uniprot":  return {"uniprot_id": value}
-        return {"protein_id":  value}
+        # `protein_id` resolves BOTH the ENSP and the UniProt accession.
+        # There is no `uniprot_id` query param — sending one is silently
+        # ignored and yields an unfiltered row (see the pathway note below).
+        return {"protein_id": value}
     if entity == "ontology_term":
         # The API keys term_id on the UNDERSCORE form: `EFO_0001187` returns
         # the record, `EFO:0001187` returns zero rows. Normalise here so a
@@ -496,7 +507,14 @@ def _node_query_param(entity: str, form: str, value: str) -> dict[str, str]:
     if entity == "complex":
         return {"complex_id":  value}
     if entity == "pathway":
-        return {"pathway_id":  value}
+        # The pathway NODE endpoint keys on `id`, not `pathway_id` — the
+        # one place the collection breaks the `<entity>_id` convention.
+        # `/api/pathways` silently DROPS unknown params instead of erroring,
+        # so `pathway_id=` returned the first row of the whole collection
+        # (R-HSA-1059683, "Interleukin-6 signaling") for every ID queried.
+        # The EDGE endpoints (`/api/pathways/genes`) do want `pathway_id`
+        # — see _edge_query_param.
+        return {"id": value}
     if entity == "study":
         return {"study_id":    value}
     if entity == "genomic_element":
@@ -514,7 +532,12 @@ def _edge_query_param(entity: str, form: str, value: str) -> dict[str, str]:
         if form == "hgnc":     return {"hgnc":      value}
         if form == "entrez":   return {"entrez":    value}
         return {"gene_name": value}
-    # Variant / protein / complex / pathway / etc edges already use the
+    if entity == "pathway":
+        # Inverse of the node case: `/api/pathways/genes` rejects `id`
+        # ("At least one pathway property must be defined") and wants the
+        # entity-prefixed `pathway_id`.
+        return {"pathway_id": value}
+    # Variant / protein / complex / etc edges already use the
     # entity-prefixed param on the node side, so the node helper is fine.
     return _node_query_param(entity, form, value)
 
@@ -534,6 +557,58 @@ def _node_endpoint(entity: str) -> str:
     }.get(entity, "/api/genes")  # safest default
 
 
+# Fields that carry an entity's own identity in a node response, in the
+# order we trust them.
+_IDENTITY_FIELDS = ("_id", "id", "uri", "name", "rsid", "spdi", "hgvs", "ca_id",
+                    "term_id", "gene_id", "transcript_id", "protein_id",
+                    "uniprot_ids", "complex_id", "drug_id", "study_id",
+                    "genomic_element_id", "name_aliases", "synonyms",
+                    "id_version")
+
+
+def _identity_matches(rec: dict, value: str) -> bool:
+    """True when ``rec`` plausibly IS the record asked for.
+
+    The Catalog silently DROPS query params it does not recognise and
+    answers with an unfiltered page, so a wrong param name looks like a
+    successful lookup that returns row #1 of the collection for every
+    input. Comparing the request against the response's own identity
+    fields is the only way to catch that from the client side.
+    """
+    want = value.strip().lower()
+    for key in _IDENTITY_FIELDS:
+        got = rec.get(key)
+        if got is None:
+            continue
+        candidates = got if isinstance(got, (list, tuple)) else [got]
+        for c in candidates:
+            # Strip ArangoDB collection prefixes ("ontology_terms/GO_...")
+            # and OBO IRIs before comparing.
+            c = str(c).strip().lower().rsplit("/", 1)[-1]
+            # `id_version` is "R-HSA-174824.6"; ontology _ids use "GO_..."
+            # where the caller may have typed "GO:...".
+            if c == want or c.split(".")[0] == want or \
+               c.replace("_", ":") == want.replace("_", ":"):
+                return True
+    return False
+
+
+def _check_identity(data: Any, value: str, params: dict, path: str) -> None:
+    """Warn loudly when the response does not match what was asked for."""
+    rec = data[0] if isinstance(data, list) and data else data
+    if not isinstance(rec, dict) or _identity_matches(rec, value):
+        return
+    got = rec.get("_id") or rec.get("name") or "?"
+    logging.warning(
+        "IDENTITY MISMATCH: asked %s for %r, got %r. The query param %r is "
+        "probably not recognised by this endpoint (unknown params are "
+        "silently ignored and an unfiltered row is returned). Do NOT trust "
+        "this record.",
+        path, value, got, ",".join(k for k in params if k != "limit"))
+    print(f"  !! WARNING: requested {value!r} but the endpoint returned "
+          f"{got!r} — treat this record as UNVERIFIED.")
+
+
 def cmd_get_entity(args: argparse.Namespace) -> int:
     """Universal entity fetch — detects type and calls the right
     node endpoint. Optional ``--hint`` overrides the detector."""
@@ -546,6 +621,7 @@ def cmd_get_entity(args: argparse.Namespace) -> int:
     params["limit"] = str(args.limit)
     path = _node_endpoint(entity)
     data = _catalog_get(path, params)
+    _check_identity(data, args.id, params, path)
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_get_{safe_label(args.id)}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "entity.json"
@@ -557,11 +633,17 @@ def cmd_get_entity(args: argparse.Namespace) -> int:
     print(f"Returned:    {n} record(s)")
     if isinstance(data, list) and data:
         rec = data[0]
+        # Print the canonical ID *and* the human-readable name — for
+        # pathways / ontology terms the name is the whole point of the
+        # lookup, and stopping at the first hit used to hide it.
+        shown = 0
         for k in ("_id", "name", "rsid", "symbol", "term_id",
-                   "uniprot_id", "gene_id", "complex_id"):
-            if k in rec:
+                   "uniprot_ids", "gene_id", "complex_id"):
+            if k in rec and rec.get(k) is not None:
                 print(f"  {k}: {rec.get(k)}")
-                break
+                shown += 1
+                if shown == 2:
+                    break
         chrom = rec.get("chr") or rec.get("chrom")
         if chrom:
             print(f"  region: {chrom}:{rec.get('start', '?')}-{rec.get('end', '?')}")
@@ -751,6 +833,7 @@ def cmd_resolve_id(args: argparse.Namespace) -> int:
     if not data:
         print(f"No record for {args.id!r}.")
         return 1
+    _check_identity(data, args.id, params, _node_endpoint(entity))
     rec = data[0] if isinstance(data, list) else data
     xrefs: dict[str, Any] = {"entity_type": entity, "input": args.id,
                               "input_form": form}
@@ -778,17 +861,21 @@ def cmd_resolve_id(args: argparse.Namespace) -> int:
             "gene_type": rec.get("gene_type"),
         })
     elif entity == "protein":
+        # Protein records carry `_id` (the ENSP) and the *plural*
+        # `uniprot_ids` / `uniprot_names`; there are no `uniprot_id`
+        # or `protein_id` fields on the response.
         xrefs.update({
-            "canonical_id": rec.get("_id"),
-            "uniprot":      rec.get("uniprot_id") or rec.get("uniprot"),
-            "ensembl":      rec.get("protein_id"),
+            "canonical_id (ENSP)": rec.get("_id"),
+            "uniprot":      rec.get("uniprot_ids") or rec.get("uniprot_id"),
+            "uniprot_name": rec.get("uniprot_names"),
+            "full_name":    rec.get("uniprot_full_names"),
             "name":         rec.get("name"),
         })
     else:
         # Generic surface
         for k in ("_id", "name", "term_id", "drug_id", "complex_id",
-                   "pathway_id"):
-            if k in rec:
+                   "id_version", "source", "is_top_level_pathway"):
+            if k in rec and rec[k] is not None:
                 xrefs[k] = rec[k]
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_resolve_{safe_label(args.id)}"
     out_dir.mkdir(parents=True, exist_ok=True)
