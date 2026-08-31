@@ -82,23 +82,17 @@ def _sqlite_table_names(p: Path) -> "list[str]":
 
 
 def discover_local_kgs(root: Optional[Path] = None) -> "list[KGDescriptor]":
+    """Locate every local KG, PRIMARY FIRST.
+
+    Order matters: this list drives the UI picker, and whatever comes
+    first is what a user sees without clicking anything. The integrated KG
+    is the graph that every agent tool writes into and that most questions
+    are actually about, so it leads. The proteomics graph is a static
+    reference compendium — useful, but not where a session's own findings
+    accumulate.
+    """
     root = (root or PROJECT_ROOT).resolve()
     out: "list[KGDescriptor]" = []
-
-    prot = root / "Data" / "Proteomics" / "KG" / "proteomics.sqlite"
-    tables = _sqlite_table_names(prot)
-    out.append(KGDescriptor(
-        key="proteomics",
-        label="Proteomics PPI-KG",
-        path=prot,
-        kind="proteomics",
-        description=(
-            "BioGRID / IntAct / HuRI / Reactome / KEGG + IGVF protein "
-            "evidence integrated into one SQLite KG by "
-            "`proteomics build-kg`."
-        ),
-        enabled=bool(tables) and "interactions" in tables,
-    ))
 
     # The growing integrated graph. NOTE the filename: every writer
     # (_localstore, portal_to_kg_skill, sce2g_kg_skill, variant-list) uses
@@ -113,12 +107,30 @@ def discover_local_kgs(root: Optional[Path] = None) -> "list[KGDescriptor]":
         path=local,
         kind="portal",
         description=(
-            "The growing local graph: annotated variants, genes, regulatory "
-            "elements, diseases and pathways, plus analysis provenance. Fed "
-            "by `variant-list annotate`, `portal-kg pull`, `sce2g`, and every "
+            "PRIMARY graph. Everything this session learns lands here: "
+            "annotated variants, genes, regulatory elements, diseases and "
+            "pathways, plus analysis provenance. Fed by "
+            "`variant-list annotate`, `portal-kg pull`, `sce2g`, and every "
             "agent tool call."
         ),
         enabled=bool(tables) and "nodes" in tables and "edges" in tables,
+    ))
+
+    prot = root / "Data" / "Proteomics" / "KG" / "proteomics.sqlite"
+    tables = _sqlite_table_names(prot)
+    out.append(KGDescriptor(
+        key="proteomics",
+        label="Proteomics PPI-KG",
+        path=prot,
+        kind="proteomics",
+        description=(
+            "REFERENCE compendium, rebuilt wholesale by "
+            "`proteomics build-kg`. BioGRID / IntAct / HuRI / Reactome / "
+            "KEGG + IGVF protein evidence. Interaction- and pathway-centric, "
+            "so it answers 'what is known about this protein', not 'what did "
+            "I find'."
+        ),
+        enabled=bool(tables) and "interactions" in tables,
     ))
 
     # Legacy path, kept so an older checkout's data is still reachable.
@@ -581,6 +593,15 @@ def _ensure_in_session(st, key: str, default):
         st.session_state[key] = default
 
 
+def _one_line(desc: "KGDescriptor") -> str:
+    """Short caption under a radio option: what the graph is, in a phrase."""
+    if desc.kind == "proteomics":
+        return "Reference — published interactions & pathways"
+    if desc.key == "local":
+        return "Primary — grows from your own analyses"
+    return "Legacy mirror"
+
+
 def render_streamlit_panel(st) -> None:
     """Drop-in Streamlit panel.
 
@@ -616,17 +637,58 @@ def render_streamlit_panel(st) -> None:
             st.caption(d.description)
         return
 
-    # KG selector
+    # KG selector.
+    #
+    # This is deliberately a radio, not a selectbox: a dropdown shows one
+    # graph and hides the rest, so whichever happened to be first read as
+    # "the" knowledge graph and the others were never discovered. A radio
+    # puts every available graph on screen at once.
     options = {d.key: d for d in enabled}
     keys = list(options.keys())
-    sel = st.selectbox(
+
+    if len(keys) > 1:
+        st.markdown(f"**{len(keys)} knowledge graphs are available here** — "
+                    "they are separate on purpose (see *Why more than one?* "
+                    "below). Pick one to explore:")
+
+    radio_kw = {}
+    try:  # `captions=` landed in Streamlit 1.28; degrade quietly if absent.
+        import inspect
+        if "captions" in inspect.signature(st.radio).parameters:
+            radio_kw["captions"] = [_one_line(options[k]) for k in keys]
+    except (TypeError, ValueError):
+        pass
+
+    sel = st.radio(
         "Knowledge graph",
         keys,
         format_func=lambda k: options[k].label,
-        key="kg_viz_kg_select",
+        key="kg_viz_kg_choice",
+        **radio_kw,
     )
     desc = options[sel]
     st.caption(desc.description + f"  ·  `{desc.path}`")
+
+    if len(keys) > 1:
+        with st.expander("Why more than one knowledge graph?", expanded=False):
+            st.markdown(
+                "They answer different questions and are kept apart so one "
+                "cannot overwrite the other:\n\n"
+                "- **IGVF integrated KG** — *your* graph. Every annotation, "
+                "portal pull and agent tool call accumulates here, with "
+                "provenance. It grows as you work.\n"
+                "- **Proteomics PPI-KG** — a *reference* compendium of "
+                "published interactions and pathways, rebuilt wholesale from "
+                "BioGRID / IntAct / HuRI / Reactome / KEGG.\n\n"
+                "Merging them would mean rebuilding the reference data "
+                "destroys session findings, and 'what I measured' could no "
+                "longer be told apart from 'what the literature says'. To "
+                "bring reference edges into your graph for a specific gene "
+                "set, pull them in explicitly rather than merging the "
+                "stores:\n\n"
+                "```\nigvfagent pathway-viz --genes TP53,MDM2,CDKN1A\n"
+                "igvfagent proteomics kg-stats\n```"
+            )
 
     try:
         acc = accessor_for(desc)
