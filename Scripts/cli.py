@@ -44,6 +44,14 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "cCRE / FAVOR / linkage annotations"),
     "mpra":             ("igvfagent.mpra_data_skills",
                           "MPRA / STARR / BlueSTARR retrieval and analysis"),
+    "oligo":            ("igvfagent.mpra_oligo_design_skill",
+                          "MPRA oligo library design: tiling, REF/ALT variant "
+                          "oligos, synthesis filters, adapters (port of "
+                          "kircherlab/MPRAOligoDesign)"),
+    "mpraflow":         ("igvfagent.mpra_snakeflow_skill",
+                          "MPRA counts: barcode->oligo assignment, count "
+                          "normalisation, replicate aggregation, allelic "
+                          "skew (port of kircherlab/MPRAsnakeflow)"),
     "starrseq":         ("igvfagent.starr_seq_skill",
                           "STARR-seq allelic test (mpralm clean-room rewrite)"),
     "share":            ("igvfagent.share_seq_skill",
