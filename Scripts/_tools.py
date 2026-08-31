@@ -750,6 +750,348 @@ _TOOLS: "list[Tool]" = [
     ),
 
     # ──────────────────────────────────────────────────────────────────
+    # MPRA oligo LIBRARY DESIGN (the wet-lab step before `mpra activity`).
+    # Python port of kircherlab/MPRAOligoDesign (Max Schubach, BIH; MIT),
+    # reimplemented on the standard library — no Snakemake/conda/bedtools.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "oligo_tile",
+        "★ MPRA TILING: REGIONS → OLIGO WINDOWS ★. Turns a region BED into "
+        "oligo-sized windows using the three upstream strategies, picked "
+        "automatically by region length: a region shorter than "
+        "--centering-max becomes ONE centred, padded oligo; a mid-length "
+        "region becomes TWO tiles pinned to its ends; anything longer is "
+        "tiled from the centre outwards with at least --min-overlap bp of "
+        "overlap so no base falls in a gap. Emits regions.tiles.bed.gz with "
+        "tile names '<region>_<fwd|rev|none>_tile<i>-<n>'. USE THIS before "
+        "designing sequences whenever regions are not already oligo-sized.",
+        {
+            "type": "object",
+            "properties": {
+                "regions":       {**_S_STRING, "description":
+                                   "Region BED (.bed or .bed.gz)."},
+                "oligo_length":  {**_S_INTEGER, "default": 200},
+                "min_overlap":   {**_S_INTEGER, "default": 50},
+                "centering_max": {**_S_INTEGER, "description":
+                                   "Regions <= this get one centred oligo."},
+                "two_tiles_max": {**_S_INTEGER},
+                "variant_edge_exclusion": {**_S_INTEGER, "default": 20},
+                "include_variant_edge":   {**_S_BOOLEAN, "default": False},
+                "label":         {**_S_STRING},
+            },
+            "required": ["regions"],
+        },
+        cli=["oligo", "tile"],
+        flag_map={"regions": "--regions", "oligo_length": "--oligo-length",
+                   "min_overlap": "--min-overlap",
+                   "centering_max": "--centering-max",
+                   "two_tiles_max": "--two-tiles-max",
+                   "variant_edge_exclusion": "--variant-edge-exclusion",
+                   "label": "--label"},
+        bool_flags=("include_variant_edge",),
+    ),
+    _T(
+        "oligo_design_variants",
+        "★ MPRA REF/ALT VARIANT OLIGO DESIGN ★. For every variant in a VCF, "
+        "finds the region(s) that contain it and writes a matched pair of "
+        "oligos differing at exactly that position — REF_<region> and "
+        "ALT_<region>_<variant> — which is the contrast an allelic MPRA "
+        "actually measures. Handles SNVs, MNVs and indels (a deletion's REF "
+        "window is extended so both oligos stay the same length), and "
+        "reverse-complements '-' strand regions. --variant-edge-exclusion "
+        "keeps variants away from the oligo edge where flanking context is "
+        "truncated; variants that fit no region are written to "
+        "variants.removed.vcf.gz rather than silently dropped. Emits "
+        "design.fa plus Variant→Region→REF_ID→ALT_ID maps.",
+        {
+            "type": "object",
+            "properties": {
+                "regions":   {**_S_STRING},
+                "variants":  {**_S_STRING, "description": "VCF (.vcf/.vcf.gz)."},
+                "reference": {**_S_STRING, "description":
+                               "Genome FASTA (uncompressed; .fai used if present)."},
+                "variant_edge_exclusion": {**_S_INTEGER, "default": 20},
+                "use_all_regions": {**_S_BOOLEAN, "default": False,
+                                     "description":
+                                     "Design against every matching region "
+                                     "(default: only the most centred)."},
+                "remove_regions_without_variants": {**_S_BOOLEAN,
+                                                     "default": False},
+                "label":     {**_S_STRING},
+            },
+            "required": ["regions", "variants", "reference"],
+        },
+        cli=["oligo", "design-variants"],
+        flag_map={"regions": "--regions", "variants": "--variants",
+                   "reference": "--reference",
+                   "variant_edge_exclusion": "--variant-edge-exclusion",
+                   "label": "--label"},
+        bool_flags=("use_all_regions", "remove_regions_without_variants"),
+    ),
+    _T(
+        "oligo_design_regions",
+        "★ MPRA REGION OLIGO DESIGN ★. Extracts the oligo sequence for every "
+        "region in a BED from the reference genome, reverse-complementing "
+        "'-' strand regions. Fails loudly if any region is not exactly "
+        "--oligo-length bp (run oligo_tile first, or pass no_length_check).",
+        {
+            "type": "object",
+            "properties": {
+                "regions":         {**_S_STRING},
+                "reference":       {**_S_STRING},
+                "oligo_length":    {**_S_INTEGER, "default": 200},
+                "no_length_check": {**_S_BOOLEAN, "default": False},
+                "label":           {**_S_STRING},
+            },
+            "required": ["regions", "reference"],
+        },
+        cli=["oligo", "design-regions"],
+        flag_map={"regions": "--regions", "reference": "--reference",
+                   "oligo_length": "--oligo-length", "label": "--label"},
+        bool_flags=("no_length_check",),
+    ),
+    _T(
+        "oligo_filter",
+        "★ MPRA DESIGN FILTERS ★. Drops oligos that would break synthesis or "
+        "confound the readout, and writes filter.log.tsv naming the reason "
+        "for every drop. Sequence-level: homopolymer runs longer than "
+        "--max-homopolymer-length, and any EcoRI (G^AATTC) or SbfI "
+        "(CCTGCA^GG) site — those are the cloning sites, so an insert "
+        "containing one cannot be cut back out. Coordinate-level (needs "
+        "--regions): simple repeats covering more than "
+        "--max-simple-repeat-fraction of the window, TSS overlap, and CTCF "
+        "motif overlap. If a REF oligo fails its ALT partners are dropped "
+        "too, since an ALT with no REF is not interpretable. Annotation BEDs "
+        "are looked up in Data/Reference/OligoDesign/; a missing one "
+        "disables just that filter with a warning.",
+        {
+            "type": "object",
+            "properties": {
+                "design":      {**_S_STRING, "description": "Designed oligo FASTA."},
+                "regions":     {**_S_STRING, "description":
+                                 "Region BED — enables repeat/TSS/CTCF filters."},
+                "map":         {**_S_STRING},
+                "variant_map": {**_S_STRING},
+                "max_homopolymer_length":     {**_S_INTEGER, "default": 10},
+                "max_simple_repeat_fraction": {"type": "number", "default": 0.25},
+                "simple_repeats": {**_S_STRING},
+                "tss_positions":  {**_S_STRING},
+                "ctcf_motifs":    {**_S_STRING},
+                "label":       {**_S_STRING},
+            },
+            "required": ["design"],
+        },
+        cli=["oligo", "filter"],
+        flag_map={"design": "--design", "regions": "--regions",
+                   "map": "--map", "variant_map": "--variant-map",
+                   "max_homopolymer_length": "--max-homopolymer-length",
+                   "max_simple_repeat_fraction": "--max-simple-repeat-fraction",
+                   "simple_repeats": "--simple-repeats",
+                   "tss_positions": "--tss-positions",
+                   "ctcf_motifs": "--ctcf-motifs", "label": "--label"},
+    ),
+    _T(
+        "oligo_pipeline",
+        "★ MPRA OLIGO LIBRARY, END TO END ★. tile → design → filter → "
+        "adapters in one run directory: takes regions (and optionally a VCF) "
+        "plus a reference genome and returns a synthesis-ready design.fa.gz "
+        "with ids namespaced '<sample>:<id>', every intermediate map, a "
+        "per-drop filter log, and summary.json with counts for each stage. "
+        "USE THIS to go from a candidate region/variant list to an order "
+        "form in one call; use the individual tools only to inspect or "
+        "re-run a single stage.",
+        {
+            "type": "object",
+            "properties": {
+                "regions":       {**_S_STRING},
+                "variants":      {**_S_STRING, "description":
+                                   "Optional VCF; omit for a region-only design."},
+                "reference":     {**_S_STRING},
+                "tile":          {**_S_BOOLEAN, "default": False,
+                                   "description":
+                                   "Tile regions first (skip if oligo-sized)."},
+                "oligo_length":  {**_S_INTEGER, "default": 200},
+                "min_overlap":   {**_S_INTEGER, "default": 50},
+                "centering_max": {**_S_INTEGER},
+                "variant_edge_exclusion": {**_S_INTEGER, "default": 20},
+                "left_adapter":  {**_S_STRING},
+                "right_adapter": {**_S_STRING},
+                "max_homopolymer_length": {**_S_INTEGER, "default": 10},
+                "use_all_regions": {**_S_BOOLEAN, "default": False},
+                "remove_regions_without_variants": {**_S_BOOLEAN, "default": False},
+                "label":         {**_S_STRING},
+            },
+            "required": ["regions", "reference"],
+        },
+        cli=["oligo", "pipeline"],
+        flag_map={"regions": "--regions", "variants": "--variants",
+                   "reference": "--reference", "oligo_length": "--oligo-length",
+                   "min_overlap": "--min-overlap",
+                   "centering_max": "--centering-max",
+                   "variant_edge_exclusion": "--variant-edge-exclusion",
+                   "left_adapter": "--left-adapter",
+                   "right_adapter": "--right-adapter",
+                   "max_homopolymer_length": "--max-homopolymer-length",
+                   "label": "--label"},
+        bool_flags=("tile", "use_all_regions",
+                     "remove_regions_without_variants"),
+    ),
+
+    # ──────────────────────────────────────────────────────────────────
+    # MPRA COUNT + ASSIGNMENT (what comes back off the sequencer, after
+    # `oligo` designed the library). Python port of the analysis core of
+    # kircherlab/MPRAsnakeflow (Max Schubach, BIH; MIT), validated
+    # bit-identical against the upstream scripts.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "mpraflow_assign_filter",
+        "★ MPRA BARCODE→OLIGO ASSIGNMENT ★. Turns barcode-sorted "
+        "'barcode<TAB>oligo<TAB>quality' triples (what any aligner "
+        "backend emits) into a trusted assignment. A barcode is kept only "
+        "when at least --minimum reads support it AND at least --fraction "
+        "of them name the same oligo; barcodes whose reads disagree are "
+        "reported as ambiguous and DROPPED, never guessed. Emits the "
+        "assignment plus barcodes-per-oligo coverage stats — the headline "
+        "assignment QC, since oligos with few barcodes give noisy ratios.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs":    {**_S_STRING, "description":
+                              "Barcode-sorted barcode/oligo/quality TSV."},
+                "minimum":  {**_S_INTEGER, "default": 3},
+                "fraction": {"type": "number", "default": 0.75,
+                              "description": "Must exceed 0.5."},
+                "report_other":     {**_S_BOOLEAN, "default": False},
+                "report_ambiguous": {**_S_BOOLEAN, "default": False},
+                "label":    {**_S_STRING},
+            },
+            "required": ["pairs"],
+        },
+        cli=["mpraflow", "assign-filter"],
+        flag_map={"pairs": "--pairs", "minimum": "--minimum",
+                   "fraction": "--fraction", "label": "--label"},
+        bool_flags=("report_other", "report_ambiguous"),
+    ),
+    _T(
+        "mpraflow_merge_counts",
+        "★ MPRA PER-OLIGO ACTIVITY FROM BARCODE COUNTS ★. Joins per-barcode "
+        "DNA/RNA counts to the assignment and produces the per-oligo "
+        "activity table: counts summed over an oligo's barcodes, divided "
+        "by the barcode count, scaled per million, then ratio = RNA/DNA "
+        "and log2FoldChange. Optional outlier removal drops barcodes whose "
+        "DNA/RNA ratio deviates from their oligo's median ('ratio_mad') or "
+        "whose RNA count is extreme for their oligo ('rna_counts_zscore'). "
+        "Reports how many barcodes matched the assignment — a low match "
+        "rate means the assignment and the counts came from different "
+        "libraries.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":     {**_S_STRING, "description":
+                                "barcode/dna_count/rna_count TSV."},
+                "assignment": {**_S_STRING},
+                "min_dna_counts": {**_S_INTEGER, "default": 0},
+                "min_rna_counts": {**_S_INTEGER, "default": 1},
+                "outlier_detection": {**_S_STRING, "enum":
+                                       ["ratio_mad", "rna_counts_zscore"]},
+                "label":      {**_S_STRING},
+            },
+            "required": ["counts", "assignment"],
+        },
+        cli=["mpraflow", "merge-counts"],
+        flag_map={"counts": "--counts", "assignment": "--assignment",
+                   "min_dna_counts": "--min-dna-counts",
+                   "min_rna_counts": "--min-rna-counts",
+                   "outlier_detection": "--outlier-detection",
+                   "label": "--label"},
+    ),
+    _T(
+        "mpraflow_variant_table",
+        "★ MPRA ALLELIC SKEW ★. Given a per-oligo count table and a "
+        "declaration naming which oligo is REF and which is ALT for each "
+        "variant, computes log2FoldChange_expression = "
+        "log2(ratio_ALT / ratio_REF) — how much the alternate allele "
+        "changes reporter activity. This is the number an allelic MPRA "
+        "exists to produce.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":      {**_S_STRING},
+                "declaration": {**_S_STRING, "description":
+                                 "TSV with columns ID, REF, ALT."},
+                "label":       {**_S_STRING},
+            },
+            "required": ["counts", "declaration"],
+        },
+        cli=["mpraflow", "variant-table"],
+        flag_map={"counts": "--counts", "declaration": "--declaration",
+                   "label": "--label"},
+    ),
+    _T(
+        "mpraflow_complexity",
+        "★ MPRA LIBRARY COMPLEXITY (LINCOLN-PETERSEN) ★. Answers 'would "
+        "deeper sequencing help?'. Treats each replicate as a capture of "
+        "the barcode pool and barcodes seen in two replicates as "
+        "recaptures, giving a mark-recapture estimate of the TRUE library "
+        "size; the gap between observed and estimated barcodes is the "
+        "fraction of the library the sequencing missed. Reads the IGVF "
+        "'reporter experiment barcode' wide file directly (one row per "
+        "barcode, empty cells where a replicate did not see it) in a "
+        "single streaming pass, so it scales to the 13M-barcode 240K "
+        "libraries. Reproduces the figures in Rosen et al. (2025) exactly "
+        "for 8K-neurons and 80K-neurons.",
+        {
+            "type": "object",
+            "properties": {
+                "barcode_file": {**_S_STRING, "description":
+                                  "IGVF 'reporter experiment barcode' TSV."},
+                "label":        {**_S_STRING},
+            },
+            "required": ["barcode_file"],
+        },
+        cli=["mpraflow", "complexity"],
+        flag_map={"barcode_file": "--barcode-file", "label": "--label"},
+    ),
+    _T(
+        "mpraflow_pipeline",
+        "★ MPRA EXPERIMENT, END TO END ★. assignment + per-replicate "
+        "barcode counts → per-oligo activity per replicate → master table "
+        "filtered on barcodes-per-oligo → pooled per-oligo table → "
+        "per-replicate and pooled allelic variant tables. Replicates are "
+        "passed as repeated NAME=PATH pairs. USE THIS to take a finished "
+        "MPRA experiment from counts to activity and allelic skew in one "
+        "call; use the individual tools to inspect or re-run one stage.",
+        {
+            "type": "object",
+            "properties": {
+                "assignment":  {**_S_STRING},
+                "replicate":   {**_S_ARRAY_S, "description":
+                                 "Repeated NAME=PATH, e.g. rep1=rep1.tsv.gz."},
+                "declaration": {**_S_STRING, "description":
+                                 "Optional ID/REF/ALT TSV for allelic skew."},
+                "labels":      {**_S_STRING},
+                "threshold":   {**_S_INTEGER, "default": 10,
+                                 "description":
+                                 "Minimum barcodes per oligo per replicate."},
+                "outlier_detection": {**_S_STRING, "enum":
+                                       ["ratio_mad", "rna_counts_zscore"]},
+                "min_dna_counts": {**_S_INTEGER, "default": 0},
+                "min_rna_counts": {**_S_INTEGER, "default": 1},
+                "label":       {**_S_STRING},
+            },
+            "required": ["assignment", "replicate"],
+        },
+        cli=["mpraflow", "pipeline"],
+        flag_map={"assignment": "--assignment", "replicate": "--replicate",
+                   "declaration": "--declaration", "labels": "--labels",
+                   "threshold": "--threshold",
+                   "outlier_detection": "--outlier-detection",
+                   "min_dna_counts": "--min-dna-counts",
+                   "min_rna_counts": "--min-rna-counts", "label": "--label"},
+        flag_repeat=("replicate",),
+    ),
+
+    # ──────────────────────────────────────────────────────────────────
     # 10x Multiome analytics — clean-room reimplementations of methods in
     # 10XGenomics/analysis_guides + Stuart-lab Signac (MIT) extensions.
     # ──────────────────────────────────────────────────────────────────

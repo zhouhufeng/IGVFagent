@@ -1,0 +1,87 @@
+{
+  "paper": {
+    "authors": "Rosen JD et al.",
+    "journal": "bioRxiv (Genome Research 2026)",
+    "year": 2025,
+    "doi": "10.1101/2025.09.25.678548",
+    "pmid": "41256401",
+    "pmcid": "PMC12621732"
+  },
+  "data_source": {
+    "type": "igvf_portal_mpra",
+    "analysis_set": "IGVFDS1933XFAF",
+    "input_file": "IGVFFI4856GPLO (reporter experiment barcode)",
+    "reference_file": "IGVFFI3491STGH (reporter experiment)",
+    "note": "The reference file is the authors' own MPRAsnakeflow output for the same input, published on the IGVF portal. This is a direct numeric reproduction, not a smoke test.",
+    "complexity_files": {
+      "IGVFFI0032GUOI": "8K-neurons reporter experiment barcode",
+      "IGVFFI8345QIJJ": "80K-neurons (NGN2) reporter experiment barcode"
+    }
+  },
+  "skill_output_dir": "MPRASnakeflow",
+  "label": "rosen2025_mprasnakeflow",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "master table written",
+      "type": "artefact",
+      "filename": "master_table.all.tsv.gz"
+    },
+    {
+      "name": "row count matches the published IGVF artefact",
+      "type": "range",
+      "min": 35110,
+      "max": 35110,
+      "expected": 35110,
+      "path": "rows_mine"
+    },
+    {
+      "name": "every (replicate, oligo) key is present, none extra",
+      "type": "range",
+      "min": 1,
+      "max": 1,
+      "expected": 1,
+      "path": "keys_identical"
+    },
+    {
+      "name": "no row differs from the published values",
+      "type": "range",
+      "min": 0,
+      "max": 0,
+      "expected": 0,
+      "path": "rows_differing_total"
+    },
+    {
+      "name": "max absolute difference is zero across all compared values",
+      "type": "range",
+      "min": 0,
+      "max": 1e-09,
+      "expected": 0,
+      "path": "max_abs_diff"
+    },
+    {
+      "name": "full value coverage (35110 rows x 6 columns)",
+      "type": "range",
+      "min": 210660,
+      "max": 210660,
+      "expected": 210660,
+      "path": "values_compared"
+    },
+    {
+      "name": "published complexity claims checked (8K-neurons, 80K-neurons)",
+      "type": "range",
+      "path": "claims_checked",
+      "min": 2,
+      "max": 2,
+      "expected": 2
+    },
+    {
+      "name": "every published complexity claim reproduced exactly",
+      "type": "range",
+      "path": "claims_exact",
+      "min": 2,
+      "max": 2,
+      "expected": 2
+    }
+  ]
+}
