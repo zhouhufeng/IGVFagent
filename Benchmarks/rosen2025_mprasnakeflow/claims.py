@@ -13,12 +13,33 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Scripts"))
 from mpra_snakeflow_skill import (  # noqa: E402
     read_wide_barcode_file, complexity_metrics)
+from mpralib_skill import run_outliers  # noqa: E402
 
 # (label, IGVF file accession, paper's median observed, paper's median Lincoln)
 CLAIMS = [
     ("8K-neurons", "IGVFFI0032GUOI", 1_444_480, 1_523_572),
     ("80K-neurons", "IGVFFI8345QIJJ", 5_459_247, 6_243_618),
 ]
+
+
+# Outlier replicate-consistency, Figure 4B. The paper reports
+# flagged-in-all / mean-flagged-per-replicate, NOT over the union.
+# (label, accession, paper percentage)
+CONSISTENCY_CLAIMS = [
+    ("12K-cardiop", "IGVFFI4856GPLO", 7.8),
+]
+
+
+def _consistency(path) -> float:
+    res = run_outliers(str(path), "global", times_zscore=3.0,
+                       times_activity=5.0)
+    flagged = res["_flagged"]
+    reps = res["replicates"]
+    inter = set(flagged[reps[0]])
+    for r in reps[1:]:
+        inter &= flagged[r]
+    mean_per_rep = sum(len(flagged[r]) for r in reps) / len(reps)
+    return 100.0 * len(inter) / mean_per_rep if mean_per_rep else 0.0
 
 
 def main(data_dir: str, out_json: str) -> int:
@@ -48,6 +69,23 @@ def main(data_dir: str, out_json: str) -> int:
         mark = "EXACT" if ok else "DIFFERS"
         print(f"  {label:14s} observed {got_obs:>12,} (paper {exp_obs:>12,})  "
               f"Lincoln {got_lin:>12,} (paper {exp_lin:>12,})  {mark}")
+
+    for label, acc, exp_pct in CONSISTENCY_CLAIMS:
+        path = d / f"{acc}.tsv.gz"
+        if not path.exists():
+            print(f"  {label}: input {path} missing — skipped")
+            continue
+        got = round(_consistency(path), 1)
+        ok = abs(got - exp_pct) < 0.05
+        exact += int(ok)
+        results.append({
+            "dataset": label, "file": acc,
+            "metric": "global outlier replicate consistency (%)",
+            "value": got, "paper_value": exp_pct,
+            "matches_paper": int(ok),
+        })
+        print(f"  {label:14s} outlier consistency {got:>5.1f}% "
+              f"(paper {exp_pct:>5.1f}%)  {'EXACT' if ok else 'DIFFERS'}")
 
     summary = {"claims_checked": len(results),
                "claims_exact": exact,

@@ -1028,6 +1028,64 @@ _TOOLS: "list[Tool]" = [
                    "label": "--label"},
     ),
     _T(
+        "mpralib_outliers",
+        "★ MPRA BARCODE OUTLIER DETECTION ★. An oligo's activity is an "
+        "average over its barcodes, so a few barcodes with wild RNA counts "
+        "(a PCR jackpot, an unlucky integration site) can drag its ratio "
+        "away from where the rest sit. Three detectors from Rosen et al. "
+        "(2025), each catching a different failure: 'global' flags a "
+        "barcode extreme for the whole replicate (|z|>3 on RNA counts); "
+        "'oligo' flags one extreme for its OWN oligo (|z|>3 within the "
+        "oligo); 'large_expression' flags activity running more than 5 "
+        "log2-units ABOVE the oligo median (one-sided by design — runaway "
+        "expression, not silence). NOTE the paper found removal changes "
+        "variant calls very little (r>0.95), so report these as "
+        "diagnostics rather than filtering by reflex.",
+        {
+            "type": "object",
+            "properties": {
+                "barcode_file": {**_S_STRING, "description":
+                                  "IGVF 'reporter experiment barcode' TSV."},
+                "method": {**_S_STRING,
+                            "enum": ["global", "oligo", "large_expression"],
+                            "default": "global"},
+                "times_zscore":   {"type": "number", "default": 3.0},
+                "times_activity": {"type": "number", "default": 5.0},
+                "label":          {**_S_STRING},
+            },
+            "required": ["barcode_file"],
+        },
+        cli=["mpralib", "outliers"],
+        flag_map={"barcode_file": "--barcode-file", "method": "--method",
+                   "times_zscore": "--times-zscore",
+                   "times_activity": "--times-activity", "label": "--label"},
+    ),
+    _T(
+        "mpralib_consistency",
+        "★ MPRA OUTLIER REPRODUCIBILITY ACROSS REPLICATES ★. Of the "
+        "barcodes a replicate flags as outliers, what fraction is flagged "
+        "in EVERY replicate. A detector firing on the same barcodes each "
+        "time is describing the library; one firing on different barcodes "
+        "each time is describing noise. Rosen et al. found episomal assays "
+        "far more consistent (63-84%) than lentiviral ones (6-49%), and "
+        "differentiated cells more consistent than progenitors. Reported "
+        "as flagged-in-all / mean-flagged-per-replicate, the paper's "
+        "definition.",
+        {
+            "type": "object",
+            "properties": {
+                "barcode_file": {**_S_STRING},
+                "method": {**_S_STRING, "enum": ["global", "oligo"],
+                            "default": "global"},
+                "label":  {**_S_STRING},
+            },
+            "required": ["barcode_file"],
+        },
+        cli=["mpralib", "consistency"],
+        flag_map={"barcode_file": "--barcode-file", "method": "--method",
+                   "label": "--label"},
+    ),
+    _T(
         "mpraflow_complexity",
         "★ MPRA LIBRARY COMPLEXITY (LINCOLN-PETERSEN) ★. Answers 'would "
         "deeper sequencing help?'. Treats each replicate as a capture of "

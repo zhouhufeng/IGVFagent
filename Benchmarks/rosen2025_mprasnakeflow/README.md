@@ -86,6 +86,39 @@ barcode file and checked by `claims.py`:
 
 Both to the digit.
 
+### Outlier reproducibility (Figure 4B)
+
+`igvfagent mpralib consistency` recomputes the fraction of outlier
+barcodes flagged in *every* replicate:
+
+| Dataset | Paper | IGVFagent |
+|---|---|---|
+| 12K-cardioprogenitors | 7.8% | **7.8%** |
+| 80K-neurons | 49.6% | 49.0% |
+
+The metric's denominator matters and is easy to get wrong: the paper's
+"percentage of barcodes consistently identified as outliers across all
+three replicates" is *flagged-in-all / mean-flagged-per-replicate*. Over
+the union the same data reads 3.0% where the paper reports 7.8%.
+
+Outlier **rates** also land inside the paper's published lentiviral
+ranges (Figure 4A) for both datasets that are in its outlier panel:
+
+| Dataset | Method | Paper range | IGVFagent |
+|---|---|---|---|
+| 12K-cardiop | global | 0.67–1.56% | 1.06% |
+| 80K-neurons | global | 0.67–1.56% | 1.46% |
+| 12K-cardiop | oligo-specific | 0.85–1.86% | 1.75% |
+
+(8K-neurons is *not* in the paper's eight-dataset outlier panel, so its
+rates are not expected to fall in those ranges.)
+
+The 80K-neurons consistency figure is 0.6 pp low. Both published NGN2
+file versions give 49.0%, and applying the paper's stated pre-filters
+(zero RNA CPM, DNA CPM below the 5th percentile, oligos with ≥20
+barcodes) moves it *further* away, to 48.6% — so the residual is not
+explained by the filtering step as written.
+
 ### Which file version the paper used
 
 80K-neurons has two published barcode files. Only

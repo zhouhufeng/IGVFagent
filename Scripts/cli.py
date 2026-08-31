@@ -52,6 +52,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "MPRA counts: barcode->oligo assignment, count "
                           "normalisation, replicate aggregation, allelic "
                           "skew (port of kircherlab/MPRAsnakeflow)"),
+    "mpralib":          ("igvfagent.mpralib_skill",
+                          "MPRA barcode QC: outlier detection (global / "
+                          "oligo-specific / large-expression), replicate "
+                          "agreement, per-barcode activity (port of "
+                          "kircherlab/MPRAlib)"),
     "starrseq":         ("igvfagent.starr_seq_skill",
                           "STARR-seq allelic test (mpralm clean-room rewrite)"),
     "share":            ("igvfagent.share_seq_skill",
