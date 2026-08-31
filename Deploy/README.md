@@ -97,9 +97,38 @@ curl -s localhost/healthz    # unauthenticated probe
 Update to a new code revision:
 
 ```bash
+cd /srv/igvfagent && bash Deploy/redeploy.sh
+```
+
+`redeploy.sh` pulls, rebuilds with `--no-cache`, recreates the container,
+and then **verifies** that the Python actually installed inside the
+container matches this checkout. It exits non-zero if it does not.
+
+**Why a script rather than three commands.** The app container does not
+mount the source tree — compose mounts only `/mnt/igvf-data/{Data,Docs}`,
+and `Scripts/streamlit_app.py` imports `from igvfagent import ...`, i.e.
+the package installed into `/opt/venv` by `pip install '.[all]'` at image
+**build** time. So `git pull` updates the checkout while the container
+keeps serving whatever was baked into the image, and the site looks
+unchanged however many times you pull. A bare `docker build` can no-op
+too: run it from the wrong directory and it builds the wrong context; let
+a cached layer stand or the image id not move and the container is never
+recreated. Each of those failures is silent, which is why the script
+checks rather than assumes.
+
+To check without changing anything:
+
+```bash
+cd /srv/igvfagent && bash Deploy/redeploy.sh --check
+```
+
+The manual equivalent, if you would rather run it by hand:
+
+```bash
 cd /srv/igvfagent && git pull
-docker build -t igvfagent:latest .
-cd Deploy && docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+cd Deploy
+docker compose --env-file .env.prod -f docker-compose.prod.yml build --no-cache app
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate app
 ```
 
 Rotate the shared password (note the re-`chown` — `htpasswd` rewrites the file
