@@ -952,8 +952,12 @@ def barcode_matrix(replicates: list[tuple[str, str]], *,
                 continue
             key = (r["barcode"], oligo)
             cells.setdefault(key, {})
-            cells[key][f"dna_count_{name}"] = int(float(r["dna_count"]))
-            cells[key][f"rna_count_{name}"] = int(float(r["rna_count"]))
+            # Accept the standard suffixed columns or the older plain
+            # dna_count/rna_count, so existing files still load.
+            dna = r.get(f"dna_count_{name}", r.get("dna_count"))
+            rna = r.get(f"rna_count_{name}", r.get("rna_count"))
+            cells[key][f"dna_count_{name}"] = int(float(dna))
+            cells[key][f"rna_count_{name}"] = int(float(rna))
             per_oligo_rep[(oligo, name)] += 1
 
     cols = ["barcode", "oligo_name"] + [
@@ -1368,9 +1372,18 @@ def cmd_pipeline(args) -> int:
         p = out_dir / f"counts.{safe_label(name)}.tsv.gz"
         write_tsv(p, res["table"], cols)
         per_rep.append((name, str(p)))
+        # Suffix the count columns with the replicate name so even this
+        # per-replicate intermediate satisfies the IGVF
+        # `reporter_experiment_barcode` schema (checked by
+        # `igvfagent mpralib validate`). Unsuffixed dna_count/rna_count
+        # are rejected by that schema's additionalProperties: false.
         pb = out_dir / f"barcodes.{safe_label(name)}.tsv.gz"
-        write_tsv(pb, res["barcodes"],
-                  ["barcode", "oligo_name", "dna_count", "rna_count"])
+        rep_rows = [{"barcode": b["barcode"], "oligo_name": b["oligo_name"],
+                     f"dna_count_{name}": b["dna_count"],
+                     f"rna_count_{name}": b["rna_count"]}
+                    for b in res["barcodes"]]
+        write_tsv(pb, rep_rows, ["barcode", "oligo_name",
+                                 f"dna_count_{name}", f"rna_count_{name}"])
         per_rep_bc.append((name, str(pb)))
         rep_stats[name] = res["statistic"]
     summary["per_replicate"] = rep_stats

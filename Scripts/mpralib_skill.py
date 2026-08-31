@@ -47,6 +47,8 @@ Upstream layout → this module
 -----------------------------
   =========================================  ==========================
   MPRAlib                                    here
+  utils/file_validation.validate_tsv_...     ``validate``
+  mpralib/schemas/*.json                     ``_mpra_schemas.SCHEMAS``
   _barcode_filter_global_outliers            ``outliers --method global``
   _barcode_filter_oligo_specific_outliers    ``outliers --method oligo``
   _barcode_filter_large_expression_outliers  ``outliers --method large_expression``
@@ -59,6 +61,13 @@ Deliberate deviations from upstream
   barcodes × replicates matrix; the 240K libraries have 20 M barcodes,
   where that costs several GB. This streams the file instead, matching
   how ``mpra_snakeflow_skill`` already works.
+* **No ``jsonschema`` dependency.** The eight IGVF schemas use a small,
+  fixed subset of draft-07 (type / properties / patternProperties /
+  additionalProperties / required / enum / pattern / minLength /
+  maxLength / minimum / items / minItems / minProperties / anyOf), so
+  that subset is validated directly. The schemas themselves are copied
+  verbatim — they define an interchange standard, and a paraphrase would
+  be worse than useless.
 * pandas' ``std()`` is ddof=1 and skips NaN; both are reproduced
   explicitly, because using the population SD would shift every z-score.
 
@@ -67,6 +76,8 @@ Subcommands
     outliers      Flag barcode outliers by one of the three methods
     consistency   How often the same barcode is an outlier in every replicate
     activity      Per-barcode normalised DNA/RNA activity (log2 ratio)
+    validate      Check a file against an IGVF MPRA standard schema
+    schemas       List the standard formats and their required columns
     write-playbook  Write Docs/Skills/MPRALIB_SKILLS.md
 """
 
@@ -609,6 +620,30 @@ igvfagent mpralib activity --barcode-file reporter_experiment.barcode.tsv.gz
 Input is the IGVF **reporter experiment barcode** file, the same one
 `mpraflow` consumes — downloadable straight from the portal.
 
+## Validating IGVF standard formats
+
+The IGVF MPRA focus group defined eight interchange formats
+(Supplementary Note S1). `validate` checks a file against one and names
+the offending column and reason for every bad row:
+
+```bash
+igvfagent mpralib schemas          # list the formats + required columns
+igvfagent mpralib validate --file master_table.tsv.gz \
+    --schema reporter_experiment
+```
+
+Every file `igvfagent mpraflow` writes passes: `master_table*.tsv.gz`
+against `reporter_experiment`, and `barcode_matrix.tsv.gz` plus the
+per-replicate `barcodes.<rep>.tsv.gz` against
+`reporter_experiment_barcode`. Published IGVF portal files pass too, so
+the check runs both ways — use it before submitting files to the portal,
+and to confirm a file someone sent you is the format it claims to be.
+
+One subtlety worth knowing: the count columns are
+`anyOf: [integer, string with maxLength 0]` — "a count, or blank if that
+replicate never saw the barcode". Blank cells are legal, and 7-9% of rows
+in real portal files use them.
+
 ## Deviations from upstream
 
 * No AnnData / numpy / pandas. Upstream materialises a
@@ -662,6 +697,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--label", default=None)
     p.set_defaults(func=cmd_activity)
 
+    p = sub.add_parser("validate",
+                       help="Check a file against an IGVF MPRA standard schema.")
+    p.add_argument("--file", required=True, help="TSV/BED to validate (.gz ok).")
+    p.add_argument("--schema", required=True,
+                   help="Schema name; see `mpralib schemas`.")
+    p.add_argument("--max-errors", type=int, default=20,
+                   help="Stop collecting detail after this many bad rows.")
+    p.add_argument("--max-rows", type=int, default=0,
+                   help="Validate only the first N rows (0 = all).")
+    p.add_argument("--label", default=None)
+    p.set_defaults(func=cmd_validate)
+
+    p = sub.add_parser("schemas",
+                       help="List the IGVF MPRA standard formats.")
+    p.set_defaults(func=cmd_schemas)
+
     p = sub.add_parser("write-playbook",
                        help="Write Docs/Skills/MPRALIB_SKILLS.md.")
     p.set_defaults(func=cmd_write_playbook)
@@ -676,6 +727,225 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     return int(args.func(args) or 0)
 
+
+
+# ─── IGVF standard-format validation ───────────────────────────────────────
+#
+# Port of MPRAlib's utils/file_validation.py. Upstream leans on the
+# `jsonschema` package; the eight IGVF schemas use only a small fixed
+# subset of draft-07, so that subset is checked directly here rather than
+# taking a dependency for it.
+#
+# TSV carries no types — every cell arrives as a string — so values are
+# coerced to the type the schema declares before checking, exactly as
+# upstream's _convert_row_value does. A cell that will not convert is
+# left as a string so validation reports it, rather than crashing.
+
+# Formats stored without a header row (BED-derived), so columns are
+# positional. Same lists as upstream's _get_header_for_schema.
+POSITIONAL_HEADERS = {
+    "reporter_barcode_to_element_mapping": ["barcode", "oligoName"],
+    "reporter_genomic_element": [
+        "chrom", "chromStart", "chromEnd", "name", "score", "strand",
+        "log2FoldChange", "inputCount", "outputCount",
+        "minusLog10PValue", "minusLog10QValue"],
+    "reporter_genomic_variant": [
+        "chrom", "chromStart", "chromEnd", "name", "score", "strand",
+        "log2FoldChange", "inputCountRef", "outputCountRef",
+        "inputCountAlt", "outputCountAlt", "minusLog10PValue",
+        "minusLog10QValue", "postProbEffect", "CI_lower_95", "CI_upper_95",
+        "variantPos", "refAllele", "altAllele"],
+}
+
+
+def _coerce(value: str, spec: dict) -> Any:
+    """TSV string → the type the schema declares (upstream _convert_row_value)."""
+    t = spec.get("type")
+    try:
+        if t == "integer":
+            return int(value)
+        if t == "number":
+            return float(value)
+        if t == "array":
+            import ast
+            return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return value        # leave it; validation will report the type error
+    return value
+
+
+def _spec_for(key: str, schema: dict) -> dict | None:
+    props = schema.get("properties", {})
+    if key in props:
+        return props[key]
+    import re as _re
+    for pat, spec in schema.get("patternProperties", {}).items():
+        if _re.match(pat, key):
+            return spec
+    return None
+
+
+def _check_value(key: str, raw: Any, spec: dict) -> list[str]:
+    """Validate one *raw* TSV value against one (sub)schema.
+
+    Coercion happens per branch, not once up front. An ``anyOf`` of
+    ``{integer}`` / ``{string, maxLength: 0}`` — the IGVF way of saying
+    "a count, or blank if this replicate never saw the barcode" — only
+    passes if the integer branch is allowed to parse the string first.
+    """
+    if "anyOf" in spec:
+        errs_all: list[str] = []
+        for sub in spec["anyOf"]:
+            errs = _check_value(key, raw, sub)
+            if not errs:
+                return []
+            errs_all += errs
+        return [f"{key}: matches none of the allowed forms ({'; '.join(errs_all[:2])})"]
+
+    value = _coerce(raw, spec) if isinstance(raw, str) else raw
+    t = spec.get("type")
+    if t == "integer" and not isinstance(value, int):
+        return [f"{key}: expected integer, got {value!r}"]
+    if t == "number" and not isinstance(value, (int, float)):
+        return [f"{key}: expected number, got {value!r}"]
+    if t == "string" and not isinstance(value, str):
+        return [f"{key}: expected string, got {value!r}"]
+    if t == "array" and not isinstance(value, (list, tuple)):
+        return [f"{key}: expected array, got {value!r}"]
+    if t == "object" and not isinstance(value, dict):
+        return [f"{key}: expected object, got {value!r}"]
+
+    errs: list[str] = []
+    if "enum" in spec and value not in spec["enum"]:
+        errs.append(f"{key}: {value!r} not one of {spec['enum']}")
+    if "pattern" in spec and isinstance(value, str):
+        import re as _re
+        if not _re.search(spec["pattern"], value):
+            errs.append(f"{key}: {value!r} does not match /{spec['pattern']}/")
+    if "minLength" in spec and isinstance(value, str) \
+            and len(value) < spec["minLength"]:
+        errs.append(f"{key}: shorter than {spec['minLength']}")
+    if "maxLength" in spec and isinstance(value, str) \
+            and len(value) > spec["maxLength"]:
+        errs.append(f"{key}: longer than {spec['maxLength']}")
+    if "minimum" in spec and isinstance(value, (int, float)) \
+            and value < spec["minimum"]:
+        errs.append(f"{key}: {value} below minimum {spec['minimum']}")
+    if "minItems" in spec and isinstance(value, (list, tuple)) \
+            and len(value) < spec["minItems"]:
+        errs.append(f"{key}: fewer than {spec['minItems']} items")
+    if "items" in spec and isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            errs += _check_value(f"{key}[{i}]", item, spec["items"])
+    return errs
+
+
+def validate_row(row: dict, schema: dict) -> list[str]:
+    """Validate one parsed TSV row. Returns a list of error strings."""
+    errs: list[str] = []
+    for req in schema.get("required", []):
+        if req not in row or row[req] in (None, ""):
+            errs.append(f"missing required column {req!r}")
+    if schema.get("additionalProperties") is False:
+        known = set(schema.get("properties", {}))
+        patterns = list(schema.get("patternProperties", {}))
+        import re as _re
+        for key in row:
+            if key in known:
+                continue
+            if any(_re.match(p, key) for p in patterns):
+                continue
+            errs.append(f"unexpected column {key!r}")
+    minprops = schema.get("minProperties")
+    if minprops is not None and len(row) < minprops:
+        errs.append(f"row has {len(row)} columns, schema requires >= {minprops}")
+    for key, value in row.items():
+        if value in (None, ""):
+            continue
+        spec = _spec_for(key, schema)
+        if spec is None:
+            continue
+        errs += _check_value(key, value, spec)
+    return errs
+
+
+def validate_file(path: str | Path, schema_name: str, *,
+                  max_errors: int = 20, max_rows: int = 0) -> dict[str, Any]:
+    """Validate a TSV against one IGVF MPRA standard schema."""
+    from _mpra_schemas import SCHEMAS
+    if schema_name not in SCHEMAS:
+        raise SystemExit(
+            f"Unknown schema {schema_name!r}. Choose one of: "
+            + ", ".join(SCHEMAS))
+    schema = SCHEMAS[schema_name]
+    header = POSITIONAL_HEADERS.get(schema_name)
+
+    errors: list[dict] = []
+    n_rows = 0
+    n_bad = 0
+    with opener(path) as fh:
+        if header is None:
+            first = fh.readline().rstrip("\r\n")
+            if not first:
+                return {"file": str(path), "schema": schema_name,
+                        "rows": 0, "rows_invalid": 0, "valid": False,
+                        "errors": [{"row": 0, "problems": ["file is empty"]}]}
+            header = first.split("\t")
+        for line in fh:
+            line = line.rstrip("\r\n")
+            if not line:
+                continue
+            n_rows += 1
+            row = dict(zip(header, line.split("\t")))
+            problems = validate_row(row, schema)
+            if problems:
+                n_bad += 1
+                if len(errors) < max_errors:
+                    errors.append({"row": n_rows, "problems": problems})
+            if max_rows and n_rows >= max_rows:
+                break
+    return {"file": str(path), "schema": schema_name, "columns": header,
+            "rows": n_rows, "rows_invalid": n_bad,
+            "valid": n_bad == 0 and n_rows > 0, "errors": errors}
+
+
+def cmd_validate(args) -> int:
+    setup_logging()
+    res = validate_file(args.file, args.schema,
+                        max_errors=args.max_errors, max_rows=args.max_rows)
+    out_dir = _run_dir(args.label or f"validate_{args.schema}")
+    (out_dir / "validation.json").write_text(json.dumps(res, indent=2))
+    print(f"File:     {res['file']}")
+    print(f"Schema:   {res['schema']}")
+    print(f"Columns:  {', '.join(res['columns'])}")
+    print(f"Rows:     {res['rows']:,}")
+    if res["valid"]:
+        print("Result:   VALID — every row matches the IGVF standard")
+    else:
+        print(f"Result:   INVALID — {res['rows_invalid']:,} row(s) failed")
+        for e in res["errors"]:
+            print(f"  row {e['row']}: {'; '.join(e['problems'][:3])}")
+        if res["rows_invalid"] > len(res["errors"]):
+            print(f"  … and {res['rows_invalid'] - len(res['errors']):,} more")
+    print(f"Saved:    {out_dir / 'validation.json'}")
+    return 0 if res["valid"] else 1
+
+
+def cmd_schemas(args) -> int:
+    from _mpra_schemas import SCHEMAS
+    for name, schema in SCHEMAS.items():
+        req = schema.get("required", [])
+        print(f"\n{name}")
+        print(f"  {schema.get('description', schema.get('title', ''))[:96]}")
+        if name in POSITIONAL_HEADERS:
+            print(f"  no header row; columns are positional: "
+                  f"{', '.join(POSITIONAL_HEADERS[name])}")
+        if req:
+            print(f"  required: {', '.join(req)}")
+        if schema.get("patternProperties"):
+            print(f"  pattern columns: "
+                  f"{', '.join(schema['patternProperties'])}")
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

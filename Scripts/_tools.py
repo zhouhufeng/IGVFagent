@@ -1061,6 +1061,46 @@ _TOOLS: "list[Tool]" = [
                    "times_activity": "--times-activity", "label": "--label"},
     ),
     _T(
+        "mpralib_validate",
+        "★ IGVF MPRA FORMAT VALIDATION ★. Checks a file against one of the "
+        "eight community file standards agreed by the IGVF MPRA focus "
+        "group (Rosen et al. 2025, Supplementary Note S1): "
+        "reporter_sequence_design, reporter_barcode_to_element_mapping, "
+        "reporter_experiment_barcode, reporter_experiment, "
+        "reporter_element, reporter_variant, reporter_genomic_element, "
+        "reporter_genomic_variant. Reports the offending column and reason "
+        "per bad row, not just pass/fail. USE THIS before submitting files "
+        "to the IGVF portal, and to check that a file someone sent you is "
+        "the format it claims to be. Every file `mpraflow` writes passes.",
+        {
+            "type": "object",
+            "properties": {
+                "file":   {**_S_STRING, "description": "TSV/BED (.gz ok)."},
+                "schema": {**_S_STRING, "description":
+                            "Standard name; see mpralib_schemas."},
+                "max_errors": {**_S_INTEGER, "default": 20},
+                "max_rows":   {**_S_INTEGER, "default": 0,
+                                "description": "0 validates the whole file."},
+                "label":  {**_S_STRING},
+            },
+            "required": ["file", "schema"],
+        },
+        cli=["mpralib", "validate"],
+        flag_map={"file": "--file", "schema": "--schema",
+                   "max_errors": "--max-errors", "max_rows": "--max-rows",
+                   "label": "--label"},
+    ),
+    _T(
+        "mpralib_schemas",
+        "List the eight IGVF MPRA standard file formats with their "
+        "required columns and which ones are headerless/positional. Use to "
+        "pick the right --schema for mpralib_validate, or to answer 'what "
+        "columns does an IGVF reporter experiment file need'.",
+        {"type": "object", "properties": {}},
+        cli=["mpralib", "schemas"],
+        flag_map={},
+    ),
+    _T(
         "mpralib_consistency",
         "★ MPRA OUTLIER REPRODUCIBILITY ACROSS REPLICATES ★. Of the "
         "barcodes a replicate flags as outliers, what fraction is flagged "

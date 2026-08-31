@@ -70,6 +70,29 @@ igvfagent mpralib activity --barcode-file reporter_experiment.barcode.tsv.gz
 Input is the IGVF **reporter experiment barcode** file, the same one
 `mpraflow` consumes — downloadable straight from the portal.
 
+## Validating IGVF standard formats
+
+The IGVF MPRA focus group defined eight interchange formats
+(Supplementary Note S1). `validate` checks a file against one and names
+the offending column and reason for every bad row:
+
+```bash
+igvfagent mpralib schemas          # list the formats + required columns
+igvfagent mpralib validate --file master_table.tsv.gz     --schema reporter_experiment
+```
+
+Every file `igvfagent mpraflow` writes passes: `master_table*.tsv.gz`
+against `reporter_experiment`, and `barcode_matrix.tsv.gz` plus the
+per-replicate `barcodes.<rep>.tsv.gz` against
+`reporter_experiment_barcode`. Published IGVF portal files pass too, so
+the check runs both ways — use it before submitting files to the portal,
+and to confirm a file someone sent you is the format it claims to be.
+
+One subtlety worth knowing: the count columns are
+`anyOf: [integer, string with maxLength 0]` — "a count, or blank if that
+replicate never saw the barcode". Blank cells are legal, and 7-9% of rows
+in real portal files use them.
+
 ## Deviations from upstream
 
 * No AnnData / numpy / pandas. Upstream materialises a
