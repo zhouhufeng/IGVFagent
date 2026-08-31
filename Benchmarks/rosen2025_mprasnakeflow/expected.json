@@ -68,20 +68,20 @@
       "path": "values_compared"
     },
     {
-      "name": "published complexity claims checked (8K-neurons, 80K-neurons)",
+      "name": "published claims checked (2 complexity + 1 outlier consistency)",
       "type": "range",
       "path": "claims_checked",
-      "min": 2,
-      "max": 2,
-      "expected": 2
+      "min": 3,
+      "max": 3,
+      "expected": 3
     },
     {
       "name": "every published complexity claim reproduced exactly",
       "type": "range",
       "path": "claims_exact",
-      "min": 2,
-      "max": 2,
-      "expected": 2
+      "min": 3,
+      "max": 3,
+      "expected": 3
     }
   ]
 }
