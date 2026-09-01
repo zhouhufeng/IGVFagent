@@ -25,10 +25,12 @@ trail mirrors what the human-driven shell-based flow produces.
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -320,6 +322,36 @@ def _format_runtime_error(err_msg: str, backend: str, model: str) -> str:
             "- Check `Docs/Logs/agent_*.log` for the full traceback.\n"
         )
     return msg
+
+
+def _nearest_tools(name: str, tools_mod, k: int = 5) -> "list[str]":
+    """Registered tool names closest to `name`.
+
+    Substring hits first (a model asking for `build_panel_variant_csv`
+    should be shown everything with `panel` or `variant` in it), then
+    edit-distance neighbours for typos.
+    """
+    try:
+        names = [t.name for t in tools_mod.list_tools()]
+    except Exception:
+        return []
+    if not names:
+        return []
+    lowered = (name or "").lower()
+    tokens = [t for t in re.split(r"[^a-z0-9]+", lowered) if len(t) > 3]
+    scored: "list[tuple[int, str]]" = []
+    for n in names:
+        nl = n.lower()
+        overlap = sum(1 for t in tokens if t in nl)
+        if overlap:
+            scored.append((-overlap, n))
+    if scored:
+        scored.sort()
+        return [n for _s, n in scored[:k]]
+    close = difflib.get_close_matches(lowered, [n.lower() for n in names],
+                                      n=k, cutoff=0.6)
+    by_lower = {n.lower(): n for n in names}
+    return [by_lower[c] for c in close if c in by_lower]
 
 
 def _format_tool_result_for_llm(result: dict, max_chars: int = 3500) -> str:
@@ -732,9 +764,24 @@ def run(
                 result = tools_mod.execute(tc.name, tc.arguments or {})
                 tool_calls_made += 1
             except KeyError:
+                # A bare "Unknown tool: X" was too easy to skim past: a
+                # model that invents a plausible tool name then reports
+                # the output files it *assumed* that tool wrote, and the
+                # user gets confident prose about paths that were never
+                # created. Say plainly that nothing ran, and name the
+                # closest real tools so the next turn can recover.
+                near = _nearest_tools(tc.name, tools_mod)
+                hint = (f" Closest registered tools: {', '.join(near)}."
+                        if near else "")
                 result = {
                     "name": tc.name, "exit_code": 127,
-                    "stdout": "", "stderr": f"Unknown tool: {tc.name}",
+                    "stdout": "",
+                    "stderr": (
+                        f"Unknown tool: {tc.name!r}. This tool does not "
+                        f"exist and NOTHING WAS EXECUTED — no command ran, "
+                        f"no files were written, and no output directory "
+                        f"was created. Do not report any results, paths or "
+                        f"artefacts for this call.{hint}"),
                     "artifacts": {},
                 }
             except Exception as e:

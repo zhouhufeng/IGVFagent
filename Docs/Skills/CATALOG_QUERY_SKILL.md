@@ -114,6 +114,56 @@ The catalog stores `log10pvalue = -log10(P)`. To filter for
                                     # log10pvalue=gte:7.301
 ```
 
+## Multi-assay variant evidence (`variant-evidence`)
+
+"Which variants do you have more than N assays for?" is the question the
+per-variant and per-edge queries cannot answer, because it is an
+aggregation across *every* edge a variant participates in.
+
+```bash
+# A candidate set, walked across every variant edge in the Catalog
+igvfagent catalog variant-evidence     --variants rs429358,rs7412,rs1421085,rs12740374 --min-assays 3
+
+# A gene panel: reuse kg-traversal packs already on disk (offline)
+igvfagent catalog variant-evidence     --from-traversal Docs/KGTraversal/2026..._cdk2_variants,Docs/KGTraversal/2026..._e2f1_variants     --min-assays 3
+```
+
+Output is `variant_evidence.tsv` (all variants, ranked),
+`variant_evidence_filtered.tsv` (those clearing `--min-assays`) and a
+`summary.json` carrying the assay vocabulary and count distribution.
+
+**There is no genome-wide mode, on purpose.** The Catalog rejects an
+unfiltered variant-edge query ("At least one variant parameter must be
+defined"), and the `variants` collection is ~944 GB, deliberately outside
+the local mirror. "Every variant with >3 assays" across the whole genome
+is therefore not a question this system can answer; supply a candidate
+set or a gene panel. The command says so at the end of every run rather
+than returning a partial list that reads like a complete one.
+
+**What counts as an assay.** Distinct `method` / `label` values on the
+edges, with two default exclusions that materially change the answer:
+
+- `linkage disequilibrum` (sic, upstream spelling) is a *relationship*,
+  not an assay, and attaches to nearly every common variant — leaving it
+  in makes the result a list of well-tagged common SNPs. `--include-ld`
+  to keep it.
+- `/api/variants/coding-variants` returns in-silico predictor columns
+  (SIFT, PolyPhen2, CADD, REVEL, AlphaMissense, ESM1b, VARITY, ...) with
+  no `method` field at all, so every coding variant would otherwise gain
+  a single bogus "unknown" assay. `--include-predictions` to count them.
+
+The report separates `n_assays` from `n_experimental`, because counting a
+computational prediction (SEMVAR, cV2F, GVATdb) or a curated resource
+(PharmGKB) alongside an eQTL overstates experimental support — which is
+the whole point of the question. In a five-variant probe, rs12740374 (the
+SORT1 locus) scored 8 evidence types of which 6 were experimental, while
+rs1421085 scored 5 of which only 1 was.
+
+That endpoint also needs SPDI rather than an rsID, so the command
+harvests the SPDI from whichever other edge already returned it and
+re-queries. Before this, `find-associations --relationship coding/all`
+silently dropped all coding-variant evidence with an HTTP 400.
+
 ## What this skill adds over `kg` / `kg-mirror` / `igvf_client.catalog_get`
 
 | Capability | Before | After |
@@ -122,6 +172,7 @@ The catalog stores `log10pvalue = -log10(P)`. To filter for
 | `search-region` parallel fan-out | manual region builds | ✓ |
 | `find-associations` by semantic category | per-edge calls | ✓ |
 | `find-ld` with r²/D'/ancestry buckets | summary endpoint only | ✓ |
+| `variant-evidence` multi-assay ranking | **impossible** — an aggregation across every edge a variant has | ✓ |
 | `resolve-id` cross-reference projection | none | ✓ |
 | `list-sources` per-endpoint catalog | none | ✓ |
 | Filter DSL with `p_value → log10pvalue` translation | none | ✓ |

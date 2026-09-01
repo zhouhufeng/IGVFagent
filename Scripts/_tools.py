@@ -4165,6 +4165,84 @@ _TOOLS: "list[Tool]" = [
                    "page": "--page"},
     ),
     _T(
+        "catalog_variant_evidence",
+        "★ WHICH VARIANTS HAVE EVIDENCE FROM MANY DIFFERENT ASSAYS ★ — "
+        "ranks variants by how many DISTINCT assay types support them "
+        "(eQTL, spliceQTL, caQTL, pQTL, GWAS, ADASTRA, MPRA, CRISPR, ...) "
+        "and filters with `min_assays`. THIS IS THE RIGHT TOOL whenever "
+        "someone asks for 'variants with >N assays', 'multi-assay "
+        "variants', 'variants with the most functional evidence', or "
+        "wants to prioritise variants by breadth of support — those are "
+        "aggregations across every edge a variant has, which the "
+        "per-variant and per-edge queries cannot express. Reports "
+        "experimental assays separately from computational predictions "
+        "(SEMVAR, cV2F) and curated resources (PharmGKB), because "
+        "counting them together overstates experimental support. LD "
+        "edges and the in-silico coding-variant predictor scores are "
+        "excluded by default. IMPORTANT: there is no genome-wide mode — "
+        "the Catalog rejects an unfiltered variant scan and the variants "
+        "collection (~944 GB) is not mirrored. Supply `variants`, or "
+        "point `from_traversal` at kg-traversal run directories to go "
+        "from a gene panel to per-variant assay counts.",
+        {
+            "type": "object",
+            "properties": {
+                "variants":       {**_S_STRING, "description":
+                                    "Comma/space separated variant ids "
+                                    "(rsIDs or SPDI)."},
+                "variants_file":  {**_S_STRING, "description":
+                                    "File of variant ids, one per line."},
+                "from_traversal": {**_S_STRING, "description":
+                                    "Comma-separated kg-traversal run dirs "
+                                    "(each holding evidence_pack.json). "
+                                    "Offline; the gene-panel route."},
+                "min_assays":     {**_S_INTEGER, "default": 3},
+                "label":          {**_S_STRING, "default": "run"},
+            },
+        },
+        cli=["catalog", "variant-evidence"],
+        flag_map={"variants": "--variants",
+                   "variants_file": "--variants-file",
+                   "from_traversal": "--from-traversal",
+                   "min_assays": "--min-assays", "label": "--label"},
+        bool_flags=("include_ld", "include_predictions"),
+    ),
+
+    _T(
+        "warehouse_query",
+        "★ RUN SQL OVER THE LOCAL WAREHOUSE ★ (DuckDB, read-only). The "
+        "only way to ASK A QUESTION of data already mirrored locally "
+        "rather than re-fetching it: counts, GROUP BY, joins across "
+        "ingested tables, top-N. Use `warehouse_stats` first to see "
+        "which tables exist and how many rows each holds — then write "
+        "SQL against those names. Read-only: SELECT works, writes are "
+        "refused by the connection.",
+        {
+            "type": "object",
+            "properties": {
+                "sql":   {**_S_STRING, "description":
+                           "A SELECT statement. Table names come from "
+                           "warehouse_stats."},
+                "limit": {**_S_INTEGER, "default": 50,
+                           "description": "Max rows printed."},
+            },
+            "required": ["sql"],
+        },
+        cli=["warehouse", "query"],
+        positional=("sql",),
+        flag_map={"limit": "--limit"},
+    ),
+
+    _T(
+        "warehouse_stats",
+        "List every table in the local DuckDB warehouse with its row "
+        "count. Run this before `warehouse_query` so the SQL references "
+        "tables that actually exist.",
+        {"type": "object", "properties": {}},
+        cli=["warehouse", "stats"],
+    ),
+
+    _T(
         "catalog_find_associations",
         "★ IGVF CATALOG EDGE QUERY BY SEMANTIC RELATIONSHIP ★. Walks "
         "every edge in a semantic category (genetic / regulatory / "

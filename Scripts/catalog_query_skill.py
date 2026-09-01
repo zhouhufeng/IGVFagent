@@ -64,6 +64,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -713,12 +714,28 @@ def cmd_find_associations(args: argparse.Namespace) -> int:
         "page": page, "limit": limit, "endpoints": {},
     }
     n_total_results = 0
-    for key in candidates:
+    # `/api/variants/coding-variants` keys on SPDI and 400s on an rsID, so
+    # walk it last and feed it an SPDI harvested from whichever earlier
+    # edge already named the variant. Without this the endpoint errored on
+    # every rsID query and its evidence was dropped in silence.
+    ordered = sorted(candidates,
+                     key=lambda k: 1 if k in _SPDI_ONLY_ENDPOINTS else 0)
+    seen_records: list[dict] = []
+    for key in ordered:
         spec = EDGE_ENDPOINTS[key]
         if spec["from"] != entity:
             # Only walk edges whose 'from' side matches the entity type
             continue
-        params = _edge_query_param(entity, form, eid)
+        if (key in _SPDI_ONLY_ENDPOINTS and entity == "variant"
+                and form != "spdi"):
+            spdi = (_spdi_from_records(seen_records)
+                    or _resolve_spdi(entity, form, eid))
+            if not spdi:
+                logging.info("%s: no SPDI resolved, skipping %s", eid, key)
+                continue
+            params = {"spdi": spdi}
+        else:
+            params = _edge_query_param(entity, form, eid)
         # add filters + paging
         params["limit"] = str(limit)
         params["skip"]  = str(skip)
@@ -734,6 +751,8 @@ def cmd_find_associations(args: argparse.Namespace) -> int:
             continue
         n = len(data) if isinstance(data, list) else 0
         n_total_results += n
+        if isinstance(data, list):
+            seen_records.extend(r for r in data if isinstance(r, dict))
         aggregate["endpoints"][key] = {
             "path":       spec["path"],
             "n_returned": n,
@@ -755,6 +774,388 @@ def cmd_find_associations(args: argparse.Namespace) -> int:
         print(f"  {k:32s}  rows={v['n_returned']:>6,}  "
               f"more={'Y' if v['pagination']['has_more'] else 'N'}")
     print(f"Saved:         {out_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Multi-assay variant evidence
+# ---------------------------------------------------------------------------
+
+# `method` values that name a *data source or relationship*, not an assay.
+# Counting them inflates every variant's evidence tally: the LD graph in
+# particular attaches to essentially every common variant, so leaving it
+# in would make "variants with >3 assays" mostly a list of well-tagged
+# common SNPs. Overridable with --exclude-method / --include-ld.
+NON_ASSAY_METHODS = {
+    "linkage disequilibrum",   # sic — upstream spelling
+    "linkage disequilibrium",
+}
+
+# Endpoints that carry no experimental assay at all. The coding-variant
+# edge returns in-silico predictor columns (SIFT, PolyPhen2, CADD, REVEL,
+# AlphaMissense, ESM1b, VARITY, ...) with no `method` field, so every one
+# of its records would otherwise land in the tally as a single bogus
+# "unknown" assay and add +1 to every coding variant. Opt in with
+# --include-predictions.
+PREDICTION_ONLY_ENDPOINTS = {"variants_coding_variants"}
+
+# How each evidence label was produced. Counting a computational
+# prediction as an "assay" alongside an eQTL or an MPRA overstates the
+# experimental support for a variant, which is the whole point of the
+# question, so the breakdown is reported rather than hidden.
+EVIDENCE_KIND = {
+    "eQTL": "experimental", "spliceQTL": "experimental",
+    "caQTL": "experimental", "pQTL": "experimental",
+    "GWAS": "experimental", "ADASTRA": "experimental",
+    "MPRA": "experimental", "CRISPR": "experimental",
+    "SEMVAR": "computational", "cV2F": "computational",
+    "GVATdb": "computational",
+    "PharmGKB": "curated",
+}
+
+
+def _variant_key(rec: "dict") -> "str | None":
+    """Best available variant identifier on an edge record.
+
+    Catalog edges name the variant differently per endpoint
+    (``sequence_variant`` on gene edges, ``variant`` on phenotype edges,
+    ``rsid`` when it was the query key), so try each in turn rather than
+    assuming one shape.
+    """
+    for k in ("sequence_variant", "variant", "variant_id", "rsid",
+               "sequence variant"):
+        v = rec.get(k)
+        if v:
+            return str(v)
+    return None
+
+
+def _assay_of(rec: "dict") -> str:
+    """Evidence label for one edge record.
+
+    Falls through method -> label -> source, because not every edge
+    carries a `method`: the coding-variant predictor rows carry only a
+    `source`, and labelling them all "unknown" both loses information
+    and collapses distinct resources into one fake assay.
+    """
+    return str(rec.get("method") or rec.get("label")
+               or rec.get("source") or "unknown")
+
+
+def _harvest_traversal(paths: "list[Path]") -> "list[tuple[str, str, str]]":
+    """(variant, assay, origin) triples from kg-traversal evidence packs."""
+    out: "list[tuple[str, str, str]]" = []
+    for root in paths:
+        packs = ([root] if root.is_file()
+                  else sorted(root.rglob("evidence_pack.json")))
+        for pack in packs:
+            try:
+                doc = json.loads(pack.read_text())
+            except Exception as exc:
+                logging.warning("skipping %s: %s", pack, exc)
+                continue
+            origin = pack.parent.name
+            blocks = []
+            rel = doc.get("relations")
+            if isinstance(rel, dict):
+                blocks.extend((k, v) for k, v in rel.items())
+            for key in ("variants", "variant_depth2", "linkage"):
+                v = doc.get(key)
+                if v is not None:
+                    blocks.append((key, v))
+            for name, block in blocks:
+                rows = block if isinstance(block, list) else []
+                if isinstance(block, dict):
+                    for sub in block.values():
+                        if isinstance(sub, list):
+                            rows.extend(sub)
+                for rec in rows:
+                    if not isinstance(rec, dict):
+                        continue
+                    vid = _variant_key(rec)
+                    if not vid:
+                        continue
+                    out.append((vid, _assay_of(rec), f"{origin}:{name}"))
+    return out
+
+
+# `/api/variants/coding-variants` is the one variant edge that rejects
+# `rsid=` outright ("At least one variant parameter must be defined") and
+# returns nothing for `variant_id=<rsid>`. It keys on SPDI. Every other
+# variant edge takes the rsID happily, so the generic param builder is
+# right for them and wrong only here.
+_SPDI_ONLY_ENDPOINTS = {"variants_coding_variants"}
+
+_SPDI_RE = re.compile(r"(N[CGTW]_\d+\.\d+:\d+:[A-Za-z-]*:[A-Za-z-]*)")
+
+
+def _resolve_spdi(entity: str, form: str, value: str) -> "str | None":
+    """One node lookup to turn an rsID into its SPDI.
+
+    The fallback for when no edge has revealed the SPDI yet — notably
+    `--relationship coding`, whose only variant-side endpoint is the one
+    that needs SPDI in the first place.
+    """
+    try:
+        params = _node_query_param(entity, form, value)
+        params["limit"] = "1"
+        data = _catalog_get("/api/variants", list(params.items()))
+    except SystemExit as exc:
+        logging.info("SPDI resolve failed for %s: %s", value, exc)
+        return None
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0].get("spdi") or data[0].get("_id")
+    return None
+
+
+def _spdi_from_records(records: "list[dict]") -> "str | None":
+    """Pull an SPDI out of whatever the other edges already returned.
+
+    Saves a resolve round-trip: phenotype and protein edges name the
+    variant as ``variants/NC_000019.10:44908683:T:C``, which is exactly
+    the key the coding-variant endpoint wants.
+    """
+    for rec in records:
+        for k in ("variant", "sequence_variant", "variant_id", "spdi"):
+            v = rec.get(k)
+            if not v:
+                continue
+            m = _SPDI_RE.search(str(v))
+            if m:
+                return m.group(1)
+    return None
+
+
+def _harvest_catalog(variants: "list[str]", *, limit: int
+                     ) -> "list[tuple[str, str, str]]":
+    """(variant, assay, endpoint) triples by walking every variant edge."""
+    out: "list[tuple[str, str, str]]" = []
+    for i, vid in enumerate(variants, 1):
+        entity, form = detect_id_type(vid)
+        if entity != "variant":
+            logging.warning("%s is not a variant id (detected %s) — skipped",
+                             vid, entity)
+            continue
+        seen_records: "list[dict]" = []
+        deferred: "list[str]" = []
+        for key in RELATIONSHIP_TYPE_MAPPING["all"]:
+            spec = EDGE_ENDPOINTS[key]
+            if spec["from"] != "variant":
+                continue
+            if key in _SPDI_ONLY_ENDPOINTS and form != "spdi":
+                deferred.append(key)
+                continue
+            params = _edge_query_param(entity, form, vid)
+            params["limit"] = str(limit)
+            params["skip"] = "0"
+            try:
+                data = _catalog_get(spec["path"], list(params.items()))
+            except SystemExit as exc:
+                logging.warning("%s / %s skipped: %s", vid, key, exc)
+                continue
+            if not isinstance(data, list):
+                continue
+            for rec in data:
+                if isinstance(rec, dict):
+                    out.append((vid, _assay_of(rec), key))
+                    seen_records.append(rec)
+
+        # Re-run the SPDI-only endpoints now that the other edges have
+        # very likely revealed this variant's SPDI.
+        if deferred:
+            spdi = (vid if form == "spdi"
+                    else (_spdi_from_records(seen_records)
+                          or _resolve_spdi(entity, form, vid)))
+            if not spdi:
+                logging.info("%s: no SPDI resolved, skipping %s",
+                              vid, ", ".join(deferred))
+            else:
+                for key in deferred:
+                    spec = EDGE_ENDPOINTS[key]
+                    try:
+                        data = _catalog_get(
+                            spec["path"],
+                            [("spdi", spdi), ("limit", str(limit)),
+                             ("skip", "0")])
+                    except SystemExit as exc:
+                        logging.warning("%s / %s skipped: %s", vid, key, exc)
+                        continue
+                    if not isinstance(data, list):
+                        continue
+                    for rec in data:
+                        if isinstance(rec, dict):
+                            out.append((vid, _assay_of(rec), key))
+        if i % 10 == 0:
+            logging.info("  queried %d/%d variants", i, len(variants))
+    return out
+
+
+def cmd_variant_evidence(args: argparse.Namespace) -> int:
+    """Rank variants by how many DISTINCT assay types support them.
+
+    Answers "which variants have evidence from more than N assays
+    (MPRA, CRISPR, eQTL, ...)" — a question the per-variant and
+    per-edge queries cannot express, because it is an aggregation
+    across every edge a variant participates in.
+
+    Two input modes, because the Catalog has no unfiltered variant
+    scan (the edge endpoints reject a query with no key, and the
+    `variants` collection is ~944 GB, deliberately unmirrored):
+
+      --variants / --variants-file   walk the Catalog per variant
+      --from-traversal <dir>         aggregate kg-traversal evidence
+                                     packs already on disk
+
+    There is deliberately no genome-wide mode. See the note printed at
+    the end of a run.
+    """
+    setup_logging()
+
+    triples: "list[tuple[str, str, str]]" = []
+    sources_used: "list[str]" = []
+
+    if args.from_traversal:
+        roots = [Path(p) for p in args.from_traversal.split(",") if p.strip()]
+        missing = [str(r) for r in roots if not r.exists()]
+        if missing:
+            raise SystemExit(f"no such path(s): {', '.join(missing)}")
+        triples += _harvest_traversal(roots)
+        sources_used.append(f"traversal:{len(roots)} path(s)")
+
+    variants: "list[str]" = []
+    if args.variants:
+        variants += [v.strip() for v in re.split(r"[,\s]+", args.variants)
+                     if v.strip()]
+    if args.variants_file:
+        text = Path(args.variants_file).read_text()
+        variants += [v.strip() for v in re.split(r"[,\s]+", text) if v.strip()]
+    if variants:
+        seen: "set[str]" = set()
+        variants = [v for v in variants if not (v in seen or seen.add(v))]
+        logging.info("querying the Catalog for %d variant(s)", len(variants))
+        triples += _harvest_catalog(variants, limit=args.limit_per_endpoint)
+        sources_used.append(f"catalog:{len(variants)} variant(s)")
+
+    if not triples:
+        raise SystemExit(
+            "No evidence collected. Provide --variants / --variants-file "
+            "to query the Catalog, or --from-traversal <dir> to aggregate "
+            "kg-traversal evidence packs already on disk.")
+
+    excluded = set(NON_ASSAY_METHODS)
+    if args.include_ld:
+        excluded -= {"linkage disequilibrum", "linkage disequilibrium"}
+    if args.exclude_method:
+        excluded |= {m.strip() for m in args.exclude_method.split(",")
+                     if m.strip()}
+    skip_origins = (set() if args.include_predictions
+                    else set(PREDICTION_ONLY_ENDPOINTS))
+
+    per_variant: "dict[str, set[str]]" = {}
+    per_variant_exp: "dict[str, set[str]]" = {}
+    per_variant_edges: "dict[str, int]" = {}
+    origins: "dict[str, set[str]]" = {}
+    vocab_all: "Counter[str]" = Counter()
+    kind_counts: "Counter[str]" = Counter()
+    for vid, assay, origin in triples:
+        vocab_all[assay] += 1
+        per_variant_edges[vid] = per_variant_edges.get(vid, 0) + 1
+        origins.setdefault(vid, set()).add(origin)
+        if assay in excluded:
+            continue
+        if origin.split(":")[-1] in skip_origins:
+            continue
+        kind = EVIDENCE_KIND.get(assay, "unclassified")
+        kind_counts[kind] += 1
+        per_variant.setdefault(vid, set()).add(assay)
+        if kind == "experimental":
+            per_variant_exp.setdefault(vid, set()).add(assay)
+
+    rows = []
+    for vid in sorted(per_variant_edges):
+        assays = sorted(per_variant.get(vid, ()))
+        exp = sorted(per_variant_exp.get(vid, ()))
+        rows.append({
+            "variant": vid,
+            "n_assays": len(assays),
+            "n_experimental": len(exp),
+            "assays": ";".join(assays),
+            "experimental_assays": ";".join(exp),
+            "n_edges": per_variant_edges[vid],
+            "origins": ";".join(sorted(origins.get(vid, ()))[:6]),
+        })
+    rows.sort(key=lambda r: (-r["n_assays"], -r["n_edges"], r["variant"]))
+    kept = [r for r in rows if r["n_assays"] >= args.min_assays]
+
+    out_dir = REPORT_DIR / (f"{time.strftime('%Y%m%d_%H%M%S')}_"
+                             f"variant_evidence_{safe_label(args.label)}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cols = ["variant", "n_assays", "n_experimental", "assays",
+            "experimental_assays", "n_edges", "origins"]
+
+    def _write(path: Path, data: "list[dict]") -> Path:
+        with path.open("w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t")
+            w.writeheader()
+            for r in data:
+                w.writerow(r)
+        return path
+
+    all_path = _write(out_dir / "variant_evidence.tsv", rows)
+    hit_path = _write(out_dir / "variant_evidence_filtered.tsv", kept)
+
+    dist = Counter(r["n_assays"] for r in rows)
+    summary = {
+        "sources": sources_used,
+        "n_variants": len(rows),
+        "n_variants_passing": len(kept),
+        "min_assays": args.min_assays,
+        "excluded_methods": sorted(excluded),
+        "excluded_endpoints": sorted(skip_origins),
+        "assay_vocabulary": dict(vocab_all.most_common()),
+        "evidence_kind_counts": dict(kind_counts),
+        "evidence_kind_of": {k: EVIDENCE_KIND.get(k, "unclassified")
+                              for k in vocab_all},
+        "assay_count_distribution": {str(k): v for k, v in sorted(dist.items())},
+        "max_assays_observed": max((r["n_assays"] for r in rows), default=0),
+    }
+    sum_path = out_dir / "summary.json"
+    sum_path.write_text(json.dumps(summary, indent=2, sort_keys=True))
+
+    print(f"Output dir:    {out_dir}")
+    print(f"All variants:  {all_path}  ({len(rows):,} variants)")
+    print(f"Report:        {hit_path}  "
+          f"({len(kept):,} with >= {args.min_assays} assays)")
+    print(f"Summary:       {sum_path}")
+    print(f"Assay vocabulary observed ({len(vocab_all)}): "
+          f"{', '.join(k for k, _ in vocab_all.most_common(12))}")
+    if excluded:
+        print(f"Excluded as non-assay: {', '.join(sorted(excluded))} "
+              f"(pass --include-ld to keep LD)")
+    if skip_origins:
+        print(f"Excluded prediction-only endpoints: "
+              f"{', '.join(sorted(skip_origins))} — in-silico predictor "
+              f"scores, not assays (pass --include-predictions to count them)")
+    if kind_counts:
+        print("Evidence kinds counted: " +
+              ", ".join(f"{k}={v}" for k, v in kind_counts.most_common()))
+    print("Assay-count distribution: " +
+          ", ".join(f"{k}:{v}" for k, v in sorted(dist.items())))
+    if kept:
+        print(f"\nTop {min(10, len(kept))}:")
+        for r in kept[:10]:
+            print(f"  {r['variant']:24} {r['n_assays']:>2} evid "
+                  f"({r['n_experimental']:>2} exp)  {r['assays'][:62]}")
+    else:
+        print(f"\nNo variant reached {args.min_assays} distinct assays. "
+              f"Max observed was {summary['max_assays_observed']}.")
+    if not args.from_traversal:
+        print("\nNote: this is scoped to the variants you supplied. The "
+              "Catalog has no unfiltered variant scan and the `variants` "
+              "collection (~944 GB) is not mirrored, so a genome-wide "
+              "'every variant with >N assays' list cannot be produced — "
+              "supply a candidate set, or point --from-traversal at "
+              "kg-traversal output for a gene panel.")
     return 0
 
 
@@ -1066,6 +1467,59 @@ The catalog stores `log10pvalue = -log10(P)`. To filter for
                                     # log10pvalue=gte:7.301
 ```
 
+## Multi-assay variant evidence (`variant-evidence`)
+
+"Which variants do you have more than N assays for?" is the question the
+per-variant and per-edge queries cannot answer, because it is an
+aggregation across *every* edge a variant participates in.
+
+```bash
+# A candidate set, walked across every variant edge in the Catalog
+igvfagent catalog variant-evidence \
+    --variants rs429358,rs7412,rs1421085,rs12740374 --min-assays 3
+
+# A gene panel: reuse kg-traversal packs already on disk (offline)
+igvfagent catalog variant-evidence \
+    --from-traversal Docs/KGTraversal/2026..._cdk2_variants,Docs/KGTraversal/2026..._e2f1_variants \
+    --min-assays 3
+```
+
+Output is `variant_evidence.tsv` (all variants, ranked),
+`variant_evidence_filtered.tsv` (those clearing `--min-assays`) and a
+`summary.json` carrying the assay vocabulary and count distribution.
+
+**There is no genome-wide mode, on purpose.** The Catalog rejects an
+unfiltered variant-edge query ("At least one variant parameter must be
+defined"), and the `variants` collection is ~944 GB, deliberately outside
+the local mirror. "Every variant with >3 assays" across the whole genome
+is therefore not a question this system can answer; supply a candidate
+set or a gene panel. The command says so at the end of every run rather
+than returning a partial list that reads like a complete one.
+
+**What counts as an assay.** Distinct `method` / `label` values on the
+edges, with two default exclusions that materially change the answer:
+
+- `linkage disequilibrum` (sic, upstream spelling) is a *relationship*,
+  not an assay, and attaches to nearly every common variant — leaving it
+  in makes the result a list of well-tagged common SNPs. `--include-ld`
+  to keep it.
+- `/api/variants/coding-variants` returns in-silico predictor columns
+  (SIFT, PolyPhen2, CADD, REVEL, AlphaMissense, ESM1b, VARITY, ...) with
+  no `method` field at all, so every coding variant would otherwise gain
+  a single bogus "unknown" assay. `--include-predictions` to count them.
+
+The report separates `n_assays` from `n_experimental`, because counting a
+computational prediction (SEMVAR, cV2F, GVATdb) or a curated resource
+(PharmGKB) alongside an eQTL overstates experimental support — which is
+the whole point of the question. In a five-variant probe, rs12740374 (the
+SORT1 locus) scored 8 evidence types of which 6 were experimental, while
+rs1421085 scored 5 of which only 1 was.
+
+That endpoint also needs SPDI rather than an rsID, so the command
+harvests the SPDI from whichever other edge already returned it and
+re-queries. Before this, `find-associations --relationship coding/all`
+silently dropped all coding-variant evidence with an HTTP 400.
+
 ## What this skill adds over `kg` / `kg-mirror` / `igvf_client.catalog_get`
 
 | Capability | Before | After |
@@ -1074,6 +1528,7 @@ The catalog stores `log10pvalue = -log10(P)`. To filter for
 | `search-region` parallel fan-out | manual region builds | ✓ |
 | `find-associations` by semantic category | per-edge calls | ✓ |
 | `find-ld` with r²/D'/ancestry buckets | summary endpoint only | ✓ |
+| `variant-evidence` multi-assay ranking | **impossible** — an aggregation across every edge a variant has | ✓ |
 | `resolve-id` cross-reference projection | none | ✓ |
 | `list-sources` per-endpoint catalog | none | ✓ |
 | Filter DSL with `p_value → log10pvalue` translation | none | ✓ |
@@ -1110,6 +1565,39 @@ def main(argv=None) -> int:
                     help="Override entity-type detection (rare).")
     p.add_argument("--limit", type=int, default=1)
     p.set_defaults(func=cmd_get_entity)
+
+    p = sub.add_parser("variant-evidence",
+        help="Rank variants by how many DISTINCT assay types support them "
+             "(MPRA / CRISPR / eQTL / caQTL / pQTL / GWAS ...), and filter "
+             "with --min-assays.")
+    p.add_argument("--variants", default=None,
+                    help="Comma/whitespace separated variant ids (rsIDs or "
+                         "SPDI). Each is walked across every variant edge "
+                         "endpoint in the Catalog.")
+    p.add_argument("--variants-file", default=None,
+                    help="File of variant ids, one per line.")
+    p.add_argument("--from-traversal", default=None,
+                    help="Comma-separated kg-traversal run directories (or "
+                         "evidence_pack.json paths). Aggregates packs "
+                         "already on disk — no network, and the way to go "
+                         "from a gene panel to per-variant assay counts.")
+    p.add_argument("--min-assays", type=int, default=3,
+                    help="Report variants supported by at least this many "
+                         "distinct assays (default 3).")
+    p.add_argument("--limit-per-endpoint", type=int, default=200,
+                    help="Max edges pulled per endpoint per variant.")
+    p.add_argument("--include-ld", action="store_true",
+                    help="Count 'linkage disequilibrum' as an assay. Off by "
+                         "default: it is a relationship, not an assay, and "
+                         "attaches to nearly every common variant.")
+    p.add_argument("--include-predictions", action="store_true",
+                    help="Count the coding-variant in-silico predictor "
+                         "endpoint (SIFT/PolyPhen2/CADD/REVEL/...). Off by "
+                         "default: those are predictions, not assays.")
+    p.add_argument("--exclude-method", default=None,
+                    help="Extra comma-separated method names to not count.")
+    p.add_argument("--label", default="run")
+    p.set_defaults(func=cmd_variant_evidence)
 
     p = sub.add_parser("search-region",
         help="Parallel fan-out over genes + variants + regulatory in a region.")
