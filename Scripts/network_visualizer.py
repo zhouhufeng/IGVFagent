@@ -348,6 +348,18 @@ def _run_viz(st, sif_path: Path, label: str, perts: str, meas: str,
     except Exception as exc:
         st.error(f"Visualization failed: {exc}")
         return
+    if do_html:
+        # cmd_visualize only logs the pyvis miss; without this the UI
+        # reports plain success and the Interactive HTML tab is empty
+        # with no explanation of why.
+        try:
+            import pyvis  # noqa: F401
+        except ImportError:
+            st.warning(
+                "Static panels were written, but the interactive HTML was "
+                "skipped — `pyvis` is not installed in this environment. "
+                "Install it with `pip install 'igvfagent[network]'`."
+            )
     st.success("Done. Refreshing the run list…")
     try:
         st.rerun()

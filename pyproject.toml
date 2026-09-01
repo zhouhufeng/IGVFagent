@@ -112,6 +112,13 @@ network = [
     "cvxpy>=1.5",        # solver-agnostic MILP modelling
     "pyscipopt>=5.0",    # free MILP solver (SCIP)
     # optional: gurobipy (academic-free, faster)
+    # Visualization half of the layer (`igvfagent network viz`, and the
+    # 🔗 Network tab in the UI). networkx is also in [analysis], but
+    # network_viz.py needs it whether or not the single-cell stack is
+    # installed, so it is declared here too rather than assumed.
+    "networkx>=3.0,<4",
+    "matplotlib>=3.7,<4",  # static panels + composite figure
+    "pyvis>=0.3,<1",       # interactive vis.js HTML (--html)
 ]
 # Developer tooling
 dev = [

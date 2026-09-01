@@ -404,12 +404,24 @@ def draw_edge_breakdown(G, out_png: Path) -> Path:
 
 # ─── Interactive HTML via pyvis ─────────────────────────────────────────────
 
-def draw_interactive_html(G, out_html: Path, *, title: str = "") -> Path:
-    """Standalone vis.js HTML (loaded from CDN)."""
+def draw_interactive_html(G, out_html: Path, *, title: str = "") -> "Path | None":
+    """Standalone vis.js HTML (loaded from CDN).
+
+    Returns ``None`` when pyvis is not installed. Returning the path
+    would be a lie every downstream consumer believes: `cmd_visualize`
+    prints it, `write_report` links it, and the UI offers a tab for it
+    — all pointing at a file that was never written.
+    """
     try:
         from pyvis.network import Network
     except ImportError:
-        return out_html
+        logging.warning(
+            "pyvis is not installed — skipping %s. "
+            "Install it with: pip install 'igvfagent[network]'  "
+            "(or: pip install pyvis)",
+            out_html.name,
+        )
+        return None
     net = Network(
         height="800px", width="100%", directed=True, notebook=False,
         bgcolor=COL["bg"], font_color=COL["ink"], cdn_resources="remote",
