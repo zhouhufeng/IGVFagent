@@ -5,6 +5,18 @@ This script keeps large-data operations manifest-first. It can discover SCREEN
 cCRE download links, plan or download ENCODE rE2G/single-cell linkage files,
 annotate variant lists with FAVOR plus IGVF Catalog evidence, and summarize
 local cCRE/linkage files with simple plots.
+
+Scope note: ``annotate-variants`` here is POINT-level — one coordinate,
+what overlaps it. For a list of REGIONS (an enhancer library, a CRISPRi
+target set, a peak list), where the questions are how much of each
+interval a cCRE covers, which classes, and how far the nearest element
+is, use the region skill instead::
+
+    igvfagent enhancer-annot build-db
+    igvfagent enhancer-annot annotate --input enhancers.xlsx --sheet Sheet1
+
+See ``Scripts/enhancer_annotation_skill.py`` and
+``Docs/Skills/ENHANCER_ANNOTATION_SKILLS.md``.
 """
 
 from __future__ import annotations

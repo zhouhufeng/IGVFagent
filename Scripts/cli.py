@@ -41,7 +41,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "enhancer":         ("igvfagent.enhancer_gene_linkage_skills",
                           "Enhancer-gene linkage retrieval and comparison"),
     "ccre":             ("igvfagent.ccre_linkage_annotation_skills",
-                          "cCRE / FAVOR / linkage annotations"),
+                          "cCRE / FAVOR / linkage annotations (variant-level)"),
+    "enhancer-annot":   ("igvfagent.enhancer_annotation_skill",
+                          "Enhancer / regulatory-REGION annotation against the "
+                          "ENCODE SCREEN cCRE registry: upload an enhancer list "
+                          "(xlsx/BED/TSV/CSV), get per-region cCRE overlap, "
+                          "class breakdown and nearest-element distance"),
     "mpra":             ("igvfagent.mpra_data_skills",
                           "MPRA / STARR / BlueSTARR retrieval and analysis"),
     "oligo":            ("igvfagent.mpra_oligo_design_skill",

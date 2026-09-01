@@ -1027,6 +1027,101 @@ _TOOLS: "list[Tool]" = [
         flag_map={"counts": "--counts", "declaration": "--declaration",
                    "label": "--label"},
     ),
+    # ──────────────────────────────────────────────────────────────────
+    # Enhancer / regulatory-REGION annotation against the ENCODE SCREEN
+    # cCRE registry. Distinct from ccre_* which is variant/point-level:
+    # this is interval overlap over a user-supplied region list.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "enhancer_annotate",
+        "★ ENHANCER / REGULATORY-REGION cCRE ANNOTATION ★. Takes a "
+        "user-supplied list of REGIONS (an enhancer library, CRISPRi "
+        "target set, peak list) and annotates each against the ENCODE "
+        "SCREEN candidate cis-regulatory element registry by INTERVAL "
+        "OVERLAP — not point lookup. Per region returns: how many cCREs "
+        "overlap, a representative class (ranked PLS > pELS > dELS > "
+        "DNase-H3K4me3 > CA-CTCF > CA-TF > CTCF-only), every class seen, "
+        "bases covered as a UNION (overlapping elements are not "
+        "double-counted), coverage as a fraction of the region, and — for "
+        "regions with no overlap — the nearest cCRE and its distance, "
+        "which is what separates 'in a cCRE desert' from 'just missed "
+        "one'. Accepts .xlsx/.xlsm (any sheet), BED, TSV, CSV, gzipped; "
+        "coordinate columns are auto-detected and a headerless BED is "
+        "recognised by shape. A CRISPR library repeats each enhancer once "
+        "per sgRNA, so rows are deduplicated on coordinates by default. "
+        "Requires the local registry: run enhancer_build_db once first.",
+        {
+            "type": "object",
+            "properties": {
+                "input":  {**_S_STRING, "description":
+                            "Region list — xlsx / bed / tsv / csv (.gz ok)."},
+                "sheet":  {**_S_STRING, "description":
+                            "Worksheet name for xlsx input; see enhancer_inspect."},
+                "registry": {**_S_STRING, "enum": ["V3","V4"], "default": "V3"},
+                "chrom_col": {**_S_STRING, "description":
+                               "Override chromosome column name."},
+                "start_col": {**_S_STRING}, "end_col": {**_S_STRING},
+                "name_col":  {**_S_STRING},
+                "keep_duplicates": {**_S_BOOLEAN, "default": False,
+                                     "description":
+                                     "Annotate every row instead of unique coordinates."},
+                "label":  {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["enhancer-annot", "annotate"],
+        flag_map={"input": "--input", "sheet": "--sheet",
+                   "registry": "--registry", "chrom_col": "--chrom-col",
+                   "start_col": "--start-col", "end_col": "--end-col",
+                   "name_col": "--name-col", "label": "--label"},
+        bool_flags=("keep_duplicates",),
+    ),
+    _T(
+        "enhancer_inspect",
+        "★ INSPECT A REGION LIST BEFORE ANNOTATING ★. Shows an xlsx file's "
+        "worksheets with their column headers and flags which sheets "
+        "actually carry coordinate columns — a library workbook typically "
+        "mixes region sheets with sgRNA-control and comparison sheets that "
+        "have none. USE THIS FIRST when the user uploads a spreadsheet and "
+        "the right sheet is not obvious, rather than guessing a sheet name.",
+        {
+            "type": "object",
+            "properties": {"input": {**_S_STRING}},
+            "required": ["input"],
+        },
+        cli=["enhancer-annot", "inspect"],
+        flag_map={"input": "--input"},
+    ),
+    _T(
+        "enhancer_build_db",
+        "★ BUILD THE LOCAL cCRE REGISTRY DATABASE ★. Downloads the ENCODE "
+        "SCREEN candidate cis-regulatory element registry (GRCh38, ~64 MB, "
+        "~1.06 M elements) and indexes it into a local SQLite database, so "
+        "region annotation afterwards runs entirely offline and is "
+        "reproducible against a pinned registry version. Run once before "
+        "enhancer_annotate; the download is cached.",
+        {
+            "type": "object",
+            "properties": {
+                "registry": {**_S_STRING, "enum": ["V3","V4"], "default": "V3"},
+                "force": {**_S_BOOLEAN, "default": False,
+                           "description": "Re-download even if cached."},
+            },
+        },
+        cli=["enhancer-annot", "build-db"],
+        flag_map={"registry": "--registry"},
+        bool_flags=("force",),
+    ),
+    _T(
+        "enhancer_db_stats",
+        "Report what the local cCRE registry database contains — registry "
+        "version, element count, build time, source URL and the most "
+        "common class combinations. Use to confirm the database exists and "
+        "which registry version an annotation would run against.",
+        {"type": "object", "properties": {}},
+        cli=["enhancer-annot", "db-stats"],
+        flag_map={},
+    ),
     _T(
         "mpralib_outliers",
         "★ MPRA BARCODE OUTLIER DETECTION ★. An oligo's activity is an "
