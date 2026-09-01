@@ -304,6 +304,13 @@ def render_markdown(results: list[dict], ts: str) -> str:
             out.append(f"  - {mark} **{c['name']}** ({c['type']}): {c['detail']}")
         for c in r.get("unconfirmed", []):
             prov = c.get("provenance") or {}
+            # `provenance` is normally {"kind": ..., "quote": ...}, but a
+            # plain string is the obvious thing to write and used to crash
+            # the whole report here. Accept both.
+            if isinstance(prov, str):
+                prov = {"kind": prov}
+            elif not isinstance(prov, dict):
+                prov = {"kind": str(prov)}
             out.append(f"  - ⊘ **{c['name']}** ({c.get('type')}): NOT SCORED — "
                         f"unconfirmed, source: {prov.get('kind', '?')}")
             if prov.get("quote"):

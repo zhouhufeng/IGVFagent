@@ -168,6 +168,15 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "network":          ("igvfagent.network_integration_skill",
                           "Network integration — clean-room MILP for "
                           "context-specific subnetworks (CARNIVAL / Steiner)"),
+    "spatial-hic":      ("igvfagent.spatial_atac_hic_skill",
+                          "Spatial-ATAC-Hi-C — spatially resolved 3D genome + "
+                          "chromatin accessibility on tissue slides (Wang 2026, "
+                          "Nat Methods; GSE307620). 50x50 pixel demux, per-pixel "
+                          "contact QC + TSS enrichment, GAS/GAD gene scores, "
+                          "scHiCluster-style imputation, A/B compartments, "
+                          "per-pixel CNV, loop quantification + APA, and spatial "
+                          "rendering (clean-room reimpl of "
+                          "wangjuan001/Spatial-ATAC-Hi-C)"),
     "enrich":           ("igvfagent.enrichment_skill",
                           "GO + Pathway enrichment validation (ORA via Enrichr; "
                           "GSEA preranked) over GO_BP/MF/CC + Reactome + KEGG "

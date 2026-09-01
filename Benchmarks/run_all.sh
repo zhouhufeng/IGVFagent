@@ -49,6 +49,7 @@ case "$MODE" in
             matreyek2018_pten_vampseq    # always works
             martyn2025_variant_flowfish
             mitra2024_scarlink
+            wang2026_spatial_atac_hic    # offline, seconds, planted ground truth
         )
         ;;
     --generated|-g)
@@ -79,6 +80,7 @@ case "$MODE" in
             rosenberg2018_splitseq         # full local repro: splitseq (GSE110823 MATLAB DGE)
             ma2020_shareseq                # full local repro: share rna-qc + concordance (GSE140203)
             wang2025_neocortex_multiome    # full local repro: sc-analyze concordance (CELLxGENE)
+            wang2026_spatial_atac_hic      # full local repro: spatial-hic chain vs planted truth (offline)
         )
         # Anything `igvfagent bench scaffold` has produced since.
         if [ "${#GENERATED[@]}" -gt 0 ]; then

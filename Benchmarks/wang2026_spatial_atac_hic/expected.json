@@ -1,0 +1,200 @@
+{
+  "paper": {
+    "authors": "Wang P, Wang J, Wang Q, Youngblood MW, et al.",
+    "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues",
+    "journal": "Nature Methods",
+    "year": 2026,
+    "doi": "10.1038/s41592-026-03217-4"
+  },
+  "data_source": {
+    "type": "synthetic_ground_truth",
+    "generator": "Benchmarks/wang2026_spatial_atac_hic/prep_input.py",
+    "seed": 20260901,
+    "gse": "GSE307620",
+    "why_synthetic": "Reproducing the paper's figures from GSE307620 requires multi-terabyte FASTQ plus read alignment, the one step `spatial-hic` deliberately does not own (Cell Ranger ATAC; runHiC is GPL-3.0 and excluded by policy). This benchmark instead plants structure that is exact by construction -- a copy-number gain confined to one spatial clone, a clone-specific loop, alternating A/B blocks, a TSS spike -- with contact statistics calibrated to fall inside the paper's reported bands, and asserts the pipeline recovers all of it. Ground truth is re-measured off the emitted files by prep_input.py and written to truth.json, so a miscalibrated generator is never charged to the skill.",
+    "geo_leg": "run.sh --with-geo additionally enumerates the real GSE307620 deposits"
+  },
+  "skill_output_dir": "SpatialATACHiC",
+  "label": "wang2026_spatial_atac_hic_qc",
+  "primary_artefact": "concordance_metrics.json",
+  "unverified_paper_values": "The entries below are the paper's own reported numbers. They cannot be checked without the raw GSE307620 deposit and an aligner, so they are recorded as unconfirmed rather than asserted -- they document what a full reproduction would have to hit.",
+  "checks": [
+    {
+      "name": "Pixel demultiplex assigns every barcoded read",
+      "type": "range",
+      "path": "demux_assigned_fraction",
+      "min": 0.999,
+      "max": 1.0,
+      "expected": 1.0
+    },
+    {
+      "name": "All 36 spatial pixels recovered",
+      "type": "range",
+      "path": "pixels_recovered",
+      "min": 36,
+      "max": 36,
+      "expected": 36
+    },
+    {
+      "name": "Median cis fraction matches the generated data",
+      "type": "range",
+      "path": "cis_fraction_abs_error",
+      "min": 0.0,
+      "max": 0.02,
+      "expected": 0.003
+    },
+    {
+      "name": "Median cis fraction inside the paper's reported band (88.1-90.3%)",
+      "type": "range",
+      "path": "median_cis_fraction",
+      "min": 0.881,
+      "max": 0.91,
+      "expected": 0.9055
+    },
+    {
+      "name": "Long-range ratio matches the generated data",
+      "type": "range",
+      "path": "long_range_ratio_abs_error",
+      "min": 0.0,
+      "max": 0.02,
+      "expected": 0.0003
+    },
+    {
+      "name": "Long-range ratio inside the paper's reported band (24-33.3%)",
+      "type": "range",
+      "path": "median_long_range_ratio",
+      "min": 0.24,
+      "max": 0.333,
+      "expected": 0.2899
+    },
+    {
+      "name": "ArchR TSS enrichment recovers the planted density ratio",
+      "type": "range",
+      "path": "tss_enrichment_recovery",
+      "min": 0.9,
+      "max": 1.1,
+      "expected": 1.0
+    },
+    {
+      "name": "Copy-number gain fold recovered",
+      "type": "range",
+      "path": "cnv_gain_fold_recovery",
+      "min": 0.85,
+      "max": 1.15,
+      "expected": 0.96
+    },
+    {
+      "name": "Diploid baseline lands at CN 2 outside the gain",
+      "type": "range",
+      "path": "cnv_background_ratio",
+      "min": 1.8,
+      "max": 2.2,
+      "expected": 2.0
+    },
+    {
+      "name": "Per-pixel CN separates the two spatial clones",
+      "type": "range",
+      "path": "cnv_clone_separation",
+      "min": 2.0,
+      "max": 12.0,
+      "expected": 4.39
+    },
+    {
+      "name": "A/B compartment blocks recovered on chr2",
+      "type": "range",
+      "path": "compartment_accuracy",
+      "min": 0.85,
+      "max": 1.0,
+      "expected": 0.933
+    },
+    {
+      "name": "Planted clone-specific loop called specific (ANOVA p<0.05)",
+      "type": "range",
+      "path": "planted_loop_called_specific",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Planted loop attributed to the correct clone",
+      "type": "in_set",
+      "path": "planted_loop_top_cluster",
+      "allowed": [
+        "cloneR"
+      ]
+    },
+    {
+      "name": "Planted loop ANOVA is strongly significant",
+      "type": "range",
+      "path": "planted_loop_neglog10_p",
+      "min": 10.0,
+      "max": 1000.0,
+      "expected": 300.0
+    },
+    {
+      "name": "Null loop is NOT called clone-specific (no false positive)",
+      "type": "range",
+      "path": "null_loop_called_specific",
+      "min": 0,
+      "max": 0,
+      "expected": false
+    },
+    {
+      "name": "Exactly one of the two loops is clone-specific",
+      "type": "range",
+      "path": "n_cluster_specific_loops",
+      "min": 1,
+      "max": 1,
+      "expected": 1
+    },
+    {
+      "name": "Per-pixel QC table written",
+      "type": "artefact",
+      "filename": "pixel_qc.tsv"
+    },
+    {
+      "name": "Benchmark recovery figure written",
+      "type": "artefact",
+      "filename": "Plots/benchmark_recovery.png"
+    },
+    {
+      "name": "Median total contacts per pixel (paper: 25,343-58,403)",
+      "type": "range",
+      "path": "median_total_contacts",
+      "min": 25343,
+      "max": 58403,
+      "confirmed": false,
+      "provenance": {
+        "kind": "paper-reported value",
+        "quote": "Wang 2026 Fig. 1e / Supplementary Table 4; needs the real GSE307620 pairs"
+      }
+    },
+    {
+      "name": "Median ATAC fragments per pixel (paper: 34,596-90,465)",
+      "type": "range",
+      "path": "median_atac_fragments",
+      "min": 34596,
+      "max": 90465,
+      "confirmed": false,
+      "provenance": {
+        "kind": "paper-reported value",
+        "quote": "Wang 2026 Extended Data Fig. 4g / Supplementary Table 5"
+      }
+    },
+    {
+      "name": "Mouse R6 cell-type-specific loops (paper: 268 excitatory / 556 inhibitory / 41 non-neuronal)",
+      "type": "range",
+      "path": "n_cluster_specific_loops",
+      "min": 800,
+      "max": 900,
+      "confirmed": false,
+      "provenance": {
+        "kind": "paper-reported value",
+        "quote": "Wang 2026 Fig. 3i / Supplementary Table 9; needs Peakachu anchors on the real data"
+      }
+    }
+  ],
+  "class": "quantitative reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+}

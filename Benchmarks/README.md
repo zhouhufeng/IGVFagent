@@ -31,6 +31,7 @@ Twenty-one recent Nature / Cell / Science / Nat Genet / Nat Methods / Genome Bio
 | 18 | **Ma 2020** SHARE-seq mouse skin *Cell* | `share` + shared `_scload` (**full local repro**) | **34,774-cell skin set (exact); all 23 author cell types**; Leiden AMI 0.63 on shallow SHARE-seq RNA; **5/5 checks** | [`ma2020_shareseq/`](ma2020_shareseq/README.md) |
 | 19 | **Wang 2025** developing neocortex multiome *Nature* | `sc-analyze` (**full local repro**) | **232,328-nucleus atlas (exact); 29 author cell types**; Leiden AMI 0.65, homogeneity 0.70; **7/7 checks** | [`wang2025_neocortex_multiome/`](wang2025_neocortex_multiome/README.md) |
 | 20 | **Zou/Shi 2026** scEPS GWAS × single-cell *medRxiv* | new `sceps` port (**full local repro**) | **Microglia significantly AD-associated: aggregated d=4.76e-5, Z=4.99, P=6e-7** on SEA-AD + Bellenguez-AD MAGMA; AD-GWAS genes ≫ matched controls; port matches upstream corr 1.0 | [`zou2026_sceps/`](zou2026_sceps/README.md) |
+| 21 | **Wang 2026** Spatial-ATAC-Hi-C *Nat Methods* | new `spatial-hic` port (**offline, planted ground truth**) | **All planted structure recovered**: CN gain 96% of true fold with 4.39× clone separation, clone-specific loop p<1e-300 in the right clone with no null-loop false positive, A/B blocks 93.3%, TSS enrichment exact; contact stats inside the paper's bands; **18/18 checks** (+3 unconfirmed paper values) | [`wang2026_spatial_atac_hic/`](wang2026_spatial_atac_hic/README.md) |
 
 ## How the benchmark suite is organised
 

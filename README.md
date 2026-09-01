@@ -1886,6 +1886,83 @@ igvfagent network steiner --terminals vamp_prizes.csv \
 
 License boundary: **Apache-2 throughout**. No GPL runtime dependencies.
 
+### Spatial-ATAC-Hi-C (spatial 3D genome + chromatin accessibility)
+
+Spatially resolved **co-profiling of genome folding and chromatin
+accessibility on tissue slides**, after [Wang, Wang, Wang, Youngblood
+et al., *Nature Methods* 2026](https://doi.org/10.1038/s41592-026-03217-4)
+(GEO **GSE307620**). The assay lays a 50 x 50 microfluidic barcode grid
+over a section, giving **2,500 spatial pixels** that each carry a Hi-C
+contact set *and* an ATAC fragment set from the same molecules — so
+compartments, loops, copy number and gene activity all keep their
+tissue coordinates.
+
+Clean-room reimplementation of the computational pipeline in
+[wangjuan001/Spatial-ATAC-Hi-C](https://github.com/wangjuan001/Spatial-ATAC-Hi-C)
+(MIT), which delegates to scHiCluster, Higashi/cooltools, SnapATAC2 and
+NeoLoopFinder. Every one of those algorithms is re-derived here from its
+published description; none is imported or vendored. Playbook:
+[`Docs/Skills/SPATIAL_ATAC_HIC_SKILLS.md`](Docs/Skills/SPATIAL_ATAC_HIC_SKILLS.md).
+
+**Scope.** This skill consumes **processed deposits** — contact tables,
+`fragments.tsv.gz`, spatial positions — the same boundary `share` draws.
+It reads both 4DN `.pairs` and the tabix-indexed contact TSVs GEO
+actually ships (`*.hic.fragments.sorted.header.tsv.gz`), normalising
+column-name synonyms and picking pixel ids out of compound filenames.
+Read alignment is *not* reimplemented: it is the one upstream step with
+no tractable clean-room form, and the tools involved
+([runHiC](https://github.com/XiaoTaoWang/HiC_pipeline) and
+[Trim Galore](https://github.com/FelixKrueger/TrimGalore)) are GPL-3.0,
+so they stay external tools rather than dependencies. GSE307620
+publishes aligned pairs and fragments directly.
+
+```bash
+pip install 'igvfagent[analysis]'   # numpy + scipy + matplotlib
+
+# 0) What does the series deposit?
+igvfagent spatial-hic pull-geo --gse GSE307620 \
+    --download 'pairs|fragments|positions'
+
+# 1) One barcoded pairs file -> the 50x50 pixel grid.
+#    Check `assigned_fraction`: near-zero means --layout is the other way.
+igvfagent spatial-hic pixel-demux --pairs sample.pairs.gz \
+    --barcode-a barcodes_A.txt --barcode-b barcodes_B.txt --label mouse_R6
+
+# 2) Per-pixel QC. Paper reference band: 25,343-58,403 total contacts,
+#    88.1-90.3% cis, 24-33.3% long-range (>=10 kb over cis).
+igvfagent spatial-hic qc --pairs-dir <run>/pixels \
+    --fragments fragments.tsv.gz --gene-model gencode.gtf.gz
+
+# 3) Gene-level scores in both modalities, on a shared pixel key.
+igvfagent spatial-hic gas --fragments fragments.tsv.gz \
+    --gene-model gencode.gtf.gz \
+    --barcode-a barcodes_A.txt --barcode-b barcodes_B.txt
+igvfagent spatial-hic gad --pairs-dir <run>/pixels --gene-model gencode.gtf.gz
+
+# 4) Structure: imputation, compartments, copy number.
+igvfagent spatial-hic impute --pairs-dir <run>/pixels --chrom chr2 \
+    --resolution 100000 --per-pixel
+igvfagent spatial-hic compartment --pairs-dir <run>/pixels \
+    --resolution 100000 --gene-model gencode.gtf.gz
+igvfagent spatial-hic cnv --pairs-dir <run>/pixels \
+    --resolution 5000000 --per-pixel --smooth      # spatial tumour clones
+
+# 5) Loops: quantify at known anchors, ANOVA across clusters, APA.
+igvfagent spatial-hic loops --pairs-dir <run>/pixels --bedpe loops.bedpe \
+    --clusters clusters.tsv --apa
+
+# 6) Any per-pixel value, back in tissue space.
+igvfagent spatial-hic viz --table <run>/gene_activity_score.tsv \
+    --column Satb2 --positions tissue_positions.csv
+```
+
+Two things this deliberately does *not* do: it does not call loops de
+novo (Peakachu is a trained model — bring its BEDPE), and its CNV bias
+correction is a linear fit rather than NeoLoopFinder's Poisson GLM, so
+treat copy number as concordant rather than bit-identical.
+
+License boundary: **Apache-2 throughout**. No GPL runtime dependencies.
+
 ### ChIP-Atlas reprocessed peak archive
 
 Browse and pull from the [ChIP-Atlas](https://chip-atlas.org) (Ohta/Oki/DBCLS)
@@ -2306,6 +2383,9 @@ maintainers for releasing their code openly.
 | **MULTI-seq / Cell Hashing** demultiplex (`multiseq`) | [Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2) | MIT (Gartner Lab) | NB-GLM tag classifier with randomized-quantile residuals, cosine-based normalization, per-tag histograms + call heatmaps. |
 | **MULTI-seq** original method | — (paper: [McGinnis 2019 *Nat Methods*](https://www.nature.com/articles/s41592-019-0433-8)) | n/a | Lipid-modified oligo (LMO) sample barcoding inspiration; used as the upstream context for our demultiplexer. |
 | **Network integration** (`network carnival`, `network steiner`) | [saezlab/CORNETO](https://github.com/saezlab/corneto) | GPL (CORNETO) — **runtime dep avoided.** Clean-room MILP reimplementation in pure `cvxpy`. | CARNIVAL signed-perturbation → signed-measurement MILP, Prize-Collecting Steiner-Tree formulation. |
+| **Spatial-ATAC-Hi-C** spatial 3D genome + accessibility (`spatial-hic`) | [wangjuan001/Spatial-ATAC-Hi-C](https://github.com/wangjuan001/Spatial-ATAC-Hi-C) (paper: [Wang 2026 *Nat Methods*](https://doi.org/10.1038/s41592-026-03217-4), GEO GSE307620) | MIT (wangjuan001, 2026) — clean-room; no source copied. | 50×50 microfluidic pixel demultiplex (barcode-B+A concatenation, the upstream `bcsplit.py` offsets), per-pixel cis/trans/long-range contact QC, ArchR-style TSS enrichment, SnapATAC2-style gene activity score (promoter+body Tn5 insertions) and scGAD gene-associated domain score (Hi-C pair ends over gene bodies), scHiCluster convolution+RWR imputation, cooltools-style A/B compartment eigenvector, NeoLoopFinder-style per-pixel CNV + HMM segmentation, MAGIC spatial smoothing, per-pixel loop quantification with one-way-ANOVA cluster-specific loop calling and APA pileup, and 50×50 tissue-space rendering. |
+| **Hi-C read processing** (upstream of `spatial-hic`) | [XiaoTaoWang/HiC_pipeline](https://github.com/XiaoTaoWang/HiC_pipeline) (runHiC) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. runHiC's `.pairs` output is the *input contract* for `spatial-hic`; alignment is the one upstream step with no tractable clean-room form, so it stays an external tool. |
+| **Adapter/quality trimming** (upstream of `spatial-hic`) | [FelixKrueger/TrimGalore](https://github.com/FelixKrueger/TrimGalore) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. Documented as the external FASTQ-level step that precedes this skill's inputs. |
 | **SPLiT-seq / Parse** pipeline (`splitseq`) | [Chipeyown/SPLiT-seq-Data-Analysis_Toolkit](https://github.com/Chipeyown/SPLiT-seq-Data-Analysis_Toolkit) | MIT (Chipeyown) | Vendored Rd1/Rd2/Rd3 96-well barcode whitelists, knee-plot cell calling, pre/post QC violins, per-Rd1-well summary heatmap, optional Scrublet doublet detection. |
 | **Genotype demultiplexing** (referenced in `multiseq`) | [single-cell-genetics/vireo](https://github.com/single-cell-genetics/vireo) · [wheaton5/souporcell](https://github.com/wheaton5/souporcell) | Apache-2.0 / MIT | Documented alternatives when natural genotype variation is available instead of barcoded tags. |
 | **Codex / agent runtime** | [openai/codex](https://github.com/openai/codex) | Apache-2.0 | Reference agent runtime; `cli.py` follows its tool-dispatch pattern. |

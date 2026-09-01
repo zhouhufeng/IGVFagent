@@ -81,6 +81,15 @@ except Exception:
     except Exception:
         _nwviz = None
 
+# Spatial-ATAC-Hi-C browser — optional, needs numpy + matplotlib.
+try:
+    from igvfagent import spatial_hic_visualizer as _sphic  # type: ignore
+except Exception:
+    try:
+        import spatial_hic_visualizer as _sphic  # type: ignore
+    except Exception:
+        _sphic = None
+
 # Benchmark figure gallery — stdlib only (reads committed PNG/SVG off disk),
 # so unlike the other visualizers it has no optional scientific deps.
 try:
@@ -1486,13 +1495,15 @@ def main() -> None:
     #   Single-cell       — UMAP / t-SNE / cluster / marker viewer over
     #                       any .h5ad produced by sc-analyze
     #   Network           — context-specific subnetwork views
+    #   Spatial           — Spatial-ATAC-Hi-C: per-pixel QC, tissue maps,
+    #                       compartments, copy-number clones, loops
     #   Benchmarks        — every committed reproducibility figure, the
     #                       suite dashboard, and the latest concordance run
     # Every tab except Chat is independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab, sc_tab, nw_tab, bm_tab = st.tabs(
+    chat_tab, kg_tab, sc_tab, nw_tab, sp_tab, bm_tab = st.tabs(
         ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell",
-         "🔗 Network", "📊 Benchmarks"]
+         "🔗 Network", "🧬 Spatial", "📊 Benchmarks"]
     )
 
     with kg_tab:
@@ -1543,6 +1554,22 @@ def main() -> None:
             except Exception as exc:  # pylint: disable=broad-except
                 import traceback
                 st.error(f"Network visualizer error: {exc}")
+                with st.expander("Traceback", expanded=False):
+                    st.code(traceback.format_exc())
+
+    with sp_tab:
+        if _sphic is None:
+            st.warning(
+                "Spatial-ATAC-Hi-C browser not available — needs `numpy` and "
+                "`matplotlib` in this venv. Install with:\n\n"
+                "```\npip install 'igvfagent[analysis]'\n```"
+            )
+        else:
+            try:
+                _sphic.render_streamlit_panel(st)
+            except Exception as exc:  # pylint: disable=broad-except
+                import traceback
+                st.error(f"Spatial-ATAC-Hi-C browser error: {exc}")
                 with st.expander("Traceback", expanded=False):
                     st.code(traceback.format_exc())
 

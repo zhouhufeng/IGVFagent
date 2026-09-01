@@ -3158,6 +3158,261 @@ _TOOLS: "list[Tool]" = [
         flag_map={"beta": "--beta", "solver": "--solver", "label": "--label"},
     ),
 
+    # ──────────────────────────────────────────────────────────────────
+    # Spatial-ATAC-Hi-C — spatially resolved 3D genome + accessibility.
+    # Ref: wangjuan001/Spatial-ATAC-Hi-C (MIT), Wang et al. Nat Methods
+    # 2026, GSE307620. Clean-room; runHiC / Trim Galore are GPL-3.0 and
+    # are external tools only, never runtime deps.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "spatial_hic_pull_geo",
+        "★ Fetch Spatial-ATAC-Hi-C data from GEO ★ — list (and optionally "
+        "download) the supplementary deposits of a spatial Hi-C + ATAC "
+        "series. Defaults to GSE307620, the Wang 2026 Nature Methods "
+        "series with mouse brain, human cerebellum and glioblastoma "
+        "samples. Use this FIRST when someone asks to work with, "
+        "reproduce, or explore Spatial-ATAC-Hi-C data.",
+        {
+            "type": "object",
+            "properties": {
+                "gse":      {**_S_STRING, "default": "GSE307620",
+                              "description": "GEO series accession."},
+                "download": {**_S_STRING, "description":
+                              "Regex; matching supplementary files are "
+                              "downloaded, e.g. 'pairs|fragments|positions'."},
+                "dest":     {**_S_STRING},
+                "label":    {**_S_STRING, "default": "spatial_hic_geo"},
+            },
+        },
+        cli=["spatial-hic", "pull-geo"],
+        flag_map={"gse": "--gse", "download": "--download",
+                   "dest": "--dest", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_pixel_demux",
+        "Split one barcoded Spatial-ATAC-Hi-C pairs file into the 50x50 "
+        "spatial pixel grid (2,500 tissue pixels). Needs the two "
+        "microfluidic barcode whitelists. Check `assigned_fraction` in "
+        "the summary — a near-zero value means the barcode layout is the "
+        "other way round, so retry with layout 'AB'.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs":     {**_S_STRING, "description": "Barcoded .pairs[.gz]."},
+                "barcode_a": {**_S_STRING, "description": "Barcode A whitelist."},
+                "barcode_b": {**_S_STRING, "description": "Barcode B whitelist."},
+                "layout":    {**_S_STRING, "default": "BA",
+                               "description": "Concatenation order: BA or AB."},
+                "barcode_field": {**_S_INTEGER, "description":
+                               "1-based pairs column holding the barcode."},
+                "max_pairs": {**_S_INTEGER, "description": "0 = all."},
+                "label":     {**_S_STRING, "default": "spatial_hic_demux"},
+            },
+            "required": ["pairs", "barcode_a", "barcode_b"],
+        },
+        cli=["spatial-hic", "pixel-demux"],
+        flag_map={"pairs": "--pairs", "barcode_a": "--barcode-a",
+                   "barcode_b": "--barcode-b", "layout": "--layout",
+                   "barcode_field": "--barcode-field",
+                   "max_pairs": "--max-pairs", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_qc",
+        "Per-pixel Spatial-ATAC-Hi-C quality control: total / cis / trans "
+        "and long-range (>=10 kb) contacts per tissue pixel, plus ArchR-"
+        "style TSS enrichment when fragments and a gene model are given. "
+        "The Wang 2026 paper reports medians of 25,343-58,403 total "
+        "contacts, 88.1-90.3% cis and 24-33.3% long-range — use those as "
+        "the reference band when judging a new dataset.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":  {**_S_STRING, "description":
+                                "A .pairs file or a directory of per-pixel ones."},
+                "fragments":  {**_S_STRING, "description":
+                                "fragments.tsv.gz, enables TSS enrichment."},
+                "gene_model": {**_S_STRING, "description": "GTF/GFF or BED6."},
+                "chrom_sizes": {**_S_STRING},
+                "min_contacts": {**_S_INTEGER, "default": 1000},
+                "label":      {**_S_STRING, "default": "spatial_hic_qc"},
+            },
+            "required": ["pairs_dir"],
+        },
+        cli=["spatial-hic", "qc"],
+        flag_map={"pairs_dir": "--pairs-dir", "fragments": "--fragments",
+                   "gene_model": "--gene-model", "chrom_sizes": "--chrom-sizes",
+                   "min_contacts": "--min-contacts", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_gas",
+        "Gene activity score matrix from Spatial-ATAC-Hi-C ATAC "
+        "fragments — Tn5 insertions over each gene's promoter (2 kb "
+        "upstream of the TSS) plus gene body, SnapATAC2-style. Pass both "
+        "barcode whitelists so the columns are AAxBB pixel ids; without "
+        "them the columns are raw barcodes and will not join with the "
+        "GAD matrix, the QC table or the spatial renderer.",
+        {
+            "type": "object",
+            "properties": {
+                "fragments":  {**_S_STRING, "description": "fragments.tsv.gz."},
+                "gene_model": {**_S_STRING, "description": "GTF/GFF or BED6."},
+                "barcode_a":  {**_S_STRING},
+                "barcode_b":  {**_S_STRING},
+                "layout":     {**_S_STRING, "default": "BA"},
+                "upstream":   {**_S_INTEGER, "default": 2000},
+                "min_cells":  {**_S_INTEGER, "default": 5},
+                "label":      {**_S_STRING, "default": "spatial_hic_gas"},
+            },
+            "required": ["fragments", "gene_model"],
+        },
+        cli=["spatial-hic", "gas"],
+        flag_map={"fragments": "--fragments", "gene_model": "--gene-model",
+                   "barcode_a": "--barcode-a", "barcode_b": "--barcode-b",
+                   "layout": "--layout", "upstream": "--upstream",
+                   "min_cells": "--min-cells", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_gad",
+        "Gene-associated domain score matrix from Spatial-ATAC-Hi-C "
+        "contacts — Hi-C pair ends counted over each gene body (scGAD, "
+        "Shen 2022). This is the Hi-C counterpart of the ATAC gene "
+        "activity score, and the paper clusters on it to recover the same "
+        "spatial domains the ATAC modality gives.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":  {**_S_STRING, "description":
+                                "Directory of per-pixel .pairs files."},
+                "gene_model": {**_S_STRING, "description": "GTF/GFF or BED6."},
+                "min_cells":  {**_S_INTEGER, "default": 5},
+                "label":      {**_S_STRING, "default": "spatial_hic_gad"},
+            },
+            "required": ["pairs_dir", "gene_model"],
+        },
+        cli=["spatial-hic", "gad"],
+        flag_map={"pairs_dir": "--pairs-dir", "gene_model": "--gene-model",
+                   "min_cells": "--min-cells", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_compartment",
+        "A/B compartment PC1 from Spatial-ATAC-Hi-C contacts, at 100 kb "
+        "by default. Observed/expected, Pearson correlation, leading "
+        "eigenvector. ALWAYS pass `gene_model` — without it the A/B sign "
+        "is arbitrary and can flip between chromosomes.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":  {**_S_STRING},
+                "chrom_sizes": {**_S_STRING},
+                "resolution": {**_S_INTEGER, "default": 100000},
+                "chroms":     {**_S_STRING, "description": "Comma list."},
+                "gene_model": {**_S_STRING, "description":
+                                "Orients A toward gene-dense bins."},
+                "label":      {**_S_STRING, "default": "spatial_hic_compartment"},
+            },
+            "required": ["pairs_dir"],
+        },
+        cli=["spatial-hic", "compartment"],
+        flag_map={"pairs_dir": "--pairs-dir", "chrom_sizes": "--chrom-sizes",
+                   "resolution": "--resolution", "chroms": "--chroms",
+                   "gene_model": "--gene-model", "label": "--label"},
+        bool_flags=("impute",),
+    ),
+
+    _T(
+        "spatial_hic_cnv",
+        "★ Spatial copy-number and tumour clone structure ★ from "
+        "Spatial-ATAC-Hi-C contacts. Binned coverage scaled to a diploid "
+        "baseline, at 5 Mb per pixel (the paper's setting for resolving "
+        "clones) or finer for pseudobulk. Set `per_pixel` to get the "
+        "pixel-by-bin matrix that reveals spatially segregated clones, "
+        "and `smooth` for MAGIC diffusion before plotting. This is the "
+        "right tool for questions about tumour heterogeneity, CNV, "
+        "amplifications (EGFR / CDK4 / MDM2) or clonal structure in "
+        "spatial Hi-C data.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":  {**_S_STRING},
+                "chrom_sizes": {**_S_STRING},
+                "resolution": {**_S_INTEGER, "default": 5000000},
+                "chroms":     {**_S_STRING},
+                "gc":         {**_S_STRING, "description": "bedGraph of GC."},
+                "ploidy":     {"type": "number", "default": 2.0},
+                "label":      {**_S_STRING, "default": "spatial_hic_cnv"},
+            },
+            "required": ["pairs_dir"],
+        },
+        cli=["spatial-hic", "cnv"],
+        flag_map={"pairs_dir": "--pairs-dir", "chrom_sizes": "--chrom-sizes",
+                   "resolution": "--resolution", "chroms": "--chroms",
+                   "gc": "--gc", "ploidy": "--ploidy", "label": "--label"},
+        bool_flags=("per_pixel", "segment", "smooth"),
+    ),
+
+    _T(
+        "spatial_hic_loops",
+        "Quantify chromatin loops per spatial pixel and test which are "
+        "cell-type / cluster specific (one-way ANOVA, p<0.05, as in the "
+        "paper), with an optional APA pileup. Needs a BEDPE of anchors — "
+        "this does NOT call loops de novo, so bring Peakachu output or "
+        "another caller's. Pass `clusters` (pixel<TAB>cluster) to get the "
+        "differential test.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":  {**_S_STRING},
+                "bedpe":      {**_S_STRING, "description": "Loop anchors."},
+                "chrom_sizes": {**_S_STRING},
+                "clusters":   {**_S_STRING, "description":
+                                "pixel<TAB>cluster; enables the ANOVA."},
+                "resolution": {**_S_INTEGER, "default": 10000},
+                "alpha":      {"type": "number", "default": 0.05},
+                "label":      {**_S_STRING, "default": "spatial_hic_loops"},
+            },
+            "required": ["pairs_dir", "bedpe"],
+        },
+        cli=["spatial-hic", "loops"],
+        flag_map={"pairs_dir": "--pairs-dir", "bedpe": "--bedpe",
+                   "chrom_sizes": "--chrom-sizes", "clusters": "--clusters",
+                   "resolution": "--resolution", "alpha": "--alpha",
+                   "label": "--label"},
+        bool_flags=("apa",),
+    ),
+
+    _T(
+        "spatial_hic_viz",
+        "Render any per-pixel Spatial-ATAC-Hi-C value back into tissue "
+        "space as a 50x50 heatmap (PNG + SVG). `column` accepts either a "
+        "column of a per-pixel table (e.g. long_range_ratio from qc) or a "
+        "gene name that is a ROW of a GAS/GAD score matrix — use this to "
+        "show where a marker gene is active across the tissue.",
+        {
+            "type": "object",
+            "properties": {
+                "table":     {**_S_STRING, "description":
+                               "A per-pixel TSV or a gene x pixel matrix."},
+                "column":    {**_S_STRING, "description":
+                               "Column name, or a gene row in a score matrix."},
+                "positions": {**_S_STRING, "description":
+                               "AtlasXBrowser tissue_positions CSV."},
+                "cmap":      {**_S_STRING, "default": "magma"},
+                "title":     {**_S_STRING},
+                "label":     {**_S_STRING, "default": "spatial_hic_viz"},
+            },
+            "required": ["table", "column"],
+        },
+        cli=["spatial-hic", "viz"],
+        flag_map={"table": "--table", "column": "--column",
+                   "positions": "--positions", "cmap": "--cmap",
+                   "title": "--title", "label": "--label"},
+    ),
+
     # ------------------------------------------------------------------
     # STARR-seq allelic analysis (clean-room rewrite of mpralm)
     # Ref: gaochengwen/STARR-seq-Data-Analysis (no LICENSE; clean-room)
