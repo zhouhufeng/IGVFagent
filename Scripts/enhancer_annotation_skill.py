@@ -75,13 +75,20 @@ REGISTRIES = {
     "V3": "Registry-V3/GRCh38-cCREs.bed",
     "V4": "Registry-V4/GRCh38-cCREs.bed",
 }
-DEFAULT_REGISTRY = "V3"
+DEFAULT_REGISTRY = "V4"   # current SCREEN registry; V3 remains selectable
 
 # Registry classification vocabulary, most-promoter-like first. Order is
 # used to pick a single representative class for a region that overlaps
 # several elements.
-CLASS_RANK = ["PLS", "pELS", "dELS", "DNase-H3K4me3", "CA-CTCF", "CA-TF",
-              "CA-only", "TF", "CTCF-only", "CTCF-bound", "Low-DNase"]
+# Registry classification vocabulary, most-promoter-like first, covering
+# BOTH registry versions: V3 uses DNase-H3K4me3 / CTCF-only / CTCF-bound,
+# while V4 replaced those with CA-H3K4me3 / CA-CTCF / CA / TF. A class
+# missing from this list would sort arbitrarily and produce a misleading
+# `top_class`, so both vocabularies are listed explicitly.
+CLASS_RANK = ["PLS", "pELS", "dELS",
+              "DNase-H3K4me3", "CA-H3K4me3",      # V3, V4
+              "CA-CTCF", "CA-TF", "CA", "CA-only",
+              "TF", "CTCF-only", "CTCF-bound", "Low-DNase"]
 
 CHROM_COL = ("enhancer_chr", "chrom", "chr", "chromosome", "seqnames", "#chrom")
 START_COL = ("enhancer_start", "start", "chromstart", "chrstart", "begin")
@@ -707,8 +714,8 @@ The registry is served from the Weng lab for
 
 | Registry | File |
 |---|---|
-| `V3` (default) | `Registry-V3/GRCh38-cCREs.bed` |
-| `V4` | `Registry-V4/GRCh38-cCREs.bed` |
+| `V4` (default) | `Registry-V4/GRCh38-cCREs.bed` — 2,348,854 elements |
+| `V3` | `Registry-V3/GRCh38-cCREs.bed` — 1,063,878 elements |
 
 Downloaded once into `Data/Reference/cCRE/` and indexed into
 `Data/Reference/cCRE/ccre.sqlite`, so annotation runs offline afterwards
@@ -720,7 +727,7 @@ source.
 
 ```bash
 # once — download and index the registry (~64 MB, ~2.3 M elements)
-igvfagent enhancer build-db --registry V3
+igvfagent enhancer-annot build-db --registry V4
 igvfagent enhancer db-stats
 
 # look before you leap: which sheet holds coordinates?

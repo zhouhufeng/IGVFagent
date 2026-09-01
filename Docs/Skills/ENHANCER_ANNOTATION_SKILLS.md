@@ -13,8 +13,8 @@ The registry is served from the Weng lab for
 
 | Registry | File |
 |---|---|
-| `V3` (default) | `Registry-V3/GRCh38-cCREs.bed` |
-| `V4` | `Registry-V4/GRCh38-cCREs.bed` |
+| `V4` (default) | `Registry-V4/GRCh38-cCREs.bed` — 2,348,854 elements |
+| `V3` | `Registry-V3/GRCh38-cCREs.bed` — 1,063,878 elements |
 
 Downloaded once into `Data/Reference/cCRE/` and indexed into
 `Data/Reference/cCRE/ccre.sqlite`, so annotation runs offline afterwards
@@ -26,7 +26,7 @@ source.
 
 ```bash
 # once — download and index the registry (~64 MB, ~2.3 M elements)
-igvfagent enhancer build-db --registry V3
+igvfagent enhancer-annot build-db --registry V4
 igvfagent enhancer db-stats
 
 # look before you leap: which sheet holds coordinates?
