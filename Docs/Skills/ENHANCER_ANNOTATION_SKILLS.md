@@ -56,7 +56,7 @@ several times. Rows are deduplicated on coordinates by default; pass
 
 ## Outputs
 
-Written to `Docs/EnhancerAnnotation/<timestamp>_<label>/`:
+Written to `Data/Output/EnhancerAnnotation/<timestamp>_<label>/`:
 
 | File | Contents |
 |---|---|

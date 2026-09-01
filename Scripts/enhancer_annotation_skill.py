@@ -56,7 +56,11 @@ ROOT = Path(os.environ.get("IGVF_PROJECT_ROOT")
 DATA_DIR = ROOT / "Data"
 DOCS_DIR = ROOT / "Docs"
 LOG_DIR = DOCS_DIR / "Logs"
-REPORT_DIR = DOCS_DIR / "EnhancerAnnotation"
+# Annotation results are DATA, not documentation: they are the tables a
+# user takes away and feeds downstream, so they land under Data/Output/
+# rather than in the Docs run-report tree.
+OUTPUT_DIR = DATA_DIR / "Output" / "EnhancerAnnotation"
+REPORT_DIR = OUTPUT_DIR
 SKILL_DOC_DIR = DOCS_DIR / "Skills"
 CCRE_DIR = DATA_DIR / "Reference" / "cCRE"
 CCRE_DB = CCRE_DIR / "ccre.sqlite"
@@ -757,7 +761,7 @@ several times. Rows are deduplicated on coordinates by default; pass
 
 ## Outputs
 
-Written to `Docs/EnhancerAnnotation/<timestamp>_<label>/`:
+Written to `Data/Output/EnhancerAnnotation/<timestamp>_<label>/`:
 
 | File | Contents |
 |---|---|
