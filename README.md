@@ -18,7 +18,7 @@ _End-to-end view: a knowledge graph and multi-omics data resources feed an orche
 
 ![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 30+ skills grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 61 skills / 179 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
 
 ### 🎬 Video demos
 
@@ -59,6 +59,21 @@ Access is gated by a shared password. Email
 Heavy or long-running analyses (full multiome pipelines, large downloads) are
 better run locally — see [Quick start](#quick-start). Operators: deployment
 details are in [`Deploy/README.md`](Deploy/README.md).
+
+## What's new
+
+Most recent work first. Every item below is on `main` and exercised by the
+benchmark suite or a worked example in this README.
+
+| Area | Change |
+|---|---|
+| **Enhancer annotation** | New `enhancer-annot` skill: annotate a list of regulatory **regions** (xlsx / BED / TSV / CSV) against the ENCODE SCREEN cCRE registry by interval overlap — element count, ranked class, union coverage, and nearest-element distance for non-overlapping regions. Registry V4 (2,348,854 elements) indexed locally for offline use. |
+| **MPRA toolchain** | Three clean-room ports of the kircherlab suite completing the assay lifecycle — `oligo` (library design), `mpraflow` (counts → activity), `mpralib` (barcode QC + IGVF format validation). Standard-library only; verified bit-identical against six upstream scripts. |
+| **Reproducibility** | New benchmark `rosen2025_mprasnakeflow` reproduces a **published IGVF artefact byte-for-byte** (210,660 / 210,660 values) and the source paper's stated complexity figures to the digit. Suite now 22 papers. |
+| **IGVF file standards** | `mpralib validate` checks any file against the eight IGVF MPRA community schemas (Rosen *et al.* Supplementary Note S1). Every file `mpraflow` writes validates. |
+| **Knowledge Graph explorer** | The UI listed graphs in discovery order behind a dropdown, so the IGVF integrated KG — the graph every tool writes into — was hidden behind Proteomics PPI-KG. Now leads, and all graphs are visible at once with what each is for. |
+| **Deployment** | `Deploy/redeploy.sh` pulls, rebuilds and recreates the container, then **verifies** that the code actually running inside it matches the checkout. The app image bakes the package in at build time, so `git pull` alone never updated a running site. |
+| **Catalog** | Fixed pathway node lookups returning the same record for every ID — `/api/pathways` keys on `id`, not `pathway_id`, and silently drops unknown query parameters. Every node lookup now verifies the response's identity against the request. |
 
 ## Architecture at a glance
 
@@ -102,6 +117,7 @@ In short — **two ways to drive every skill, one shared contract**:
 
 ## Table of contents
 
+- [What's new](#whats-new)
 - [Try it online (hosted)](#-try-it-online--no-install-required)
 - [Capabilities](#capabilities)
 - [Repository layout](#repository-layout)
@@ -118,6 +134,8 @@ In short — **two ways to drive every skill, one shared contract**:
   - [Parse SPLiT-seq pipeline](#parse-split-seq-pipeline)
   - [Enhancer–gene linkage](#enhancergene-linkage)
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
+  - [MPRA library design → counts → barcode QC](#mpra-library-design--counts--barcode-qc)
+  - [Enhancer / regulatory-region cCRE annotation](#enhancer--regulatory-region-ccre-annotation)
   - [CRISPRi / CRISPR-FACS / Perturb-seq](#crispri--crispr-facs--perturb-seq)
   - [cCRE, FAVOR, IGV-style browser views](#ccre-favor-igv-style-browser-views)
   - [Data illustration and interpretation](#data-illustration-and-interpretation)
@@ -186,7 +204,7 @@ In short — **two ways to drive every skill, one shared contract**:
   VAMP-seq / SGE / cell-fitness scores into **PS3 / BS3 evidence strengths**
   (supporting → very strong) with the score window for each, so an assay score
   can be used directly in clinical variant classification.
-- **Skill-correctness benchmark suite** — twenty-one recent Nature / Cell /
+- **Skill-correctness benchmark suite** — twenty-two recent Nature / Cell /
   Science / Nat Genet / Nat Methods / Genome Biol papers reproduced directly
   from public data, each scored against machine-readable ground-truth checks.
   **Scope:** every `run.sh` invokes skills directly as shell commands, with no
@@ -201,6 +219,24 @@ In short — **two ways to drive every skill, one shared contract**:
   2025 developing-neocortex multiome atlas (Wang, CELLxGENE) in progress. The
   single-cell loaders + QC these exercise are internalized into
   `Scripts/_scload.py` and the skills (see [`Benchmarks/`](Benchmarks/README.md)).
+- **Complete MPRA library toolchain** — three clean-room ports of the
+  kircherlab suite (Max Schubach / BIH, MIT), covering the whole assay
+  lifecycle: **`oligo`** designs the library (region tiling, REF/ALT variant
+  oligos, synthesis filters, adapters), **`mpraflow`** turns sequencing into
+  per-oligo activity (barcode→oligo assignment, count normalisation, outlier
+  removal, replicate aggregation, allelic skew, Lincoln-Petersen complexity),
+  and **`mpralib`** does barcode QC (three outlier detectors, replicate
+  agreement) plus validation against the **eight IGVF MPRA community file
+  standards**. All standard-library-only — no Snakemake, conda, R, bedtools or
+  pandas — and verified bit-identical against the upstream scripts.
+- **Enhancer / regulatory-REGION annotation** (`enhancer-annot`) — upload an
+  enhancer list (xlsx / BED / TSV / CSV) and annotate every **interval**
+  against the ENCODE SCREEN cCRE registry: how many cCREs overlap, a ranked
+  representative class, bases covered as a union, coverage fraction, and — for
+  regions with no overlap — the nearest element and its distance. Distinct from
+  the point-level `ccre annotate-variants`. The registry (V4 default,
+  2,348,854 elements; V3 selectable) is indexed locally so annotation runs
+  offline.
 - **Expandable by design — bring your own skills and tools.** A user-extension
   framework auto-discovers your custom tools (one YAML manifest wrapping any
   executable — no code) and custom skills (one Python file → a first-class
@@ -256,6 +292,17 @@ IGVFagent/
 │   ├── sceps_skill.py                   ← scEPS GWAS × single-cell neighborhood
 │   │                                       d-statistic (clean-room port of Genentech/sceps)
 │   ├── mpra_data_skills.py              ← MPRA / STARR / BlueSTARR
+│   ├── mpra_oligo_design_skill.py       ← MPRA oligo LIBRARY DESIGN — tiling,
+│   │                                       REF/ALT variant oligos, synthesis
+│   │                                       filters, adapters (MPRAOligoDesign port)
+│   ├── mpra_snakeflow_skill.py          ← MPRA COUNTS — barcode→oligo assignment,
+│   │                                       normalisation, outlier removal, replicate
+│   │                                       aggregation, allelic skew, complexity
+│   ├── mpralib_skill.py                 ← MPRA BARCODE QC — 3 outlier detectors,
+│   │                                       replicate agreement, IGVF format validation
+│   ├── _mpra_schemas.py                 ← the 8 IGVF MPRA community file schemas
+│   ├── enhancer_annotation_skill.py     ← enhancer / regulatory-REGION annotation
+│   │                                       against the SCREEN cCRE registry
 │   ├── crispri_data_skills.py           ← CRISPRi / CRISPR-FACS / Perturb-seq
 │   ├── encode_pipeline.py               ← ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline
 │   ├── se_target_pipeline.py            ← super-enhancer → target-gene pipeline
@@ -289,7 +336,7 @@ IGVFagent/
 │   ├── reference_skill.py               ← literature retrieval / validation / study design
 │   └── data_illustration_interpretation.py
 │
-├── Benchmarks/                          ← 21-paper reproducibility suite
+├── Benchmarks/                          ← 22-paper reproducibility suite
 │   ├── README.md                        ← suite dashboard + per-paper results
 │   ├── OPERATIONS_GUIDE.md  run_all.sh  concordance.py
 │   └── <paper-id>/                       ← run.sh + expected.json + figures + README
@@ -930,6 +977,117 @@ python3 Scripts/mpra_data_skills.py literature-demo \
   --input Data/Input/VariantList/example_variants.csv --label my_locus_mpra_literature_demo
 python3 Scripts/mpra_data_skills.py write-playbook
 ```
+
+
+### MPRA library design → counts → barcode QC
+
+Three clean-room ports of the kircherlab MPRA suite (Max Schubach / BIH, MIT),
+covering the whole assay lifecycle. All standard-library-only — no Snakemake,
+conda, R, bedtools, pandas or AnnData — and each verified against the upstream
+implementation.
+
+```bash
+# ── 1. DESIGN the library ────────────────────────────────────────────────
+# Tile regions into oligo windows (3 strategies chosen by region length)
+igvfagent oligo tile --regions regions.bed.gz --oligo-length 200 --min-overlap 50
+
+# One REF + one ALT oligo per variant x region — the contrast the assay reads
+igvfagent oligo design-variants --regions regions.bed.gz \
+    --variants variants.vcf.gz --reference hg38.fa --variant-edge-exclusion 20
+
+# Filters: homopolymers, EcoRI/SbfI sites, simple repeats, TSS, CTCF motifs
+igvfagent oligo filter --design design.fa --regions regions.bed.gz
+
+# Everything, one call → synthesis-ready design.fa.gz + per-drop filter log
+igvfagent oligo pipeline --regions regions.bed.gz --variants variants.vcf.gz \
+    --reference hg38.fa --tile --left-adapter AGGACCGGATCAACT \
+    --right-adapter CATTGCGTGAACCGA --label my_library
+
+# ── 2. SEQUENCING → per-oligo ACTIVITY ───────────────────────────────────
+# Trust the barcode→oligo assignment (min reads + majority agreement)
+igvfagent mpraflow assign-filter --pairs pairs.tsv.gz --minimum 3 --fraction 0.75
+
+# Quantify one replicate, with optional barcode outlier removal
+igvfagent mpraflow merge-counts --counts rep1.tsv.gz \
+    --assignment assignment.tsv.gz --outlier-detection ratio_mad
+
+# "Would deeper sequencing help?" — Lincoln-Petersen mark-recapture
+igvfagent mpraflow complexity --barcode-file reporter_experiment.barcode.tsv.gz
+
+# Everything: per-replicate activity → master table → pooled → allelic skew
+igvfagent mpraflow pipeline --assignment assignment.tsv.gz \
+    --replicate 1=rep1.tsv.gz --replicate 2=rep2.tsv.gz --replicate 3=rep3.tsv.gz \
+    --declaration variants.tsv --threshold 10
+
+# ── 3. BARCODE QC + IGVF FORMAT VALIDATION ───────────────────────────────
+# Three outlier detectors from Rosen et al.
+igvfagent mpralib outliers --barcode-file barcodes.tsv.gz --method global
+igvfagent mpralib outliers --barcode-file barcodes.tsv.gz --method large_expression
+
+# Are those calls reproducible across replicates?
+igvfagent mpralib consistency --barcode-file barcodes.tsv.gz --method global
+
+# Validate any file against the 8 IGVF MPRA community standards
+igvfagent mpralib schemas
+igvfagent mpralib validate --file master_table.tsv.gz --schema reporter_experiment
+```
+
+**Verification.** `oligo` reproduces all 35 rows of MPRAOligoDesign's golden
+tiling fixture. `mpraflow` is **bit-identical** to six upstream scripts run
+side-by-side on the same inputs (`merge_label.py` 420/420 values,
+`filterAssignmentTsv.py` 238/238 rows, `generateMasterVariantTable.py` 435/435).
+Against the published IGVF artefact for AnalysisSet `IGVFDS1933XFAF` —
+where the portal hosts both the input *and* the authors' own pipeline output —
+it reproduces **210,660 / 210,660 values exactly**, and reproduces the paper's
+stated library-complexity figures to the digit. See
+[`Benchmarks/rosen2025_mprasnakeflow/`](Benchmarks/rosen2025_mprasnakeflow/README.md).
+
+Two upstream bugs are fixed and documented (a homopolymer run at a sequence's
+end was never checked; `use_most_centered_region` measured distance to the
+region *end*), each with a flag to restore the original behaviour for exact
+reproduction.
+
+### Enhancer / regulatory-region cCRE annotation
+
+Upload a list of **regions** and annotate every interval against the ENCODE
+SCREEN candidate cis-regulatory element registry. This is interval overlap —
+distinct from `ccre annotate-variants`, which is point-level.
+
+```bash
+# Once: download + index the registry (V4 default, 2,348,854 elements)
+igvfagent enhancer-annot build-db --registry V4
+igvfagent enhancer-annot db-stats
+
+# Which sheet of the workbook actually holds coordinates?
+igvfagent enhancer-annot inspect --input Data/Input/EnhancerList/library.xlsx
+
+# Annotate
+igvfagent enhancer-annot annotate \
+    --input Data/Input/EnhancerList/library.xlsx \
+    --sheet High.sgRNA0820 --label my_library
+```
+
+Accepts `.xlsx` / `.xlsm` (any sheet), BED, TSV, CSV, gzipped. Coordinate
+columns are auto-detected and a headerless BED is recognised by shape; `.xlsx`
+is read with `zipfile` + `xml.etree` so no spreadsheet dependency is needed and
+million-row sheets stream. A CRISPR library repeats each enhancer once per
+sgRNA, so rows are deduplicated on coordinates by default.
+
+Per region you get: number of overlapping cCREs, a ranked representative class
+(PLS > pELS > dELS > CA-H3K4me3 > CA-CTCF > CA-TF > CA > TF), every class seen,
+bases covered as a **union** (overlapping elements are not double-counted),
+coverage fraction, and — when nothing overlaps — the nearest element and its
+distance, which is what separates a cCRE desert from a near miss.
+
+Results are written to `Data/Output/EnhancerAnnotation/<timestamp>_<label>/`
+as `annotated_regions.csv`, `regions_without_ccre.csv`, `annotated_regions.bed`
+and `summary.json`.
+
+> V3 and V4 use **different class vocabularies** (V3: `DNase-H3K4me3` /
+> `CTCF-only` / `CTCF-bound`; V4: `CA-H3K4me3` / `CA-CTCF` / `CA-TF` / `CA` /
+> `TF`) and V4 has more than twice as many elements, so annotations are not
+> comparable across versions. The registry version is recorded in every
+> `summary.json`.
 
 ### CRISPRi / CRISPR-FACS / Perturb-seq
 
@@ -1836,7 +1994,7 @@ seeded, so a rerun reproduces the calibration exactly.
 
 ## Reproducibility benchmark suite
 
-IGVFagent ships a **21-paper reproducibility benchmark suite** in
+IGVFagent ships a **22-paper reproducibility benchmark suite** in
 [`Benchmarks/`](Benchmarks/README.md): recent Nature / Cell / Science /
 Nat Genet / Nat Methods / Genome Biol papers whose published analyses IGVFagent
 reproduces **directly from public data**. Each benchmark is a self-contained
@@ -1869,7 +2027,9 @@ stdlib-only scorer (`concordance.py`) turns each run into pass/fail checks.
 | 19 | **Wang 2025** developing neocortex multiome *Nature* | `sc-analyze` (**full local repro**) | 232,328-nucleus atlas (exact); 29 author cell types; AMI 0.65 — 7/7 |
 | 20 | **Zou/Shi 2026** scEPS GWAS × single-cell *medRxiv* | `sceps` port (**full local repro**) | microglia significantly AD-associated (d=4.76e-5, **Z=4.99, P=6e-7**); d>0 fraction 58 % vs paper 58 % |
 
-Benchmarks 14–20 are **full local reproductions** — they download the public
+| 21 | **Rosen 2025** MPRAsnakeflow *Genome Res / bioRxiv* | `mpraflow` + `mpralib` (**full local repro**) | **210,660 / 210,660 values byte-identical** to the authors' published IGVF artefact; 3/3 stated complexity figures reproduced to the digit — 8/8 |
+
+Benchmarks 14–21 are **full local reproductions** — they download the public
 data and run IGVFagent's real single-cell / multiome / GWAS-integration chain,
 then score concordance against the authors' own results. The newest, **scEPS**
 (Zou/Shi 2026), reimplements the full estimate→cluster→aggregate pipeline
