@@ -4197,6 +4197,22 @@ _TOOLS: "list[Tool]" = [
                                     "(each holding evidence_pack.json). "
                                     "Offline; the gene-panel route."},
                 "min_assays":     {**_S_INTEGER, "default": 3},
+                "min_experimental": {**_S_INTEGER, "default": 0,
+                                    "description":
+                                    "Also require this many distinct "
+                                    "EXPERIMENTAL assays. Set it when the "
+                                    "asker means wet-lab assays (MPRA, "
+                                    "CRISPR, eQTL) and should not be given "
+                                    "variants padded over the threshold by "
+                                    "predictors or curated resources."},
+                "include_ld":     {**_S_BOOLEAN, "description":
+                                    "Count 'linkage disequilibrum' as an "
+                                    "assay. Off by default: it attaches to "
+                                    "nearly every common variant."},
+                "include_predictions": {**_S_BOOLEAN, "description":
+                                    "Count the in-silico coding-variant "
+                                    "predictors (SIFT/PolyPhen2/CADD/...) "
+                                    "as assays. Off by default."},
                 "label":          {**_S_STRING, "default": "run"},
             },
         },
@@ -4204,7 +4220,11 @@ _TOOLS: "list[Tool]" = [
         flag_map={"variants": "--variants",
                    "variants_file": "--variants-file",
                    "from_traversal": "--from-traversal",
-                   "min_assays": "--min-assays", "label": "--label"},
+                   "min_assays": "--min-assays",
+                   "min_experimental": "--min-experimental",
+                   "include_ld": "--include-ld",
+                   "include_predictions": "--include-predictions",
+                   "label": "--label"},
         bool_flags=("include_ld", "include_predictions"),
     ),
 

@@ -1085,7 +1085,14 @@ def cmd_variant_evidence(args: argparse.Namespace) -> int:
             "origins": ";".join(sorted(origins.get(vid, ()))[:6]),
         })
     rows.sort(key=lambda r: (-r["n_assays"], -r["n_edges"], r["variant"]))
-    kept = [r for r in rows if r["n_assays"] >= args.min_assays]
+    # `n_assays` counts every evidence kind; `n_experimental` counts only the
+    # wet-lab assays. Someone asking for ">3 assays, e.g. MPRA/CRISPR/eQTL"
+    # means the latter, so --min-experimental gates on it independently rather
+    # than letting a computational predictor and a curated resource pad a
+    # variant over the threshold.
+    kept = [r for r in rows
+            if r["n_assays"] >= args.min_assays
+            and r["n_experimental"] >= args.min_experimental]
 
     out_dir = REPORT_DIR / (f"{time.strftime('%Y%m%d_%H%M%S')}_"
                              f"variant_evidence_{safe_label(args.label)}")
@@ -1110,6 +1117,7 @@ def cmd_variant_evidence(args: argparse.Namespace) -> int:
         "n_variants": len(rows),
         "n_variants_passing": len(kept),
         "min_assays": args.min_assays,
+        "min_experimental": args.min_experimental,
         "excluded_methods": sorted(excluded),
         "excluded_endpoints": sorted(skip_origins),
         "assay_vocabulary": dict(vocab_all.most_common()),
@@ -1118,14 +1126,18 @@ def cmd_variant_evidence(args: argparse.Namespace) -> int:
                               for k in vocab_all},
         "assay_count_distribution": {str(k): v for k, v in sorted(dist.items())},
         "max_assays_observed": max((r["n_assays"] for r in rows), default=0),
+        "max_experimental_observed": max((r["n_experimental"] for r in rows),
+                                          default=0),
     }
     sum_path = out_dir / "summary.json"
     sum_path.write_text(json.dumps(summary, indent=2, sort_keys=True))
 
     print(f"Output dir:    {out_dir}")
     print(f"All variants:  {all_path}  ({len(rows):,} variants)")
-    print(f"Report:        {hit_path}  "
-          f"({len(kept):,} with >= {args.min_assays} assays)")
+    _gate = f">= {args.min_assays} assays"
+    if args.min_experimental:
+        _gate += f", >= {args.min_experimental} experimental"
+    print(f"Report:        {hit_path}  ({len(kept):,} with {_gate})")
     print(f"Summary:       {sum_path}")
     print(f"Assay vocabulary observed ({len(vocab_all)}): "
           f"{', '.join(k for k, _ in vocab_all.most_common(12))}")
@@ -1147,8 +1159,9 @@ def cmd_variant_evidence(args: argparse.Namespace) -> int:
             print(f"  {r['variant']:24} {r['n_assays']:>2} evid "
                   f"({r['n_experimental']:>2} exp)  {r['assays'][:62]}")
     else:
-        print(f"\nNo variant reached {args.min_assays} distinct assays. "
-              f"Max observed was {summary['max_assays_observed']}.")
+        print(f"\nNo variant passed {_gate}. Max observed was "
+              f"{summary['max_assays_observed']} assays / "
+              f"{summary['max_experimental_observed']} experimental.")
     if not args.from_traversal:
         print("\nNote: this is scoped to the variants you supplied. The "
               "Catalog has no unfiltered variant scan and the `variants` "
@@ -1485,8 +1498,16 @@ igvfagent catalog variant-evidence \
 ```
 
 Output is `variant_evidence.tsv` (all variants, ranked),
-`variant_evidence_filtered.tsv` (those clearing `--min-assays`) and a
+`variant_evidence_filtered.tsv` (those clearing the gate) and a
 `summary.json` carrying the assay vocabulary and count distribution.
+
+`--min-assays` counts every evidence kind. When the asker means wet-lab
+assays — "MPRA, CRISPR, eQTL etc" usually does — add
+`--min-experimental 3`, which gates on `n_experimental` as well so a
+computational predictor plus a curated resource cannot pad a variant over
+the threshold. On the APOE pair, `--min-assays 3` keeps rs429358 and
+rs7412 at 4 evidence types each; adding `--min-experimental 3` drops both,
+because only 2 of those 4 (GWAS, pQTL) are experimental.
 
 **There is no genome-wide mode, on purpose.** The Catalog rejects an
 unfiltered variant-edge query ("At least one variant parameter must be
@@ -1581,6 +1602,11 @@ def main(argv=None) -> int:
                          "evidence_pack.json paths). Aggregates packs "
                          "already on disk — no network, and the way to go "
                          "from a gene panel to per-variant assay counts.")
+    p.add_argument("--min-experimental", type=int, default=0,
+                    help="Also require at least this many distinct "
+                         "EXPERIMENTAL assays (default 0 = no extra gate). "
+                         "Use it when 'N assays' is meant to exclude "
+                         "computational predictors and curated resources.")
     p.add_argument("--min-assays", type=int, default=3,
                     help="Report variants supported by at least this many "
                          "distinct assays (default 3).")
