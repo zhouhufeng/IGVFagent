@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import time
+import json
 from pathlib import Path
 from typing import Any
 
@@ -804,6 +805,9 @@ def _sidebar() -> dict:
 
             _sidebar_load_button(backend, model)
 
+        # Long-running detached work, surfaced where the user can see it.
+        _sidebar_jobs()
+
         # Resolved configuration block — kept for transparency.
         eff = _resolve_effective_config(backend, model)
         with st.expander("Resolved configuration", expanded=False):
@@ -1423,6 +1427,69 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
 
 
 # --------------------------- Main render -----------------------------------
+
+
+def _running_jobs() -> "list[dict]":
+    """Detached raw-pipeline jobs, newest first.
+
+    A long alignment runs outside the request that started it, so without
+    this the UI shows nothing at all while 45 GB is being quantified and the
+    run looks like it never happened.
+    """
+    try:
+        from igvfagent import raw_data_pipeline as rp
+    except Exception:                                        # noqa: BLE001
+        try:
+            import raw_data_pipeline as rp                   # type: ignore
+        except Exception:                                    # noqa: BLE001
+            return []
+    out = []
+    try:
+        paths = sorted(rp.JOB_DIR.glob("*.json"),
+                       key=lambda q: q.stat().st_mtime, reverse=True)
+    except OSError:
+        return []
+    for jp in paths[:8]:
+        try:
+            rec = json.loads(jp.read_text())
+        except (ValueError, OSError):
+            continue
+        log = Path(rec.get("log", ""))
+        alive = rp._pid_alive(rec.get("pid"), marker="raw-pipeline")
+        tail = rp._tail(log, 3) if log.exists() else []
+        finished = any("Run dir:" in ln for ln in rp._tail(log, 40)) if log.exists() else False
+        rec["state"] = "running" if alive else ("finished" if finished else "stopped")
+        rec["tail"] = tail
+        rec["progress"] = rp.read_progress(Path(rec.get("work", "")))
+        out.append(rec)
+    return out
+
+
+def _sidebar_jobs() -> None:
+    jobs = _running_jobs()
+    if not jobs:
+        return
+    active = [j for j in jobs if j["state"] == "running"]
+    header = f"⚙ Analysis jobs ({len(active)} running)" if active else "⚙ Analysis jobs"
+    with st.expander(header, expanded=bool(active)):
+        for j in jobs:
+            icon = {"running": "🔄", "finished": "✅"}.get(j["state"], "⏹")
+            st.markdown(f"{icon} **{j.get('job_id')}** — `{j.get('accession')}`  \n"
+                        f"<span style='opacity:.7'>{j['state']} · started "
+                        f"{j.get('started','?')}</span>",
+                        unsafe_allow_html=True)
+            prog = j.get("progress") or {}
+            pct = prog.get("percent")
+            if isinstance(pct, (int, float)):
+                st.progress(min(1.0, max(0.0, pct / 100.0)),
+                            text=f"{prog.get('phase','')} · {prog.get('detail','')}")
+            elif prog.get("phase"):
+                st.caption(f"⏳ {prog['phase']} · {prog.get('detail','')}")
+            for ln in j.get("tail", []):
+                st.caption(ln[:110])
+        st.caption("Jobs keep running after the page closes. Ask "
+                   "\u201cstatus of <job id>\u201d for detail.")
+
 
 def main() -> None:
     cfg = _sidebar()

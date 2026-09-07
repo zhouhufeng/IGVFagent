@@ -144,14 +144,25 @@ def portal_json(path: str) -> "tuple[int, Any]":
         return 0, None
 
 
-def portal_download(href: str, dest: Path) -> Path:
-    """Download one Portal file, following the S3 redirect safely."""
+def portal_download(href: str, dest: Path, on_bytes=None) -> Path:
+    """Download one Portal file, following the S3 redirect safely.
+
+    ``on_bytes(n)`` is called with each chunk size so a caller can report
+    progress while a multi-GB transfer is in flight.
+    """
     url = href if href.startswith("http") else f"{IGVF_API_BASE}{href}"
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
     req = urllib.request.Request(url, headers=_headers())
+    chunk = 4 * 1024 * 1024
     with _OPENER.open(req, timeout=600) as r, tmp.open("wb") as fh:
-        shutil.copyfileobj(r, fh, length=4 * 1024 * 1024)
+        while True:
+            buf = r.read(chunk)
+            if not buf:
+                break
+            fh.write(buf)
+            if on_bytes:
+                on_bytes(len(buf))
     tmp.replace(dest)
     return dest
 
@@ -721,6 +732,29 @@ def cmd_run(args: argparse.Namespace) -> int:
         local_pairs = []
         local_singles = []
         fq_dir = work / "fastq"
+        # Byte-accurate progress across the whole transfer: the download is
+        # the long pole (45.6 GB here), and it is the one phase whose total
+        # is known up front.
+        _all_reads = ([f for pair in pairs for f in pair] if pairs
+                      else list(inv["buckets"]["reads"]))
+        _total_bytes = sum(float(f.get("file_size") or 0) for f in _all_reads) or 1.0
+        _done = {"n": 0.0, "last": 0.0}
+
+        def _tick(n: int) -> None:
+            _done["n"] += n
+            now = time.time()
+            if now - _done["last"] < 2.0:      # cap writes at ~1 every 2s
+                return
+            _done["last"] = now
+            write_progress(work, phase="download",
+                           bytes_done=int(_done["n"]),
+                           bytes_total=int(_total_bytes),
+                           percent=round(100.0 * _done["n"] / _total_bytes, 1),
+                           detail=f"{_done['n']/1e9:.1f} / {_total_bytes/1e9:.1f} GB")
+
+        write_progress(work, phase="download", bytes_done=0,
+                       bytes_total=int(_total_bytes), percent=0.0,
+                       detail=f"0 / {_total_bytes/1e9:.1f} GB")
         if single_end:
             for f in inv["buckets"]["reads"]:
                 name = Path(str(f.get("href") or f.get("accession"))).name
@@ -730,10 +764,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                           f"({gb(f.get('file_size'))} GB) -> {dest}")
                 elif dest.exists():
                     logging.info("already present: %s", dest)
+                    _tick(float(f.get("file_size") or 0))
                 else:
                     print(f"Downloading {f.get('accession')} "
                           f"({gb(f.get('file_size'))} GB)…")
-                    portal_download(f["href"], dest)
+                    portal_download(f["href"], dest, on_bytes=_tick)
                 local_singles.append(dest)
         for r1, r2 in pairs:
             p = []
@@ -745,10 +780,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                           f"({gb(f.get('file_size'))} GB) -> {dest}")
                 elif dest.exists():
                     logging.info("already present: %s", dest)
+                    _tick(float(f.get("file_size") or 0))
                 else:
                     print(f"Downloading {f.get('accession')} "
                           f"({gb(f.get('file_size'))} GB)…")
-                    portal_download(f["href"], dest)
+                    portal_download(f["href"], dest, on_bytes=_tick)
                 p.append(dest)
             local_pairs.append((p[0], p[1]))
 
@@ -756,6 +792,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         cmd = kb_count_cmd(index, t2g, tech, kb_out, local_pairs,
                             args.threads, args.workflow,
                             singles=local_singles or None)
+        write_progress(work, phase="align", percent=None,
+                       detail=f"kb count -x {tech} on {len(local_pairs) or len(local_singles)} "
+                              f"input(s); no per-read progress is available")
         print("Aligner: " + " ".join(cmd))
         if args.dry_run:
             print("DRY RUN: would run kb count as printed above.")
@@ -771,6 +810,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     else:
         print("Nothing to process: no reads and no matrix.")
         return 2
+
+    if matrix:
+        write_progress(work, phase="analyse", percent=None,
+                       detail=f"matrix ready: {matrix.name}")
 
     if matrix and not args.skip_analysis and is_bulk:
         # Never hand a bulk matrix to the single-cell pipeline. It is one
@@ -792,6 +835,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         if not args.dry_run:
             subprocess.run(sc, check=False)
 
+    write_progress(work, phase="done", percent=100.0,
+                   detail=f"complete: {work}")
     print(f"Run dir: {work}")
     return 0
 
@@ -876,12 +921,61 @@ def write_job(job_id: str, **fields: Any) -> Path:
     return path
 
 
-def _pid_alive(pid: Any) -> bool:
+def _pid_alive(pid: Any, marker: str = "") -> bool:
+    """Is this pid still our job?
+
+    ``os.kill(pid, 0)`` alone is not enough: pids are recycled, so a long
+    after a job died some unrelated process can inherit its number and the
+    job is reported as still running forever. When ``marker`` is given the
+    command line is checked too, which is what makes a "finished" state
+    trustworthy.
+    """
     try:
-        os.kill(int(pid), 0)
-    except (OSError, TypeError, ValueError):
+        pid = int(pid)
+    except (TypeError, ValueError):
         return False
-    return True
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    if not marker:
+        return True
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
+    except OSError:
+        return True          # no procfs (macOS): fall back to the bare check
+    return marker in cmdline
+
+
+def write_progress(work: Path, **fields: Any) -> None:
+    """Record machine-readable progress next to the log.
+
+    A long job is otherwise a silent black box: the UI can only show that
+    something is running, never how far along. Written atomically so a
+    reader never sees a half-serialised file.
+    """
+    try:
+        work.mkdir(parents=True, exist_ok=True)
+        path = work / "progress.json"
+        tmp = path.with_suffix(".json.tmp")
+        fields["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        tmp.write_text(json.dumps(fields, indent=2, default=str))
+        tmp.replace(path)
+    except OSError:
+        pass
+
+
+def read_progress(work: Path) -> dict:
+    try:
+        return json.loads((work / "progress.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def render_bar(pct: float, width: int = 28) -> str:
+    pct = max(0.0, min(100.0, float(pct)))
+    filled = int(round(width * pct / 100.0))
+    return "[" + "#" * filled + "-" * (width - filled) + f"] {pct:5.1f}%"
 
 
 def _tail(path: Path, n: int = 12) -> "list[str]":
@@ -930,14 +1024,21 @@ def cmd_status(args: argparse.Namespace) -> int:
         except ValueError:
             continue
         log = Path(rec.get("log", ""))
-        alive = _pid_alive(rec.get("pid"))
+        alive = _pid_alive(rec.get("pid"), marker="raw-pipeline")
         done = log.exists() and any("Run dir:" in ln for ln in _tail(log, 40))
         state = "running" if alive else ("finished" if done else "stopped")
         if state != rec.get("state"):
             write_job(rec["job_id"], state=state)
+        prog = read_progress(Path(rec.get("work", "")))
         print(f"\n=== {rec['job_id']} ===")
         print(f"accession: {rec.get('accession')}   started: {rec.get('started')}")
         print(f"state:     {state}   pid {rec.get('pid')}")
+        if prog:
+            pct = prog.get("percent")
+            bar = render_bar(pct) if isinstance(pct, (int, float)) else "[ working ]"
+            print(f"phase:     {prog.get('phase','?'):9} {bar}")
+            if prog.get("detail"):
+                print(f"           {prog['detail']}   (as of {prog.get('updated','?')})")
         print(f"log:       {log}")
         for ln in _tail(log, args.tail):
             print(f"  | {ln}")
