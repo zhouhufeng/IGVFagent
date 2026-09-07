@@ -17,6 +17,24 @@ igvfagent raw-pipeline run IGVFDS3532MONX
 igvfagent raw-pipeline run IGVFDS3532MONX --dry-run
 ```
 
+## Long runs: detach
+
+Aligning a real dataset takes tens of minutes to hours — IGVFDS3532MONX is
+45.6 GB of reads. The agent runs a tool as a blocking subprocess with no
+timeout, inside a web request, so a synchronous run holds the browser open
+for the whole job and the result is lost when the socket drops. That is why
+a large dataset could only ever be *planned*.
+
+```bash
+igvfagent raw-pipeline run IGVFDS3532MONX --detach   # returns a job id at once
+igvfagent raw-pipeline status                        # all recent jobs
+igvfagent raw-pipeline status <job-id> --tail 30     # one job, more log
+```
+
+The job runs in its own session and outlives the conversation, so "did that
+analysis finish?" is answerable in a later session. Use `--detach` for
+anything beyond a few GB; a small set is fine synchronously.
+
 ## Routes
 
 Chosen automatically and printed as `ROUTE:` before anything large moves.

@@ -4595,7 +4595,11 @@ _TOOLS: "list[Tool]" = [
         "Downloads nothing except the small seqspec. CALL THIS FIRST "
         "whenever someone asks to analyse, process, or run a pipeline on a "
         "dataset accession, so the cost and the route are known before any "
-        "large transfer. It also names which files are controlled-access.",
+        "large transfer. It also names which files are controlled-access. "
+        "This tool DESCRIBES the work; it does not do it. When the request "
+        "was to analyse or process the data, follow it with "
+        "raw_pipeline_run (detach=true for anything over a few GB) rather "
+        "than reporting the plan as though it were the result.",
         {
             "type": "object",
             "properties": {
@@ -4629,7 +4633,11 @@ _TOOLS: "list[Tool]" = [
         "commands for them to run. Set workflow='kite' to assign CRISPR "
         "sgRNA feature barcodes. Alignment can move tens of GB, so call "
         "raw_pipeline_plan first, or pass dry_run=true to see every "
-        "command and transfer without performing any.",
+        "command and transfer without performing any. A PLAN IS NOT AN "
+        "ANSWER: if the user asked you to analyse or process the data, "
+        "planning and then describing what would happen has not done what "
+        "they asked. Start the run -- with detach=true when the plan "
+        "reports more than a few GB -- and report the job id.",
         {
             "type": "object",
             "properties": {
@@ -4653,6 +4661,16 @@ _TOOLS: "list[Tool]" = [
                 "dry_run":         {**_S_BOOLEAN, "description":
                                      "Print every command and download "
                                      "nothing."},
+                "detach":          {**_S_BOOLEAN, "description":
+                                     "★ USE THIS FOR ANYTHING LARGE ★ Start "
+                                     "the run in its own process and return "
+                                     "a job id immediately, instead of "
+                                     "blocking until it finishes. A 45 GB "
+                                     "dataset takes hours; a synchronous "
+                                     "call holds the whole conversation open "
+                                     "and the result is lost when the "
+                                     "session ends. Poll with "
+                                     "raw_pipeline_status."},
                 "force_align":     {**_S_BOOLEAN, "description":
                                      "Align even if a published matrix "
                                      "exists."},
@@ -4667,7 +4685,28 @@ _TOOLS: "list[Tool]" = [
         flag_map={"technology": "--technology", "workflow": "--workflow",
                    "reference": "--reference", "label": "--label",
                    "max_download_gb": "--max-download-gb"},
-        bool_flags=("dry_run", "force_align", "skip_analysis"),
+        bool_flags=("dry_run", "force_align", "skip_analysis", "detach"),
+    ),
+    _T(
+        "raw_pipeline_status",
+        "★ HOW IS THE ALIGNMENT GOING ★ — reports on runs started with "
+        "raw_pipeline_run(detach=true): whether each is still running, and "
+        "the tail of its log. Call this when a user asks about a job "
+        "already under way, or right after starting one to confirm it took. "
+        "Jobs survive the conversation, so this also answers 'did that "
+        "analysis I asked for yesterday finish'.",
+        {
+            "type": "object",
+            "properties": {
+                "job":   {**_S_STRING, "description":
+                           "Job id from raw_pipeline_run. Omit for all."},
+                "tail":  {**_S_INTEGER, "default": 12},
+                "limit": {**_S_INTEGER, "default": 5},
+            },
+        },
+        cli=["raw-pipeline", "status"],
+        positional=("job",),
+        flag_map={"tail": "--tail", "limit": "--limit"},
     ),
 
     _T(

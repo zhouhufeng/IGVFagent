@@ -614,12 +614,40 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    label = args.label or f"{stamp}_{safe_label(args.accession)}"
+
+    if getattr(args, "detach", False):
+        # Re-invoke this same command without --detach, in its own session.
+        argv = [_igvfagent(), "raw-pipeline", "run", args.accession,
+                "--label", label,
+                "--reference", args.reference,
+                "--max-download-gb", str(args.max_download_gb),
+                "--workflow", args.workflow,
+                "--threads", str(args.threads)]
+        if args.technology:
+            argv += ["--technology", args.technology]
+        if args.force_align:
+            argv.append("--force-align")
+        if args.skip_analysis:
+            argv.append("--skip-analysis")
+        if args.index and args.t2g:
+            argv += ["--index", args.index, "--t2g", args.t2g]
+        rec = spawn_detached(argv, label, args.accession)
+        print(f"STARTED detached job: {label}")
+        print(f"  accession: {args.accession}")
+        print(f"  pid:       {rec['pid']}")
+        print(f"  log:       {rec['log']}")
+        print(f"  work dir:  {rec['work']}")
+        print("\nThe job continues after this call returns and after this "
+              "conversation ends.")
+        print(f"Check on it with:  igvfagent raw-pipeline status {label}")
+        return 0
+
     inv = _inventory(args.accession, args.force_align)
     if inv is None:
         return 2
     route = inv["route"]["route"]
-    stamp = time.strftime("%Y%m%d_%H%M%S")
-    label = args.label or f"{stamp}_{safe_label(args.accession)}"
     work = RUN_DIR / label
     work.mkdir(parents=True, exist_ok=True)
 
@@ -814,6 +842,108 @@ def _igvfagent() -> str:
     return shutil.which("igvfagent") or sys.executable
 
 
+# ─── Detached jobs ──────────────────────────────────────────────────────────
+#
+# Aligning a real dataset takes tens of minutes to hours: IGVFDS3532MONX is
+# 45.6 GB of reads. The agent loop runs a tool as a blocking subprocess with
+# no timeout, inside a web request, so a synchronous run holds the browser
+# open for the whole job and the answer is lost when the socket drops. That
+# is why "analyse this raw data" could only ever be planned, never done.
+#
+# `--detach` therefore starts the work in its own process, records a job
+# file, and returns immediately with an id. `status` reads it back. The agent
+# gets a fast tool call; the job outlives the conversation.
+
+JOB_DIR = RUN_DIR / "_jobs"
+
+
+def _job_path(job_id: str) -> Path:
+    return JOB_DIR / f"{safe_label(job_id)}.json"
+
+
+def write_job(job_id: str, **fields: Any) -> Path:
+    JOB_DIR.mkdir(parents=True, exist_ok=True)
+    path = _job_path(job_id)
+    data = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+        except ValueError:
+            data = {}
+    data.update(fields)
+    data["job_id"] = job_id
+    path.write_text(json.dumps(data, indent=2, sort_keys=True, default=str))
+    return path
+
+
+def _pid_alive(pid: Any) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, TypeError, ValueError):
+        return False
+    return True
+
+
+def _tail(path: Path, n: int = 12) -> "list[str]":
+    """Last n meaningful lines: progress bars and INFO chatter are noise."""
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    keep = [ln for ln in lines
+            if ln.strip()
+            and "B/s" not in ln
+            and not re.match(r"^\s*\d+%", ln)
+            and " INFO " not in ln]
+    return keep[-n:]
+
+
+def spawn_detached(argv: "list[str]", job_id: str, accession: str) -> dict:
+    """Start the run in its own process and return its job record."""
+    work = RUN_DIR / job_id
+    work.mkdir(parents=True, exist_ok=True)
+    log = work / "run.log"
+    with log.open("w") as fh:
+        proc = subprocess.Popen(argv, stdout=fh, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, start_new_session=True)
+    rec = {"accession": accession, "pid": proc.pid, "log": str(log),
+           "work": str(work), "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+           "argv": argv, "state": "running"}
+    write_job(job_id, **rec)
+    return rec
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    JOB_DIR.mkdir(parents=True, exist_ok=True)
+    jobs = sorted(JOB_DIR.glob("*.json"))
+    if args.job:
+        jobs = [_job_path(args.job)] if _job_path(args.job).exists() else []
+        if not jobs:
+            print(f"No such job: {args.job}")
+            return 2
+    if not jobs:
+        print("No raw-pipeline jobs on record.")
+        return 0
+    for jp in jobs[-args.limit:]:
+        try:
+            rec = json.loads(jp.read_text())
+        except ValueError:
+            continue
+        log = Path(rec.get("log", ""))
+        alive = _pid_alive(rec.get("pid"))
+        done = log.exists() and any("Run dir:" in ln for ln in _tail(log, 40))
+        state = "running" if alive else ("finished" if done else "stopped")
+        if state != rec.get("state"):
+            write_job(rec["job_id"], state=state)
+        print(f"\n=== {rec['job_id']} ===")
+        print(f"accession: {rec.get('accession')}   started: {rec.get('started')}")
+        print(f"state:     {state}   pid {rec.get('pid')}")
+        print(f"log:       {log}")
+        for ln in _tail(log, args.tail):
+            print(f"  | {ln}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="raw_data_pipeline",
@@ -842,8 +972,18 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--label")
     r.add_argument("--dry-run", action="store_true",
                     help="Print every command and download nothing.")
+    r.add_argument("--detach", action="store_true",
+                    help="Start the run in its own process and return an id "
+                         "immediately. Use for anything large: a synchronous "
+                         "run holds the caller open for the whole job.")
     r.add_argument("--skip-analysis", action="store_true",
                     help="Stop at the matrix; do not run the single-cell pipeline.")
+    st = sub.add_parser("status", help="Report on detached runs.")
+    st.add_argument("job", nargs="?", help="Job id (default: all).")
+    st.add_argument("--tail", type=int, default=12,
+                     help="Log lines to show per job.")
+    st.add_argument("--limit", type=int, default=5,
+                     help="How many recent jobs to list.")
     return p
 
 
@@ -854,6 +994,8 @@ def main(argv: "Optional[list[str]]" = None) -> int:
         d.mkdir(parents=True, exist_ok=True)
     if args.command == "plan":
         return cmd_plan(args)
+    if args.command == "status":
+        return cmd_status(args)
     return cmd_run(args)
 
 
