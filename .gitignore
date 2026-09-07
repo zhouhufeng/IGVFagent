@@ -36,6 +36,12 @@ Docs/Secrets/
 **/APIkeys.txt
 *APIkeys*
 *apikeys*
+# The IGVF Portal access-key pair, by name and at any depth. The Secret/
+# rules above already cover its home, but the file gets copied around and
+# IGVF_PORTAL_API_FILE can relocate it, so match the name too.
+**/IGVFportalAPI.txt
+*IGVFportalAPI*
+*igvfportalapi*
 
 # Runtime outputs. Keep folder placeholders and READMEs tracked.
 Data/*

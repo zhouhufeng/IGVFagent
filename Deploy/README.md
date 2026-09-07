@@ -141,6 +141,55 @@ sudo chown 101:101 nginx/htpasswd && sudo chmod 400 nginx/htpasswd
 docker compose --env-file .env.prod -f docker-compose.prod.yml restart gateway
 ```
 
+### Giving the deployment IGVF Portal access
+
+The Portal serves a great deal anonymously, so nothing 500s without a
+credential — which is the problem. Anonymous access is not broken, it is
+**smaller**: unreleased records are simply absent from search totals with
+no error raised anywhere. `MeasurementSet` returns 11,070 authenticated
+against 7,127 anonymous. A demo that lands in the missing 3,943 looks like
+the Portal has no such data.
+
+Mint a key pair in the Portal UI (Profile → Access Keys), then put it in
+`.env.prod` on the VM — **not** in a file under `Docs/`:
+
+```bash
+cd /srv/igvfagent/Deploy
+printf 'IGVF_ACCESS_KEY=%s\n' 'THEKEYID'  >> .env.prod
+printf 'IGVF_SECRET_ACCESS_KEY=%s\n' 'THESECRET' >> .env.prod
+chmod 600 .env.prod
+cd /srv/igvfagent && bash Deploy/redeploy.sh
+```
+
+Confirm it took effect *inside* the container — the key id is the public
+half of the pair, so this prints no secret:
+
+```bash
+docker exec igvfagent-app python3 -c \
+  "from igvfagent import _credentials as c; print(c.describe())"
+
+# Or end-to-end, which is the check that actually matters — the
+# authenticated total should be ~11,070 rather than ~7,127:
+docker exec igvfagent-app igvfagent portal search \
+  --type MeasurementSet --limit 1 | head -3
+```
+
+**Why environment and not `Docs/Secret/IGVFportalAPI.txt`.**
+`/mnt/igvf-data/Docs` is bind-mounted to `/workspace/Docs`, the same tree
+the agent writes artefacts into and visitors browse. `Scripts/_pathguard.py`
+refuses to render credential files, and both that filename and whatever
+`IGVF_PORTAL_API_FILE` points at are on its denylist — but an environment
+variable is never a candidate for the artefact viewer to begin with, and
+`_credentials.py` prefers env over file anyway. Fewer moving parts.
+
+**Who gets that access.** Everyone who can log into the site queries the
+Portal *as that key*. Visitors never see the secret, but they do wield its
+access, including any unreleased records it can reach — a demo audience is
+effectively browsing under the key owner's Portal identity. Use a key whose
+reach you are content to expose to every holder of the site password, and
+rotate it in the Portal UI if that changes. Rotation needs no code change:
+edit `.env.prod` and redeploy.
+
 ### Verifying a deployment
 
 ```bash

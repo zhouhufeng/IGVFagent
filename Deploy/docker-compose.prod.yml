@@ -58,6 +58,11 @@ services:
       # filesystem is recreated on every redeploy, and ~/.igvfagent would be
       # silently wiped along with everything users had written.
       IGVF_USER_EXT_DIR:      ${IGVF_USER_EXT_DIR:-/workspace/Data/UserExtensions}
+      # Portal access-key pair. Passed as environment rather than as a file
+      # on the mounted Docs volume: env vars are never candidates for the
+      # artefact viewer, and _credentials.py prefers them over the file.
+      IGVF_ACCESS_KEY:        ${IGVF_ACCESS_KEY:-}
+      IGVF_SECRET_ACCESS_KEY: ${IGVF_SECRET_ACCESS_KEY:-}
       IGVF_PORTAL_COOKIE:     ${IGVF_PORTAL_COOKIE:-}
       IGVF_ARANGO_PASSWORD:   ${IGVF_ARANGO_PASSWORD:-}
     volumes:

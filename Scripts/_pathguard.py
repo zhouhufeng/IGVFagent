@@ -52,14 +52,39 @@ _DENY_SEGMENTS = frozenset({
 _DENY_NAMES = frozenset({
     ".env", "clouds.yaml", "clouds.yml",
     "api-credentials.txt", "apikeys.txt",
+    "igvfportalapi.txt",                  # Portal access-key pair
     "id_rsa", "id_ed25519", "authorized_keys",
 })
 
 # Suffixes that are never renderable even with an allowed extension upstream.
 _DENY_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".cookie", ".cookies", ".token")
 
-# Substrings in the *filename* that signal credential material.
-_DENY_NAME_PARTS = ("apikey", "api_key", "credential", "secret", "password", "token")
+# Substrings in the *filename* that signal credential material. "portalapi"
+# is here because the Portal key pair ships as `IGVFportalAPI.txt`, whose
+# lowercased name contains "api" but neither "apikey" nor "api_key" -- so
+# the pattern list alone let a copy of it outside `Secret/` stay renderable.
+_DENY_NAME_PARTS = ("apikey", "api_key", "portalapi", "credential", "secret",
+                    "password", "token")
+
+
+def _configured_credential_files() -> "set[Path]":
+    """Resolved paths of credential files named by the environment.
+
+    The Portal key pair can be relocated with ``IGVF_PORTAL_API_FILE``, and
+    a denylist keyed on names cannot know what it was pointed at. Denying
+    the configured path directly means relocating the credential never
+    quietly makes it renderable.
+    """
+    out = set()
+    for var in ("IGVF_PORTAL_API_FILE",):
+        raw = os.environ.get(var)
+        if not raw:
+            continue
+        try:
+            out.add(Path(raw).expanduser().resolve())
+        except (OSError, RuntimeError):
+            continue
+    return out
 
 
 def why_blocked(path: "str | Path", *, require_file: bool = True) -> "str | None":
@@ -89,6 +114,9 @@ def why_blocked(path: "str | Path", *, require_file: bool = True) -> "str | None
     lowered = [seg.lower() for seg in p.parts]
     if _DENY_SEGMENTS.intersection(lowered):
         return "inside a secrets directory"
+
+    if p in _configured_credential_files():
+        return "credential file (IGVF_PORTAL_API_FILE)"
 
     name = p.name.lower()
     if name in _DENY_NAMES:
