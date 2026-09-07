@@ -131,6 +131,27 @@ seed_fixtures
 echo "==> 3/5  rebuilding the image (no cache — a reused layer is how this silently no-ops)"
 "${COMPOSE[@]}" build --no-cache app
 
+# Recreating the container kills anything running inside it. That used to
+# cost nothing; now a raw-pipeline alignment can be hours into a 45 GB job,
+# and losing it silently to a routine redeploy is the kind of thing you only
+# notice afterwards. Refuse unless the operator says to go ahead.
+if docker exec igvfagent-app sh -c 'ls /workspace/Data/RawPipeline/_jobs/*.json' \
+     >/dev/null 2>&1; then
+  RUNNING=$(docker exec igvfagent-app igvfagent raw-pipeline status 2>/dev/null \
+            | grep -c 'state:     running' || true)
+  if [ "${RUNNING:-0}" -gt 0 ] && [ "${FORCE_RECREATE:-0}" != "1" ]; then
+    echo
+    echo "REFUSING to recreate: $RUNNING analysis job(s) are still running."
+    echo "Recreating the container would kill them mid-alignment."
+    docker exec igvfagent-app igvfagent raw-pipeline status 2>/dev/null \
+      | grep -E '^===|state:|phase:' || true
+    echo
+    echo "Wait for them to finish, or re-run with FORCE_RECREATE=1 to"
+    echo "discard them deliberately."
+    exit 3
+  fi
+fi
+
 echo "==> 4/5  recreating the container"
 "${COMPOSE[@]}" up -d --force-recreate app
 
