@@ -736,6 +736,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             argv.append("--force-align")
         if args.skip_analysis:
             argv.append("--skip-analysis")
+        if getattr(args, "no_reuse", False):
+            argv.append("--no-reuse")
         if args.index and args.t2g:
             argv += ["--index", args.index, "--t2g", args.t2g]
         rec = spawn_detached(argv, label, args.accession)
@@ -747,6 +749,31 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("\nThe job continues after this call returns and after this "
               "conversation ends.")
         print(f"Check on it with:  igvfagent raw-pipeline status {label}")
+        return 0
+
+    # A completed identical analysis is worth minutes, not a re-run. This is
+    # the demo case: the same accession is entered deliberately, and
+    # re-downloading 45 GB to recompute a matrix that already exists on this
+    # machine wastes the audience's time as well as the disk.
+    rkey = result_key(args.accession, args.technology or "auto",
+                      args.workflow, args.reference)
+    prior = None if getattr(args, "no_reuse", False) else lookup_result(rkey)
+    if prior and not args.force_align and not args.dry_run:
+        print(f"REUSING a completed run of this exact analysis "
+              f"({prior.get('completed')}).")
+        print(f"  matrix:   {prior['matrix']}")
+        print(f"  from run: {prior['work']}")
+        for k in ("n_processed", "p_pseudoaligned", "shape"):
+            if prior.get(k) is not None:
+                print(f"  {k}: {prior[k]}")
+        print("  Pass no_reuse=true (--no-reuse) to recompute from the reads.")
+        matrix = Path(prior["matrix"])
+        if not args.skip_analysis:
+            sc = [_igvfagent(), "sc-analyze", "pipeline", "--input",
+                  str(matrix), "--label", label]
+            print("Analysis: " + " ".join(sc))
+            subprocess.run(sc, check=False)
+        print(f"Run dir: {prior['work']}")
         return 0
 
     inv = _inventory(args.accession, args.force_align)
@@ -826,6 +853,33 @@ def cmd_run(args: argparse.Namespace) -> int:
         local_pairs = []
         local_singles = []
         fq_dir = work / "fastq"
+        fq_dir.mkdir(parents=True, exist_ok=True)
+        FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
+
+        def _fetch(f: dict) -> Path:
+            """Return a local path for one read file, downloading if needed.
+
+            The bytes live once in FASTQ_CACHE, keyed by file accession, and
+            each run links to them. Re-running a dataset therefore costs no
+            transfer and no second copy on disk -- which matters for a demo,
+            where the same accession is entered deliberately.
+            """
+            name = Path(str(f.get("href") or f.get("accession"))).name
+            cached = FASTQ_CACHE / name
+            link = fq_dir / name
+            size = float(f.get("file_size") or 0)
+            if not cached.exists():
+                print(f"Downloading {f.get('accession')} ({gb(size)} GB)…")
+                portal_download(f["href"], cached, on_bytes=_tick)
+            else:
+                print(f"Cached      {f.get('accession')} ({gb(size)} GB)")
+                _tick(size)
+            if not link.exists():
+                try:
+                    os.link(cached, link)          # same filesystem: free
+                except OSError:
+                    link.symlink_to(cached)
+            return link
         # Byte-accurate progress across the whole transfer: the download is
         # the long pole (45.6 GB here), and it is the one phase whose total
         # is known up front.
@@ -852,35 +906,23 @@ def cmd_run(args: argparse.Namespace) -> int:
         if single_end:
             for f in inv["buckets"]["reads"]:
                 name = Path(str(f.get("href") or f.get("accession"))).name
-                dest = fq_dir / name
                 if args.dry_run:
-                    print(f"DRY RUN: would download {f.get('accession')} "
-                          f"({gb(f.get('file_size'))} GB) -> {dest}")
-                elif dest.exists():
-                    logging.info("already present: %s", dest)
-                    _tick(float(f.get("file_size") or 0))
+                    print(f"DRY RUN: would fetch {f.get('accession')} "
+                          f"({gb(f.get('file_size'))} GB)")
+                    local_singles.append(fq_dir / name)
                 else:
-                    print(f"Downloading {f.get('accession')} "
-                          f"({gb(f.get('file_size'))} GB)…")
-                    portal_download(f["href"], dest, on_bytes=_tick)
-                local_singles.append(dest)
+                    local_singles.append(_fetch(f))
         for r1, r2 in pairs:
-            p = []
+            pq = []
             for f in (r1, r2):
                 name = Path(str(f.get("href") or f.get("accession"))).name
-                dest = fq_dir / name
                 if args.dry_run:
-                    print(f"DRY RUN: would download {f.get('accession')} "
-                          f"({gb(f.get('file_size'))} GB) -> {dest}")
-                elif dest.exists():
-                    logging.info("already present: %s", dest)
-                    _tick(float(f.get("file_size") or 0))
+                    print(f"DRY RUN: would fetch {f.get('accession')} "
+                          f"({gb(f.get('file_size'))} GB)")
+                    pq.append(fq_dir / name)
                 else:
-                    print(f"Downloading {f.get('accession')} "
-                          f"({gb(f.get('file_size'))} GB)…")
-                    portal_download(f["href"], dest, on_bytes=_tick)
-                p.append(dest)
-            local_pairs.append((p[0], p[1]))
+                    pq.append(_fetch(f))
+            local_pairs.append((pq[0], pq[1]))
 
         kb_out = work / "kb"
         cmd = kb_count_cmd(index, t2g, tech, kb_out, local_pairs,
@@ -908,6 +950,16 @@ def cmd_run(args: argparse.Namespace) -> int:
     if matrix:
         write_progress(work, phase="analyse", percent=None,
                        detail=f"matrix ready: {matrix.name}")
+        extra = {}
+        ri = matrix.parent.parent / "run_info.json"
+        if ri.exists():
+            try:
+                info = json.loads(ri.read_text())
+                extra = {"n_processed": info.get("n_processed"),
+                         "p_pseudoaligned": info.get("p_pseudoaligned")}
+            except (OSError, ValueError):
+                pass
+        record_result(rkey, matrix, work, extra)
 
     if matrix and not args.skip_analysis and is_bulk:
         # Never hand a bulk matrix to the single-cell pipeline. It is one
@@ -994,6 +1046,52 @@ def _igvfagent() -> str:
 # gets a fast tool call; the job outlives the conversation.
 
 JOB_DIR = RUN_DIR / "_jobs"
+# Reads are cached by FILE accession, not per run: a Portal file's bytes never
+# change, so the second run of a dataset should not re-fetch 45 GB -- and,
+# before this, a per-run directory also meant a second copy of it on disk.
+FASTQ_CACHE = RUN_DIR / "_fastq"
+# Completed runs, keyed by what actually determines the output, so a repeat
+# of the same analysis can hand back the matrix instead of recomputing it.
+RESULT_INDEX = RUN_DIR / "_results.json"
+
+
+def result_key(accession: str, tech: str, workflow: str, reference: str) -> str:
+    return "|".join([accession.upper(), (tech or "auto").upper(),
+                     workflow or "standard", reference or "human"])
+
+
+def record_result(key: str, matrix: Path, work: Path, extra: dict) -> None:
+    try:
+        idx = json.loads(RESULT_INDEX.read_text()) if RESULT_INDEX.exists() else {}
+    except (OSError, ValueError):
+        idx = {}
+    idx[key] = {"matrix": str(matrix), "work": str(work),
+                "completed": time.strftime("%Y-%m-%d %H:%M:%S"), **extra}
+    try:
+        RESULT_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        tmp = RESULT_INDEX.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(idx, indent=2, sort_keys=True, default=str))
+        tmp.replace(RESULT_INDEX)
+    except OSError:
+        pass
+
+
+def lookup_result(key: str) -> "Optional[dict]":
+    """A previous completed run for the same analysis, if its matrix survives.
+
+    The index is only a hint: the matrix it points at may have been deleted
+    to reclaim space, so the file is checked before the entry is trusted.
+    """
+    try:
+        idx = json.loads(RESULT_INDEX.read_text())
+    except (OSError, ValueError):
+        return None
+    rec = idx.get(key)
+    if not rec:
+        return None
+    if not Path(rec.get("matrix", "")).exists():
+        return None
+    return rec
 
 
 def _job_path(job_id: str) -> Path:
@@ -1192,6 +1290,9 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--label")
     r.add_argument("--dry-run", action="store_true",
                     help="Print every command and download nothing.")
+    r.add_argument("--no-reuse", action="store_true",
+                    help="Recompute from the reads even if an identical "
+                         "analysis was already completed on this machine.")
     r.add_argument("--detach", action="store_true",
                     help="Start the run in its own process and return an id "
                          "immediately. Use for anything large: a synchronous "

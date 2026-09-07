@@ -4677,6 +4677,13 @@ _TOOLS: "list[Tool]" = [
                 "skip_analysis":   {**_S_BOOLEAN, "description":
                                      "Stop at the matrix; skip the "
                                      "single-cell pipeline."},
+                "no_reuse":        {**_S_BOOLEAN, "description":
+                                     "Recompute from the reads even if this "
+                                     "exact analysis was already completed "
+                                     "on this machine. By default a repeat "
+                                     "returns the existing matrix in "
+                                     "seconds, which is what makes entering "
+                                     "the same accession twice fast."},
             },
             "required": ["accession"],
         },
@@ -4685,7 +4692,8 @@ _TOOLS: "list[Tool]" = [
         flag_map={"technology": "--technology", "workflow": "--workflow",
                    "reference": "--reference", "label": "--label",
                    "max_download_gb": "--max-download-gb"},
-        bool_flags=("dry_run", "force_align", "skip_analysis", "detach"),
+        bool_flags=("dry_run", "force_align", "skip_analysis", "detach",
+                     "no_reuse"),
     ),
     _T(
         "raw_pipeline_status",
