@@ -624,6 +624,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     work.mkdir(parents=True, exist_ok=True)
 
     matrix: "Optional[Path]" = None
+    # Bulk and single-cell need different downstream treatment, and the
+    # difference is not cosmetic -- see the guard before the analysis step.
+    is_bulk = False
 
     if route in ("matrix_on_set", "matrix_derived"):
         target = inv["route"]["matrices"][0]
@@ -666,6 +669,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         pairs = inv["pairs"]
         single_end = tech.upper() == "BULK"
+        is_bulk = single_end
         if not pairs and not single_end:
             print("CANNOT ALIGN: no R1/R2 pairs could be formed from the "
                   "reads on this set (see UNPAIRED above). Pairing comes "
@@ -740,7 +744,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("Nothing to process: no reads and no matrix.")
         return 2
 
-    if matrix and not args.skip_analysis:
+    if matrix and not args.skip_analysis and is_bulk:
+        # Never hand a bulk matrix to the single-cell pipeline. It is one
+        # sample, so "filter genes seen in fewer than N cells" removes every
+        # gene, leaving a (1, 0) matrix that log1p rejects with "Found array
+        # with 0 sample(s)" -- an error that reads like the quantification
+        # failed when it in fact succeeded. Report the quantification and
+        # stop.
+        print("\nBulk library: skipping the single-cell pipeline (QC, UMAP, "
+              "Leiden all assume many cells; this is one sample).")
+        if not args.dry_run:
+            summarise_bulk_matrix(matrix, work)
+        print("For differential expression across samples, quantify each "
+              "sample and use `igvfagent rnaseq`.")
+    elif matrix and not args.skip_analysis:
         sc = [_igvfagent(), "sc-analyze", "pipeline", "--input", str(matrix),
               "--label", label]
         print("Analysis: " + " ".join(sc))
@@ -749,6 +766,48 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     print(f"Run dir: {work}")
     return 0
+
+
+def summarise_bulk_matrix(matrix: Path, work: Path) -> None:
+    """Print what the quantification produced, and save it as a TSV.
+
+    A bulk run has no clustering to report, so without this the run ends
+    having written a matrix and said nothing about it.
+    """
+    try:
+        import anndata as ad
+        import numpy as np
+    except ImportError:
+        print(f"Matrix written: {matrix} (install the analysis extra for a "
+              f"summary)")
+        return
+    a = ad.read_h5ad(matrix)
+    counts = np.asarray(a.X.sum(axis=0)).ravel()
+    detected = int((counts > 0).sum())
+    print(f"Samples x genes: {a.shape[0]} x {a.shape[1]}")
+    print(f"Total counts:    {int(counts.sum()):,}")
+    print(f"Genes detected:  {detected:,}")
+    run_info = matrix.parent.parent / "run_info.json"
+    if run_info.exists():
+        try:
+            info = json.loads(run_info.read_text())
+            print(f"Reads processed: {info.get('n_processed', 0):,}  "
+                  f"pseudoaligned: {info.get('p_pseudoaligned', '?')}%")
+        except (ValueError, OSError):
+            pass
+    names = a.var.get("gene_name")
+    labels = list(names) if names is not None else list(a.var_names)
+    order = np.argsort(counts)[::-1][:15]
+    out = work / "gene_counts.tsv"
+    with out.open("w") as fh:
+        fh.write("gene\tcount\n")
+        for i in np.argsort(counts)[::-1]:
+            if counts[i] <= 0:
+                break
+            fh.write(f"{labels[i]}\t{int(counts[i])}\n")
+    print(f"Counts TSV:      {out}")
+    print("Top genes:       " + ", ".join(
+        f"{labels[i]} ({int(counts[i])})" for i in order[:8]))
 
 
 def _igvfagent() -> str:
