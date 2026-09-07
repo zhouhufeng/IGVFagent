@@ -90,15 +90,22 @@ if [[ "$CHECK_ONLY" == 1 ]]; then
 fi
 
 step "4. Upsert credentials into .env.prod (idempotent, secret via stdin)"
-printf '%s\n%s\n' "$ACCESS_KEY" "$SECRET_KEY" | "${SSH[@]}" "bash -s -- $REMOTE" <<'REMOTE_SCRIPT' \
-  || die "could not update .env.prod"
+# The script travels in argv (it is not secret) and the credentials travel on
+# stdin (they are). They cannot share stdin: giving ssh a heredoc AND a pipe
+# means the heredoc wins, the remote `bash -s` reads the script from stdin,
+# and `read` then consumes the script's own remaining lines instead of the
+# credentials -- which is exactly how this failed the first time
+# ("SECRET_KEY: unbound variable"). base64 keeps the script a single argv
+# token, immune to quoting, and leaves stdin free.
+REMOTE_SCRIPT=$(cat <<'REMOTE_SCRIPT_EOF'
 set -euo pipefail
-REMOTE_ROOT="$1"
+ROOT="$1"
 read -r ACCESS_KEY
 read -r SECRET_KEY
-cd "$REMOTE_ROOT/Deploy"
+[ -n "$ACCESS_KEY" ] && [ -n "$SECRET_KEY" ] || { echo "empty credentials over stdin" >&2; exit 1; }
+cd "$ROOT/Deploy"
 cp -n .env.prod ".env.prod.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-upsert() {  # replace in place, else append — never leave two definitions
+upsert() {  # replace in place, else append -- never leave two definitions
   local key="$1" val="$2"
   if grep -q "^${key}=" .env.prod 2>/dev/null; then
     grep -v "^${key}=" .env.prod > .env.prod.tmp
@@ -113,7 +120,12 @@ upsert IGVF_SECRET_ACCESS_KEY "$SECRET_KEY"
 chmod 600 .env.prod
 echo "IGVF_ACCESS_KEY lines:        $(grep -c '^IGVF_ACCESS_KEY=' .env.prod)"
 echo "IGVF_SECRET_ACCESS_KEY lines: $(grep -c '^IGVF_SECRET_ACCESS_KEY=' .env.prod)"
-REMOTE_SCRIPT
+REMOTE_SCRIPT_EOF
+)
+REMOTE_B64=$(printf '%s' "$REMOTE_SCRIPT" | base64 | tr -d '\n')
+printf '%s\n%s\n' "$ACCESS_KEY" "$SECRET_KEY" | "${SSH[@]}" \
+  "printf %s '$REMOTE_B64' | base64 -d > /tmp/mklive.\$\$.sh && bash /tmp/mklive.\$\$.sh '$REMOTE'; rc=\$?; rm -f /tmp/mklive.\$\$.sh; exit \$rc" \
+  || die "could not update .env.prod"
 
 step "5. Pull the new code and rebuild the image"
 # kb-python is a NEW dependency: the aligner cannot appear in an image built
