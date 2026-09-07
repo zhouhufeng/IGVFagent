@@ -18,6 +18,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint
+from _credentials import portal_credentials as _portal_credentials
+from _credentials import describe as _describe_credentials
 
 
 ROOT = Path(
@@ -191,13 +193,21 @@ def cmd_auth_check(_args=None) -> int:
         ("ENCODE", "encode", f"{ENCODE_BASE}/ENCSR000EMT/?format=json"),
     ]
     cookie = os.environ.get("IGVF_PORTAL_COOKIE")
+    creds = _portal_credentials()
+    cred_info = _describe_credentials()
+    auth_headers = {}
+    if creds:
+        _tok = base64.b64encode(
+            f"{creds[0]}:{creds[1]}".encode()).decode()
+        auth_headers["Authorization"] = f"Basic {_tok}"
+    elif cookie:
+        auth_headers["Cookie"] = cookie
     rows = []
     for label, key, url in probes:
         meta = access_tier(key)
         try:
             req = urllib.request.Request(
-                url, headers={"Accept": "application/json",
-                              **({"Cookie": cookie} if cookie else {})})
+                url, headers={"Accept": "application/json", **auth_headers})
             with urllib.request.urlopen(req, timeout=30) as r:
                 status = r.status
         except urllib.error.HTTPError as e:
@@ -210,7 +220,14 @@ def cmd_auth_check(_args=None) -> int:
                      "note": meta.get("note", "")})
         mark = "ok " if ok else "FAIL"
         print(f"  [{mark}] {label:26s} tier={meta['tier']:14s} HTTP {status}")
-        if not ok and meta.get("env"):
+        if not ok and key == "igvf_portal_web" and creds:
+            # Measured, not assumed: the browser host answers 403 to a
+            # valid access-key pair too. Telling the user to go fetch a
+            # cookie sends them after a credential that changes nothing.
+            print("         expected — the browser host refuses "
+                  "programmatic requests even with valid credentials; "
+                  "the data API above is what every skill uses")
+        elif not ok and meta.get("env"):
             print(f"         needs {meta['env']} — export a session cookie "
                   f"from a logged-in browser")
         elif not ok and meta["tier"] == "dua-gated":
@@ -229,8 +246,19 @@ def cmd_auth_check(_args=None) -> int:
     elif not api_ok:
         print("  IGVF Portal data API unreachable. Set IGVF_PORTAL_COOKIE, or "
               "check network egress.")
-    print(f"\n  Cookie present: {'yes' if cookie else 'no'} "
-          f"(needed only for unreleased or restricted records)")
+    if cred_info["source"] == "env":
+        print(f"  Credentials: HTTP Basic as {cred_info['key_id']} "
+              f"(from environment)")
+    elif cred_info["source"] == "file":
+        print(f"  Credentials: HTTP Basic as {cred_info['key_id']} "
+              f"(from {cred_info['detail']})")
+    elif cookie:
+        print("  Credentials: legacy session cookie only "
+              "(IGVF_PORTAL_COOKIE) — an access-key pair is preferred")
+    else:
+        print(f"  Credentials: NONE — {cred_info['detail']}")
+        print("               Anonymous access still works, but unreleased "
+              "records are silently absent from results.")
     # save_response takes bytes, not str.
     save_response("auth_check", _json.dumps(rows, indent=2).encode(), "application/json")
     return 0 if api_ok else 1
@@ -247,8 +275,13 @@ def check_portal() -> int:
     setup is broken when every data-access skill in fact works — which is what
     happened in review.
     """
-    session_cookie = os.environ.get("IGVF_PORTAL_COOKIE")
-    headers = {"Cookie": session_cookie} if session_cookie else {}
+    creds = _portal_credentials()
+    if creds:
+        _tok = base64.b64encode(f"{creds[0]}:{creds[1]}".encode()).decode()
+        headers = {"Authorization": f"Basic {_tok}"}
+    else:
+        session_cookie = os.environ.get("IGVF_PORTAL_COOKIE")
+        headers = {"Cookie": session_cookie} if session_cookie else {}
 
     web_status, content, content_type = fetch(f"{PORTAL_BASE}/", headers=headers)
     save_response("portal_home", content, content_type)

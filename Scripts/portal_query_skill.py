@@ -76,6 +76,8 @@ CACHE_DIR = DATA_DIR / "Cache" / "Portal"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint  # noqa: E402
+from _credentials import portal_credentials as _portal_credentials  # noqa: E402
+from _credentials import describe as _describe_credentials  # noqa: E402
 
 PORTAL_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_BASE")
 PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
@@ -126,16 +128,32 @@ CANONICAL_ITEM_TYPES: list[str] = [
 # ─── Auth ───────────────────────────────────────────────────────────────────
 
 def portal_auth() -> tuple[str, str] | None:
-    """DACC-blessed HTTP Basic credentials from environment variables.
+    """DACC-blessed HTTP Basic credentials, from the environment or a file.
 
-    Read ``IGVF_ACCESS_KEY`` and ``IGVF_SECRET_ACCESS_KEY``. Returns None
-    if either is missing (caller falls back to anonymous / cookie auth).
+    ``IGVF_ACCESS_KEY`` + ``IGVF_SECRET_ACCESS_KEY`` win; otherwise the key
+    pair is read from ``Docs/Secret/IGVFportalAPI.txt`` (override with
+    ``IGVF_PORTAL_API_FILE``). Returns None when neither yields a complete
+    pair, and the caller falls back to cookie or anonymous access.
+
+    The file matters because anonymous access is not visibly broken, it is
+    merely smaller -- unreleased records are absent from search totals with
+    no error to notice -- so a key pair that never made it into the
+    environment costs data silently.
     """
-    user = os.environ.get("IGVF_ACCESS_KEY")
-    secret = os.environ.get("IGVF_SECRET_ACCESS_KEY")
-    if user and secret:
-        return (user, secret)
-    return None
+    return _portal_credentials()
+
+
+def auth_status_line() -> str:
+    """One line naming the credential source, for run banners. No secret."""
+    d = _describe_credentials()
+    if d["source"] == "env":
+        return f"Portal auth: HTTP Basic as {d['key_id']} (from environment)"
+    if d["source"] == "file":
+        return f"Portal auth: HTTP Basic as {d['key_id']} (from {d['detail']})"
+    if os.environ.get("IGVF_PORTAL_COOKIE"):
+        return "Portal auth: legacy session cookie (IGVF_PORTAL_COOKIE)"
+    return (f"Portal auth: ANONYMOUS — {d['detail']}. "
+            f"Unreleased records will be missing from results.")
 
 
 def auth_header() -> dict[str, str]:
@@ -747,11 +765,25 @@ igvfagent portal batch-download --type AnalysisSet \\
 
 ## Authentication
 
-| Env var | Role |
+| Source | Role |
 |---|---|
-| `IGVF_ACCESS_KEY` + `IGVF_SECRET_ACCESS_KEY` | DACC-blessed HTTP Basic credentials (preferred) |
+| `IGVF_ACCESS_KEY` + `IGVF_SECRET_ACCESS_KEY` | DACC-blessed HTTP Basic credentials (highest precedence) |
+| `Docs/Secret/IGVFportalAPI.txt` | The same key pair read from a file — paste the Portal's own "Access Key ID" / "Access Key Secret" block in verbatim. Override the path with `IGVF_PORTAL_API_FILE`. |
 | `IGVF_PORTAL_COOKIE` | Legacy cookie auth (still honored) |
-| _(neither)_ | Anonymous — public-released items only |
+| _(none)_ | Anonymous — public-released items only |
+
+Environment wins over the file, so a deployment's real variables are never
+shadowed by a stale file in a developer checkout. `Docs/Secret/` is
+git-ignored; keep the file `chmod 600`.
+
+Check what is in effect with `igvfagent auth-check`, which names the
+credential source and key id (never the secret).
+
+**Anonymous access is not visibly broken, only smaller.** Unreleased
+records are absent from search totals with no error raised — at the time of
+writing, `MeasurementSet` totals 11,070 authenticated against 7,127
+anonymous. If a count looks low, check auth before concluding the data is
+missing.
 
 Without auth the portal returns 403 on access-restricted items; the
 skill still works for browsing released data.

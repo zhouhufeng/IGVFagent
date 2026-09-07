@@ -47,11 +47,25 @@ igvfagent portal batch-download --type AnalysisSet \
 
 ## Authentication
 
-| Env var | Role |
+| Source | Role |
 |---|---|
-| `IGVF_ACCESS_KEY` + `IGVF_SECRET_ACCESS_KEY` | DACC-blessed HTTP Basic credentials (preferred) |
+| `IGVF_ACCESS_KEY` + `IGVF_SECRET_ACCESS_KEY` | DACC-blessed HTTP Basic credentials (highest precedence) |
+| `Docs/Secret/IGVFportalAPI.txt` | The same key pair read from a file — paste the Portal's own "Access Key ID" / "Access Key Secret" block in verbatim. Override the path with `IGVF_PORTAL_API_FILE`. |
 | `IGVF_PORTAL_COOKIE` | Legacy cookie auth (still honored) |
-| _(neither)_ | Anonymous — public-released items only |
+| _(none)_ | Anonymous — public-released items only |
+
+Environment wins over the file, so a deployment's real variables are never
+shadowed by a stale file in a developer checkout. `Docs/Secret/` is
+git-ignored; keep the file `chmod 600`.
+
+Check what is in effect with `igvfagent auth-check`, which names the
+credential source and key id (never the secret).
+
+**Anonymous access is not visibly broken, only smaller.** Unreleased
+records are absent from search totals with no error raised — at the time of
+writing, `MeasurementSet` totals 11,070 authenticated against 7,127
+anonymous. If a count looks low, check auth before concluding the data is
+missing.
 
 Without auth the portal returns 403 on access-restricted items; the
 skill still works for browsing released data.
