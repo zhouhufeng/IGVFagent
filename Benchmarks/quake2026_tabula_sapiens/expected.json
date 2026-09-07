@@ -1,0 +1,301 @@
+{
+  "paper": {
+    "authors": "Tabula Sapiens Consortium (Jones RC, Krasnow MA, Pisco AO, Quake SR, Salzman J, Yosef N, et al.)",
+    "title": "Tabula Sapiens 2.0: a reference human cell atlas",
+    "journal": "Cell",
+    "year": 2026
+  },
+  "data_source": {
+    "type": "figshare_plus_geo",
+    "figshare_article": 27921984,
+    "figshare_size_gb": 57,
+    "gse": "GSE306755",
+    "cellxgene_collection": "e5f58829-1a66-40b5-a624-9046778e74f5",
+    "upstream_code": "https://github.com/czbiohub-sf/tabula-sapiens (BSD-3-Clause)",
+    "raw_data_note": "The AWS bucket czb-tabula-sapiens holds 103.16 TB of raw reads (43.2 TB BAM, 32.1 TB FASTQ, 27.6 TB STAR intermediates, 0.32 TB other) but is DTA-gated: ListBucket succeeds while every GetObject returns 403 AccessDenied, on v1 and v2 alike. This benchmark therefore reproduces from the open processed deposits, which is also what every paper2 notebook uses."
+  },
+  "skill_output_dir": "TabulaSapiens",
+  "label": "quake2026_tabula_sapiens_overview",
+  "primary_artefact": "concordance_metrics.json",
+  "checks": [
+    {
+      "name": "Total cells (paper: 1,136,218)",
+      "type": "range",
+      "path": "cells_total",
+      "min": 1136218,
+      "max": 1136218,
+      "expected": 1136218
+    },
+    {
+      "name": "Droplet cells (paper: 1,093,048)",
+      "type": "range",
+      "path": "cells_droplet",
+      "min": 1093048,
+      "max": 1093048,
+      "expected": 1093048
+    },
+    {
+      "name": "FACS plate cells (paper: 43,170)",
+      "type": "range",
+      "path": "cells_facs",
+      "min": 43170,
+      "max": 43170,
+      "expected": 43170
+    },
+    {
+      "name": "Donors (paper: 24)",
+      "type": "range",
+      "path": "donors",
+      "min": 24,
+      "max": 24,
+      "expected": 24
+    },
+    {
+      "name": "Tissues (paper: 28)",
+      "type": "range",
+      "path": "tissues",
+      "min": 28,
+      "max": 28,
+      "expected": 28
+    },
+    {
+      "name": "Fine cell types (paper: 182)",
+      "type": "range",
+      "path": "fine_cell_types",
+      "min": 182,
+      "max": 182,
+      "expected": 182
+    },
+    {
+      "name": "Tissue x cell-type populations (paper: 701)",
+      "type": "range",
+      "path": "populations",
+      "min": 701,
+      "max": 701,
+      "expected": 701
+    },
+    {
+      "name": "Droplet-subset fine cell types, the tau denominator (paper: 175)",
+      "type": "range",
+      "path": "fine_cell_types_droplet",
+      "min": 175,
+      "max": 175,
+      "expected": 175
+    },
+    {
+      "name": "Droplet-subset broad cell classes (paper: 38)",
+      "type": "range",
+      "path": "broad_cell_types_droplet",
+      "min": 38,
+      "max": 38,
+      "expected": 38
+    },
+    {
+      "name": "Donor age range (paper: 22-74)",
+      "type": "range",
+      "path": "age_span_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Donor sex split (paper: 11 male / 13 female)",
+      "type": "range",
+      "path": "sex_split_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Donor age groups (paper: 7 under 40, 11 aged 40-59, 6 over 59)",
+      "type": "range",
+      "path": "age_groups_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Multi-organ donors present (paper: one each with 20, 18 and 15 tissues)",
+      "type": "range",
+      "path": "multiorgan_donors_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Human TF database size (paper: 1,639 putative TFs)",
+      "type": "range",
+      "path": "htf_tf_count",
+      "min": 1639,
+      "max": 1639,
+      "expected": 1639
+    },
+    {
+      "name": "TFs found in the atlas gene annotation (paper: 1,637 of 1,639)",
+      "type": "range",
+      "path": "tf_in_atlas",
+      "min": 1600,
+      "max": 1639,
+      "expected": 1637
+    },
+    {
+      "name": "Paper's named ubiquitous TFs all fall below the tau threshold",
+      "type": "range",
+      "path": "ubiquitous_tf_all_below_threshold",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "FOXP3 peaks in a T-cell type (paper Fig 2B)",
+      "type": "range",
+      "path": "foxp3_peak_is_tcell",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Male germ-cell TFs peak in spermatogenic cells (paper Fig 2F)",
+      "type": "range",
+      "path": "germ_tf_peak_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Cell metadata table written",
+      "type": "artefact",
+      "filename": "donors.tsv"
+    },
+    {
+      "name": "Figure 1 overview figure written",
+      "type": "artefact",
+      "filename": "Plots/fig1_overview.png"
+    },
+    {
+      "name": "Full-atlas TF specificity: specific TFs (paper: 890 at tau > 0.85 over 175 cell types)",
+      "type": "range",
+      "path": "tf_specific",
+      "min": 860,
+      "max": 920,
+      "expected": 890
+    },
+    {
+      "name": "Full-atlas TF specificity: non-specific TFs (paper: 745)",
+      "type": "range",
+      "path": "tf_non_specific",
+      "min": 715,
+      "max": 775,
+      "expected": 745
+    },
+    {
+      "name": "tau computed over the paper's 175 cell types",
+      "type": "range",
+      "path": "tf_cell_types",
+      "min": 175,
+      "max": 175,
+      "expected": 175
+    },
+    {
+      "name": "Exactly SHOX and ZBED1 have zero expression atlas-wide (paper's named pair)",
+      "type": "range",
+      "path": "zero_expression_exactly_shox_zbed1",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "GO terms for non-specific TFs (paper: 69 at adjusted p < 0.02)",
+      "type": "range",
+      "path": "enrichment_terms",
+      "min": 55,
+      "max": 85,
+      "expected": 69
+    },
+    {
+      "name": "All four paper function groups recovered",
+      "type": "range",
+      "path": "enrichment_groups",
+      "min": 4,
+      "max": 5,
+      "expected": 4
+    },
+    {
+      "name": "CDKN2A+ MKI67- cells (paper: 48,114, ~4.4% of cells)",
+      "type": "range",
+      "path": "senescent_cells",
+      "min": 44000,
+      "max": 54000,
+      "expected": 48114
+    },
+    {
+      "name": "Senescent fraction of all cells (paper: ~4.4%)",
+      "type": "range",
+      "path": "senescent_fraction",
+      "min": 0.035,
+      "max": 0.055,
+      "expected": 0.044
+    },
+    {
+      "name": "Cells surviving the donor-balance filter (paper: 1.08M from 25 tissues, 21 donors)",
+      "type": "range",
+      "path": "senescence_tissues",
+      "min": 25,
+      "max": 25,
+      "expected": 25
+    },
+    {
+      "name": "Cells dropped by the tissue x sex donor-balance filter (paper: 52,149 exactly)",
+      "type": "range",
+      "path": "senescence_cells_dropped",
+      "min": 52149,
+      "max": 52149,
+      "expected": 52149
+    },
+    {
+      "name": "Highest-burden tissues are Eye, Bladder, Tongue (paper Fig 4B)",
+      "type": "range",
+      "path": "senescence_top_tissues_ok",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Senescent burden rises from young (<40) to older donors (paper Fig 4A)",
+      "type": "range",
+      "path": "senescence_rises_with_age",
+      "min": 1,
+      "max": 1,
+      "expected": true
+    },
+    {
+      "name": "Senescence-associated genes (paper: 3,792)",
+      "type": "range",
+      "path": "sag_genes",
+      "min": 3400,
+      "max": 4200,
+      "confirmed": false,
+      "provenance": {
+        "kind": "paper-reported value",
+        "quote": "Wang 2026 Figure 4C / Table S6; requires per-donor-tissue-celltype DGEA across the full atlas."
+      }
+    },
+    {
+      "name": "Senescence gene modules (paper: cNMF K=34 yielding 17 enriched pathways at FDR<0.05)",
+      "type": "range",
+      "path": "senescence_pathways",
+      "min": 12,
+      "max": 22,
+      "confirmed": false,
+      "provenance": {
+        "kind": "paper-reported value",
+        "quote": "Wang 2026 Figure 4F; cNMF over 48,114 cells x 3,792 genes."
+      }
+    }
+  ],
+  "class": "quantitative reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "label_note": "Pinned to the overview run because make_figures.py writes concordance_metrics.json there. A bare 'quake2026_tabula_sapiens' glob also matches the tf_specificity / tf_enrichment / senescence sub-runs.",
+  "class_note": "Derived by taxonomy.py, not hand-set. Adding senescent_fraction -- a derived scientific quantity rather than a retrieved count -- moves this from C to A under the tool's own rule."
+}

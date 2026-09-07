@@ -1886,6 +1886,103 @@ igvfagent network steiner --terminals vamp_prizes.csv \
 
 License boundary: **Apache-2 throughout**. No GPL runtime dependencies.
 
+### Tabula Sapiens 2.0 (reference human cell atlas)
+
+Retrieval and figure-level reproduction of the **Tabula Sapiens 2.0**
+human cell atlas (Tabula Sapiens Consortium, *Cell* 2026): 1,136,218
+cells across 28 tissues from 24 donors, annotated to 182 fine and 38
+broad cell types. Clean-room reimplementation of the analyses in
+[czbiohub-sf/tabula-sapiens](https://github.com/czbiohub-sf/tabula-sapiens)
+(BSD-3-Clause). Playbook:
+[`Docs/Skills/TABULA_SAPIENS_SKILL.md`](Docs/Skills/TABULA_SAPIENS_SKILL.md).
+
+**Which data routes are open, measured rather than assumed.** The AWS
+open-data listing implies the raw reads are public. They are not: the
+bucket is *listable* but every `GetObject` returns 403 AccessDenied, on
+v1 and v2 alike, with or without `x-amz-request-payer`. That is the data
+transfer agreement the paper describes for donor genetic privacy.
+`tabula s3-manifest` probes this on each run and reports what it found.
+The bucket totals **103.16 TB** — 43.2 TB BAM, 32.1 TB FASTQ, 27.6 TB
+STAR intermediates, and just 0.32 TB of count matrices. The open routes
+carry the science: figshare (57 GB of processed h5ads), GEO GSE306755
+(count matrices + the full 1.1M-cell metadata), and CELLxGENE.
+
+```bash
+pip install 'igvfagent[analysis]'
+
+igvfagent tabula pull-geo            # 41 MB metadata — enough for Figure 1
+igvfagent tabula status              # local state vs the paper's own numbers
+igvfagent tabula overview            # Figure 1: donors, tissues, composition
+
+igvfagent humantfs build-db          # 1,639 curated TFs (Lambert 2018)
+igvfagent tabula pull-figshare       # the 57 GB atlas, resumable
+igvfagent tabula tf-matrix           # gene x cell-type means
+igvfagent tabula tf-specificity --matrix <run>/mean_expression.npz
+igvfagent tabula tf-enrichment --tau-table <run>/tf_tau.tsv
+igvfagent tabula tf-regulons --tissues Lung,Heart   # SCENIC, clean-room
+igvfagent tabula senescence          # Figure 4: CDKN2A+ MKI67- burden
+igvfagent tabula sex-de              # Figure 5: pseudobulk sex differences
+igvfagent tabula donors --min-age 60 # Figure 6: the ChatTS core, offline
+```
+
+**What it reproduces** — `Benchmarks/quake2026_tabula_sapiens` scores
+**26/26**:
+
+| Quantity | IGVFagent | Paper |
+|---|---:|---:|
+| Cells (droplet / FACS) | 1,136,218 (1,093,048 / 43,170) | identical |
+| Donors / tissues / fine types / populations | 24 / 28 / 182 / 701 | identical |
+| Droplet fine / broad cell types | 175 / 38 | identical |
+| Donor ages, sex, age groups | 22–74, 11M/13F, 7/11/6 | identical |
+| TFs with zero expression atlas-wide | **2: SHOX, ZBED1** | 2: SHOX, ZBED1 |
+| TF specific / non-specific (τ > 0.85, 175 cell types) | 882 / 741 | 890 / 745 |
+| GO terms for non-specific TFs (padj < 0.02) | 70 | 69 |
+
+Plus biology that is not merely counting: FOXP3 peaks in regulatory
+T cells, FOXI1 in ionocytes, germ-cell TFs in spermatogenic cells, and
+all eight of the paper's named ubiquitous TFs fall below τ 0.85.
+
+**A discrepancy worth knowing about.** Figure 3's Methods say the
+non-specific TFs were tested "against a background of all 1635
+transcription factors". Running both backgrounds on identical input:
+the Enrichr default gives 70 terms at padj < 0.02 (paper: 69), the
+explicit TF background gives **zero**. gseapy 0.10.5, the cited version,
+forwards `background` to the Enrichr API, which ignores it. The
+published figure came from the default background. `tf-enrichment`
+defaults to that behaviour and offers `--tf-background` for what the
+Methods describe.
+
+**Scope.** Starts from the processed deposits, the boundary `share` and
+`spatial-hic` also draw. STAR 2.7.11b and CellRanger 7.0.1 are
+orchestrated, not reimplemented — they are large C/C++ aligners, and the
+published h5ads already carry their output alongside DecontX and scVI
+results, which is what lets the clean-room reimplementations here be
+*validated* rather than merely run.
+
+License boundary: **Apache-2 throughout**. pySCENIC (GPL-3) and edgeR
+(GPL) are reimplemented, not imported.
+
+### Human Transcription Factors database
+
+Local SQLite mirror of the Lambert/Jolma/Hughes **Human Transcription
+Factors** database v1.01 ([humantfs.ccbr.utoronto.ca](https://humantfs.ccbr.utoronto.ca);
+Lambert et al., *Cell* 2018): 2,765 assessed proteins of which **1,639
+are curated TFs**, with DNA-binding-domain family, binding mode, motif
+status and cross-references. Playbook:
+[`Docs/Skills/HUMANTFS_SKILL.md`](Docs/Skills/HUMANTFS_SKILL.md).
+
+```bash
+igvfagent humantfs build-db                     # ~2 MB, seconds
+igvfagent humantfs is-tf --genes "FOXP3,EOMES,ACTB,GAPDH"
+igvfagent humantfs lookup --genes SATB2
+igvfagent humantfs list --dbd "C2H2 ZF" --with-motif
+igvfagent humantfs families
+```
+
+`is-tf` distinguishes *unassessed* from *not a TF* — absence from the
+database is not evidence against. The data is downloaded at build time,
+never vendored; cite Lambert 2018 for derived tables.
+
 ### Spatial-ATAC-Hi-C (spatial 3D genome + chromatin accessibility)
 
 Spatially resolved **co-profiling of genome folding and chromatin
@@ -2383,6 +2480,11 @@ maintainers for releasing their code openly.
 | **MULTI-seq / Cell Hashing** demultiplex (`multiseq`) | [Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2) | MIT (Gartner Lab) | NB-GLM tag classifier with randomized-quantile residuals, cosine-based normalization, per-tag histograms + call heatmaps. |
 | **MULTI-seq** original method | — (paper: [McGinnis 2019 *Nat Methods*](https://www.nature.com/articles/s41592-019-0433-8)) | n/a | Lipid-modified oligo (LMO) sample barcoding inspiration; used as the upstream context for our demultiplexer. |
 | **Network integration** (`network carnival`, `network steiner`) | [saezlab/CORNETO](https://github.com/saezlab/corneto) | GPL (CORNETO) — **runtime dep avoided.** Clean-room MILP reimplementation in pure `cvxpy`. | CARNIVAL signed-perturbation → signed-measurement MILP, Prize-Collecting Steiner-Tree formulation. |
+| **Tabula Sapiens 2.0** human cell atlas (`tabula`) | [czbiohub-sf/tabula-sapiens](https://github.com/czbiohub-sf/tabula-sapiens) (paper: Tabula Sapiens Consortium, *Cell* 2026; figshare 27921984, GEO GSE306755) | BSD-3-Clause — clean-room; no source copied. | Streaming per-tissue h5ad aggregation via direct HDF5 CSR row slicing; tspex τ cell-type specificity; GO enrichment of non-specific TFs; SCENIC-style regulon inference (GRNBoost2 co-expression → motif support → AUCell); CDKN2A+MKI67− senescence with donor-balanced strata, per-stratum Wilcoxon DE and cross-donor replication; DecontX variational-EM ambient-RNA model; cNMF consensus modules; pseudobulk negative-binomial sex DE; donor clinical-metadata query (ChatTS core). |
+| **Human Transcription Factors** database (`humantfs`) | [humantfs.ccbr.utoronto.ca](https://humantfs.ccbr.utoronto.ca) (Lambert et al., *Cell* 2018) | Upstream terms; data downloaded at build time, never vendored. | Local SQLite mirror of all 1,639 curated TFs with DBD family, binding mode, motif status, CIS-BP motif records and Ensembl/HGNC/Entrez/InterPro/PDB cross-references; is-tf / lookup / list / motifs / families / export. |
+| **TF regulon inference** (inside `tabula tf-regulons`) | [aertslab/pySCENIC](https://github.com/aertslab/pySCENIC) | **GPL-3 — runtime dep avoided.** | Clean-room GRNBoost2-style gradient-boosted co-expression, motif-supported regulon pruning, and rank-based AUCell activity. Motif support is weaker than cisTarget (which needs multi-GB ranking databases); the difference is reported in every run's summary. |
+| **Pseudobulk differential expression** (inside `tabula sex-de`) | edgeR (Robinson/McCarthy/Smyth) | **GPL — runtime dep avoided.** | Clean-room negative-binomial Wald test on donor pseudobulk with method-of-moments dispersion. Concordant in direction and ranking, not in exact p-values — edgeR shrinks dispersions empirically. |
+| **Ambient RNA / modules / specificity** (inside `tabula`) | DecontX (celda), cNMF, tspex | MIT | Clean-room variational EM, consensus NMF with density filtering, and the τ statistic. DecontX and scVI outputs stored in the published h5ads let these be validated against upstream, not merely run. |
 | **Spatial-ATAC-Hi-C** spatial 3D genome + accessibility (`spatial-hic`) | [wangjuan001/Spatial-ATAC-Hi-C](https://github.com/wangjuan001/Spatial-ATAC-Hi-C) (paper: [Wang 2026 *Nat Methods*](https://doi.org/10.1038/s41592-026-03217-4), GEO GSE307620) | MIT (wangjuan001, 2026) — clean-room; no source copied. | 50×50 microfluidic pixel demultiplex (barcode-B+A concatenation, the upstream `bcsplit.py` offsets), per-pixel cis/trans/long-range contact QC, ArchR-style TSS enrichment, SnapATAC2-style gene activity score (promoter+body Tn5 insertions) and scGAD gene-associated domain score (Hi-C pair ends over gene bodies), scHiCluster convolution+RWR imputation, cooltools-style A/B compartment eigenvector, NeoLoopFinder-style per-pixel CNV + HMM segmentation, MAGIC spatial smoothing, per-pixel loop quantification with one-way-ANOVA cluster-specific loop calling and APA pileup, and 50×50 tissue-space rendering. |
 | **Hi-C read processing** (upstream of `spatial-hic`) | [XiaoTaoWang/HiC_pipeline](https://github.com/XiaoTaoWang/HiC_pipeline) (runHiC) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. runHiC's `.pairs` output is the *input contract* for `spatial-hic`; alignment is the one upstream step with no tractable clean-room form, so it stays an external tool. |
 | **Adapter/quality trimming** (upstream of `spatial-hic`) | [FelixKrueger/TrimGalore](https://github.com/FelixKrueger/TrimGalore) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. Documented as the external FASTQ-level step that precedes this skill's inputs. |

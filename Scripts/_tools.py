@@ -3165,6 +3165,363 @@ _TOOLS: "list[Tool]" = [
     # 2026, GSE307620. Clean-room; runHiC / Trim Galore are GPL-3.0 and
     # are external tools only, never runtime deps.
     # ──────────────────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────
+    # Human Transcription Factors database (Lambert 2018, Cell).
+    # Local SQLite mirror; data downloaded at build time, never vendored.
+    # ──────────────────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────
+    # Tabula Sapiens 2.0 human cell atlas (Cell 2026).
+    # Retrieval + figure reproduction. Raw reads are DTA-gated; the open
+    # routes are figshare, GEO GSE306755 and CELLxGENE.
+    # ──────────────────────────────────────────────────────────────────
+    _T(
+        "tabula_status",
+        "★ WHAT TABULA SAPIENS DATA IS LOCAL ★ and how it compares to the "
+        "paper's own numbers (1,136,218 cells, 24 donors, 28 tissues, 182 "
+        "fine / 38 broad cell types, 701 populations). Run this FIRST for "
+        "any Tabula Sapiens question — it says whether the atlas is "
+        "downloaded and whether the Human TF database is built, so you "
+        "know which other commands can run.",
+        {"type": "object", "properties": {}},
+        cli=["tabula", "status"],
+    ),
+
+    _T(
+        "tabula_pull_figshare",
+        "Fetch the Tabula Sapiens 2.0 processed per-tissue h5ads from "
+        "figshare (28 files, 57 GB total; each carries raw_counts, "
+        "decontXcounts, log_normalized layers plus scVI embeddings and "
+        "expert cell-type annotations). Pass `tissues` to fetch only what "
+        "you need — most questions do not need all 57 GB. Resumable: "
+        "already-complete files are skipped.",
+        {
+            "type": "object",
+            "properties": {
+                "tissues": {**_S_STRING, "description":
+                             "Comma list e.g. 'Lung,Heart'; default all 28."},
+            },
+        },
+        cli=["tabula", "pull-figshare"],
+        flag_map={"tissues": "--tissues"},
+        bool_flags=("list_only",),
+    ),
+
+    _T(
+        "tabula_pull_geo",
+        "Fetch the Tabula Sapiens GEO deposit (GSE306755). By default "
+        "grabs the full 1.1M-cell metadata CSV (41 MB) — donor, tissue, "
+        "cell type, age, sex per cell — which is all that Figure 1 and "
+        "any demographic question needs, without the 57 GB of matrices.",
+        {
+            "type": "object",
+            "properties": {
+                "gse":      {**_S_STRING, "default": "GSE306755"},
+                "download": {**_S_STRING, "description":
+                              "Regex of files to fetch; default 'metadata'."},
+            },
+        },
+        cli=["tabula", "pull-geo"],
+        flag_map={"gse": "--gse", "download": "--download"},
+        bool_flags=("list_only",),
+    ),
+
+    _T(
+        "tabula_s3_manifest",
+        "Enumerate and size the raw Tabula Sapiens AWS bucket WITHOUT "
+        "downloading. IMPORTANT: the bucket is listable but every "
+        "GetObject returns 403 — raw reads need a signed data transfer "
+        "agreement for donor genetic privacy. Total is 103 TB (43 TB BAM, "
+        "32 TB FASTQ, 28 TB STAR intermediates, 0.3 TB matrices). Use "
+        "this to answer 'what raw data exists' and to plan a DTA request; "
+        "never promise a raw-read download.",
+        {
+            "type": "object",
+            "properties": {
+                "donors": {**_S_STRING, "description":
+                            "Comma list e.g. 'TSP1,TSP2'; default all 24."},
+            },
+        },
+        cli=["tabula", "s3-manifest"],
+        flag_map={"donors": "--donors", "label": "--label"},
+    ),
+
+    _T(
+        "tabula_overview",
+        "★ TABULA SAPIENS DATASET OVERVIEW (paper Figure 1) ★ — donor "
+        "demographics (age range, sex split, age groups, ethnicity), "
+        "cells and cell types per tissue, and every tissue x cell-type "
+        "population. Answers 'what is in Tabula Sapiens', 'how many "
+        "donors/tissues/cells', 'which donors contributed most organs'. "
+        "Needs only the GEO metadata, not the 57 GB of matrices.",
+        {
+            "type": "object",
+            "properties": {
+                "metadata": {**_S_STRING, "description":
+                              "Metadata CSV path; default the local GEO copy."},
+                "label":    {**_S_STRING, "default": "overview"},
+            },
+        },
+        cli=["tabula", "overview"],
+        flag_map={"metadata": "--metadata", "label": "--label"},
+        bool_flags=("no_figure",),
+    ),
+
+    _T(
+        "tabula_donors",
+        "Query Tabula Sapiens donors — the offline core of the upstream "
+        "ChatTS tool. Filter by donor id, tissue, sex or age range and "
+        "get each donor's age, sex, ethnicity, tissues contributed, cells "
+        "and cell types. Use for 'which donors are over 60', 'who "
+        "contributed lung', 'how many cells did TSP25 give'.",
+        {
+            "type": "object",
+            "properties": {
+                "donor":   {**_S_STRING, "description": "Comma list, e.g. TSP25."},
+                "tissue":  {**_S_STRING},
+                "sex":     {**_S_STRING},
+                "min_age": {"type": "number"},
+                "max_age": {"type": "number"},
+                "limit":   {**_S_INTEGER, "default": 30},
+            },
+        },
+        cli=["tabula", "donors"],
+        flag_map={"donor": "--donor", "tissue": "--tissue", "sex": "--sex",
+                   "min_age": "--min-age", "max_age": "--max-age",
+                   "limit": "--limit", "label": "--label"},
+    ),
+
+    _T(
+        "tabula_tf_specificity",
+        "★ WHICH TRANSCRIPTION FACTORS ARE CELL-TYPE SPECIFIC ★ (paper "
+        "Figure 2). Computes the tau specificity statistic for every "
+        "human TF across cell types and splits specific (tau > 0.85) from "
+        "ubiquitous, reporting each TF's peak cell type and DNA-binding "
+        "domain. Answers 'is TF X cell-type specific', 'which TFs mark "
+        "cell type Y', 'which TFs are universally expressed'. Needs the "
+        "atlas and the Human TF database. Pass `matrix` to reuse a "
+        "previously computed mean-expression .npz instead of recomputing.",
+        {
+            "type": "object",
+            "properties": {
+                "matrix":    {**_S_STRING, "description":
+                               "Reuse a tf-matrix .npz."},
+                "tissues":   {**_S_STRING},
+                "threshold": {"type": "number", "default": 0.85},
+                "label":     {**_S_STRING, "default": "tf_specificity"},
+            },
+        },
+        cli=["tabula", "tf-specificity"],
+        flag_map={"matrix": "--matrix", "tissues": "--tissues",
+                   "threshold": "--threshold", "label": "--label"},
+        bool_flags=("no_figure",),
+    ),
+
+    _T(
+        "tabula_tf_enrichment",
+        "GO enrichment of the NON-cell-type-specific transcription "
+        "factors (paper Figure 3) — what the ubiquitous TFs do, grouped "
+        "into gene expression/regulation, tissue maintenance, response to "
+        "stimulus and metabolism. Takes the tf_tau.tsv written by "
+        "tabula_tf_specificity.",
+        {
+            "type": "object",
+            "properties": {
+                "tau_table": {**_S_STRING, "description":
+                               "tf_tau.tsv from tf-specificity."},
+                "threshold": {"type": "number", "default": 0.85},
+                "max_padj":  {"type": "number", "default": 0.02},
+            },
+            "required": ["tau_table"],
+        },
+        cli=["tabula", "tf-enrichment"],
+        flag_map={"tau_table": "--tau-table", "threshold": "--threshold",
+                   "max_padj": "--max-padj", "label": "--label"},
+        bool_flags=("tf_background", "no_figure"),
+    ),
+
+    _T(
+        "tabula_tf_regulons",
+        "SCENIC-style TF regulon inference and activity scoring: "
+        "co-expression (GRNBoost2-style), motif support, then AUCell "
+        "activity per cell type. Answers 'is TF X actually ACTIVE here', "
+        "as opposed to merely transcribed — pair it with "
+        "tabula_tf_specificity, which measures expression only. "
+        "Clean-room: pySCENIC is GPL-3 and is not imported.",
+        {
+            "type": "object",
+            "properties": {
+                "tissues":           {**_S_STRING},
+                "group_key":         {**_S_STRING, "default": "cell_ontology_class"},
+                "min_regulon_size":  {**_S_INTEGER, "default": 10},
+                "label":             {**_S_STRING, "default": "tf_regulons"},
+            },
+        },
+        cli=["tabula", "tf-regulons"],
+        flag_map={"tissues": "--tissues", "group_key": "--group-key",
+                   "min_regulon_size": "--min-regulon-size", "label": "--label"},
+        bool_flags=("all_genes",),
+    ),
+
+    _T(
+        "tabula_senescence",
+        "★ SENESCENT-CELL BURDEN ACROSS HUMAN TISSUES ★ (paper Figure 4). "
+        "Identifies CDKN2A+ MKI67- cells and reports their fraction by "
+        "tissue, donor age and cell type. The paper finds ~48,114 such "
+        "cells (4.4%), highest in eye/bladder/tongue and lowest in "
+        "heart/muscle/ovary, rising modestly with donor age. Answers "
+        "'which tissues accumulate senescent cells', 'does senescence "
+        "increase with age', 'what fraction of cells are senescent'.",
+        {
+            "type": "object",
+            "properties": {
+                "tissues":       {**_S_STRING},
+                "marker":        {**_S_STRING, "default": "CDKN2A"},
+                "proliferation": {**_S_STRING, "default": "MKI67"},
+                "label":         {**_S_STRING, "default": "senescence"},
+            },
+        },
+        cli=["tabula", "senescence"],
+        flag_map={"tissues": "--tissues", "marker": "--marker",
+                   "proliferation": "--proliferation", "label": "--label"},
+        bool_flags=("hallmarks", "no_figure"),
+    ),
+
+    _T(
+        "tabula_sex_de",
+        "Pseudobulk differential expression between sexes per tissue "
+        "(paper Figure 5). Pseudobulks by donor first — cells within a "
+        "donor are not independent replicates — then runs a "
+        "negative-binomial test. Sex-specific organs (uterus, ovary, "
+        "prostate, testis) are excluded by default since they carry no "
+        "sex contrast. XIST and Y-linked genes are the positive control.",
+        {
+            "type": "object",
+            "properties": {
+                "tissues":     {**_S_STRING},
+                "min_donors":  {**_S_INTEGER, "default": 2},
+                "max_padj":    {"type": "number", "default": 0.05},
+                "min_log2fc":  {"type": "number", "default": 1.0},
+            },
+        },
+        cli=["tabula", "sex-de"],
+        flag_map={"tissues": "--tissues", "min_donors": "--min-donors",
+                   "max_padj": "--max-padj", "min_log2fc": "--min-log2fc",
+                   "label": "--label"},
+        bool_flags=("include_sex_specific",),
+    ),
+
+    _T(
+        "humantfs_build_db",
+        "Download the Human Transcription Factors database (Lambert 2018, "
+        "humantfs.ccbr.utoronto.ca v1.01) and build the local SQLite "
+        "mirror at Data/HumanTFs/human_tfs.sqlite. ~2 MB, seconds. Run "
+        "this once before any TF question; every other humantfs tool "
+        "needs it. Warns if the curated-TF count is not 1,639.",
+        {
+            "type": "object",
+            "properties": {
+                "with_pwms": {**_S_BOOLEAN, "description":
+                               "Also fetch position weight matrices."},
+            },
+        },
+        cli=["humantfs", "build-db"],
+        bool_flags=("force", "with_pwms"),
+    ),
+
+    _T(
+        "humantfs_is_tf",
+        "★ IS THIS GENE A TRANSCRIPTION FACTOR? ★ Partitions a pasted "
+        "gene list into curated TFs, non-TFs, and UNASSESSED (absent "
+        "from the database entirely — which is not the same as 'not a "
+        "TF'). Returns each TF's DNA-binding-domain family. Use this "
+        "whenever someone asks which genes in a list are TFs, or wants "
+        "to filter a marker/DE list down to regulators.",
+        {
+            "type": "object",
+            "properties": {
+                "genes": {**_S_STRING, "description":
+                           "Gene symbols or Ensembl IDs, any separator."},
+                "input": {**_S_STRING, "description": "File of genes."},
+                "out":   {**_S_STRING, "description": "Write a TSV here."},
+            },
+        },
+        cli=["humantfs", "is-tf"],
+        flag_map={"genes": "--genes", "input": "--input", "out": "--out"},
+    ),
+
+    _T(
+        "humantfs_lookup",
+        "Everything the Human TF database knows about one or more genes: "
+        "DNA-binding domain, TF assessment, binding mode, motif status, "
+        "InterPro/PDB cross-references and the count of CIS-BP motifs. "
+        "Use for a single gene in depth; use humantfs_is_tf to classify "
+        "a whole list.",
+        {
+            "type": "object",
+            "properties": {
+                "genes": {**_S_STRING},
+                "input": {**_S_STRING},
+            },
+        },
+        cli=["humantfs", "lookup"],
+        flag_map={"genes": "--genes", "input": "--input"},
+    ),
+
+    _T(
+        "humantfs_list",
+        "List curated TFs, optionally filtered by DNA-binding-domain "
+        "family (e.g. 'C2H2 ZF', 'Homeodomain', 'bHLH', 'Forkhead'), "
+        "binding mode, or whether a motif is known. Good for 'how many "
+        "zinc-finger TFs are there' and for building a candidate set.",
+        {
+            "type": "object",
+            "properties": {
+                "dbd":          {**_S_STRING, "description": "DBD substring."},
+                "binding_mode": {**_S_STRING},
+                "limit":        {**_S_INTEGER, "default": 40},
+                "out":          {**_S_STRING},
+            },
+        },
+        cli=["humantfs", "list"],
+        flag_map={"dbd": "--dbd", "binding_mode": "--binding-mode",
+                   "limit": "--limit", "out": "--out"},
+        bool_flags=("with_motif",),
+    ),
+
+    _T(
+        "humantfs_families",
+        "Census of DNA-binding-domain families across all 1,639 curated "
+        "TFs, largest first. C2H2 zinc fingers dominate by a wide margin "
+        "and many are computationally predicted with no validated motif.",
+        {
+            "type": "object",
+            "properties": {
+                "limit": {**_S_INTEGER, "default": 40},
+                "out":   {**_S_STRING},
+            },
+        },
+        cli=["humantfs", "families"],
+        flag_map={"limit": "--limit", "out": "--out"},
+    ),
+
+    _T(
+        "humantfs_motifs",
+        "CIS-BP motif records for one TF: motif IDs, source, evidence "
+        "type, and which are flagged best. Motif status is evidence that "
+        "a motif EXISTS, not that the TF is active in any given cell "
+        "type — pair it with regulon activity before claiming function.",
+        {
+            "type": "object",
+            "properties": {
+                "gene":  {**_S_STRING},
+                "limit": {**_S_INTEGER, "default": 30},
+            },
+            "required": ["gene"],
+        },
+        cli=["humantfs", "motifs"],
+        flag_map={"gene": "--gene", "limit": "--limit"},
+    ),
+
     _T(
         "spatial_hic_pull_geo",
         "★ Fetch Spatial-ATAC-Hi-C data from GEO ★ — list (and optionally "

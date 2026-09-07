@@ -171,6 +171,17 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "network":          ("igvfagent.network_integration_skill",
                           "Network integration — clean-room MILP for "
                           "context-specific subnetworks (CARNIVAL / Steiner)"),
+    "tabula":           ("igvfagent.tabula_sapiens_skill",
+                          "Tabula Sapiens 2.0 human cell atlas (Cell 2026) — "
+                          "retrieval from figshare / GEO GSE306755 / CELLxGENE, "
+                          "raw-bucket inventory, and figure reproduction: "
+                          "dataset overview, TF cell-type specificity (tau)"),
+    "humantfs":         ("igvfagent.humantfs_skill",
+                          "Human Transcription Factors database (Lambert 2018, "
+                          "humantfs.ccbr.utoronto.ca) — local SQLite mirror of "
+                          "all 1,639 curated TFs with DBD family, binding mode, "
+                          "motif status and cross-references; is-tf / lookup / "
+                          "list / motifs / families / export"),
     "spatial-hic":      ("igvfagent.spatial_atac_hic_skill",
                           "Spatial-ATAC-Hi-C — spatially resolved 3D genome + "
                           "chromatin accessibility on tissue slides (Wang 2026, "

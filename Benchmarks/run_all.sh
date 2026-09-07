@@ -81,6 +81,7 @@ case "$MODE" in
             ma2020_shareseq                # full local repro: share rna-qc + concordance (GSE140203)
             wang2025_neocortex_multiome    # full local repro: sc-analyze concordance (CELLxGENE)
             wang2026_spatial_atac_hic      # full local repro: spatial-hic chain vs planted truth (offline)
+            quake2026_tabula_sapiens       # full local repro: tabula (metadata tier; --full adds the 57 GB atlas)
         )
         # Anything `igvfagent bench scaffold` has produced since.
         if [ "${#GENERATED[@]}" -gt 0 ]; then
