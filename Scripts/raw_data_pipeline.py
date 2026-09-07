@@ -48,6 +48,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlsplit
@@ -1100,6 +1101,31 @@ def spawn_detached(argv: "list[str]", job_id: str, accession: str) -> dict:
     return rec
 
 
+def cmd_guide_library(args: argparse.Namespace) -> int:
+    """Report whether the sgRNA library for a screen is discoverable yet."""
+    r = find_guide_library(args.accession)
+    print(f"Accession:      {args.accession}")
+    print(f"AnalysisSets:   {', '.join(r['analysis_sets']) or 'none'}")
+    print(f"Libraries:      {', '.join(r['libraries']) or 'none'}")
+    if r["resolved"]:
+        g = r["guide_files"][0]
+        print(f"RESOLVED:       yes — {r['why']}")
+        guides = load_guide_table(g["id"] or g["accession"])
+        print(f"Guide table:    {len(guides):,} guides")
+        if guides:
+            lens = Counter(len(sp) for _, sp in guides)
+            print(f"Spacer lengths: "
+                  + ", ".join(f"{k}bp x{v}" for k, v in sorted(lens.items())))
+            print(f"Examples:       "
+                  + ", ".join(f"{gid} {sp}" for gid, sp in guides[:2]))
+        print("\nReady for guide assignment: pass workflow='kite' to "
+              "raw_pipeline_run.")
+        return 0
+    print(f"RESOLVED:       no")
+    print(f"Reason:         {r['why']}")
+    return 1
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     JOB_DIR.mkdir(parents=True, exist_ok=True)
     jobs = sorted(JOB_DIR.glob("*.json"))
@@ -1172,6 +1198,11 @@ def build_parser() -> argparse.ArgumentParser:
                          "run holds the caller open for the whole job.")
     r.add_argument("--skip-analysis", action="store_true",
                     help="Stop at the matrix; do not run the single-cell pipeline.")
+    gl = sub.add_parser("guide-library",
+                         help="Is the sgRNA library for this screen "
+                              "discoverable yet?")
+    gl.add_argument("accession")
+
     st = sub.add_parser("status", help="Report on detached runs.")
     st.add_argument("job", nargs="?", help="Job id (default: all).")
     st.add_argument("--tail", type=int, default=12,
@@ -1190,6 +1221,8 @@ def main(argv: "Optional[list[str]]" = None) -> int:
         return cmd_plan(args)
     if args.command == "status":
         return cmd_status(args)
+    if args.command == "guide-library":
+        return cmd_guide_library(args)
     return cmd_run(args)
 
 

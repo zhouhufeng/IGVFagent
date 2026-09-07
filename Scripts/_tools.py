@@ -4708,6 +4708,31 @@ _TOOLS: "list[Tool]" = [
         positional=("job",),
         flag_map={"tail": "--tail", "limit": "--limit"},
     ),
+    _T(
+        "raw_pipeline_guide_library",
+        "★ IS THE sgRNA LIBRARY FOR THIS CRISPR SCREEN KNOWN YET ★ — a "
+        "screen cannot have its guides assigned without the protospacer "
+        "table, and IGVF records that link on the AnalysisSet "
+        "(construct_library_sets -> integrated_content_files), NOT on the "
+        "MeasurementSet. This resolves it properly and reports the guide "
+        "count and spacer lengths, or says exactly why it cannot -- most "
+        "often because the dataset is still 'in progress' and has no "
+        "AnalysisSet, so the link does not exist yet. Call it before "
+        "attempting workflow='kite', and to re-check a dataset that was "
+        "not ready earlier. NEVER guess the library from its name: "
+        "assigning guides against the wrong library yields confident, "
+        "entirely wrong perturbation calls.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "IGVF FileSet accession (IGVFDS...)."},
+            },
+            "required": ["accession"],
+        },
+        cli=["raw-pipeline", "guide-library"],
+        positional=("accession",),
+    ),
 
     _T(
         "warehouse_query",
