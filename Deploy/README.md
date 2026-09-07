@@ -153,10 +153,24 @@ the Portal has no such data.
 Mint a key pair in the Portal UI (Profile → Access Keys), then put it in
 `.env.prod` on the VM — **not** in a file under `Docs/`:
 
+From a checkout that has the credentials, one command does all of it —
+upsert, rebuild, and verify:
+
+```bash
+bash Deploy/make-live.sh            # apply
+bash Deploy/make-live.sh --check    # report only, change nothing
+```
+
+By hand, note the **upsert**: a blind `>>` appended twice leaves two
+`IGVF_ACCESS_KEY` lines and compose honours the last one, so a stale value
+silently wins.
+
 ```bash
 cd /srv/igvfagent/Deploy
-printf 'IGVF_ACCESS_KEY=%s\n' 'THEKEYID'  >> .env.prod
-printf 'IGVF_SECRET_ACCESS_KEY=%s\n' 'THESECRET' >> .env.prod
+grep -v '^IGVF_ACCESS_KEY=' .env.prod > .env.tmp
+printf 'IGVF_ACCESS_KEY=%s\n' 'THEKEYID' >> .env.tmp
+mv .env.tmp .env.prod
+# repeat for IGVF_SECRET_ACCESS_KEY, then
 chmod 600 .env.prod
 cd /srv/igvfagent && bash Deploy/redeploy.sh
 ```
