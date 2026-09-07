@@ -43,6 +43,18 @@ Docs/Secrets/
 *IGVFportalAPI*
 *igvfportalapi*
 
+# SSH private keys, at any depth. The deploy key for the hosted VM
+# (igvfagent-deploy) is the one that matters, but the rule is deliberately
+# broad: a key gets copied into a checkout far more often than a checkout
+# legitimately contains one, and a committed private key cannot be un-published
+# by a later `git rm`. Public halves (*.pub) are NOT secret and stay allowed.
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+!*.pub
+
 # Runtime outputs. Keep folder placeholders and READMEs tracked.
 Data/*
 !Data/.gitkeep

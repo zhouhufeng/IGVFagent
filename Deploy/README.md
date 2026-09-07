@@ -25,6 +25,82 @@ are intentionally **not** in this repo. Operators: see the private runbook.
 
 ---
 
+## Reaching the VM from a new machine
+
+The VM was booted with the OpenStack keypair `igvfagent-deploy`. Its **private
+half is a secret**, so it is gitignored and never arrives with a `git clone`.
+A fresh checkout on a new laptop therefore has the deploy scripts but no way
+in — which is the failure to expect, not a bug.
+
+Start with the diagnostic. It runs no remote command and changes nothing:
+
+```bash
+bash Deploy/vm.sh doctor
+```
+
+It reports four things in order — key found (and its fingerprint), port 22
+reachable, public-key auth accepted, and what the deployment is currently
+running — and names the first one that is wrong. `Deploy/make-live.sh` resolves
+the connection through the same code, so anything `doctor` reports green is
+green for the deploy too.
+
+### If you have the key file
+
+```bash
+bash Deploy/vm.sh install-key /path/to/igvfagent-deploy.pem
+```
+
+It copies the key to `~/.ssh/igvfagent-deploy.pem` at mode 0600 — **outside**
+the checkout, so no future `git add -A` can catch it — and re-runs `doctor`.
+Setting `IGVFAGENT_DEPLOY_KEY=/some/path` works too if you keep it elsewhere.
+
+### If you do not have the key
+
+Better than copying the secret around: give the new machine its own key and
+tell the VM about it. Revoking one machine then does not lock out the others.
+
+```bash
+# On the new machine — the .pub half is not secret, mail it, paste it, anything
+ssh-keygen -t ed25519 -f ~/.ssh/igvfagent-deploy -C "$(whoami)@$(hostname)"
+
+# On a machine that already has access, with that .pub copied over
+bash Deploy/vm.sh authorize /path/to/new-machine.pub
+```
+
+`authorize` prompts before it writes, and matches on the key body rather than
+the whole line, so re-running it after the comment changed does not leave two
+copies. Back on the new machine, `bash Deploy/vm.sh doctor` should now go
+green: it flags the fingerprint as not the original boot keypair, which is
+expected and harmless, and the auth check is what settles it.
+
+### Why a private key cannot be recovered through OpenStack
+
+`Docs/Secretes/clouds.yaml` gives the OpenStack API enough to list the
+instance and its keypair, and that is genuinely useful for identifying which
+key a host wants:
+
+```bash
+export OS_CLIENT_CONFIG_FILE=$PWD/Docs/Secretes/clouds.yaml OS_CLOUD=BIO260320_IU
+openstack server show igvfagent-prod -c name -c status -c key_name -c addresses
+openstack keypair list          # fingerprints only — never private halves
+```
+
+But OpenStack injects SSH keys through cloud-init at **boot**, and stores only
+public halves. There is no API that adds a key to a running instance. If every
+copy of the private key is lost, the routes left are the Horizon web console or
+detaching the root volume onto another instance — both of which mean touching a
+live site. Keep a second machine authorized instead.
+
+### Claude Code sessions
+
+`.claude/settings.json` is tracked, and allowlists `vm.sh doctor`, `vm.sh ssh`,
+and `make-live.sh --check` so a session in a fresh clone can diagnose and
+inspect without a prompt per command. `vm.sh authorize` and a bare
+`make-live.sh` are deliberately left off it: one grants access to production
+and the other rebuilds it, and both should be a decision you make explicitly.
+
+---
+
 ## Requirements
 
 - A Linux host (Ubuntu 24.04 LTS assumed) with Docker Engine + Compose plugin

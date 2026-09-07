@@ -5,7 +5,9 @@
 #   bash Deploy/make-live.sh            # do it
 #   bash Deploy/make-live.sh --check    # report only, change nothing
 #
-# Run from the repo root. Everything it needs is under Docs/Secret/.
+# Runnable from anywhere — it cd's to the repo root itself. It needs a Portal
+# key pair (environment or Docs/Secret/IGVFportalAPI.txt) and SSH access to
+# the VM; `bash Deploy/vm.sh doctor` says which of those a machine is missing.
 #
 # Why a script rather than three commands: each step fails silently in its
 # own way. Appending to .env.prod twice leaves two IGVF_ACCESS_KEY lines and
@@ -23,19 +25,26 @@ set -euo pipefail
 CHECK_ONLY=0
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=1
 
-CRED_FILE="Docs/Secret/IGVFportalAPI.txt"
-KEY_FILE="Docs/Secret/igvfagent-deploy.pem"
-HOST="ubuntu@149.165.151.21"
 REMOTE="/srv/igvfagent"
 
 die()  { printf '\nFAILED: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n=== %s ===\n' "$1"; }
 
-[[ -f "$CRED_FILE" ]] || die "$CRED_FILE not found — run from the repo root"
-[[ -f "$KEY_FILE"  ]] || die "$KEY_FILE not found"
-chmod 600 "$KEY_FILE" "$CRED_FILE" 2>/dev/null || true
+# Host and key come from Deploy/vm.sh, which searches the several places the
+# key actually lives rather than assuming one path. Hard-coding
+# Docs/Secret/igvfagent-deploy.pem meant every machine that stored the key
+# somewhere else — or was granted access with its own key — died here on
+# "file not found", which reads like a broken script rather than a missing
+# credential. Portal credentials are left to _credentials.py in step 1, which
+# also honours the environment; requiring the file up front wrongly failed a
+# machine that had the key pair exported.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." || die "cannot find the repo root"
+# shellcheck source=Deploy/vm.sh
+source Deploy/vm.sh
 
-SSH=(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "$HOST")
+KEY_FILE="$(vm_key)" || die "no VM key on this machine — run: bash Deploy/vm.sh doctor"
+SSH=(ssh -i "$KEY_FILE" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+     -o ConnectTimeout=30 "$(vm_host)")
 
 step "1. Read the Portal key pair"
 # Parsed by the same module the app uses, so a layout that works here is

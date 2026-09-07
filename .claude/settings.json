@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "Project-level Claude Code settings. Tracked in git on purpose: these are",
+    "the permissions a session needs to operate the hosted deployment, and a",
+    "fresh clone on a new machine should not have to rediscover them.",
+    "Per-developer additions belong in .claude/settings.local.json (gitignored).",
+    "",
+    "Everything here is either read-only or routed through Deploy/vm.sh and",
+    "Deploy/make-live.sh, both of which are in the repo and reviewable. The",
+    "genuinely irreversible steps are deliberately NOT allowlisted:",
+    "`Deploy/vm.sh authorize` grants a machine SSH access to production, and",
+    "`make-live.sh` without --check rebuilds the live site, so both still",
+    "surface a prompt."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(bash Deploy/vm.sh doctor)",
+      "Bash(bash Deploy/vm.sh check)",
+      "Bash(bash Deploy/vm.sh ssh:*)",
+      "Bash(bash Deploy/make-live.sh --check)",
+      "Bash(ssh -i ~/.ssh/igvfagent-deploy:*)",
+      "Bash(ssh-keygen -lf:*)",
+      "Bash(ssh-keygen -E md5 -lf:*)",
+      "Bash(openstack server list:*)",
+      "Bash(openstack server show:*)",
+      "Bash(openstack keypair list:*)",
+      "Bash(curl -sI https://igvfagent.genohub.org/:*)"
+    ]
+  }
+}
