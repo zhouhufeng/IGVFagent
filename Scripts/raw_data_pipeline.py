@@ -254,6 +254,99 @@ def derived_analysis_sets(accession: str) -> "list[dict]":
     return (data or {}).get("@graph") or []
 
 
+def find_guide_library(accession: str) -> dict:
+    """Locate the sgRNA library and its protospacer table for a CRISPR screen.
+
+    IGVF records the library on the **AnalysisSet**, not on the
+    MeasurementSet -- `construct_library_sets` with an
+    `integrated_content_files` entry of content_type "guide RNA sequences".
+    Looking on the measurement set (the obvious place) finds nothing and
+    invites guessing the library from its name, which is how you end up
+    assigning guides against the wrong screen.
+
+    So this walks: measurement set -> derived AnalysisSets -> construct
+    library -> guide table. A dataset with no AnalysisSet yet -- one still
+    "in progress" -- has no link to find, and that is reported as such
+    rather than papered over with a best-guess match.
+    """
+    out = {"accession": accession, "analysis_sets": [], "libraries": [],
+           "guide_files": [], "resolved": False, "why": ""}
+    # The accession may itself be the AnalysisSet that carries the link, so
+    # look at it directly before looking for sets derived from it.
+    candidates = []
+    st0, own = portal_json(
+        f"/search/?type=FileSet&accession={urllib.parse.quote(accession)}&format=json")
+    for row in (own or {}).get("@graph") or []:
+        if row.get("@id"):
+            candidates.append(row)
+    derived = derived_analysis_sets(accession)
+    out["analysis_sets"] = [d.get("accession") for d in derived]
+    for d in candidates + derived:
+        st, full = portal_json(f"{d.get('@id')}?format=json")
+        for cls in (full or {}).get("construct_library_sets") or []:
+            lib = cls.get("accession")
+            if lib and lib not in out["libraries"]:
+                out["libraries"].append(lib)
+            for icf in cls.get("integrated_content_files") or []:
+                if ("guide" in str(icf.get("content_type", "")).lower()
+                        and icf.get("accession") not in
+                        {g["accession"] for g in out["guide_files"]}):
+                    out["guide_files"].append(
+                        {"accession": icf.get("accession"),
+                         "library": lib,
+                         "id": icf.get("@id"),
+                         "content_type": icf.get("content_type")})
+    if out["guide_files"]:
+        out["resolved"] = True
+        out["why"] = (f"guide table {out['guide_files'][0]['accession']} via "
+                      f"library {out['guide_files'][0]['library']}")
+    elif not derived and not any(
+            (portal_json(f"{c.get('@id')}?format=json")[1] or {}).get(
+                "construct_library_sets") for c in candidates):
+        out["why"] = (f"{accession} has no AnalysisSet yet, and IGVF carries "
+                      f"the construct_library_sets link there rather than on "
+                      f"the measurement set. Until the dataset is processed "
+                      f"the library is not recorded anywhere machine-readable "
+                      f"-- supply it with --guide-library or --guide-table.")
+    else:
+        out["why"] = ("AnalysisSets exist but none declares a construct "
+                      "library with guide sequences.")
+    return out
+
+
+def load_guide_table(file_id: str) -> "list[tuple[str, str]]":
+    """Download a guide table and return [(guide_id, spacer), ...]."""
+    st, obj = portal_json(f"{file_id}?format=json" if file_id.startswith("/")
+                          else f"/tabular-files/{file_id}/?format=json")
+    href = (obj or {}).get("href")
+    if not href:
+        return []
+    dest = REF_DIR / "guides" / Path(href).name
+    if not dest.exists():
+        portal_download(href, dest)
+    text = read_text_maybe_gzip(dest)
+    rows = text.splitlines()
+    if not rows:
+        return []
+    hdr = [h.strip().lower() for h in rows[0].split("\t")]
+    try:
+        gi = hdr.index("guide_id")
+    except ValueError:
+        gi = 0
+    try:
+        si = hdr.index("spacer")
+    except ValueError:
+        si = 1
+    out = []
+    for r in rows[1:]:
+        parts = r.split("\t")
+        if len(parts) > max(gi, si):
+            gid, sp = parts[gi].strip(), parts[si].strip().upper()
+            if sp and set(sp) <= set("ACGTN"):
+                out.append((gid, sp))
+    return out
+
+
 def gb(n: Any) -> float:
     try:
         return round(float(n) / 1e9, 3)
