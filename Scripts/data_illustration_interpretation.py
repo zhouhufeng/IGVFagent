@@ -9,7 +9,9 @@ and writes a plain-language report about what the data are and how to use them.
 from __future__ import annotations
 
 import argparse
+import base64
 import collections
+import re
 import csv
 import json
 import logging
@@ -39,6 +41,7 @@ DOWNLOAD_DIR = DATA_DIR / "Interpreted" / "Downloads"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint
+from _credentials import portal_credentials as _portal_credentials
 
 IGVF_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 ENCODE_BASE = _resolve_endpoint("encode", "ENCODE_BASE")
@@ -66,8 +69,23 @@ def safe_label(label: str) -> str:
 
 
 def request_headers(source: str) -> dict[str, str]:
-    headers = {"Accept": "application/json,*/*", "User-Agent": "IGVFdataAgent/0.1 data-illustration"}
-    if source == "igvf" and os.environ.get("IGVF_PORTAL_COOKIE"):
+    """Headers for a Portal/ENCODE request, carrying credentials if present.
+
+    This module used to send a cookie or nothing at all, so an access-key
+    pair configured for every other skill did not apply here: an unreleased
+    dataset answered 403 and the run fell through to the free-text search
+    below, which then described unrelated records. Authenticating first is
+    what makes "not accessible" mean it.
+    """
+    headers = {"Accept": "application/json,*/*",
+                "User-Agent": "IGVFdataAgent/0.1 data-illustration"}
+    if source != "igvf":
+        return headers
+    creds = _portal_credentials()
+    if creds:
+        token = base64.b64encode(f"{creds[0]}:{creds[1]}".encode()).decode()
+        headers["Authorization"] = f"Basic {token}"
+    elif os.environ.get("IGVF_PORTAL_COOKIE"):
         headers["Cookie"] = os.environ["IGVF_PORTAL_COOKIE"]
     return headers
 
@@ -161,7 +179,21 @@ def fetch_json_with_fallback(source: str, url: str,
     the fallback is kept rather than replaced.
     """
     status, data = fetch_json(source, url)
-    if 200 <= status < 400 and isinstance(data, dict) and "@graph" not in data:
+    ok = 200 <= status < 400 and isinstance(data, dict)
+    if ok and "@graph" not in data:
+        return status, data, url
+    # A *precise* search -- one filtered by `accession=` rather than
+    # `searchTerm=` -- also answers in @graph form, and it is authoritative
+    # when it returns anything at all. Treating every @graph response as a
+    # miss sent IGVF accessions down the free-text fallback below even
+    # though the exact lookup had just succeeded: `type=FileSet&
+    # accession=IGVFDS6639ECQN` returns the one MeasurementSet, while
+    # `searchTerm=IGVFDS6639ECQN` returns 25 items of which 13 are Gene
+    # records, plus a mouse GRCm39 matrix and unrelated assay labels. The
+    # summary and the file manifest were then built from that mixture, so a
+    # download driven off the manifest fetched files belonging to other
+    # datasets.
+    if ok and "accession=" in url and rows_from_response(data):
         return status, data, url
     base = ENCODE_BASE if source == "encode" else IGVF_API_BASE
     alt = f"{base}/search/?searchTerm={urllib.parse.quote(accession)}&format=json"
@@ -530,6 +562,34 @@ def download_files(source: str, manifest: list[dict[str, str]], label: str, max_
     return path
 
 
+_ACCESSION_RE = re.compile(r"^(IGVF[A-Z]{2}[A-Z0-9]+|ENC[A-Z]{2}[A-Z0-9]+)$", re.I)
+
+
+def looks_like_accession(target: str) -> bool:
+    return bool(_ACCESSION_RE.match(target.strip().strip("/")))
+
+
+def response_carries(target: str, data: Any, rows: "list[dict[str, Any]]") -> bool:
+    """True if the response actually contains the requested accession.
+
+    A free-text fallback answers *something* for almost any input -- an
+    unreleased accession that 403s on the object endpoint came back as a
+    generic 292,358-item result set -- and the report writer downstream is
+    happy to summarise whatever it is handed. Checking that the accession
+    is present is what separates "here is your dataset" from "here are 25
+    unrelated records from other labs and organisms".
+    """
+    want = target.strip().strip("/").upper()
+    if isinstance(data, dict) and text_value(data.get("accession")).upper() == want:
+        return True
+    for row in rows or ():
+        if text_value(row.get("accession")).upper() == want:
+            return True
+        if want in text_value(row.get("@id")).upper():
+            return True
+    return False
+
+
 def run_explain(args: argparse.Namespace) -> int:
     mkdirs()
     source, url, label_seed = build_json_url(args.target)
@@ -537,6 +597,34 @@ def run_explain(args: argparse.Namespace) -> int:
     status, data, url = fetch_json_with_fallback(source, url, args.target.strip().strip("/"))
     raw_path = save_raw(label, data)
     rows = rows_from_response(data)
+
+    # Refuse to describe the wrong thing. Writing a confident report off a
+    # free-text match is worse than writing nothing: the earlier behaviour
+    # produced a manifest of other datasets' files that a user could then
+    # hand straight to a download or an analysis.
+    if looks_like_accession(args.target) and not response_carries(args.target, data, rows):
+        print(f"Source: {source}")
+        print(f"HTTP status: {status}")
+        print(f"RESOLVED: no — {args.target} was not returned by the Portal.")
+        if status == 403:
+            print("  The object endpoint answered 403. That normally means the "
+                  "accession exists but is not released, and the configured "
+                  "credentials (if any) do not reach it.")
+            print("  Fix: supply an access-key pair with visibility of this "
+                  "dataset — IGVF_ACCESS_KEY + IGVF_SECRET_ACCESS_KEY, or "
+                  "Docs/Secret/IGVFportalAPI.txt. Run `igvfagent auth-check` "
+                  "to see which credentials are in effect.")
+        elif status == 404:
+            print("  The object endpoint answered 404 — no such accession.")
+        else:
+            print(f"  The lookup returned {len(rows)} item(s), none carrying "
+                  f"this accession.")
+        print("  NO report, manifest, or plots were written, because any "
+              "summary built from this response would describe unrelated "
+              "records. Nothing here may be reported as the contents of "
+              f"{args.target}.")
+        print(f"Raw metadata: {raw_path}")
+        return 2
     hydrated_rows = hydrate_rows(source, rows, args.hydrate_limit) if rows and args.hydrate_limit else []
     hydrated_path = None
     if hydrated_rows:

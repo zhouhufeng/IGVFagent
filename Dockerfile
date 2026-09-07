@@ -70,10 +70,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Minimal runtime libs:
 #   libgomp1   numpy/scipy/sklearn-style scientific stack
 #   curl       healthcheck against the Streamlit HTTP probe
+#   zlib1g     bustools links libz.so.1 (kb-python's bundled binary).
+#              The slim base already carries it via CPython's zlib module,
+#              so this is belt-and-braces against a base-image change
+#              silently breaking `kb count` -- the aligner needs no other
+#              system library. Verified by reading DT_NEEDED off the
+#              shipped ELFs: kallisto wants only glibc + libstdc++, and
+#              notably NOT libhdf5 (the darwin build does, which is why it
+#              fails on a mac without homebrew hdf5 but works here).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
         curl \
         ca-certificates \
+        zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 # Optional: the Claude Code CLI, which backs the "External orchestrator"

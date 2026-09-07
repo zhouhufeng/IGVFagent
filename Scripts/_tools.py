@@ -80,6 +80,7 @@ _S_STRING  = {"type": "string"}
 _S_INTEGER = {"type": "integer"}
 _S_BOOLEAN = {"type": "boolean"}
 _S_ARRAY_S = {"type": "array", "items": {"type": "string"}}
+_S_NUMBER  = {"type": "number"}
 
 
 _TOOLS: "list[Tool]" = [
@@ -4226,6 +4227,90 @@ _TOOLS: "list[Tool]" = [
                    "include_predictions": "--include-predictions",
                    "label": "--label"},
         bool_flags=("include_ld", "include_predictions"),
+    ),
+
+    _T(
+        "raw_pipeline_plan",
+        "★ WHAT WOULD IT TAKE TO ANALYSE THIS DATASET'S RAW DATA ★ — "
+        "resolves an IGVF FileSet accession, inventories its files, pairs "
+        "the FASTQ reads, infers the sequencing chemistry from the seqspec, "
+        "and reports the ROUTE it would take plus the download size. "
+        "Downloads nothing except the small seqspec. CALL THIS FIRST "
+        "whenever someone asks to analyse, process, or run a pipeline on a "
+        "dataset accession, so the cost and the route are known before any "
+        "large transfer. It also names which files are controlled-access.",
+        {
+            "type": "object",
+            "properties": {
+                "accession":   {**_S_STRING, "description":
+                                 "IGVF FileSet accession (IGVFDS...)."},
+                "technology":  {**_S_STRING, "description":
+                                 "kb technology override, e.g. 10XV3. "
+                                 "Inferred from the seqspec if omitted."},
+                "force_align": {**_S_BOOLEAN, "description":
+                                 "Plan the alignment route even if a "
+                                 "published matrix already exists."},
+            },
+            "required": ["accession"],
+        },
+        cli=["raw-pipeline", "plan"],
+        positional=("accession",),
+        flag_map={"technology": "--technology"},
+        bool_flags=("force_align",),
+    ),
+    _T(
+        "raw_pipeline_run",
+        "★ ACTUALLY ANALYSE A DATASET'S RAW DATA, END TO END ★ — the tool "
+        "that DOES the work rather than describing it. Takes an IGVF "
+        "accession and: prefers an already-published count matrix (on the "
+        "set, or on an AnalysisSet derived from it); otherwise downloads "
+        "the FASTQs and quantifies them with kallisto|bustools "
+        "(`kb count`), inferring the chemistry from the seqspec; then runs "
+        "the single-cell pipeline on the resulting matrix (QC, UMAP, "
+        "Leiden, markers). USE THIS when the user asks to analyse or "
+        "process raw data -- do NOT stop at explain_dataset and suggest "
+        "commands for them to run. Set workflow='kite' to assign CRISPR "
+        "sgRNA feature barcodes. Alignment can move tens of GB, so call "
+        "raw_pipeline_plan first, or pass dry_run=true to see every "
+        "command and transfer without performing any.",
+        {
+            "type": "object",
+            "properties": {
+                "accession":       {**_S_STRING, "description":
+                                     "IGVF FileSet accession (IGVFDS...)."},
+                "technology":      {**_S_STRING, "description":
+                                     "kb technology override (e.g. 10XV3, "
+                                     "BULK). Inferred from the seqspec if "
+                                     "omitted."},
+                "workflow":        {**_S_STRING, "description":
+                                     "kb workflow: standard | nac | kite | "
+                                     "kite:10xFB. 'kite' assigns feature "
+                                     "barcodes such as CRISPR sgRNAs."},
+                "reference":       {**_S_STRING, "default": "human",
+                                     "description":
+                                     "Prebuilt kb reference (human, mouse)."},
+                "max_download_gb": {**_S_NUMBER, "default": 100,
+                                     "description":
+                                     "Refuse to transfer more than this."},
+                "label":           {**_S_STRING},
+                "dry_run":         {**_S_BOOLEAN, "description":
+                                     "Print every command and download "
+                                     "nothing."},
+                "force_align":     {**_S_BOOLEAN, "description":
+                                     "Align even if a published matrix "
+                                     "exists."},
+                "skip_analysis":   {**_S_BOOLEAN, "description":
+                                     "Stop at the matrix; skip the "
+                                     "single-cell pipeline."},
+            },
+            "required": ["accession"],
+        },
+        cli=["raw-pipeline", "run"],
+        positional=("accession",),
+        flag_map={"technology": "--technology", "workflow": "--workflow",
+                   "reference": "--reference", "label": "--label",
+                   "max_download_gb": "--max-download-gb"},
+        bool_flags=("dry_run", "force_align", "skip_analysis"),
     ),
 
     _T(

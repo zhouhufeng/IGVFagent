@@ -74,6 +74,15 @@ analysis = [
     # uploaded PDFs so a paper can be turned into a reproduction plan.
     "pypdf>=4.0,<7",
 ]
+# Raw-read processing: FASTQ -> count matrix. kb-python bundles the
+# kallisto and bustools binaries per-platform, so no compiler, no conda,
+# and no separate aligner install is needed -- which is what makes an
+# aligner shippable in a pip-built image at all. The `kite` workflow
+# covers feature barcoding (CRISPR sgRNA assignment); prebuilt human and
+# mouse indices come from `kb ref -d`.
+align = [
+    "kb-python>=0.28,<0.30",
+]
 # Web UI for natural-language interaction (Streamlit)
 # Streamlit is migrating `use_container_width=` to `width=` on a
 # per-widget schedule; Scripts/_stcompat.py resolves that at call time, so
@@ -127,7 +136,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "igvfagent[analysis,ui,llm,hic,motif,warehouse,network]",
+    "igvfagent[analysis,align,ui,llm,hic,motif,warehouse,network]",
 ]
 
 [project.urls]

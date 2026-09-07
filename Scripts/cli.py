@@ -34,6 +34,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Specialized IGVF assay catalog (Parse SPLiT-seq, etc.)"),
     "explain":          ("igvfagent.data_illustration_interpretation",
                           "Explain an IGVF / ENCODE accession or search URL"),
+    "raw-pipeline":     ("igvfagent.raw_data_pipeline",
+                          "Process a dataset's raw reads: FASTQ -> count "
+                          "matrix (kallisto|bustools) -> single-cell analysis"),
     "variant":          ("igvfagent.annotate_variant_list",
                           "Annotate variants against IGVF Catalog evidence"),
     "advanced-variant": ("igvfagent.advanced_variant_analysis",

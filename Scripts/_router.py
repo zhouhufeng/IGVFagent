@@ -30,6 +30,13 @@ _RE_URL = re.compile(r"https?://\S*(?:igvf|encodeproject|encode)\S*", re.IGNOREC
 _RE_REGION = re.compile(r"\bchr[0-9XYMT]{1,2}:[0-9,]+-[0-9,]+\b", re.IGNORECASE)
 # a single bare token that looks like an HGNC gene symbol
 _RE_GENE_TOKEN = re.compile(r"^[A-Z][A-Z0-9]{0,9}(?:-[A-Z0-9]{1,4})?$")
+# Intent to DO something with the data, not merely learn what it is.
+# "raw data" counts on its own: nobody mentions raw reads to be told a title.
+_RE_ANALYSE_INTENT = re.compile(
+    r"\b(analy[sz]e|analy[sz]ing|analysis|process(?:ing)?|re-?process\w*|"
+    r"pipeline|quantif\w+|align\w*|map\s+the\s+reads|count\s+matrix|"
+    r"cluster\w*|umap|demultiplex\w*|raw\s+(?:data|reads|fastq))\b",
+    re.IGNORECASE)
 
 # All-caps acronyms that are NOT genes — keep bare-token gene routing safe.
 _NOT_GENES = {
@@ -61,9 +68,22 @@ def route(query: str) -> "list[dict]":
 
     m = _RE_IGVF.search(q) or _RE_ENCODE.search(q)
     if m:
-        return [{"tool": "explain_dataset",
-                 "arguments": {"accession_or_url": m.group(0)},
-                 "shape": "accession"}]
+        acc = m.group(0)
+        # "Analyse / process this data" is a different request from "what is
+        # this". Seeding only explain_dataset for both meant the analysis ask
+        # was answered with a description plus a list of commands for the
+        # user to run themselves. Seed the planner too, so the very first
+        # thing on the transcript is the route, the download size, and
+        # whether an aligner is present -- and the model continues from a
+        # plan instead of from a report that already reads like an answer.
+        calls = [{"tool": "explain_dataset",
+                  "arguments": {"accession_or_url": acc},
+                  "shape": "accession"}]
+        if _RE_ANALYSE_INTENT.search(q) and acc.upper().startswith("IGVF"):
+            calls.append({"tool": "raw_pipeline_plan",
+                          "arguments": {"accession": acc},
+                          "shape": "accession_analyse"})
+        return calls
 
     m = _RE_RSID.search(q)
     if m:
@@ -96,6 +116,7 @@ def describe() -> str:
         "Deterministic routes (same on every backend):\n"
         "  URL to igvf/encode         -> explain_dataset\n"
         "  IGVF*/ENC* accession       -> explain_dataset\n"
+        "  ...+ analyse/process intent -> + raw_pipeline_plan\n"
         "  rsID (rs\\d+)               -> kg_variant\n"
         "  chrN:start-end region      -> kg_region\n"
         "  bare gene symbol token     -> kg_gene\n"
