@@ -15,8 +15,9 @@
 # running with no error. Each step is therefore checked, not assumed.
 #
 # The secret is never passed as a command-line argument to ssh: it would be
-# visible in `ps` on the VM for the life of the call. It travels on stdin
-# into a remote `bash -s` instead.
+# visible in `ps` on the VM for the life of the call. The remote script goes
+# in argv (base64, so quoting cannot break it) and the secret keeps stdin to
+# itself -- they cannot share stdin, see step 4.
 set -euo pipefail
 
 CHECK_ONLY=0
@@ -83,7 +84,7 @@ if [[ "$CHECK_ONLY" == 1 ]]; then
     docker exec igvfagent-app python3 -c \
       'from igvfagent import _credentials as c; print(\"container creds:\", c.describe()[\"source\"], c.describe()[\"key_id\"])' 2>/dev/null \
       || echo 'container creds: unavailable (old image or not running)'; \
-    docker exec igvfagent-app sh -lc 'kb --version 2>&1 | grep -i kb_python' 2>/dev/null \
+    docker exec igvfagent-app kb --version 2>&1 | grep -i kb_python \
       || echo 'aligner: NOT installed in the running image'"
   printf '\n--check complete. Re-run without --check to apply.\n'
   exit 0
@@ -133,15 +134,19 @@ step "5. Pull the new code and rebuild the image"
 "${SSH[@]}" "set -e; cd $REMOTE && git pull --ff-only && bash Deploy/redeploy.sh" \
   || die "redeploy failed — the site is still serving the old image"
 
+# Commands run through plain `docker exec`, never `sh -lc`. A login shell
+# sources /etc/profile, which resets PATH and drops /opt/venv/bin -- so
+# `kb` and `igvfagent` both look absent and the run reports ALIGNER MISSING
+# against an image that has the aligner installed and working.
 step "6. Verify inside the running container"
 "${SSH[@]}" "set -e; \
   docker exec igvfagent-app python3 -c 'from igvfagent import _credentials as c; d=c.describe(); print(\"credentials:\", d[\"source\"], d[\"key_id\"])'; \
-  docker exec igvfagent-app sh -lc 'kb --version 2>&1 | grep -i kb_python || echo \"ALIGNER MISSING\"'; \
-  docker exec igvfagent-app sh -lc 'igvfagent portal search --type MeasurementSet --limit 1 2>/dev/null | head -1'"
+  docker exec igvfagent-app kb --version 2>&1 | grep -i kb_python || echo 'ALIGNER MISSING'; \
+  docker exec igvfagent-app igvfagent portal search --type MeasurementSet --limit 1 2>/dev/null | grep -iE 'total|matches'"
 
 step "7. Prove the new pipeline works on a real dataset"
-"${SSH[@]}" "docker exec igvfagent-app sh -lc \
-  'igvfagent raw-pipeline plan IGVFDS6639ECQN 2>/dev/null | grep -E \"ROUTE|Technology|Aligner\"' || true"
+"${SSH[@]}" "docker exec igvfagent-app igvfagent raw-pipeline plan IGVFDS6639ECQN 2>/dev/null \
+  | grep -E 'ROUTE|Technology|Aligner' || true"
 
 cat <<'DONE'
 
