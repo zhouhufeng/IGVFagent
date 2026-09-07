@@ -412,18 +412,46 @@ def kb_available() -> "tuple[bool, str]":
 
 
 def ensure_index(reference: str, dry_run: bool) -> "tuple[Path, Path, list[str]]":
-    """Return (index, t2g) for a prebuilt kb reference, downloading if absent."""
+    """Return (index, t2g) for a prebuilt kb reference, downloading if absent.
+
+    Two things here are not optional in a containerised deployment.
+
+    ``--tmp`` puts kb's staging directory on the *same filesystem* as the
+    destination. By default kb downloads to ``./tmp`` relative to the working
+    directory and then ``os.rename()``s the result into place; when the
+    destination is a mounted data volume and the working directory is not,
+    that rename is a cross-device link and dies with EXDEV:
+
+        OSError: [Errno 18] Invalid cross-device link:
+            'tmp/index.idx' -> '/workspace/Data/References/kb/human/index.idx'
+
+    And the result is *verified* rather than trusted, because kb exits **0**
+    on exactly that failure (measured, not assumed). Trusting the exit code
+    let a run continue to `kb count` against an index that was never written,
+    where it failed far from the real cause with "kallisto index file not
+    found".
+    """
     ref_root = REF_DIR / safe_label(reference)
     index = ref_root / "index.idx"
     t2g = ref_root / "t2g.txt"
-    cmd = ["kb", "ref", "-d", reference, "-i", str(index), "-g", str(t2g)]
+    tmp = ref_root / "tmp"
+    cmd = ["kb", "ref", "-d", reference, "-i", str(index), "-g", str(t2g),
+           "--tmp", str(tmp)]
     if index.exists() and t2g.exists():
         return index, t2g, []
     ref_root.mkdir(parents=True, exist_ok=True)
     if dry_run:
         return index, t2g, cmd
     logging.info("Building/downloading kb reference %s -> %s", reference, ref_root)
+    # kb refuses to start if its tmp directory already exists.
+    if tmp.exists():
+        shutil.rmtree(tmp, ignore_errors=True)
     subprocess.run(cmd, check=True)
+    missing = [str(p) for p in (index, t2g) if not p.exists()]
+    if missing:
+        raise RuntimeError(
+            "kb ref reported success but did not write: " + ", ".join(missing)
+            + f". Check write permission and free space on {ref_root}.")
     return index, t2g, cmd
 
 
