@@ -86,8 +86,16 @@ def _inspect_h5ad(path: Path) -> H5adDescriptor:
     return desc
 
 
-def discover_h5ad_files() -> "list[H5adDescriptor]":
-    """Walk the conventional output dirs + a few extras for .h5ad files."""
+def discover_h5ad_paths() -> "list[Path]":
+    """Just the paths, newest first. No HDF5 file is opened.
+
+    Deliberately separate from inspection. Opening every file to read its
+    obs/obsm metadata cost 39 seconds on the deployment -- 25 files
+    totalling 19 GB -- and Streamlit runs every tab body on every page
+    render, so that was paid even by someone who only wanted the chat box,
+    which sits after the tabs in the script and therefore could not appear
+    until it finished.
+    """
     found: "list[Path]" = []
     seen: "set[Path]" = set()
     for d in SCAN_DIRS:
@@ -98,10 +106,34 @@ def discover_h5ad_files() -> "list[H5adDescriptor]":
                 continue
             seen.add(p)
             found.append(p)
-    # Sort newest first by mtime
     found.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0,
                 reverse=True)
-    return [_inspect_h5ad(p) for p in found]
+    return found
+
+
+def discover_h5ad_files(inspect: bool = True,
+                         limit: "Optional[int]" = None
+                         ) -> "list[H5adDescriptor]":
+    """Descriptors for the discovered files.
+
+    ``inspect=False`` returns path/label/size only, which needs a stat and
+    no HDF5 open. ``limit`` caps how many are inspected when detail is
+    wanted, so a directory that grows without bound cannot slow the page
+    again.
+    """
+    paths = discover_h5ad_paths()
+    out: "list[H5adDescriptor]" = []
+    for i, path in enumerate(paths):
+        if not inspect or (limit is not None and i >= limit):
+            d = H5adDescriptor(path=path, label=path.parent.name)
+            try:
+                d.size_mb = path.stat().st_size / (1 << 20)
+            except OSError:
+                pass
+            out.append(d)
+        else:
+            out.append(_inspect_h5ad(path))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +294,10 @@ def render_streamlit_panel(st) -> None:
         "any obs column, or gene expression."
     )
 
-    descs = discover_h5ad_files()
+    # Cheap listing: the panel only needs labels and sizes to build its
+    # picker, and inspecting the selected file is enough for everything
+    # after that.
+    descs = discover_h5ad_files(inspect=False)
     if not descs:
         st.warning(
             "No `.h5ad` files found. Build one with:\n\n"
@@ -280,17 +315,20 @@ def render_streamlit_panel(st) -> None:
         )
         return
 
-    # File selector
-    labels = [f"{d.label}  ·  {d.n_obs:,} cells × {d.n_vars:,} genes  "
-              f"·  {d.size_mb:.1f} MB" for d in descs]
+    # File selector. Labels come from the cheap listing -- name and size
+    # only -- because cell and gene counts would each cost an HDF5 open,
+    # and the picker exists to choose ONE file.
+    labels = [f"{d.label}  ·  {d.size_mb:.1f} MB" for d in descs]
     idx = st.selectbox(
         "Dataset",
         list(range(len(descs))),
         format_func=lambda i: labels[i],
         key="sc_viz_dataset",
     )
-    desc = descs[idx]
-    st.caption(f"`{desc.path}`")
+    # Inspect only the selection. This is the one HDF5 open the panel needs,
+    # instead of one per file on every page render.
+    desc = _inspect_h5ad(descs[idx].path)
+    st.caption(f"`{desc.path}`  ·  {len(descs)} dataset(s) available")
 
     if desc.error:
         st.error(f"Could not open: {desc.error}")
