@@ -1355,6 +1355,38 @@ def _render_artefacts(paths: "list[str]") -> None:
             _render_one(o)
 
 
+_JOBS_REFRESH_S = int(os.environ.get("IGVF_UI_JOBS_REFRESH", "5"))
+
+# A detached job's progress is invisible without this. Streamlit renders the
+# script once per interaction and never polls, so the panel froze at whatever
+# the state was when the page loaded: a user watching a 45-minute alignment
+# saw a static "running" line and no moving bar, and reasonably concluded
+# nothing was happening. st.fragment(run_every=...) re-runs just this panel
+# on a timer, leaving the rest of the page (and any in-flight agent run)
+# untouched.
+if hasattr(st, "fragment"):
+    @st.fragment(run_every=f"{_JOBS_REFRESH_S}s")
+    def _jobs_fragment() -> None:
+        _jobs_body()
+else:                                    # Streamlit < 1.37: no fragments
+    def _jobs_fragment() -> None:
+        _jobs_body()
+
+
+def _sidebar_jobs() -> None:
+    """Job panel. Auto-refreshing while anything is running."""
+    try:
+        jobs = _running_jobs()
+    except Exception:                                        # noqa: BLE001
+        return
+    if not jobs:
+        return
+    if any(j["state"] == "running" for j in jobs):
+        _jobs_fragment()
+    else:
+        _jobs_body()
+
+
 # --------------------------- Event rendering -------------------------------
 
 def _short_args(args: dict) -> str:
@@ -1465,12 +1497,17 @@ def _running_jobs() -> "list[dict]":
     return out
 
 
-def _sidebar_jobs() -> None:
+def _jobs_body() -> None:
+    """Render the job list. Re-reads state on every call, so a fragment
+    wrapper showing it repeatedly reports current progress rather than a
+    snapshot from page load."""
     jobs = _running_jobs()
     if not jobs:
+        st.caption("No analysis jobs on record.")
         return
     active = [j for j in jobs if j["state"] == "running"]
-    header = f"⚙ Analysis jobs ({len(active)} running)" if active else "⚙ Analysis jobs"
+    header = (f"⚙ Analysis jobs ({len(active)} running)" if active
+              else "⚙ Analysis jobs")
     with st.expander(header, expanded=bool(active)):
         for j in jobs:
             icon = {"running": "🔄", "finished": "✅"}.get(j["state"], "⏹")
@@ -1487,6 +1524,9 @@ def _sidebar_jobs() -> None:
                 st.caption(f"⏳ {prog['phase']} · {prog.get('detail','')}")
             for ln in j.get("tail", []):
                 st.caption(ln[:110])
+        if active:
+            st.caption(f"Refreshing every {_JOBS_REFRESH_S}s · "
+                       f"{time.strftime('%H:%M:%S')}")
         st.caption("Jobs keep running after the page closes. Ask "
                    "\u201cstatus of <job id>\u201d for detail.")
 
