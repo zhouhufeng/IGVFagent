@@ -4596,6 +4596,12 @@ _TOOLS: "list[Tool]" = [
         "whenever someone asks to analyse, process, or run a pipeline on a "
         "dataset accession, so the cost and the route are known before any "
         "large transfer. It also names which files are controlled-access. "
+        "The route comes back as `assay_mismatch` for assays whose reads "
+        "are NOT a transcript library -- SGE, MPRA, STARR-seq, protein "
+        "scanning -- because quantifying those against a transcriptome "
+        "restates the amplicon design instead of measuring anything; it "
+        "then names the analysis that does apply. Do not force past that "
+        "unless the user asked for gene counts knowing what they mean. "
         "This tool DESCRIBES the work; it does not do it. When the request "
         "was to analyse or process the data, follow it with "
         "raw_pipeline_run (detach=true for anything over a few GB) rather "
@@ -4673,7 +4679,13 @@ _TOOLS: "list[Tool]" = [
                                      "raw_pipeline_status."},
                 "force_align":     {**_S_BOOLEAN, "description":
                                      "Align even if a published matrix "
-                                     "exists."},
+                                     "exists, AND override the "
+                                     "assay_mismatch refusal for a "
+                                     "non-transcript assay (SGE, MPRA, "
+                                     "STARR-seq, protein scanning). Only "
+                                     "when the user has asked for gene "
+                                     "counts knowing they do not answer "
+                                     "that assay's question."},
                 "skip_analysis":   {**_S_BOOLEAN, "description":
                                      "Stop at the matrix; skip the "
                                      "single-cell pipeline."},

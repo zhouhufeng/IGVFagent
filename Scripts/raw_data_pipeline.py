@@ -589,8 +589,55 @@ def kb_count_cmd(index: Path, t2g: Path, tech: str, out_dir: Path,
 
 # ─── Routing ────────────────────────────────────────────────────────────────
 
+# Assays whose reads are NOT a transcript library. Quantifying these against
+# a transcriptome produces a confident, meaningless answer: on
+# IGVFDS4629JYPY (saturation genome editing of PALB2 exon 7A) it reported
+# 99.86% of 3.7M counts on PALB2 -- which is not a finding, it is the
+# amplicon design restated. The real readout is per-variant functional
+# scores from variant calling against the editing template.
+#
+# Matched on assay title/slim, because the FILE types are identical to an
+# RNA-seq set (FASTQ reads, no matrix) and file inspection alone cannot tell
+# the difference. That is exactly how this got through.
+_NON_TRANSCRIPT_ASSAYS = {
+    "sge": ("saturation genome editing",
+            "per-variant functional scores, from variant calling against "
+            "the editing-template design"),
+    "saturation genome editing": ("saturation genome editing",
+            "per-variant functional scores, from variant calling against "
+            "the editing-template design"),
+    "mpra": ("MPRA",
+             "per-element activity from barcode counts (see the mpra_* tools)"),
+    "starr-seq": ("STARR-seq",
+                  "enhancer activity from input/output ratios (starr_* tools)"),
+    "starr": ("STARR-seq",
+              "enhancer activity from input/output ratios (starr_* tools)"),
+    "protein scanning": ("a protein-scanning / deep-mutational-scan assay",
+                         "per-variant scores, not transcript abundance"),
+    "variant painting": ("variant painting",
+                         "per-variant readout, not transcript abundance"),
+}
+
+
+def assay_mismatch(fs: dict) -> "Optional[tuple[str, str, str]]":
+    """(label, right_analysis, matched_on) when reads are not a transcript library."""
+    fields = []
+    for key in ("preferred_assay_titles", "assay_titles",
+                 "preferred_assay_slims", "assay_slims"):
+        v = fs.get(key)
+        if isinstance(v, list):
+            fields.extend((key, str(x)) for x in v)
+        elif v:
+            fields.append((key, str(v)))
+    for key, raw in fields:
+        hit = _NON_TRANSCRIPT_ASSAYS.get(raw.strip().lower())
+        if hit:
+            return hit[0], hit[1], f"{key}={raw}"
+    return None
+
+
 def decide_route(accession: str, buckets: "dict[str, list[dict]]",
-                  force_align: bool) -> "dict":
+                  force_align: bool, file_set: "Optional[dict]" = None) -> "dict":
     if buckets["matrices"] and not force_align:
         return {"route": "matrix_on_set",
                 "matrices": rank_matrices(buckets["matrices"]),
@@ -609,6 +656,17 @@ def decide_route(accession: str, buckets: "dict[str, list[dict]]",
                         "why": f"AnalysisSet {dacc} derived from {accession} "
                                f"already publishes a count matrix"}
     if buckets["reads"]:
+        mism = assay_mismatch(file_set or {})
+        if mism and not force_align:
+            label, right, matched = mism
+            return {"route": "assay_mismatch", "assay": label,
+                    "matched_on": matched, "right_analysis": right,
+                    "why": (f"this is {label}, whose reads are not a "
+                            f"transcript library. Quantifying them against a "
+                            f"transcriptome would report which gene the "
+                            f"amplicon covers -- the assay design restated, "
+                            f"not a result. The readout you want is {right}. "
+                            f"Pass force_align=true to quantify anyway.")}
         return {"route": "align", "why": "only raw reads are available; "
                                           "they must be quantified first",
                 "derived_sets": [d.get("accession") for d in derived]}
@@ -667,7 +725,7 @@ def _inventory(accession: str, force_align: bool) -> "Optional[dict]":
                 pairs, unpaired = sp_pairs, sp_unpaired
                 pairing_source = "seqspec " + ", ".join(used_specs)
 
-    route = decide_route(accession, buckets, force_align)
+    route = decide_route(accession, buckets, force_align, file_set=fs)
     total_gb = round(sum(gb(f.get("file_size")) for f in buckets["reads"]), 2)
     print(f"Accession:   {accession}")
     print(f"Type:        {(fs.get('@type') or ['?'])[0]}  |  status: {fs.get('status')}")
@@ -943,6 +1001,15 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return 5
             matrix = cand[0]
             print(f"Matrix: {matrix}")
+    elif route == "assay_mismatch":
+        print(f"\nNOT RUNNING: {inv['route']['why']}")
+        print(f"  assay:      {inv['route'].get('assay')}")
+        print(f"  matched on: {inv['route'].get('matched_on')}")
+        print(f"  right analysis: {inv['route'].get('right_analysis')}")
+        print("  Nothing was downloaded and no matrix was written, because a "
+              "gene-count matrix for this assay would answer a different "
+              "question than the one asked.")
+        return 6
     else:
         print("Nothing to process: no reads and no matrix.")
         return 2
