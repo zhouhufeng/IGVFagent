@@ -1475,6 +1475,39 @@ else:                                    # Streamlit < 1.37: no fragments
         _jobs_body()
 
 
+def _session_started_at() -> float:
+    """Epoch seconds when this browser session first rendered."""
+    if "_session_started_at" not in st.session_state:
+        st.session_state["_session_started_at"] = time.time()
+    return float(st.session_state["_session_started_at"])
+
+
+def _own_jobs(jobs: "list[dict]") -> "list[dict]":
+    """Only jobs this session started.
+
+    The job registry is shared -- one directory on one VM holding every job
+    any visitor has ever launched. Rendering all of them meant that merely
+    opening the site produced a wall of somebody else's finished figures
+    before a single question had been asked: noise for the reader, and on a
+    shared deployment, other people's results.
+
+    A job counts as this session's when it started after the session did.
+    Crude, but it needs no plumbing through the agent loop and it fails in
+    the safe direction -- an unrecognised job is hidden, never shown.
+    """
+    started = _session_started_at()
+    mine = []
+    for j in jobs:
+        try:
+            t = time.mktime(time.strptime(str(j.get("started")),
+                                           "%Y-%m-%d %H:%M:%S"))
+        except (ValueError, TypeError):
+            continue
+        if t >= started - 5:            # slack for clock granularity
+            mine.append(j)
+    return mine
+
+
 def _live_jobs_body() -> None:
     """Main-area panel: running jobs and the figures they have produced.
 
@@ -1484,7 +1517,7 @@ def _live_jobs_body() -> None:
     without this the figures are invisible until someone thinks to ask again.
     """
     try:
-        jobs = _running_jobs()
+        jobs = _own_jobs(_running_jobs())
     except Exception:                                        # noqa: BLE001
         return
     # "stopped" is included deliberately: a job that produced figures and
@@ -1534,9 +1567,9 @@ else:
 
 
 def live_jobs_panel() -> None:
-    """Render the live job/figure panel when there is anything to show."""
+    """Live view of work THIS session started. Silent otherwise."""
     try:
-        jobs = _running_jobs()
+        jobs = _own_jobs(_running_jobs())
     except Exception:                                        # noqa: BLE001
         return
     if not jobs:
@@ -1675,9 +1708,12 @@ def _jobs_body() -> None:
     """Render the job list. Re-reads state on every call, so a fragment
     wrapper showing it repeatedly reports current progress rather than a
     snapshot from page load."""
-    jobs = _running_jobs()
+    # Scoped to this session for the same reason the main panel is: the
+    # registry is shared across every visitor to the deployment, and one
+    # person's accessions are not another's business.
+    jobs = _own_jobs(_running_jobs())
     if not jobs:
-        st.caption("No analysis jobs on record.")
+        st.caption("No analysis jobs in this session.")
         return
     active = [j for j in jobs if j["state"] == "running"]
     header = (f"⚙ Analysis jobs ({len(active)} running)" if active
