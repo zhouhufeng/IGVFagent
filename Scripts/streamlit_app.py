@@ -1357,6 +1357,51 @@ def _render_artefacts(paths: "list[str]") -> None:
 
 _JOBS_REFRESH_S = int(os.environ.get("IGVF_UI_JOBS_REFRESH", "5"))
 
+
+def _job_figures(rec: dict) -> "list[str]":
+    """PNGs a job has written so far, newest last.
+
+    Plots do not land in the job's own directory -- the single-cell step
+    announces its own ``Output: Docs/SingleCell/<run>`` and writes into
+    ``<run>/Plots`` -- so the log is the only link between a job and its
+    figures. They are read live, which is what lets them appear one by one
+    while the job is still running.
+    """
+    out: "list[str]" = []
+    log = Path(rec.get("log", ""))
+    roots: "list[Path]" = []
+    try:
+        text = log.read_text(errors="replace") if log.exists() else ""
+    except OSError:
+        text = ""
+    for line in text.splitlines():
+        for key in ("Output:", "Report:", "Run dir:"):
+            if line.startswith(key):
+                cand = Path(line.split(":", 1)[1].strip())
+                if not cand.is_absolute():
+                    cand = _PROJECT_ROOT / cand
+                roots.append(cand)
+    work = rec.get("work")
+    if work:
+        roots.append(Path(work))
+    seen: "set[str]" = set()
+    for root in roots:
+        try:
+            if not root.is_dir():
+                continue
+            for sub in (root, root / "Plots"):
+                if not sub.is_dir():
+                    continue
+                for f in sorted(sub.iterdir(), key=lambda q: q.name):
+                    if (f.is_file() and f.suffix.lower() == ".png"
+                            and str(f) not in seen
+                            and _pathguard.is_safe_artifact(f)):
+                        seen.add(str(f))
+                        out.append(str(f))
+        except OSError:
+            continue
+    return out
+
 # A detached job's progress is invisible without this. Streamlit renders the
 # script once per interaction and never polls, so the panel froze at whatever
 # the state was when the page loaded: a user watching a 45-minute alignment
@@ -1371,6 +1416,78 @@ if hasattr(st, "fragment"):
 else:                                    # Streamlit < 1.37: no fragments
     def _jobs_fragment() -> None:
         _jobs_body()
+
+
+def _live_jobs_body() -> None:
+    """Main-area panel: running jobs and the figures they have produced.
+
+    The sidebar list answers "is it running"; this answers "what has it made
+    so far". A long analysis writes its plots one at a time over many
+    minutes, and on the hosted site there is no filesystem to watch, so
+    without this the figures are invisible until someone thinks to ask again.
+    """
+    try:
+        jobs = _running_jobs()
+    except Exception:                                        # noqa: BLE001
+        return
+    # "stopped" is included deliberately: a job that produced figures and
+    # then died still has results worth showing, and hiding them is how a
+    # partial run looks like no run at all.
+    recent = jobs[:3]
+    if not recent:
+        return
+    for rec in recent:
+        figs = _job_figures(rec)
+        running = rec.get("state") == "running"
+        if not figs and not running:
+            continue
+        icon = "🔄" if running else "✅"
+        st.markdown(f"{icon} **{rec.get('job_id')}** — `{rec.get('accession')}`"
+                    f"  ·  {rec.get('state')}")
+        prog = rec.get("progress") or {}
+        pct = prog.get("percent")
+        if isinstance(pct, (int, float)):
+            st.progress(min(1.0, max(0.0, pct / 100.0)),
+                        text=f"{prog.get('phase','')} · {prog.get('detail','')}")
+        elif prog.get("phase"):
+            st.caption(f"⏳ {prog.get('phase')} · {prog.get('detail','')}")
+        if figs:
+            st.caption(f"{len(figs)} figure(s) so far"
+                       + (" — more appear as the run continues" if running else ""))
+            cols = st.columns(2)
+            for i, f in enumerate(figs):
+                try:
+                    cols[i % 2].image(f, caption=Path(f).name, **fit(st.image))
+                except Exception as e:                       # noqa: BLE001
+                    cols[i % 2].caption(f"(cannot show {Path(f).name}: {e})")
+        elif running:
+            st.caption("No figures written yet.")
+        if running:
+            st.caption(f"auto-refreshing every {_JOBS_REFRESH_S}s · "
+                       f"{time.strftime('%H:%M:%S')}")
+
+
+if hasattr(st, "fragment"):
+    @st.fragment(run_every=f"{_JOBS_REFRESH_S}s")
+    def _live_jobs_fragment() -> None:
+        _live_jobs_body()
+else:
+    def _live_jobs_fragment() -> None:
+        _live_jobs_body()
+
+
+def live_jobs_panel() -> None:
+    """Render the live job/figure panel when there is anything to show."""
+    try:
+        jobs = _running_jobs()
+    except Exception:                                        # noqa: BLE001
+        return
+    if not jobs:
+        return
+    if any(j.get("state") == "running" for j in jobs):
+        _live_jobs_fragment()
+    else:
+        _live_jobs_body()
 
 
 def _sidebar_jobs() -> None:
@@ -1707,6 +1824,11 @@ def main() -> None:
         st.session_state.messages = []
 
     with chat_tab:
+        # Live view of detached work, above the transcript: a job started in
+        # an earlier turn keeps producing figures, and this is where they
+        # show up without the user having to ask again.
+        live_jobs_panel()
+
         # Replay prior conversation
         for entry in st.session_state.messages:
             with st.chat_message(entry["role"]):
