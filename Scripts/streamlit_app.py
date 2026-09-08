@@ -1275,12 +1275,69 @@ def _render_one(path: str, *, depth: int = 0) -> None:
         _download_button(path, key_hint="misc")
 
 
+def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
+    """Replace directory artefacts with the renderable files inside them.
+
+    A run announces the DIRECTORY its outputs landed in ("Output:
+    Docs/SingleCell/<run>"), not each file. On the hosted site a directory is
+    useless -- there is no filesystem to browse -- so it renders as a folder
+    icon and the six plots inside stay invisible.
+
+    One level deep, because the announced path is the run root while the
+    figures sit in <run>/Plots. Every candidate still passes _pathguard, so
+    expanding a directory cannot surface credential material that a direct
+    path would have been refused.
+    """
+    renderable = (".png", ".jpg", ".jpeg", ".gif", ".svg",
+                  ".md", ".csv", ".tsv", ".json")
+    out: "list[str]" = []
+    seen: "set[str]" = set()
+
+    def _keep(q: str) -> None:
+        if q not in seen:
+            seen.add(q)
+            out.append(q)
+
+    for p in paths:
+        try:
+            cand = Path(p)
+            if not cand.is_absolute():
+                cand = _PROJECT_ROOT / p
+            if cand.is_dir():
+                found: "list[str]" = []
+                for c in sorted(cand.iterdir()):
+                    if len(found) >= 40:
+                        break
+                    if (c.is_file() and c.suffix.lower() in renderable
+                            and _pathguard.is_safe_artifact(c)):
+                        found.append(str(c))
+                    elif c.is_dir():
+                        for g in sorted(c.iterdir()):
+                            if len(found) >= 40:
+                                break
+                            if (g.is_file() and g.suffix.lower() in renderable
+                                    and _pathguard.is_safe_artifact(g)):
+                                found.append(str(g))
+                if found:
+                    for f in found:
+                        _keep(f)
+                    continue
+        except OSError:
+            pass
+        _keep(p)
+    return out
+
+
 def _render_artefacts(paths: "list[str]") -> None:
     if not paths:
         return
     # Dedupe while preserving order.
     seen: "set[str]" = set()
     paths = [p for p in paths if not (p in seen or seen.add(p))]
+
+    # Turn announced directories into the files inside them, so a run's
+    # figures render instead of a folder icon the user cannot open.
+    paths = _expand_artefact_dirs(paths)
 
     images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
         [], [], [], [], [], [], [], []
