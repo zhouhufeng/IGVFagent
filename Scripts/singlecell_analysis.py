@@ -232,14 +232,94 @@ def load_counts(path: Path, *, transpose: bool = False):
 # ---------------------------------------------------------------------------
 
 
+def knee_umi_threshold(counts) -> int:
+    """UMI floor at the knee of the rank-vs-count curve, or 0 if unclear.
+
+    A raw droplet matrix is mostly empty droplets: IGVFDS9875NBZW's
+    published matrix has 728,223 barcodes, of which roughly 30,000 are
+    nuclei. A flat ``min_genes`` cut does not separate them -- 200 genes
+    admitted 81,076 barcodes, the 81,076th holding 270 UMIs -- so half the
+    "cells" were ambient RNA and the clustering was partly describing
+    background rather than biology.
+
+    The knee is the point of greatest distance from the chord joining the
+    ends of the log-log rank/count curve -- the standard elbow
+    construction, deterministic and dependency-free.
+
+    IT ERRS STRICT, and that is measured, not assumed. On this matrix it
+    picks 9,716 UMIs and keeps 13,002 barcodes where the count/threshold
+    table suggests nearer 30,000 nuclei; on a synthetic 30k-cell mixture it
+    kept 16,560 of 30,000. A steepest-log-slope variant did better on the
+    synthetic case (29,976 of 30,000) and catastrophically worse on the
+    real one -- 7 UMIs, 379,312 barcodes -- because the real curve's
+    sharpest descent lies far out in the ambient tail. Hence: opt-in only,
+    never the default, and reported alongside the alternatives so the
+    number can be judged. For a defensible cutoff use emptyDrops.
+
+    Returns 0 when the curve is too short or flat to have a knee, so the
+    caller falls back to explicit thresholds rather than inventing one.
+    """
+    _, _, np, _ = _scanpy()
+    c = np.sort(np.asarray(counts).ravel())[::-1]
+    c = c[c > 0]
+    if c.size < 200:
+        return 0
+    x = np.log10(np.arange(1, c.size + 1, dtype=float))
+    y = np.log10(c.astype(float))
+    x0, y0, x1, y1 = x[0], y[0], x[-1], y[-1]
+    den = float(np.hypot(y1 - y0, x1 - x0))
+    if den <= 0:
+        return 0
+    dist = np.abs((y1 - y0) * x - (x1 - x0) * y + x1 * y0 - y1 * x0) / den
+    idx = int(np.argmax(dist))
+    # A knee in the first or last few percent of the curve is not a knee.
+    if idx < c.size * 0.001 or idx > c.size * 0.98:
+        return 0
+    return int(c[idx])
+
+
 def qc(adata, *, min_genes: int = 200, min_cells: int = 3,
         max_mito: float = 20.0, mito_prefix: str = "MT-",
+        min_counts: int = 0, knee: bool = False,
         out: Path) -> dict:
     sc, ad, np, pd = _scanpy()
     import matplotlib.pyplot as plt  # type: ignore
 
     n_before = adata.n_obs
     g_before = adata.n_vars
+
+    # Drop empty droplets BEFORE the gene-count filter, because the two are
+    # not interchangeable: a barcode with 270 UMIs spread over 200 genes
+    # passes min_genes and is still ambient.
+    knee_at = 0
+    umi_floor = int(min_counts or 0)
+    raw_warning = None
+    _totals_all = np.asarray(adata.X.sum(axis=1)).ravel()
+    if n_before > 200_000 and umi_floor == 0 and not knee:
+        # A published "matrix" is often the UNFILTERED droplet matrix, and
+        # min_genes does not separate nuclei from ambient RNA: 200 genes let
+        # 81,076 of these 728,223 barcodes through, the last of them holding
+        # 270 UMIs. Clustering that describes background as much as biology,
+        # so say so loudly instead of returning a confident cell count.
+        table = ", ".join(
+            f">={t}: {int((_totals_all >= t).sum()):,}"
+            for t in (200, 500, 1000, 2000, 5000))
+        raw_warning = (
+            f"{n_before:,} barcodes look like a RAW droplet matrix. "
+            f"--min-genes alone does not remove empty droplets; most of "
+            f"what survives will be ambient RNA. Barcodes by UMI floor -- "
+            f"{table}. Re-run with --min-counts <n> (or --knee, a strict "
+            f"heuristic) to filter properly.")
+        print("WARNING: " + raw_warning, file=sys.stderr)
+    if knee:
+        totals = np.asarray(adata.X.sum(axis=1)).ravel()
+        knee_at = knee_umi_threshold(totals)
+        if knee_at > umi_floor:
+            umi_floor = knee_at
+    if umi_floor > 0:
+        sc.pp.filter_cells(adata, min_counts=umi_floor)
+    n_after_umi = adata.n_obs
+
     sc.pp.filter_cells(adata, min_genes=min_genes)
     sc.pp.filter_genes(adata, min_cells=min_cells)
     # Mito QC
@@ -259,6 +339,10 @@ def qc(adata, *, min_genes: int = 200, min_cells: int = 3,
         "median_n_genes": float(np.median(adata.obs["n_genes_by_counts"])),
         "median_total_counts": float(np.median(adata.obs["total_counts"])),
         "median_pct_mt": float(np.median(adata.obs["pct_counts_mt"])),
+        "min_counts": umi_floor,
+        "raw_matrix_warning": raw_warning,
+        "knee_umi_threshold": knee_at or None,
+        "n_obs_after_umi_floor": int(n_after_umi),
         "min_genes": min_genes,
         "min_cells": min_cells,
         "max_mito": max_mito,
@@ -574,6 +658,8 @@ def cmd_qc(args: argparse.Namespace) -> int:
     out = _new_run_dir(args.label or "qc")
     adata = load_counts(Path(args.input), transpose=args.transpose)
     summary = qc(adata, min_genes=args.min_genes, min_cells=args.min_cells,
+                  min_counts=getattr(args, "min_counts", 0),
+                  knee=getattr(args, "knee", False),
                   max_mito=args.max_mito, mito_prefix=args.mito_prefix, out=out)
     (out / "qc_summary.json").write_text(json.dumps(summary, indent=2,
                                                        default=str))
@@ -676,6 +762,8 @@ def cmd_pipeline(args: argparse.Namespace) -> int:
         input_path=Path(args.input),
         label=args.label or "pipeline",
         min_genes=args.min_genes, min_cells=args.min_cells,
+        min_counts=getattr(args, "min_counts", 0),
+        knee=getattr(args, "knee", False),
         max_mito=args.max_mito, mito_prefix=args.mito_prefix,
         n_hvg=args.n_hvg, n_pcs=args.n_pcs,
         n_neighbors=args.n_neighbors, resolution=args.resolution,
@@ -850,6 +938,12 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     _common_io(s)
     s.add_argument("--min-genes", type=int, default=200)
     s.add_argument("--min-cells", type=int, default=3)
+    s.add_argument("--min-counts", type=int, default=0,
+                    help="Drop barcodes below this UMI total. A flat "
+                         "--min-genes cut does not remove ambient droplets.")
+    s.add_argument("--knee", action="store_true",
+                    help="Find the UMI floor automatically at the knee of "
+                         "the rank/count curve. Use on RAW droplet matrices.")
     s.add_argument("--max-mito", type=float, default=20.0)
     s.add_argument("--mito-prefix", default="MT-")
     s.set_defaults(func=cmd_qc)
@@ -893,6 +987,11 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     _common_io(s)
     s.add_argument("--min-genes", type=int, default=200)
     s.add_argument("--min-cells", type=int, default=3)
+    s.add_argument("--min-counts", type=int, default=0,
+                    help="Drop barcodes below this UMI total.")
+    s.add_argument("--knee", action="store_true",
+                    help="Find the UMI floor automatically at the knee of "
+                         "the rank/count curve. Use on RAW droplet matrices.")
     s.add_argument("--max-mito", type=float, default=20.0)
     s.add_argument("--mito-prefix", default="MT-")
     s.add_argument("--n-hvg", type=int, default=2000)

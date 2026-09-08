@@ -35,10 +35,16 @@ services:
       IGVF_PUBLIC_MAX_ITER:    ${IGVF_PUBLIC_MAX_ITER:-100}
       IGVF_PUBLIC_DEFAULT_ITER: ${IGVF_PUBLIC_DEFAULT_ITER:-25}
       IGVF_PUBLIC_MAX_TOKENS:  ${IGVF_PUBLIC_MAX_TOKENS:-16384}
-      # Expose the FULL tool catalog. The 128 default silently truncates the
-      # alphabetical tail (sc_*, sce2g_*, se_*, share_*, splitseq_*, starr_*),
-      # which hides sce2g_kg_pull and friends from the model entirely.
-      IGVF_LLM_MAX_TOOLS:      ${IGVF_LLM_MAX_TOOLS:-200}
+      # Expose the FULL tool catalog. 200 was still short of the 234 now
+      # registered (built-ins plus agent-authored extensions), and a cap
+      # eats the tail: share_* lost 5 of 6, spatial_hic_* 7 of 9, tabula_*
+      # 7 of 11, so a question about SHARE-seq met a subsystem with one
+      # tool left. _llm.canonical_tools now spreads a cut across families
+      # rather than truncating alphabetically, but the real fix is not to
+      # cut at all -- Anthropic imposes no 128-tool limit.
+      # LOWER THIS TO 128 if you point the deployment at an OpenAI-family
+      # backend, which does.
+      IGVF_LLM_MAX_TOOLS:      ${IGVF_LLM_MAX_TOOLS:-300}
       # Backend is fixed here, NOT chosen in the browser. The MODEL is
       # chosen by the visitor, but only from IGVF_PUBLIC_MODELS — an
       # operator allowlist. IGVF_LLM_MODEL is the default selection.

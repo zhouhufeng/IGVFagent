@@ -609,11 +609,42 @@ def canonical_tools(tools: "Optional[list[dict]]",
                 or (e.get("function", {}) or {}).get("name", "")
                 or "")
 
+    def _family(name: str) -> str:
+        """Tool family: the prefix before the first underscore."""
+        return name.split("_", 1)[0] if "_" in name else name
+
+    def _round_robin(entries: "list[dict]") -> "list[dict]":
+        """Interleave by family, so truncation costs breadth, not a subsystem.
+
+        Sorting purely by name and cutting the tail deletes whole families
+        alphabetically. Measured on the deployment at a cap of 200/234, the
+        casualties were share_* (5 of 6), spatial_hic_* (7 of 9), tabula_*
+        (7 of 11) and starr_* (4 of 5) -- so a question about SHARE-seq or
+        Spatial-Hi-C met a subsystem with one tool left, while families
+        early in the alphabet kept every one of theirs.
+
+        Interleaving is still fully deterministic (families sorted, members
+        sorted within each), which is what parity across backends requires.
+        """
+        buckets: "dict[str, list[dict]]" = {}
+        for e in sorted(entries, key=_key):
+            buckets.setdefault(_family(_key(e)), []).append(e)
+        out: "list[dict]" = []
+        fams = sorted(buckets)
+        while any(buckets[f] for f in fams):
+            for f in fams:
+                if buckets[f]:
+                    out.append(buckets[f].pop(0))
+        return out
+
     starred = sorted((e for e in tools if _is_starred_tool(e)), key=_key)
-    unstarred = sorted((e for e in tools if not _is_starred_tool(e)), key=_key)
-    ordered = starred + unstarred
+    unstarred = [e for e in tools if not _is_starred_tool(e)]
+    # Starred tools stay in name order: they are the curated core and all of
+    # them are expected to survive any sane cap. Only the remainder, which is
+    # what a cap actually eats into, is interleaved.
+    ordered = starred + _round_robin(unstarred)
     if len(ordered) > max_tools:
-        dropped = [_key(e) for e in ordered[max_tools:]]
+        dropped = sorted(_key(e) for e in ordered[max_tools:])
         logger.warning(
             "canonical_tools: exposing %d/%d tools identically across all "
             "backends (%d starred kept); dropped for parity: %s",
