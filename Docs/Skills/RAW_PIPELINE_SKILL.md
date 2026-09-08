@@ -35,6 +35,48 @@ The job runs in its own session and outlives the conversation, so "did that
 analysis finish?" is answerable in a later session. Use `--detach` for
 anything beyond a few GB; a small set is fine synchronously.
 
+## Caching — why the second run is instant
+
+Entering the same accession twice is the demo case, and it used to cost the
+full hour again: reads went to a per-run timestamped directory, so a repeat
+re-downloaded 45.6 GB *and* kept a second copy of it.
+
+Two caches now sit under `Data/RawPipeline/`:
+
+| Path | Holds | Keyed by |
+|---|---|---|
+| `_fastq/` | downloaded reads | **file** accession (`IGVFFI…`) |
+| `_results.json` | completed analyses | accession + technology + workflow + reference |
+| `../References/kb/` | kb indices | reference name |
+
+A Portal file's bytes never change, so the read cache needs no invalidation,
+and each run hard-links to the single copy — one copy on disk however many
+times a dataset is analysed. Downloads print `Cached IGVFFI… (1.87 GB)`
+rather than silently skipping, so a fast run is visibly fast instead of
+suspicious.
+
+A repeat of an identical analysis returns the existing matrix in **0
+seconds** (measured on IGVFDS3532MONX: 730,828,449 reads, 70.9%
+pseudoaligned) and still runs the single-cell step, so a demo shows real
+UMAPs and markers rather than a cache message. `--no-reuse` forces a
+recompute from the reads.
+
+The result index is a hint, not a fact: the matrix it names is checked on
+disk before the entry is trusted, so deleting a run directory to reclaim
+space makes the entry disappear rather than leaving a confident pointer to
+a file that is gone.
+
+**Reclaiming space.** The read cache grows without bound. It is the largest
+thing on disk and the cheapest to lose — everything in it re-downloads:
+
+```bash
+du -sh Data/RawPipeline/_fastq                  # how much is held
+rm -f Data/RawPipeline/_fastq/IGVFFI*.fastq.gz  # drop all cached reads
+```
+
+Results (`processed.h5ad`, `markers.csv`, plots) are megabytes, not
+gigabytes; keep those.
+
 ## Routes
 
 Chosen automatically and printed as `ROUTE:` before anything large moves.
