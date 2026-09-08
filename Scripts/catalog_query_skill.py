@@ -1451,7 +1451,15 @@ def _plot_enhancer_genes(out: Path, ident: str, rows: "list[dict]",
     ax[0].set_ylabel("predictions")
     ax[0].set_title(f"Enhancer-gene predictions overlapping {ident}")
     ax[0].tick_params(axis="x", rotation=30)
-    ax[1].boxplot([by_gene[g] for g in genes], labels=genes, showfliers=False)
+    # matplotlib 3.11 removed `labels=` in favour of `tick_labels=`. The
+    # container runs 3.11 while a developer venv may be older, so the plot
+    # worked locally and raised TypeError in production. Try the new
+    # spelling, fall back to the old one.
+    data = [by_gene[g] for g in genes]
+    try:
+        ax[1].boxplot(data, tick_labels=genes, showfliers=False)
+    except TypeError:
+        ax[1].boxplot(data, labels=genes, showfliers=False)
     ax[1].set_ylabel("score")
     ax[1].set_title("score distribution by target gene")
     ax[1].tick_params(axis="x", rotation=30)
