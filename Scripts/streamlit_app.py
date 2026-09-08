@@ -1275,73 +1275,12 @@ def _render_one(path: str, *, depth: int = 0) -> None:
         _download_button(path, key_hint="misc")
 
 
-def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
-    """Replace directory artefacts with the renderable files inside them.
-
-    A run that writes figures announces the DIRECTORY they landed in
-    ("Output: Docs/SingleCell/<run>"), not six separate paths. On the hosted
-    site a directory is useless -- the user has no filesystem to browse -- so
-    it is expanded here instead. One level deep, because the announced path
-    is the run root while the figures sit in <run>/Plots/.
-
-    Every candidate still passes _pathguard, so expanding a directory can
-    never surface credential material that a direct path would have been
-    refused.
-    """
-    renderable = (".png", ".jpg", ".jpeg", ".gif", ".svg",
-                  ".md", ".csv", ".tsv", ".json")
-    out: "list[str]" = []
-    seen: "set[str]" = set()
-    for p in paths:
-        try:
-            candidate = Path(p)
-            if not candidate.is_absolute():
-                candidate = _PROJECT_ROOT / p
-            if candidate.is_dir():
-                found: "list[str]" = []
-                for c in sorted(candidate.iterdir()):
-                    if len(found) >= 40:
-                        break
-                    if (c.is_file() and c.suffix.lower() in renderable
-                            and _pathguard.is_safe_artifact(c)):
-                        found.append(str(c))
-                    elif c.is_dir():
-                        for g in sorted(c.iterdir()):
-                            if len(found) >= 40:
-                                break
-                            if (g.is_file() and g.suffix.lower() in renderable
-                                    and _pathguard.is_safe_artifact(g)):
-                                found.append(str(g))
-                if found:
-                    for f in found:
-                        if f not in seen:
-                            seen.add(f)
-                            out.append(f)
-                    continue
-        except OSError:
-            pass
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
-    return out
-
-
-def _split_images(paths: "list[str]") -> "tuple[list[str], list[str]]":
-    """Figures first, everything else second."""
-    imgs = [p for p in paths
-            if p.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".svg"))]
-    rest = [p for p in paths if p not in imgs]
-    return imgs, rest
-
-
 def _render_artefacts(paths: "list[str]") -> None:
     if not paths:
         return
     # Dedupe while preserving order.
     seen: "set[str]" = set()
     paths = [p for p in paths if not (p in seen or seen.add(p))]
-
-    paths = _expand_artefact_dirs(paths)
 
     images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
         [], [], [], [], [], [], [], []
@@ -1949,20 +1888,9 @@ def main() -> None:
             if p not in artefacts:
                 artefacts.append(p)
         if artefacts:
-            # Figures go straight into the conversation, not inside a panel
-            # the reader has to notice and open. On the hosted site the plot
-            # IS the result -- there is no filesystem to fall back to -- so
-            # anything else buries the answer. Everything that is not an
-            # image keeps its expander.
-            expanded_paths = _expand_artefact_dirs(artefacts)
-            figures, rest = _split_images(expanded_paths)
-            if figures:
-                st.markdown(f"**Figures ({len(figures)})**")
-                _render_artefacts(figures)
-            if rest:
-                with st.expander(f"📁 Other artefacts ({len(rest)})",
-                                 expanded=False):
-                    _render_artefacts(rest)
+            with st.expander(f"📁 Artefacts ({len(artefacts)})",
+                             expanded=True):
+                _render_artefacts(artefacts)
 
         meta_caption = (
             f"backend `{result.backend}`  ·  model `{result.model}`  ·  "
