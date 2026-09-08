@@ -4813,6 +4813,19 @@ _TOOLS: "list[Tool]" = [
         flag_map={"tail": "--tail", "limit": "--limit"},
     ),
     _T(
+        "raw_pipeline_assay_coverage",
+        "★ WHICH IGVF ASSAYS CAN IGVFAGENT ACTUALLY ANALYSE ★ — reports "
+        "every assay type on the Portal, the analysis route each needs, how "
+        "many datasets that covers, and whether IGVFagent supports it. Use "
+        "it to answer 'can you analyse assay X' honestly, or when a user "
+        "asks what the system can do. Key fact it makes concrete: only "
+        "59.5% of the 11,070 MeasurementSets are transcript assays, so "
+        "quantifying reads against a transcriptome is the WRONG analysis "
+        "for 40% of IGVF and would look plausible every time.",
+        {"type": "object", "properties": {}},
+        cli=["raw-pipeline", "assay-coverage"],
+    ),
+    _T(
         "raw_pipeline_guide_count",
         "★ ANALYSE A CRISPR SCREEN WHOSE READOUT IS gRNA SEQUENCING ★ — for "
         "a screen where `crispr_screen_readout` is 'gRNA sequencing', the "

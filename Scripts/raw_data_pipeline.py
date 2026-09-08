@@ -56,6 +56,7 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint          # noqa: E402
 from _credentials import portal_credentials as _portal_credentials  # noqa: E402
+import _assays as _A                                          # noqa: E402
 
 IGVF_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 
@@ -603,40 +604,30 @@ def kb_count_cmd(index: Path, t2g: Path, tech: str, out_dir: Path,
 
 # ─── Routing ────────────────────────────────────────────────────────────────
 
-# Assays whose reads are NOT a transcript library. Quantifying these against
-# a transcriptome produces a confident, meaningless answer: on
-# IGVFDS4629JYPY (saturation genome editing of PALB2 exon 7A) it reported
-# 99.86% of 3.7M counts on PALB2 -- which is not a finding, it is the
-# amplicon design restated. The real readout is per-variant functional
-# scores from variant calling against the editing template.
-#
-# Matched on assay title/slim, because the FILE types are identical to an
-# RNA-seq set (FASTQ reads, no matrix) and file inspection alone cannot tell
-# the difference. That is exactly how this got through.
-_NON_TRANSCRIPT_ASSAYS = {
-    "sge": ("saturation genome editing",
-            "per-variant functional scores -- run `igvfagent sge analyze "
-            "<accession>` (tool: sge_analyze), which calls variants against "
-            "the editing-template amplicon and scores late vs early"),
-    "saturation genome editing": ("saturation genome editing",
-            "per-variant functional scores -- run `igvfagent sge analyze "
-            "<accession>` (tool: sge_analyze), which calls variants against "
-            "the editing-template amplicon and scores late vs early"),
-    "mpra": ("MPRA",
-             "per-element activity from barcode counts (see the mpra_* tools)"),
-    "starr-seq": ("STARR-seq",
-                  "enhancer activity from input/output ratios (starr_* tools)"),
-    "starr": ("STARR-seq",
-              "enhancer activity from input/output ratios (starr_* tools)"),
-    "protein scanning": ("a protein-scanning / deep-mutational-scan assay",
-                         "per-variant scores, not transcript abundance"),
-    "variant painting": ("variant painting",
-                         "per-variant readout, not transcript abundance"),
-}
-
-
 def assay_mismatch(fs: dict) -> "Optional[tuple[str, str, str]]":
-    """(label, right_analysis, matched_on) when reads are not a transcript library."""
+    """(label, right_analysis, matched_on) when reads are not transcripts.
+
+    Delegates to Scripts/_assays.py, which classifies every one of the 65
+    assay titles on the Portal rather than listing the few that had already
+    caused a wrong answer. That inversion is the point: only 59.5% of the
+    11,070 MeasurementSets are transcript assays, so a default of "quantify
+    it as RNA" was wrong for 4,486 of them, silently. An unrecognised assay
+    is now reported as unrecognised instead of being quantified.
+    """
+    cls = _A.classify(fs or {})
+    route = cls["route"]
+    if route == _A.TRANSCRIPT:
+        return None
+    if route == _A.UNKNOWN:
+        return (f"an unrecognised assay ({cls['assay']})",
+                "unknown -- IGVFagent has no rule for this assay, so it "
+                "will not guess. Transcriptome quantification is the wrong "
+                "answer for 40% of IGVF assays and would look plausible "
+                "here",
+                cls["matched_on"])
+    return (f"{cls['assay']} (route: {route})",
+            f"{cls['analysis']} -- {cls['support']}",
+            cls["matched_on"])
     # `crispr_screen_readout` is the decisive field for a CRISPR screen and
     # it is not an assay title, so a title-only check missed it entirely.
     # "gRNA sequencing" means the reads ARE the guide library: quantifying
@@ -1321,6 +1312,45 @@ def cmd_guide_library(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_assay_coverage(args: argparse.Namespace) -> int:
+    """Which IGVF assays are classified, and what share of datasets."""
+    from collections import Counter
+    st, d = portal_json("/search/?type=MeasurementSet&limit=0&format=json")
+    facets = {f.get("field"): f for f in (d or {}).get("facets") or []}
+    terms = (facets.get("preferred_assay_titles") or {}).get("terms") or []
+    if not terms:
+        print("Could not read assay facets from the Portal.")
+        return 1
+    total = sum(t.get("doc_count", 0) for t in terms)
+    by_route: "Counter[str]" = Counter()
+    unknown = []
+    for t in terms:
+        key, n = t.get("key", ""), t.get("doc_count", 0)
+        route = _A.ASSAY.get(key.strip().lower())
+        if route:
+            by_route[route] += n
+        else:
+            by_route["UNCLASSIFIED"] += n
+            unknown.append((n, key))
+    print(f"{len(terms)} assay titles, {total:,} MeasurementSets\n")
+    for route, n in by_route.most_common():
+        analysis, support = _A.ROUTE_GUIDANCE.get(route, ("", ""))
+        print(f"  {n:>6} ({100.0*n/total:5.1f}%)  {route}")
+        if support:
+            print(f"           {support}")
+    covered = total - by_route["UNCLASSIFIED"]
+    print(f"\nClassified: {covered:,}/{total:,} "
+          f"({100.0*covered/total:.1f}% of datasets)")
+    print(f"Transcript assays: {by_route[_A.TRANSCRIPT]:,} "
+          f"({100.0*by_route[_A.TRANSCRIPT]/total:.1f}%) — the only route "
+          f"for which transcriptome quantification is correct.")
+    if unknown:
+        print("\nUNCLASSIFIED titles (these get an honest refusal, not a guess):")
+        for n, k in sorted(unknown, reverse=True):
+            print(f"  {n:>5}  {k}")
+    return 0
+
+
 def cmd_guide_count(args: argparse.Namespace) -> int:
     """Count guide occurrences in a gRNA-sequencing library.
 
@@ -1525,6 +1555,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "run holds the caller open for the whole job.")
     r.add_argument("--skip-analysis", action="store_true",
                     help="Stop at the matrix; do not run the single-cell pipeline.")
+    sub.add_parser("assay-coverage",
+                    help="Which IGVF assays are classified, and what share "
+                         "of Portal datasets each route covers.")
+
     gc = sub.add_parser("guide-count",
                          help="Count designed guides in a gRNA-sequencing "
                               "library.")
@@ -1560,6 +1594,8 @@ def main(argv: "Optional[list[str]]" = None) -> int:
         return cmd_guide_library(args)
     if args.command == "guide-count":
         return cmd_guide_count(args)
+    if args.command == "assay-coverage":
+        return cmd_assay_coverage(args)
     return cmd_run(args)
 
 
