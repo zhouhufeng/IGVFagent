@@ -807,6 +807,7 @@ def _sidebar() -> dict:
 
         # Long-running detached work, surfaced where the user can see it.
         _sidebar_jobs()
+        _sidebar_history()
 
         # Resolved configuration block — kept for transparency.
         eff = _resolve_effective_config(backend, model)
@@ -1475,6 +1476,172 @@ else:                                    # Streamlit < 1.37: no fragments
         _jobs_body()
 
 
+# ─── Shared results history ────────────────────────────────────────────────
+#
+# History is deliberately SHARED: one deployment, one shared password, no
+# per-user identity, so pretending otherwise would be a fiction. What matters
+# is that it is opt-in -- nothing from it renders until someone opens it and
+# picks a run. Pushing every past result at every visitor is the bug this
+# replaces.
+#
+# The index comes from Docs/Agent/<ts>_<query-slug>_<hash>/report.md, which
+# already records the original question ("**Query:** ...") alongside the run.
+# That makes the conversation text the search key, which is how a person
+# actually remembers a past analysis -- not by timestamp.
+
+_ACCESSION_IN_TEXT = re.compile(r"\b(?:IGVF|ENC)[A-Z]{2}[0-9A-Z]{6,}\b")
+
+
+def _history_dir() -> Path:
+    return _PROJECT_ROOT / "Docs" / "Agent"
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _history_index(_stamp: float) -> "list[dict]":
+    """Every past agent run: when, what was asked, which accessions.
+
+    Cached for a minute and keyed on a coarse timestamp, because 100+ runs
+    means 100+ small file reads and the sidebar re-renders constantly.
+    """
+    root = _history_dir()
+    out: "list[dict]" = []
+    try:
+        dirs = sorted((d for d in root.iterdir() if d.is_dir()),
+                      key=lambda d: d.name, reverse=True)
+    except OSError:
+        return out
+    for d in dirs[:300]:
+        report = d / "report.md"
+        query, when = "", d.name[:15]
+        try:
+            head = report.read_text(errors="replace")[:4000] if report.exists() else ""
+        except OSError:
+            head = ""
+        for line in head.splitlines():
+            if line.startswith("**Query:**"):
+                query = line.split("**Query:**", 1)[1].strip()
+                break
+        if not query:
+            # Fall back to the slug in the directory name.
+            parts = d.name.split("_")
+            query = " ".join(parts[2:-1]).replace("-", " ") or d.name
+        accs = sorted(set(_ACCESSION_IN_TEXT.findall(query + " " + head)))
+        try:
+            ts = time.strftime("%Y-%m-%d %H:%M",
+                               time.strptime(d.name[:15], "%Y%m%d_%H%M%S"))
+        except ValueError:
+            ts = when
+        out.append({"dir": str(d), "when": ts, "query": query,
+                    "accessions": accs,
+                    "haystack": (query + " " + " ".join(accs)).lower()})
+    return out
+
+
+# Output DIRECTORIES as they appear in a run report -- no file extension, so
+# _extract_paths_from_text (which keys on known extensions) skips them, and
+# they are exactly where the figures live.
+_DOCS_DIR_IN_TEXT = re.compile(r"(?:/workspace/)?(Docs/[A-Za-z0-9_.\-/]+)")
+
+
+def _history_figures(entry: dict) -> "list[str]":
+    """Figures belonging to one past run, resolved on demand.
+
+    Resolved lazily rather than indexed: 100+ runs would mean walking every
+    output tree on disk to build a sidebar list, and only the run someone
+    actually opens needs its plots located.
+    """
+    report = Path(entry["dir"]) / "report.md"
+    try:
+        text = report.read_text(errors="replace")
+    except OSError:
+        return []
+    cands: "list[str]" = list(_extract_paths_from_text(text))
+    for m in _DOCS_DIR_IN_TEXT.finditer(text):
+        rel = m.group(1).rstrip("/")
+        cand = _PROJECT_ROOT / rel
+        try:
+            if cand.is_dir():
+                cands.append(str(cand))
+        except OSError:
+            continue
+    expanded = _expand_artefact_dirs(cands)
+    return [q for q in expanded if q.lower().endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".svg"))]
+
+
+def _sidebar_history() -> None:
+    """Searchable browser over past runs. Collapsed and inert until opened."""
+    with st.expander("📚 Past results", expanded=False):
+        entries = _history_index(round(time.time() / 60))
+        if not entries:
+            st.caption("No past runs recorded yet.")
+            return
+        needle = st.text_input(
+            "Search", key="history_query", placeholder="accession or keywords",
+            label_visibility="collapsed",
+        ).strip().lower()
+        shown = [e for e in entries
+                 if not needle or all(t in e["haystack"] for t in needle.split())]
+        st.caption(f"{len(shown)} of {len(entries)} runs")
+        for e in shown[:25]:
+            label = e["query"][:58] + ("…" if len(e["query"]) > 58 else "")
+            tag = f"  ·  {', '.join(e['accessions'][:2])}" if e["accessions"] else ""
+            if st.button(f"{e['when']}{tag}\n{label}",
+                         key=f"hist_{e['dir']}", width="stretch"):
+                st.session_state["history_open"] = e["dir"]
+        if len(shown) > 25:
+            st.caption(f"…{len(shown) - 25} more — narrow the search.")
+
+
+def history_panel() -> None:
+    """Render the past run the user selected, if any."""
+    opened = st.session_state.get("history_open")
+    if not opened:
+        return
+    # Match on the resolved path, not the raw string: the selection can
+    # arrive relative (a restored session, a link) while the index stores
+    # absolute paths, and an exact string compare silently finds nothing.
+    def _same(a: str, b: str) -> bool:
+        try:
+            pa, pb = Path(a), Path(b)
+            if not pa.is_absolute():
+                pa = _PROJECT_ROOT / pa
+            if not pb.is_absolute():
+                pb = _PROJECT_ROOT / pb
+            return pa.resolve() == pb.resolve()
+        except OSError:
+            return a == b
+
+    entry = next((e for e in _history_index(round(time.time() / 60))
+                  if _same(e["dir"], opened)), None)
+    if entry is None:
+        st.session_state.pop("history_open", None)
+        return
+    with st.container(border=True):
+        head, close = st.columns([8, 1])
+        head.markdown(f"**📚 {entry['when']}** — {entry['query']}")
+        if close.button("✕", key="hist_close"):
+            st.session_state.pop("history_open", None)
+            st.rerun()
+        if entry["accessions"]:
+            st.caption("Accessions: " + ", ".join(entry["accessions"]))
+        figs = _history_figures(entry)
+        if figs:
+            st.caption(f"{len(figs)} figure(s)")
+            cols = st.columns(2)
+            for i, f in enumerate(figs):
+                try:
+                    cols[i % 2].image(f, caption=Path(f).name, **fit(st.image))
+                except Exception as e:                       # noqa: BLE001
+                    cols[i % 2].caption(f"(cannot show {Path(f).name}: {e})")
+        else:
+            st.caption("No figures were recorded for this run.")
+        rp = Path(entry["dir"]) / "report.md"
+        if rp.exists():
+            with st.expander("Full run report", expanded=False):
+                _render_one(str(rp))
+
+
 def _session_started_at() -> float:
     """Epoch seconds when this browser session first rendered."""
     if "_session_started_at" not in st.session_state:
@@ -1920,6 +2087,7 @@ def main() -> None:
         # Live view of detached work, above the transcript: a job started in
         # an earlier turn keeps producing figures, and this is where they
         # show up without the user having to ask again.
+        history_panel()
         live_jobs_panel()
 
         # Replay prior conversation
