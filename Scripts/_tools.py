@@ -4523,6 +4523,39 @@ _TOOLS: "list[Tool]" = [
                    "page": "--page"},
     ),
     _T(
+        "catalog_variant_enhancers",
+        "★ ARE THERE ENHANCER-GENE PREDICTIONS OVERLAPPING THIS VARIANT ★ — "
+        "the tool for 'which genes are predicted to be regulated by "
+        "enhancers overlapping rs...', i.e. the ENCODE-rE2G / scE2G "
+        "predictions shown under Gene Regulation on the Catalog's variant "
+        "page. USE THIS rather than a variant-edge lookup: the Catalog has "
+        "NO variant->genomic-element edge, so asking that way returns 0 and "
+        "looks like an absence of evidence. The predictions hang off the "
+        "ELEMENT and the link to the variant is positional overlap, so the "
+        "query must be by region. On rs1250566 the variant-edge route "
+        "reported 0 while this returns hundreds of ENCODE-rE2G rows "
+        "targeting PPIF, LINC00595, ZCCHC24, SFTPA2 and KCNMA1. Writes a "
+        "TSV of every prediction plus a per-gene score plot.",
+        {
+            "type": "object",
+            "properties": {
+                "variant": {**_S_STRING, "description":
+                             "rsID (rs1250566) or SPDI "
+                             "(NC_000010.11:79286695:G:A)."},
+                "window":  {**_S_INTEGER, "default": 1,
+                             "description":
+                             "Overlap window in bp. 1 = enhancers that "
+                             "actually contain the variant; widen only to "
+                             "look at the neighbourhood, and say so if you "
+                             "do."},
+            },
+            "required": ["variant"],
+        },
+        cli=["catalog", "variant-enhancers"],
+        positional=("variant",),
+        flag_map={"window": "--window"},
+    ),
+    _T(
         "catalog_variant_evidence",
         "★ WHICH VARIANTS HAVE EVIDENCE FROM MANY DIFFERENT ASSAYS ★ — "
         "ranks variants by how many DISTINCT assay types support them "

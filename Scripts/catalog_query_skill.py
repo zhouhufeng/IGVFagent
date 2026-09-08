@@ -1311,6 +1311,157 @@ def cmd_resolve_id(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_variant_enhancers(args: argparse.Namespace) -> int:
+    """Enhancer-gene predictions for enhancers OVERLAPPING a variant.
+
+    The question "are there enhancer-gene predictions that overlap
+    rs1250566" was answered "no, 0 genomic elements" while the Catalog's own
+    page showed 1,189 of them. Both were reading the same database. The
+    difference is which edge was asked for:
+
+      /api/variants/genomic-elements?rsid=...   -> 0   (no such edge exists)
+      /api/genomic-elements/genes?region=chr:p-p -> 1,480 ENCODE-rE2G rows
+
+    The variant->element edge simply is not populated; the predictions hang
+    off the ELEMENT, and the link to the variant is positional overlap. So
+    resolve the variant to a coordinate and ask by region, which is what the
+    Catalog page does.
+    """
+    ident = args.variant.strip()
+    pos = _variant_coordinate(ident)
+    if pos is None:
+        print(f"Could not resolve {ident} to a genomic coordinate.")
+        return 2
+    chrom, position = pos
+    print(f"Variant:  {ident}  ->  {chrom}:{position:,}")
+    region = f"{chrom}:{position - args.window}-{position + args.window}"
+    print(f"Region:   {region}"
+          + ("  (exact overlap)" if args.window <= 1 else
+             f"  (+/-{args.window} bp)"))
+
+    # The endpoint IGNORES `skip` -- paging with skip=0,100,200 returns the
+    # same 100 rows every time, which silently multiplies the count by the
+    # number of pages. Verified directly: page 0 and page 1 overlap 100/100.
+    # `limit` is capped server-side at 500 (limit=2000 still returns 500).
+    # So: one request at the cap, then dedupe as a belt-and-braces check.
+    raw = _catalog_get("/api/genomic-elements/genes",
+                        [("region", region), ("limit", "500")])
+    raw = raw if isinstance(raw, list) else []
+    seen: "set[tuple]" = set()
+    rows: "list[dict]" = []
+    for r in raw:
+        k = (r.get("gene"), r.get("genomic_element"),
+             r.get("biological_context"), r.get("method"))
+        if k not in seen:
+            seen.add(k)
+            rows.append(r)
+    capped = len(raw) >= 500
+    if not rows:
+        print("No enhancer-gene predictions overlap this variant.")
+        return 0
+
+    gene_ids = {r.get("gene") for r in rows if r.get("gene")}
+    symbols = {}
+    for gid in gene_ids:
+        short = str(gid).split("/")[-1]
+        try:
+            g = _catalog_get("/api/genes", [("gene_id", short), ("limit", "1")])
+            symbols[gid] = (g[0].get("name") if isinstance(g, list) and g
+                             else short)
+        except Exception:                                    # noqa: BLE001
+            symbols[gid] = short
+
+    by_method = Counter(r.get("method") for r in rows)
+    by_gene = Counter(symbols.get(r.get("gene"), "?") for r in rows)
+    contexts = {r.get("biological_context") for r in rows if r.get("biological_context")}
+    print(f"\nPredictions: {len(rows):,}"
+          + ("  (server caps this endpoint at 500 rows -- the true total is "
+             "higher; counts below are of the returned sample)" if capped
+             else ""))
+    print(f"Methods:     " + ", ".join(f"{m} ({n:,})" for m, n in by_method.most_common()))
+    print(f"Cell types:  {len(contexts)}")
+    print(f"Target genes ({len(by_gene)}): "
+          + ", ".join(f"{g} ({n:,})" for g, n in by_gene.most_common()))
+
+    out = REPORT_DIR / (f"{time.strftime('%Y%m%d_%H%M%S')}_"
+                         f"{safe_label(ident)}_enhancer_genes")
+    out.mkdir(parents=True, exist_ok=True)
+    cols = ["gene_symbol", "gene", "method", "source", "score",
+            "biological_context", "genomic_element"]
+    with (out / "enhancer_gene_predictions.tsv").open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t",
+                            extrasaction="ignore")
+        w.writeheader()
+        for r in sorted(rows, key=lambda x: -(x.get("score") or 0)):
+            w.writerow({**r, "gene_symbol": symbols.get(r.get("gene"), "?")})
+    summary = {
+        "variant": ident, "position": f"{chrom}:{position}",
+        "region_queried": region, "predictions": len(rows),
+        "methods": dict(by_method), "cell_types": len(contexts),
+        "target_genes": dict(by_gene),
+        "top_score": max((r.get("score") or 0) for r in rows),
+        "server_capped_at_500": capped,
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
+    plot = _plot_enhancer_genes(out, ident, rows, symbols)
+    print(f"\nTable:   {out / 'enhancer_gene_predictions.tsv'}")
+    if plot:
+        print(f"Plot:    {plot}")
+    print(f"Output:  {out}")
+    return 0
+
+
+def _variant_coordinate(ident: str) -> "tuple[str, int] | None":
+    """(chrom, 1-based position) for an rsID or SPDI."""
+    m = re.match(r"^NC_0*(\d+)\.\d+:(\d+):", ident, re.I)
+    if m:
+        c = m.group(1)
+        chrom = f"chr{'X' if c == '23' else 'Y' if c == '24' else int(c)}"
+        return chrom, int(m.group(2)) + 1          # SPDI is 0-based
+    try:
+        recs = _catalog_get("/api/variants", [("rsid", ident), ("limit", "1")])
+    except Exception:                                        # noqa: BLE001
+        return None
+    if isinstance(recs, list) and recs:
+        r = recs[0]
+        chrom = r.get("chr") or r.get("chrom")
+        pos = r.get("pos") or r.get("start")
+        if chrom and pos is not None:
+            # Catalog stores 0-based starts; the overlap query wants the base.
+            return str(chrom), int(pos) + 1
+    return None
+
+
+def _plot_enhancer_genes(out: Path, ident: str, rows: "list[dict]",
+                          symbols: dict) -> "Path | None":
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return None
+    by_gene: "dict[str, list[float]]" = {}
+    for r in rows:
+        g = symbols.get(r.get("gene"), "?")
+        by_gene.setdefault(g, []).append(float(r.get("score") or 0))
+    genes = sorted(by_gene, key=lambda g: -max(by_gene[g]))
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4.4))
+    ax[0].bar(genes, [len(by_gene[g]) for g in genes], color="#4C72B0")
+    ax[0].set_ylabel("predictions")
+    ax[0].set_title(f"Enhancer-gene predictions overlapping {ident}")
+    ax[0].tick_params(axis="x", rotation=30)
+    ax[1].boxplot([by_gene[g] for g in genes], labels=genes, showfliers=False)
+    ax[1].set_ylabel("score")
+    ax[1].set_title("score distribution by target gene")
+    ax[1].tick_params(axis="x", rotation=30)
+    fig.tight_layout()
+    p = out / "enhancer_gene_predictions.png"
+    fig.savefig(p, dpi=140)
+    plt.close(fig)
+    return p
+
+
 def cmd_list_sources(args: argparse.Namespace) -> int:
     """Enumerate edge endpoints and their semantic-relationship tags.
 
@@ -1667,6 +1818,14 @@ def main(argv=None) -> int:
         help="Translate one ID into all of its cross-references.")
     p.add_argument("id", help="Any IGVF Catalog ID.")
     p.set_defaults(func=cmd_resolve_id)
+
+    p = sub.add_parser("variant-enhancers",
+                        help="Enhancer-gene predictions (ENCODE-rE2G/scE2G) "
+                             "for enhancers overlapping a variant.")
+    p.add_argument("variant", help="rsID or SPDI.")
+    p.add_argument("--window", type=int, default=1,
+                    help="Overlap window in bp (default 1 = exact overlap).")
+    p.set_defaults(func=cmd_variant_enhancers)
 
     p = sub.add_parser("list-sources",
         help="Enumerate edge endpoints by semantic category, or "
