@@ -601,11 +601,13 @@ def kb_count_cmd(index: Path, t2g: Path, tech: str, out_dir: Path,
 # the difference. That is exactly how this got through.
 _NON_TRANSCRIPT_ASSAYS = {
     "sge": ("saturation genome editing",
-            "per-variant functional scores, from variant calling against "
-            "the editing-template design"),
+            "per-variant functional scores -- run `igvfagent sge analyze "
+            "<accession>` (tool: sge_analyze), which calls variants against "
+            "the editing-template amplicon and scores late vs early"),
     "saturation genome editing": ("saturation genome editing",
-            "per-variant functional scores, from variant calling against "
-            "the editing-template design"),
+            "per-variant functional scores -- run `igvfagent sge analyze "
+            "<accession>` (tool: sge_analyze), which calls variants against "
+            "the editing-template amplicon and scores late vs early"),
     "mpra": ("MPRA",
              "per-element activity from barcode counts (see the mpra_* tools)"),
     "starr-seq": ("STARR-seq",

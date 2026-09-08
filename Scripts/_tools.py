@@ -4587,6 +4587,90 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "sge_analyze",
+        "★ ANALYSE SATURATION GENOME EDITING (SGE) DATA PROPERLY ★ — the "
+        "tool for an SGE / saturation-mutagenesis MeasurementSet, which "
+        "raw_pipeline REFUSES for good reason: SGE reads are a fixed "
+        "amplicon, not a transcript library, so quantifying them against a "
+        "transcriptome only restates which gene the amplicon covers. What "
+        "SGE measures is the fate of each programmed variant -- damaging "
+        "variants are DEPLETED from the population over time -- so this "
+        "reads the editing-template design, calls variants against the "
+        "reference amplicon, finds the matching EARLY timepoint on the same "
+        "target and replicate, and reports log2(late/early) per variant "
+        "with plots. Negative score = depleted = damaging. Give it the LATE "
+        "(e.g. day12) accession; the early mate is discovered automatically, "
+        "or pass `early` explicitly.",
+        {
+            "type": "object",
+            "properties": {
+                "accession":  {**_S_STRING, "description":
+                                "SGE MeasurementSet, the LATE timepoint "
+                                "(IGVFDS...)."},
+                "early":      {**_S_STRING, "description":
+                                "Early-timepoint accession. Auto-discovered "
+                                "from the sample alias if omitted."},
+                "target":     {**_S_STRING, "description":
+                                "Design target, e.g. PALB2_X7A. Inferred "
+                                "from the set alias if omitted."},
+                "max_reads":  {**_S_INTEGER, "description":
+                                "Cap reads per FASTQ for a quick look; omit "
+                                "to use all of them."},
+                "min_count":  {**_S_INTEGER, "default": 5},
+                "label":      {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["sge", "analyze"],
+        positional=("accession",),
+        flag_map={"early": "--early", "target": "--target",
+                   "max_reads": "--max-reads", "min_count": "--min-count",
+                   "label": "--label"},
+    ),
+    _T(
+        "sge_design",
+        "★ WHAT DOES AN SGE LIBRARY TARGET ★ — lists the editing-template "
+        "targets behind an SGE MeasurementSet: each amplicon's genomic "
+        "coordinates, its length, and the fixed 'required edits' every "
+        "template carries. Use it to see which exon tile a dataset covers, "
+        "or to pick a `target` for sge_analyze when a library spans many "
+        "(PALB2's spans 37).",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "SGE MeasurementSet or construct library set."},
+            },
+            "required": ["accession"],
+        },
+        cli=["sge", "design"],
+        positional=("accession",),
+    ),
+    _T(
+        "sge_count",
+        "★ VARIANT COUNTS FOR ONE SGE SAMPLE ★ — calls variants against the "
+        "reference amplicon and reports per-variant counts, depth and "
+        "frequency for a SINGLE timepoint. Counts are NOT functional "
+        "scores: SGE measures depletion between timepoints, so use "
+        "sge_analyze unless you specifically want one sample's composition "
+        "(library QC, coverage checks).",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING},
+                "target":    {**_S_STRING},
+                "max_reads": {**_S_INTEGER},
+                "min_count": {**_S_INTEGER, "default": 5},
+                "label":     {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["sge", "count"],
+        positional=("accession",),
+        flag_map={"target": "--target", "max_reads": "--max-reads",
+                   "min_count": "--min-count", "label": "--label"},
+    ),
+    _T(
         "raw_pipeline_plan",
         "★ WHAT WOULD IT TAKE TO ANALYSE THIS DATASET'S RAW DATA ★ — "
         "resolves an IGVF FileSet accession, inventories its files, pairs "

@@ -34,6 +34,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Specialized IGVF assay catalog (Parse SPLiT-seq, etc.)"),
     "explain":          ("igvfagent.data_illustration_interpretation",
                           "Explain an IGVF / ENCODE accession or search URL"),
+    "sge":              ("igvfagent.sge_analysis",
+                          "Saturation genome editing: variant counts and "
+                          "log2 functional scores from amplicon reads"),
     "raw-pipeline":     ("igvfagent.raw_data_pipeline",
                           "Process a dataset's raw reads: FASTQ -> count "
                           "matrix (kallisto|bustools) -> single-cell analysis"),
