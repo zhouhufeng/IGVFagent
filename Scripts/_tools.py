@@ -4813,6 +4813,39 @@ _TOOLS: "list[Tool]" = [
         flag_map={"tail": "--tail", "limit": "--limit"},
     ),
     _T(
+        "raw_pipeline_guide_count",
+        "★ ANALYSE A CRISPR SCREEN WHOSE READOUT IS gRNA SEQUENCING ★ — for "
+        "a screen where `crispr_screen_readout` is 'gRNA sequencing', the "
+        "reads ARE the guide library, not transcripts, and raw_pipeline "
+        "refuses to quantify them against a transcriptome (it gave 1.4% "
+        "pseudoalignment on IGVFDS6464SOVZ -- the measurement saying it was "
+        "the wrong question). This counts how often each DESIGNED guide "
+        "appears, matching spacers in both orientations against the "
+        "library's own guide table, and reports per-guide counts, "
+        "frequencies, the assignment rate and library coverage. On that "
+        "dataset: 31% of reads assigned, 7,444 of 8,192 guides detected. "
+        "One population gives library composition; a FACS screen scores "
+        "guides by comparing sorted against unsorted, so run both and "
+        "compare the freq columns.",
+        {
+            "type": "object",
+            "properties": {
+                "accession":       {**_S_STRING, "description":
+                                     "MeasurementSet with gRNA-sequencing "
+                                     "reads (IGVFDS...)."},
+                "max_reads":       {**_S_INTEGER, "description":
+                                     "Cap reads for a quick look."},
+                "max_download_gb": {**_S_NUMBER, "default": 20},
+                "label":           {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["raw-pipeline", "guide-count"],
+        positional=("accession",),
+        flag_map={"max_reads": "--max-reads", "label": "--label",
+                   "max_download_gb": "--max-download-gb"},
+    ),
+    _T(
         "raw_pipeline_guide_library",
         "★ IS THE sgRNA LIBRARY FOR THIS CRISPR SCREEN KNOWN YET ★ — a "
         "screen cannot have its guides assigned without the protospacer "

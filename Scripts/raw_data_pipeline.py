@@ -329,18 +329,32 @@ def load_guide_table(file_id: str) -> "list[tuple[str, str]]":
     rows = text.splitlines()
     if not rows:
         return []
-    hdr = [h.strip().lower() for h in rows[0].split("\t")]
-    try:
-        gi = hdr.index("guide_id")
-    except ValueError:
-        gi = 0
-    try:
-        si = hdr.index("spacer")
-    except ValueError:
-        si = 1
+    # Sniff the delimiter instead of assuming a tab. IGVF publishes guide
+    # tables as BOTH .tsv and .csv -- PALB2's editing templates are tab
+    # separated, IGVFFI4591THXG is comma separated -- and splitting a CSV on
+    # tabs yields one giant field per line, no "spacer" column, and a silent
+    # "0 guides" for a file holding 8,192 of them. Pick whichever delimiter
+    # actually splits the header.
+    delim = max(("\t", ",", ";"), key=lambda d: len(rows[0].split(d)))
+    if len(rows[0].split(delim)) < 2:
+        return []
+    hdr = [h.strip().lower() for h in rows[0].split(delim)]
+
+    def _col(*names: str) -> "Optional[int]":
+        for n in names:
+            if n in hdr:
+                return hdr.index(n)
+        return None
+
+    gi = _col("guide_id", "guide", "name", "id")
+    si = _col("spacer", "protospacer", "sequence", "guide_sequence", "sgrna")
+    if si is None:
+        return []
+    if gi is None:
+        gi = 0 if si != 0 else 1
     out = []
     for r in rows[1:]:
-        parts = r.split("\t")
+        parts = r.split(delim)
         if len(parts) > max(gi, si):
             gid, sp = parts[gi].strip(), parts[si].strip().upper()
             if sp and set(sp) <= set("ACGTN"):
@@ -623,6 +637,20 @@ _NON_TRANSCRIPT_ASSAYS = {
 
 def assay_mismatch(fs: dict) -> "Optional[tuple[str, str, str]]":
     """(label, right_analysis, matched_on) when reads are not a transcript library."""
+    # `crispr_screen_readout` is the decisive field for a CRISPR screen and
+    # it is not an assay title, so a title-only check missed it entirely.
+    # "gRNA sequencing" means the reads ARE the guide library: quantifying
+    # them against a transcriptome gave 1.4% pseudoalignment on
+    # IGVFDS6464SOVZ, which is the measurement telling us it was the wrong
+    # question. A screen whose readout is scRNA-seq (TAP-seq, Perturb-seq)
+    # is the opposite case and must still route to alignment.
+    readout = str(fs.get("crispr_screen_readout") or "").strip().lower()
+    if readout in ("grna sequencing", "sgrna sequencing", "guide sequencing"):
+        return ("a CRISPR screen with gRNA-sequencing readout",
+                "per-guide counts and enrichment between sorted "
+                "populations -- run `igvfagent raw-pipeline guide-count "
+                "<accession>` (tool: raw_pipeline_guide_count)",
+                f"crispr_screen_readout={fs.get('crispr_screen_readout')}")
     fields = []
     for key in ("preferred_assay_titles", "assay_titles",
                  "preferred_assay_slims", "assay_slims"):
@@ -1293,6 +1321,135 @@ def cmd_guide_library(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_guide_count(args: argparse.Namespace) -> int:
+    """Count guide occurrences in a gRNA-sequencing library.
+
+    This is the analysis a CRISPR screen with gRNA-sequencing readout
+    actually calls for. The reads are the guide library, so the measurement
+    is how often each designed guide appears -- and, across sorted
+    populations, how that frequency shifts.
+    """
+    import gzip
+
+    lib = find_guide_library(args.accession)
+    if not lib["resolved"]:
+        print(f"No guide table reachable for {args.accession}: {lib['why']}")
+        return 2
+    gf = lib["guide_files"][0]
+    guides = load_guide_table(gf["id"] or gf["accession"])
+    if not guides:
+        print(f"Guide table {gf['accession']} parsed to 0 guides.")
+        return 2
+    print(f"Guide library: {gf['library']} -> {gf['accession']} "
+          f"({len(guides):,} guides)")
+    spacer_to_id: "dict[str, str]" = {}
+    for gid, sp in guides:
+        spacer_to_id.setdefault(sp, gid)
+    lengths = sorted({len(sp) for sp in spacer_to_id})
+    print(f"Spacer lengths: {', '.join(str(l) for l in lengths)}")
+
+    files = [f for f in list_files(args.accession)
+             if str(f.get("file_format", "")).lower() == "fastq"]
+    total_gb = sum(gb(f.get("file_size")) for f in files)
+    if args.max_download_gb and total_gb > args.max_download_gb:
+        print(f"Reads total {total_gb} GB, over --max-download-gb "
+              f"{args.max_download_gb}. Nothing downloaded.")
+        return 4
+    FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
+    local = []
+    for f in files:
+        name = Path(str(f.get("href") or f.get("accession"))).name
+        dest = FASTQ_CACHE / name
+        if dest.exists():
+            print(f"Cached      {f.get('accession')} ({gb(f.get('file_size'))} GB)")
+        else:
+            print(f"Downloading {f.get('accession')} ({gb(f.get('file_size'))} GB)…")
+            portal_download(f["href"], dest)
+        local.append((f.get("accession"), dest))
+
+    comp = str.maketrans("ACGTN", "TGCAN")
+    counts: "Counter[str]" = Counter()
+    per_file: "dict[str, Counter]" = {}
+    stats = Counter()
+    for acc, path in local:
+        c: "Counter[str]" = Counter()
+        op = gzip.open if path.read_bytes()[:2] == b"\x1f\x8b" else open
+        with op(path, "rt", errors="replace") as fh:      # type: ignore[operator]
+            for i, line in enumerate(fh):
+                if i % 4 != 1:
+                    continue
+                if args.max_reads and stats["reads"] >= args.max_reads:
+                    break
+                stats["reads"] += 1
+                seq = line.strip().upper()
+                hit = None
+                # Both orientations: a guide amplicon is sequenced from
+                # either end depending on the primer, and checking one
+                # silently halves the assignable reads.
+                for s in (seq, seq.translate(comp)[::-1]):
+                    for L in lengths:
+                        for off in range(0, len(s) - L + 1):
+                            gid = spacer_to_id.get(s[off:off + L])
+                            if gid:
+                                hit = gid
+                                break
+                        if hit:
+                            break
+                    if hit:
+                        break
+                if hit:
+                    c[hit] += 1
+                    stats["assigned"] += 1
+                else:
+                    stats["unassigned"] += 1
+        per_file[str(acc)] = c
+        counts.update(c)
+
+    label = args.label or (f"{time.strftime('%Y%m%d_%H%M%S')}_"
+                            f"{safe_label(args.accession)}_guides")
+    out = REPORT_DIR.parent / "GuideCounts" / label
+    out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    total = max(sum(counts.values()), 1)
+    for gid, sp in guides:
+        n = counts.get(gid, 0)
+        rows.append({"guide_id": gid, "spacer": sp, "count": n,
+                     "freq": round(n / total, 8)})
+    rows.sort(key=lambda r: -r["count"])
+    with (out / "guide_counts.tsv").open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=["guide_id", "spacer", "count", "freq"],
+                            delimiter="\t")
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    detected = sum(1 for r in rows if r["count"] > 0)
+    summary = {
+        "accession": args.accession, "guide_library": gf["library"],
+        "guide_table": gf["accession"], "guides_in_library": len(guides),
+        "reads_examined": stats["reads"], "reads_assigned": stats["assigned"],
+        "assignment_rate": round(stats["assigned"] / max(stats["reads"], 1), 4),
+        "guides_detected": detected,
+        "library_coverage": round(detected / max(len(guides), 1), 4),
+        "per_file_assigned": {k: sum(v.values()) for k, v in per_file.items()},
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+    for k, v in summary.items():
+        print(f"  {k}: {v}")
+    print(f"Guide counts: {out / 'guide_counts.tsv'}")
+    print(f"Output: {out}")
+    if stats["assigned"] == 0:
+        print("\nNO reads matched any designed guide. The reads may not be "
+              "this library, or they may carry a constant vector prefix that "
+              "shifts the spacer -- check a few reads against the table "
+              "before trusting a zero.")
+        return 5
+    print("\nNote: counts from ONE population are library composition, not "
+          "enrichment. A FACS screen scores guides by comparing sorted "
+          "against unsorted, so run the partner population too and compare "
+          "the freq columns.")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     JOB_DIR.mkdir(parents=True, exist_ok=True)
     jobs = sorted(JOB_DIR.glob("*.json"))
@@ -1368,6 +1525,14 @@ def build_parser() -> argparse.ArgumentParser:
                          "run holds the caller open for the whole job.")
     r.add_argument("--skip-analysis", action="store_true",
                     help="Stop at the matrix; do not run the single-cell pipeline.")
+    gc = sub.add_parser("guide-count",
+                         help="Count designed guides in a gRNA-sequencing "
+                              "library.")
+    gc.add_argument("accession")
+    gc.add_argument("--max-reads", type=int, default=None)
+    gc.add_argument("--max-download-gb", type=float, default=20.0)
+    gc.add_argument("--label")
+
     gl = sub.add_parser("guide-library",
                          help="Is the sgRNA library for this screen "
                               "discoverable yet?")
@@ -1393,6 +1558,8 @@ def main(argv: "Optional[list[str]]" = None) -> int:
         return cmd_status(args)
     if args.command == "guide-library":
         return cmd_guide_library(args)
+    if args.command == "guide-count":
+        return cmd_guide_count(args)
     return cmd_run(args)
 
 
