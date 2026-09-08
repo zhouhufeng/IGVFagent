@@ -122,7 +122,7 @@ docker exec igvfagent-app curl -fsS -o /dev/null http://localhost:8501/_stcore/h
 
 step "6. Result"
 df -h / "$DATA_MNT" | awk 'NR>1{printf "  %-16s %5s of %5s (%s)\n", $6,$3,$2,$5}'
-cat <<DONE
+cat <<'DONE'
 
 Verified. The OLD data is still in place, so the root disk has not shrunk
 yet. Reclaim it only now that the site is confirmed working:
@@ -132,6 +132,7 @@ yet. Reclaim it only now that the site is confirmed working:
   sudo mv /var/lib/docker     /var/lib/docker.old
   # confirm the site still works, then delete the .old directories
 
-Rollback: remove `root` from $CTR_CFG and `data-root` from $DOCKER_CFG,
-then restart both daemons — the originals are untouched.
+Rollback: remove the "root" key from /etc/containerd/config.toml and
+"data-root" from /etc/docker/daemon.json, then restart both daemons — the
+original directories are untouched.
 DONE
