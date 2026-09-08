@@ -1282,6 +1282,47 @@ def _render_artefacts(paths: "list[str]") -> None:
     seen: "set[str]" = set()
     paths = [p for p in paths if not (p in seen or seen.add(p))]
 
+    # A run that writes figures usually announces the DIRECTORY they landed
+    # in ("Docs/SingleCell/<run>/Plots/"), not six separate paths, and a bare
+    # directory used to render as a collapsed expander -- so a user on the
+    # hosted site was told six plots existed, could see none of them, and had
+    # no filesystem to go looking. Expand a directory into the renderable
+    # files inside it so the figures appear inline like any other artefact.
+    expanded: "list[str]" = []
+    for p in paths:
+        try:
+            candidate = Path(p)
+            if not candidate.is_absolute():
+                candidate = _PROJECT_ROOT / p
+            if candidate.is_dir():
+                # One level of recursion, because a run directory announces
+                # itself ("Output: Docs/SingleCell/<run>") while the figures
+                # sit in <run>/Plots/. Stopping at the top level would list
+                # the CSVs and miss every plot -- the exact complaint.
+                renderable = (".png", ".jpg", ".jpeg", ".gif", ".svg",
+                              ".md", ".csv", ".tsv", ".json")
+                found: "list[str]" = []
+                for c in sorted(candidate.iterdir()):
+                    if len(found) >= 40:      # a guard, not a real limit
+                        break
+                    if c.is_file() and c.suffix.lower() in renderable \
+                            and _pathguard.is_safe_artifact(c):
+                        found.append(str(c))
+                    elif c.is_dir():
+                        for g in sorted(c.iterdir()):
+                            if len(found) >= 40:
+                                break
+                            if g.is_file() and g.suffix.lower() in renderable \
+                                    and _pathguard.is_safe_artifact(g):
+                                found.append(str(g))
+                if found:
+                    expanded.extend(found)
+                    continue
+        except OSError:
+            pass
+        expanded.append(p)
+    paths = [q for q in expanded if not (q in seen or seen.add(q))]
+
     images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
         [], [], [], [], [], [], [], []
     )
