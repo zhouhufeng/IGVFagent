@@ -919,15 +919,22 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
         )
 
     prompt = _xml_cli_build_prompt(messages, tools)
+    # The prompt goes on STDIN, never in argv. Passing it as an argument
+    # works until a conversation grows -- then the whole transcript exceeds
+    # the kernel's argv limit and execve fails with
+    #     [Errno 7] Argument list too long: 'claude'
+    # which killed agent runs mid-flight around iteration 11, after the
+    # expensive tool calls had already been made. `claude --print` reads the
+    # prompt from stdin when given no positional argument, and stdin has no
+    # such limit.
     cmd = ["claude", "--print", "--output-format", "text"]
     if model and model.strip():
         cmd.extend(["--model", model.strip()])
-    cmd.append(prompt)
 
     timeout = float(os.environ.get("IGVF_LLM_TIMEOUT", "600"))
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True,
+            cmd, input=prompt, capture_output=True, text=True,
             timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired as e:

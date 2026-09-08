@@ -792,6 +792,30 @@ def run(
                     "stdout": "", "stderr": str(e),
                     "artifacts": {},
                 }
+            # A freshly authored tool is written to disk but is not in the
+            # in-process registry, so the very next call to it came back
+            # "Unknown tool" (exit 127) and the model was left authoring the
+            # same thing again. Reload after a successful authoring call and
+            # re-expose the catalogue, so the tool the model just wrote is
+            # callable on the next turn -- which is the entire point of
+            # being able to write one.
+            if (tc.name.startswith("ext_author")
+                    and int(result.get("exit_code") or 0) == 0):
+                try:
+                    added = tools_mod.refresh_user_tools()
+                    if added:
+                        all_tools = tools_mod.list_tools()
+                        tool_dicts = [t.to_dict() for t in all_tools]
+                        _emit(callback, "tools_refreshed",
+                              {"added": added, "total": len(tool_dicts)})
+                        result["stderr"] = (
+                            (result.get("stderr") or "")
+                            + f"\n[registry reloaded: {added} new tool(s) are "
+                              f"now callable]")
+                except Exception as e:                       # noqa: BLE001
+                    _emit(callback, "error",
+                          {"where": "refresh_user_tools", "error": str(e)})
+
             iter_n += 1
             if int(result.get("exit_code") or 0) != 0:
                 iter_fail += 1
