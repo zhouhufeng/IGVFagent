@@ -462,7 +462,7 @@ def main(argv: Optional["list[str]"] = None) -> int:
     sys.argv = [f"igvfagent {skill}"] + args[1:]
     rc_code = 0
     try:
-        rc = mod.main()
+        rc = _call_skill_main(mod, args[1:])
         rc_code = int(rc) if isinstance(rc, int) else 0
     except SystemExit as exc:  # argparse + sys.exit propagation
         code = exc.code
@@ -480,6 +480,84 @@ def main(argv: Optional["list[str]"] = None) -> int:
         # on-disk outputs. Best-effort; never affects the command's exit code.
         _post_run_harvest(skill)
     return rc_code
+
+
+def _argv_to_kwargs(argv: "list[str]") -> "dict[str, object]":
+    """Turn ``--flag value`` / ``--bare-flag`` argv into a kwargs dict."""
+    out: "dict[str, object]" = {}
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if not tok.startswith("--"):
+            i += 1
+            continue
+        key = tok[2:]
+        if "=" in key:
+            key, val = key.split("=", 1)
+            out[key.replace("-", "_")] = val
+            i += 1
+            continue
+        if i + 1 < len(argv) and not argv[i + 1].startswith("--"):
+            out[key.replace("-", "_")] = argv[i + 1]
+            i += 2
+        else:
+            out[key.replace("-", "_")] = True
+            i += 1
+    return out
+
+
+def _call_skill_main(mod, argv: "list[str]"):
+    """Invoke a skill's ``main()``, bridging argv to keyword arguments.
+
+    Built-in skills parse ``sys.argv`` with argparse, so ``main()`` takes no
+    arguments. Agent-authored skills are routinely written the other way --
+    ``def main(counts=None, label="x", top_n=20)`` -- because that is the
+    natural shape when a JSON Schema describes the inputs. Calling those with
+    no arguments hands every parameter its default, and the skill then dies
+    on its own validation:
+
+        'counts' (path to gene_counts.tsv) is required
+
+    with the path sitting right there in argv. Three manifests in the
+    extension directory were already renamed ``.broken`` for this.
+
+    So: if ``main`` declares named parameters and every flag on the command
+    line maps onto one of them, call it with those keywords. Otherwise call
+    it bare and let argparse do its job. A skill taking ``argv`` is always
+    argparse-style and is never bridged.
+    """
+    import inspect
+    try:
+        sig = inspect.signature(mod.main)
+    except (TypeError, ValueError):
+        return mod.main()
+    kinds = (inspect.Parameter.POSITIONAL_OR_KEYWORD,
+             inspect.Parameter.KEYWORD_ONLY)
+    names = {p.name for p in sig.parameters.values() if p.kind in kinds}
+    takes_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD
+                       for p in sig.parameters.values())
+    if not names or "argv" in names:
+        return mod.main()
+    kwargs = _argv_to_kwargs(argv)
+    if not kwargs or not (set(kwargs) <= names or takes_var_kw):
+        return mod.main()
+    # Coerce to the type of each default, so --top-n 20 arrives as an int
+    # rather than the string "20".
+    for k, v in list(kwargs.items()):
+        default = sig.parameters[k].default if k in sig.parameters else None
+        if isinstance(default, bool) or not isinstance(v, str):
+            continue
+        if isinstance(default, int):
+            try:
+                kwargs[k] = int(v)
+            except ValueError:
+                pass
+        elif isinstance(default, float):
+            try:
+                kwargs[k] = float(v)
+            except ValueError:
+                pass
+    return mod.main(**kwargs)
 
 
 def _post_run_harvest(skill: str) -> None:
