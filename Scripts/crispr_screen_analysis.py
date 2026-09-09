@@ -254,6 +254,52 @@ def _norm_sf(z: float) -> float:
     return math.erfc(abs(z) / math.sqrt(2.0))
 
 
+def _t_sf(t: float, df: int) -> float:
+    """Two-sided Student-t tail probability.
+
+    The normal is the wrong reference here and it is not a subtle error. A
+    variant with two replicate observations that happen to agree to within
+    0.016 log2 units gets se = 0.011 and z = -215, which the normal reports
+    as p = 0 exactly -- infinite confidence from two numbers. The t
+    distribution with df = k-1 is the textbook correction: at df = 1 it is
+    Cauchy, whose tails are heavy enough that |t| = 215 is p ~ 3e-3 rather
+    than 0.
+
+    scipy is present in both the local environment and the deployed image,
+    but the fallback matters: without it this would silently revert to the
+    normal and to implausible p-values, so it degrades to a documented
+    df-scaled approximation instead of pretending nothing changed.
+    """
+    if df < 1 or not math.isfinite(t):
+        return 1.0
+    try:
+        from scipy import stats
+        return float(2.0 * stats.t.sf(abs(t), df))
+    except ImportError:
+        pass
+    if df == 1:                       # Cauchy, exactly
+        return 2.0 * (0.5 - math.atan(abs(t)) / math.pi)
+    if df == 2:                       # closed form
+        return 1.0 - abs(t) / math.sqrt(2.0 + t * t)
+    # Otherwise the normal on a variance-inflated statistic. Approximate,
+    # and conservative in the direction that matters: it does not turn a
+    # small sample into certainty.
+    return _norm_sf(abs(t) / math.sqrt(df / max(df - 2.0, 1.0)))
+
+
+def _percentile(xs: "list[float]", q: float) -> float:
+    """Linear-interpolated percentile. Small helper, avoids a numpy import
+    in a function that otherwise only needs the standard library."""
+    if not xs:
+        return 0.0
+    ys = sorted(xs)
+    if len(ys) == 1:
+        return ys[0]
+    i = (len(ys) - 1) * q
+    lo, hi = int(math.floor(i)), int(math.ceil(i))
+    return ys[lo] + (ys[hi] - ys[lo]) * (i - lo)
+
+
 def benjamini_hochberg(pvals: "list[float]") -> "list[float]":
     """BH-adjusted p-values, order preserved."""
     n = len(pvals)
@@ -272,13 +318,25 @@ def benjamini_hochberg(pvals: "list[float]") -> "list[float]":
 
 def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
                   guide_target: "dict[str, str]", guide_type: "dict[str, str]",
-                  low_pct: int, min_count: int) -> "list[dict]":
-    """Per-variant effect from guide enrichment, low tail vs high tail.
+                  low_pct: int, min_count: int) -> "tuple[list[dict], dict]":
+    """Per-variant effect from construct enrichment, low tail vs high tail.
+
+    Returns (rows, moderation) where moderation records the variance floor
+    applied and how many targets it was estimated from.
 
     One log2 ratio per replicate, then combined across replicates. Combining
     replicate ratios rather than pooling raw counts is deliberate: pooling
     lets the deepest-sequenced replicate dominate, and the replicate spread
     is the only estimate of variability available for a p-value.
+
+    That spread is a weak estimate at four replicates and a bad one at two,
+    so the p-value needs two corrections that the first version lacked. It
+    used a normal reference and no variance floor, and reported the top hit
+    of this screen -- two observations agreeing to within 0.016 log2 units --
+    at p = 0 exactly, with 41 targets under FDR 0.05. Both are artefacts of
+    treating a two-point standard error as if it were known. The test is now
+    Student t with df = k-1, and each sd is floored at the 10th percentile of
+    the sds seen across targets with k >= 3.
     """
     reps = sorted({b["rep"] for b in bins})
     usable, skipped = [], []
@@ -323,27 +381,53 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
         by_target[t].extend(vals)
         tgt_type.setdefault(t, guide_type.get(g, ""))
 
-    rows = []
+    stats_by_target = {}
     for t, vals in by_target.items():
         k = len(vals)
         mean = sum(vals) / k
         if k > 1:
             var = sum((v - mean) ** 2 for v in vals) / (k - 1)
             sd = math.sqrt(var)
-            se = sd / math.sqrt(k)
         else:
-            sd = se = float("nan")
-        z = mean / se if se and se > 0 else 0.0
+            sd = float("nan")
+        stats_by_target[t] = (k, mean, sd)
+
+    # Variance moderation. Even under the t distribution, a target whose few
+    # observations happen to agree almost exactly gets an sd near zero and a
+    # t statistic set by luck rather than by effect size. Floor each sd at a
+    # low percentile of the sds actually observed across the screen, taken
+    # from targets with k >= 3 because their sd is the better estimate. This
+    # is the idea behind limma's variance moderation, at its simplest: the
+    # screen's own spread is a prior on how quiet a target can plausibly be.
+    ref_sds = [sd for k, _m, sd in stats_by_target.values()
+               if k >= 3 and not math.isnan(sd) and sd > 0]
+    sd_floor = _percentile(ref_sds, 0.10) if ref_sds else 0.0
+
+    rows = []
+    for t, (k, mean, sd) in stats_by_target.items():
+        if k > 1:
+            sd_used = max(sd, sd_floor)
+            se = sd_used / math.sqrt(k)
+            tstat = mean / se if se > 0 else 0.0
+            # df = k-1, the honest degrees of freedom for k observations.
+            pval = _t_sf(tstat, k - 1) if se > 0 else 1.0
+        else:
+            sd_used = se = float("nan")
+            tstat, pval = 0.0, 1.0
         rows.append({"target": t, "target_type": tgt_type.get(t, ""),
                       "n_guide_obs": k, "mean_log2_low_over_high": round(mean, 4),
                       "sd": None if math.isnan(sd) else round(sd, 4),
-                      "z": round(z, 4),
-                      "p_value": _norm_sf(z) if se and se > 0 else 1.0})
+                      "sd_used": None if math.isnan(sd_used) else round(sd_used, 4),
+                      "t": round(tstat, 4), "df": max(k - 1, 0),
+                      "p_value": pval})
     ps = [r["p_value"] for r in rows]
     for r, q in zip(rows, benjamini_hochberg(ps)):
         r["fdr"] = q
-    rows.sort(key=lambda r: r["p_value"])
-    return rows
+    # Rank by p, then by effect size, so ties among the many k=4 targets that
+    # share a p-value are not ordered by dictionary insertion.
+    rows.sort(key=lambda r: (r["p_value"],
+                              -abs(r["mean_log2_low_over_high"])))
+    return rows, {"sd_floor": round(sd_floor, 4), "n_ref_sd": len(ref_sds)}
 
 
 # ─── Plots ──────────────────────────────────────────────────────────────────
@@ -552,8 +636,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
               f"amplicon. Refusing to report numbers built on it.")
         return 3
 
-    rows = score_screen(per_bin, counted, meta["target"], meta["type"],
-                         args.tail, args.min_count)
+    rows, moderation = score_screen(per_bin, counted, meta["target"],
+                                     meta["type"], args.tail, args.min_count)
     if not rows:
         have = ", ".join(_bin_label(b) for b in scr["bin_kinds"])
         print(f"\nNo target could be scored. Scoring needs both bottom"
@@ -565,7 +649,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     out = OUT_DIR / label
     out.mkdir(parents=True, exist_ok=True)
     cols = ["target", "target_type", "n_guide_obs",
-            "mean_log2_low_over_high", "sd", "z", "p_value", "fdr"]
+            "mean_log2_low_over_high", "sd", "sd_used", "t", "df",
+            "p_value", "fdr"]
     with (out / "variant_effects.tsv").open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t",
                             extrasaction="ignore")
@@ -603,6 +688,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "control_null_usable": len(ctrls) >= 20,
         "controls_significant": sum(1 for r in ctrls if r["fdr"] < 0.05),
         "min_count": args.min_count,
+        "test": "two-sided Student t on per-replicate log2 ratios, df = k-1",
+        "sd_floor": moderation["sd_floor"],
+        "sd_floor_from_n_targets": moderation["n_ref_sd"],
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     plots = make_plots(out, rows, per_bin, counted, args.tail,
@@ -625,11 +713,12 @@ def cmd_analyze(args: argparse.Namespace) -> int:
               f"nothing. Treat the ranking as more trustworthy than the "
               f"absolute q-values.")
     print(f"\nTop 10 by significance:")
-    print(f"  {'target':34} {'type':18} {'log2':>7} {'n':>4} {'fdr':>9}")
+    print(f"  {'target':34} {'log2':>7} {'n':>3} {'sd':>7} {'t':>8} {'fdr':>9}")
     for r in rows[:10]:
-        print(f"  {r['target'][:34]:34} {(r['target_type'] or '')[:18]:18} "
-              f"{r['mean_log2_low_over_high']:>7.2f} {r['n_guide_obs']:>4} "
-              f"{r['fdr']:>9.2e}")
+        print(f"  {r['target'][:34]:34} "
+              f"{r['mean_log2_low_over_high']:>7.2f} {r['n_guide_obs']:>3} "
+              f"{(r['sd_used'] if r['sd_used'] is not None else float('nan')):>7.3f} "
+              f"{r['t']:>8.1f} {r['fdr']:>9.2e}")
     print(f"\nVariant effects: {out / 'variant_effects.tsv'}")
     for p in plots:
         print(f"Plot: {p}")
