@@ -131,7 +131,17 @@ authoritative.
 
 - No per-guide editing-efficiency weighting -- the largest known gap, and
   the most likely reason r is 0.48 rather than higher.
-- One tail pair per run; the two pairs are not combined.
+- One tail pair per run; the two pairs are not combined. The 20% default
+  is measured, not assumed -- the wider bins carry much less signal:
+
+  ```
+  bottom20 vs top20   r = +0.31 (all), +0.48 (>=16 guides)   11 significant
+  bottom40 vs top40   r = +0.13 (all), +0.15 (>=16 guides)    0 significant
+  ```
+
+  Which is what one would expect: the extreme tails separate the phenotype
+  more sharply. Use --tail 40 only to check a hit is not an artefact of the
+  20% bins.
 - Replicates are combined as a mean of log2 ratios with a t-like z, not
   pooled counts. Pooling would let the deepest-sequenced replicate dominate
   and would leave no estimate of variability for a p-value.
