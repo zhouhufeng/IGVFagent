@@ -165,6 +165,11 @@ Benchmarks/results/2*
 # (CELLxGENE h5ad, GEO count matrices, etc.) — never committed; re-fetched on run.
 Benchmarks/_data/
 Docs/Demos/*
+# ...but authored demo scripts in there ARE documentation and belong in
+# the repo. 12_demo_questions.md was tracked in spite of the rule above,
+# and demo.md was silently dropped from a commit whose message described
+# it. Scratch files (.txt notes, .DS_Store, run output) stay ignored.
+!Docs/Demos/*.md
 !Docs/Demos/12_demo_questions.md
 
 # Plots subfolders are generated artifacts
