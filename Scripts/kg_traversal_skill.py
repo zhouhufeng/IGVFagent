@@ -209,6 +209,61 @@ def catalog_get(path: str, **params) -> tuple[int, Any]:
     return fetch_json(url)
 
 
+# Measured against /api/genomic-elements/genes on 2026-09-09:
+#   limit=1000 returns 500, so 500 is a server-side cap;
+#   skip= and offset= are SILENTLY IGNORED -- they return page 1 again, so a
+#     skip-based pager loops on the first page forever;
+#   page= works, is 0-based, and strides by `limit` exactly (page 0 -> rows
+#     0-4, page 1 -> rows 5-9, ... verified against a single limit=20 request
+#     with no gaps and no overlaps).
+# Anything that pages this API must therefore use `page`.
+CATALOG_PAGE_MAX = 500
+
+
+def catalog_paged(path: str, *, page_limit: int = CATALOG_PAGE_MAX,
+                   max_pages: int = 40, **params) -> tuple[list[dict], dict]:
+    """Read every page of a Catalog endpoint, or say why it stopped.
+
+    Returns (rows, meta) with meta carrying `pages`, `returned_count`,
+    `truncated` and `stopped_because`. The caller needs `truncated` to know
+    whether "no matching record" means "none exist" or "none in what we
+    looked at" -- reporting the second as the first is how this workflow
+    claimed WT1 and HNF4A had no kidney regulatory records when WT1 has 390
+    target-gene rows, 28 of them kidney.
+    """
+    rows: list[dict] = []
+    seen: set = set()
+    page = 0
+    stopped = "exhausted"
+    while page < max_pages:
+        status, data = catalog_get(path, limit=page_limit, page=page, **params)
+        if status != 200:
+            stopped = f"http {status} on page {page}"
+            break
+        batch = listify(data)
+        if not batch:
+            break
+        fresh = 0
+        for r in batch:
+            k = json.dumps(r, sort_keys=True, default=str)
+            if k not in seen:
+                seen.add(k)
+                rows.append(r)
+                fresh += 1
+        if fresh == 0:
+            # The endpoint is repeating itself: stop rather than spin.
+            stopped = f"page {page} returned no new rows"
+            break
+        if len(batch) < page_limit:
+            break
+        page += 1
+    else:
+        stopped = f"hit max_pages={max_pages}"
+    return rows, {"pages": page + 1, "returned_count": len(rows),
+                   "truncated": stopped != "exhausted",
+                   "stopped_because": stopped}
+
+
 def portal_get(path: str, **params) -> tuple[int, Any]:
     url = PORTAL_API_BASE + path
     if params:
@@ -227,6 +282,19 @@ def favor_get(path: str, **params) -> tuple[int, Any]:
 
 # --------------------------- KG record normalization -------------------------
 
+# An error body is a dict too. {"message": "Not found", "code": "NOT_FOUND"}
+# used to come back from listify() as ONE DATA ROW, so a dead endpoint looked
+# like a database with one record in it.
+_ERROR_KEYS = ({"message", "code"}, {"error"}, {"detail"})
+
+
+def is_error_body(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    keys = set(data)
+    return any(sig <= keys for sig in _ERROR_KEYS)
+
+
 def listify(data: Any) -> list[dict]:
     if isinstance(data, list):
         return [d for d in data if isinstance(d, dict)]
@@ -234,6 +302,8 @@ def listify(data: Any) -> list[dict]:
         for k in ("results", "items", "data", "@graph", "edges"):
             if k in data and isinstance(data[k], list):
                 return [d for d in data[k] if isinstance(d, dict)]
+        if is_error_body(data):
+            return []
         return [data]
     return []
 
@@ -609,23 +679,96 @@ def search_singlecell_for_gene(symbol: str, contexts: list[str] | None = None,
 
 # --------------------------- Linkage side-call -------------------------------
 
-def fetch_linkage_for_region(region: str, limit: int = 25) -> dict[str, list[dict]]:
-    """Pull IGVF Catalog enhancer-gene linkage evidence overlapping a region.
+def target_gene_id(row: dict) -> str:
+    """The Ensembl gene this row is evidence FOR, bare of any prefix.
 
-    Uses /api/regulatory-regions/genes (region predictor predictions)."""
-    out: dict[str, list[dict]] = {"region_predictions": [],
-                                    "qtl_links": []}
-    status, data = catalog_get(
-        "/api/regulatory-regions/genes", region=region, limit=limit)
-    if status == 200:
-        out["region_predictions"] = listify(data)
+    The field arrives as "genes/ENSG00000184937", and may be an embedded
+    object instead of a string. Splitting it on "." rather than "/" silently
+    matched nothing, which reads exactly like "this gene has no records".
+    """
+    g = row.get("gene")
+    if isinstance(g, dict):
+        g = g.get("_id") or g.get("gene_id") or g.get("id") or g.get("name") or ""
+    return str(g or "").split("/")[-1].split(".")[0].strip()
+
+
+def fetch_linkage_for_region(region: str, limit: int = 25,
+                              gene_id: "Optional[str]" = None,
+                              exhaustive: bool = True,
+                              max_pages: int = 40) -> dict:
+    """Element-to-gene edges over a region, optionally for ONE target gene.
+
+    THE TRAP THIS EXISTS TO CLOSE. The endpoint returns edges for regulatory
+    elements that OVERLAP the submitted region. A row is evidence for the
+    gene named in its own `gene` field -- not for the gene whose locus was
+    used to build the region. Those are mostly different genes: of the first
+    25 rows over the WT1 locus, 23 distinct target genes appear and NONE of
+    them is WT1. Reporting them under WT1 asserts element-to-WT1 links that
+    the source does not claim.
+
+    Pass `gene_id` to keep only rows whose target gene matches, which is what
+    a gene-centric question means. Without it the rows are returned unfiltered
+    and `target_gene_id` is None in the meta, so a caller cannot mistake them
+    for gene-specific evidence.
+
+    /api/regulatory-regions/genes is NOT tried any more: it answers 404 for
+    every region, so every call paid for a failed request and then fell
+    through, and any future non-404 error would have been masked the same way.
+    """
+    out: dict = {"region_predictions": [], "qtl_links": [],
+                  "meta": {"endpoint": "/api/genomic-elements/genes",
+                            "region": region, "target_gene_id": gene_id}}
+    if exhaustive:
+        rows, meta = catalog_paged("/api/genomic-elements/genes",
+                                    region=region, max_pages=max_pages)
     else:
-        # second pass: search via genomic-element predictions endpoint
-        status2, data2 = catalog_get(
-            "/api/genomic-elements/genes", region=region, limit=limit)
-        if status2 == 200:
-            out["region_predictions"] = listify(data2)
+        status, data = catalog_get("/api/genomic-elements/genes",
+                                    region=region, limit=limit)
+        rows = listify(data) if status == 200 else []
+        meta = {"pages": 1, "returned_count": len(rows),
+                 "truncated": len(rows) >= limit,
+                 "stopped_because": f"single request, limit={limit}"}
+    out["meta"].update(meta)
+    out["meta"]["rows_before_gene_filter"] = len(rows)
+    out["meta"]["distinct_target_genes"] = len({target_gene_id(r) for r in rows})
+
+    if gene_id:
+        want = str(gene_id).split("/")[-1].split(".")[0].strip()
+        kept = [r for r in rows if target_gene_id(r) == want]
+        out["meta"]["rows_for_target_gene"] = len(kept)
+        out["meta"]["rows_dropped_other_genes"] = len(rows) - len(kept)
+        rows = kept
+
+    # Predictions and observed measurements are different kinds of claim and
+    # must not be pooled: a prediction carries a model score with p_value_adj
+    # and significant both null, so calling it significant or non-significant
+    # invents a status the source never gave.
+    obs = [r for r in rows if str(r.get("class", "")).lower().startswith("observed")]
+    pred = [r for r in rows if str(r.get("class", "")).lower() == "prediction"]
+    out["meta"]["observed_count"] = len(obs)
+    out["meta"]["prediction_count"] = len(pred)
+    out["meta"]["other_class_count"] = len(rows) - len(obs) - len(pred)
+    out["region_predictions"] = rows
+    out["observed"] = obs
+    out["predictions"] = pred
     return out
+
+
+def evidence_note(meta: dict) -> str:
+    """One line a report can print instead of an unqualified absence claim."""
+    n = meta.get("rows_for_target_gene", meta.get("returned_count", 0))
+    parts = [f"{n} row(s) for the target gene"]
+    if meta.get("rows_dropped_other_genes"):
+        parts.append(f"{meta['rows_dropped_other_genes']} dropped as other "
+                      f"target genes")
+    parts.append(f"{meta.get('observed_count', 0)} observed / "
+                  f"{meta.get('prediction_count', 0)} predicted")
+    if meta.get("truncated"):
+        parts.append(f"RETRIEVAL WAS TRUNCATED ({meta.get('stopped_because')}) "
+                      f"-- absence cannot be concluded from this")
+    else:
+        parts.append(f"retrieval exhausted over {meta.get('pages', 1)} page(s)")
+    return "; ".join(parts)
 
 
 # --------------------------- Literature side-call ----------------------------
@@ -771,11 +914,28 @@ def render_gene_report(symbol: str, meta: dict, rels: dict[str, list[dict]],
             lines.append(f"_… and {len(deep_var) - 10} more variants in the manifest._")
             lines.append("")
 
-    if linkage and any(linkage.values()):
-        lines += ["## Enhancer-gene linkage in this region",
+    if linkage:
+        lmeta = linkage.get("meta") or {}
+        tgt = lmeta.get("target_gene_id")
+        lines += ["## Enhancer-gene linkage"
+                   + (f" — edges whose TARGET GENE is `{tgt}`" if tgt
+                      else " — edges over this region, TARGET GENES VARY"),
                    "",
-                   summarize_relation(linkage.get("region_predictions", [])),
-                   ""]
+                   f"_Retrieval: {evidence_note(lmeta)}._", ""]
+        if not tgt:
+            others = {}
+            for r in linkage.get("region_predictions", []):
+                g = target_gene_id(r)
+                others[g] = others.get(g, 0) + 1
+            top = ", ".join(f"`{g}` ({n})" for g, n in
+                             sorted(others.items(), key=lambda kv: -kv[1])[:8])
+            lines += [f"Target genes present: {top or 'none'}", ""]
+        if lmeta.get("prediction_count") and lmeta.get("observed_count") == 0:
+            lines += ["> Every row below is `class=prediction`: a model score, "
+                      "with `p_value_adj` and `significant` both null. These "
+                      "are not statistically significant or non-significant "
+                      "findings and must not be described as either.", ""]
+        lines += [summarize_relation(linkage.get("region_predictions", [])), ""]
     if favor_rows:
         lines += ["## FAVOR functional annotation (region)",
                    "",
@@ -859,11 +1019,21 @@ def cmd_gene(args: argparse.Namespace) -> Path:
             p = manifests_dir / "favor.csv"
             write_csv(p, favor_rows); manifest_paths["favor"] = p
     if region and args.call_linkage:
-        linkage = fetch_linkage_for_region(region, limit=args.limit)
+        # gene_id is REQUIRED here. Without it these rows are edges for
+        # whatever genes happen to sit near this locus, and 23 of the first
+        # 25 over the WT1 region target other genes.
+        linkage = fetch_linkage_for_region(
+            region, limit=args.limit, gene_id=(meta or {}).get("_id"),
+            exhaustive=not getattr(args, "no_exhaustive_linkage", False))
         if linkage.get("region_predictions"):
             p = manifests_dir / "linkage_region_predictions.csv"
             write_csv(p, linkage["region_predictions"])
             manifest_paths["linkage_region_predictions"] = p
+        for k in ("observed", "predictions"):
+            if linkage.get(k):
+                p = manifests_dir / f"linkage_{k}.csv"
+                write_csv(p, linkage[k])
+                manifest_paths[f"linkage_{k}"] = p
 
     singlecell_hits: list[dict] = []
     if args.call_singlecell:
@@ -982,8 +1152,12 @@ def cmd_region(args: argparse.Namespace) -> Path:
     ccres = listify(d) if s == 200 else []
     write_csv(manifests_dir / "regulatory_elements.csv", ccres)
 
-    # Linkage for region
-    linkage = fetch_linkage_for_region(region, limit=args.limit)
+    # Linkage for region. Deliberately NOT gene-filtered: this IS a region
+    # question, so edges to any target gene in the window are the answer.
+    # The report says which genes they target so they are not read as
+    # evidence for one gene.
+    linkage = fetch_linkage_for_region(region, limit=args.limit,
+                                        exhaustive=not getattr(args, "no_exhaustive_linkage", False))
     write_csv(manifests_dir / "linkage_region_predictions.csv",
                linkage.get("region_predictions", []))
 
@@ -1163,6 +1337,10 @@ def main() -> None:
     s.add_argument("--call-favor", action="store_true")
     s.add_argument("--favor-max", type=int, default=50)
     s.add_argument("--call-linkage", action="store_true")
+    s.add_argument("--no-exhaustive-linkage", action="store_true",
+                    help="Single capped request instead of paging every "
+                         "page. Faster, but then absence cannot be "
+                         "concluded from the result.")
     s.add_argument("--call-singlecell", action="store_true")
     s.add_argument("--call-literature", action="store_true")
     s.add_argument("--literature-context", nargs="*", default=None)
