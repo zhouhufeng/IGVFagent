@@ -62,7 +62,8 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import raw_data_pipeline as rp                              # noqa: E402
-from _stats import benjamini_hochberg, moderated_t, _percentile  # noqa: E402
+from _stats import (benjamini_hochberg, moderated_t,            # noqa: E402
+                     _norm_sf, _percentile)
 
 ROOT = rp.ROOT
 OUT_DIR = ROOT / "Docs" / "GradientScreen"
@@ -239,6 +240,7 @@ def sort_scores(per_bin: "dict[str, Counter]", bins: "list[dict]",
             freq[gid][b["rank"]] = freq[gid].get(b["rank"], 0.0) + n / t
             reads[gid] += n
 
+    all_ranks = {b["rank"] for b in bins}
     score: "dict[str, float]" = {}
     cvar: "dict[str, float]" = {}
     for gid, by_rank in freq.items():
@@ -249,9 +251,19 @@ def sort_scores(per_bin: "dict[str, Counter]", bins: "list[dict]",
             continue
         s = sum(r * f for r, f in by_rank.items()) / w
         score[gid] = s
-        p = {r: f / w for r, f in by_rank.items()}
-        var = sum(pi * (r - s) ** 2 for r, pi in p.items())
-        cvar[gid] = var / max(reads[gid], 1)
+        # A half-read pseudocount in every bin, for the VARIANCE only. The
+        # raw multinomial variance is exactly zero when all of a construct's
+        # reads land in one bin -- which is the least certain case, not the
+        # most, and it was being scored as infinitely precise.
+        ranks = sorted(all_ranks)
+        pc = 0.5
+        n_eff = reads[gid] + pc * len(ranks)
+        counts = {r: by_rank.get(r, 0.0) * reads[gid] / w + pc for r in ranks}
+        tot = sum(counts.values()) or 1.0
+        p = {r: c / tot for r, c in counts.items()}
+        s_pc = sum(r * pi for r, pi in p.items())
+        var = sum(pi * (r - s_pc) ** 2 for r, pi in p.items())
+        cvar[gid] = var / max(n_eff, 1.0)
     return score, cvar, dict(reads)
 
 
@@ -276,8 +288,7 @@ def score_gradient(per_sort: "dict[tuple, dict]", target_of: "dict[str, str]",
     for key, d in sorted(per_sort.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or 0)):
         score, cvar, rd = d["score"], d["cvar"], d["reads"]
         ctrl = [s for g, s in score.items()
-                if any(w in (type_of.get(g, "") or "").lower()
-                       for w in ("non-targeting", "nontargeting", "control"))]
+                if _is_control(type_of.get(g, ""))]
         if len(ctrl) >= 5:
             base = sum(ctrl) / len(ctrl)
             centring.append({"sort": list(key), "on": "controls",
@@ -314,13 +325,122 @@ def score_gradient(per_sort: "dict[tuple, dict]", target_of: "dict[str, str]",
             "sd": None if st["sd"] is None else round(st["sd"], 4),
             "sd_counting": round(sd_count, 4),
             "sd_used": None if st["sd_used"] is None else round(st["sd_used"], 4),
-            "t": round(st["t"], 4), "df": st["df"], "p_value": st["p_value"],
+            "t_replicate": round(st["t"], 4), "df": st["df"],
+            "p_replicate": st["p_value"],
         })
+
+    # ── which null to test against ────────────────────────────────────────
+    #
+    # The spread between sorts is the WRONG null when the sorts are technical.
+    # The KITLG screen has four flow replicates of one biological sample: they
+    # re-sort the same cells, so they agree to ~0.05 bins and a
+    # replicate-spread t called 27.2% of the NON-TARGETING CONTROLS
+    # significant at FDR 0.05, against 32.4% of targeting constructs. A test
+    # that cannot separate controls from targets is measuring instrument
+    # precision, not biology.
+    #
+    # The controls are the null. A construct's effect is judged against how
+    # far control constructs scatter from zero after the same centring, so by
+    # construction ~5% of controls sit outside p=0.05 and BH then controls a
+    # real false-discovery rate. This is also what a FlowFISH screen is
+    # designed for: it ships hundreds of non-targeting guides precisely so
+    # that scatter can be measured.
+    ctrl = [(r["reads"], r["delta_bins"]) for r in rows
+            if _is_control(r["construct_type"])]
+    ctrl_eff = [e for _n, e in ctrl]
+    null_sd = 0.0
+    null_a = null_b = 0.0
+    if len(ctrl_eff) >= 20:
+        m = sum(ctrl_eff) / len(ctrl_eff)
+        null_sd = math.sqrt(sum((v - m) ** 2 for v in ctrl_eff)
+                             / (len(ctrl_eff) - 1))
+        # A SINGLE null width is wrong, because control scatter depends on
+        # read depth: measured on this screen, the shallowest quartile of
+        # controls produced 3.7% false positives while the other three
+        # produced 0.0%. One sd fitted to 434 controls is dominated by the
+        # deep ones and is far too tight for a construct seen 28 times.
+        #
+        # So fit Var(effect) = a + b/N from the controls -- a constant floor
+        # plus a sampling term that grows as depth falls -- by least squares
+        # on depth-quantile bins. That is the same decomposition the
+        # counting-noise term expresses per construct, but with the constants
+        # measured from constructs known to do nothing.
+        null_a, null_b = _fit_depth_null(ctrl)
+    if null_sd > 0:
+        basis = "controls"
+        for r in rows:
+            # Two independent sources of error, added in quadrature: how far
+            # controls scatter (the null), and how precisely THIS construct's
+            # own score could be measured at the depth it got. Using the null
+            # alone put constructs with 25-40 reads in a single sort at the
+            # top of the hit list on effect size, because a shallow construct
+            # has a wide sampling distribution and a large |delta| is
+            # expected of it by chance.
+            var = null_a + (null_b / max(r["reads"], 1)) if null_b or null_a \
+                  else null_sd ** 2
+            denom = math.sqrt(max(var, 1e-9) + r["sd_counting"] ** 2)
+            z = r["delta_bins"] / denom if denom > 0 else 0.0
+            r["z_vs_controls"] = round(z, 4)
+            r["p_value"] = _norm_sf(z)
+    else:
+        basis = "replicate spread"
+        for r in rows:
+            r["z_vs_controls"] = None
+            r["p_value"] = r["p_replicate"]
+
     for r, q in zip(rows, benjamini_hochberg([r["p_value"] for r in rows])):
         r["fdr"] = q
     rows.sort(key=lambda r: (r["p_value"], -abs(r["delta_bins"])))
     return rows, {"sd_floor": round(sd_floor, 4), "n_ref_sd": len(sds),
-                  "centring": centring}
+                  "centring": centring, "null_basis": basis,
+                  "null_sd_from_controls": round(null_sd, 4),
+                  "null_var_constant_a": round(null_a, 6),
+                  "null_var_per_read_b": round(null_b, 3),
+                  "n_controls_for_null": len(ctrl_eff)}
+
+
+def _fit_depth_null(ctrl: "list[tuple[int, float]]",
+                     n_bins: int = 6) -> "tuple[float, float]":
+    """Fit Var(control effect) = a + b/N over depth-quantile bins.
+
+    Returns (a, b), both clamped non-negative. Falls back to (overall
+    variance, 0) when there are too few controls to bin, which is the
+    single-width behaviour this replaces.
+    """
+    pts = sorted(ctrl, key=lambda t: t[0])
+    if len(pts) < n_bins * 4:
+        if len(pts) < 2:
+            return 0.0, 0.0
+        m = sum(e for _n, e in pts) / len(pts)
+        return sum((e - m) ** 2 for _n, e in pts) / (len(pts) - 1), 0.0
+    per = len(pts) // n_bins
+    xs, ys, ws = [], [], []
+    for i in range(n_bins):
+        grp = pts[i * per:] if i == n_bins - 1 else pts[i * per:(i + 1) * per]
+        if len(grp) < 2:
+            continue
+        m = sum(e for _n, e in grp) / len(grp)
+        v = sum((e - m) ** 2 for _n, e in grp) / (len(grp) - 1)
+        inv = sum(1.0 / max(n, 1) for n, _e in grp) / len(grp)
+        xs.append(inv)
+        ys.append(v)
+        ws.append(len(grp))
+    if len(xs) < 2:
+        return (ys[0] if ys else 0.0), 0.0
+    # Weighted least squares for y = a + b x.
+    sw = sum(ws)
+    mx = sum(w * x for w, x in zip(ws, xs)) / sw
+    my = sum(w * y for w, y in zip(ws, ys)) / sw
+    sxx = sum(w * (x - mx) ** 2 for w, x in zip(ws, xs))
+    sxy = sum(w * (x - mx) * (y - my) for w, x, y in zip(ws, xs, ys))
+    b = sxy / sxx if sxx > 0 else 0.0
+    a = my - b * mx
+    return max(a, 0.0), max(b, 0.0)
+
+
+def _is_control(construct_type: "Optional[str]") -> bool:
+    t = (construct_type or "").lower()
+    return any(w in t for w in ("non-targeting", "nontargeting", "control"))
 
 
 # ─── QC and plots ───────────────────────────────────────────────────────────
@@ -397,9 +517,7 @@ def make_plots(out: Path, rows: "list[dict]", qc: "list[dict]",
     # --- effect distribution, controls overlaid ---
     fig, ax = plt.subplots(1, 2, figsize=(13, 4.4))
     eff = np.array([r["delta_bins"] for r in rows])
-    is_ctrl = np.array([any(w in (r["construct_type"] or "").lower()
-                             for w in ("non-targeting", "nontargeting", "control"))
-                         for r in rows])
+    is_ctrl = np.array([_is_control(r["construct_type"]) for r in rows])
     ax[0].hist(eff[~is_ctrl], bins=60, color="#4C72B0", alpha=.85,
                label=f"constructs (n={int((~is_ctrl).sum())})")
     if is_ctrl.any():
@@ -606,8 +724,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     out = OUT_DIR / label
     out.mkdir(parents=True, exist_ok=True)
     cols = ["construct", "target", "construct_type", "n_sorts", "reads",
-            "delta_bins", "sd", "sd_counting", "sd_used", "t", "df",
-            "p_value", "fdr"]
+            "delta_bins", "sd", "sd_counting", "sd_used", "t_replicate",
+            "df", "p_replicate", "z_vs_controls", "p_value", "fdr"]
     with (out / "construct_effects.tsv").open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t",
                             extrasaction="ignore")
@@ -620,9 +738,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         for q in qc:
             w.writerow(q)
 
-    ctrls = [r for r in rows
-             if any(w in (r["construct_type"] or "").lower()
-                     for w in ("non-targeting", "nontargeting", "control"))]
+    ctrls = [r for r in rows if _is_control(r["construct_type"])]
     rs = [c["r"] for c in conc if c["r"] is not None]
     summary = {
         "screen": d["series"], "query_set": args.accession,
@@ -642,7 +758,20 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                  f"{d['bin_letters'][-1] if d['bin_letters'] else '?'}"
                  f"={len(d['bin_letters'])}",
         "direction": "positive delta_bins = sorted into HIGHER expression bins",
-        "test": "two-sided Student t on per-sort centred scores, df = k-1",
+        "test": ("z against the non-targeting control scatter"
+                  if mod["null_basis"] == "controls"
+                  else "two-sided Student t on per-sort centred scores, df = k-1"),
+        "null_basis": mod["null_basis"],
+        "null_sd_from_controls": mod["null_sd_from_controls"],
+        "null_variance_model": f"a={mod['null_var_constant_a']} + "
+                               f"b={mod['null_var_per_read_b']}/reads",
+        "controls_significant": sum(1 for r in ctrls if r["fdr"] < 0.05),
+        "control_false_positive_rate": (
+            round(sum(1 for r in ctrls if r["fdr"] < 0.05) / len(ctrls), 4)
+            if ctrls else None),
+        "biological_replicates": sorted({b for b in
+                                          {x["sort"][0] for x in mod["centring"]}
+                                          if b is not None}),
         "sd_floor": mod["sd_floor"],
         "centring": mod["centring"],
         "sort_concordance_r": {"n_pairs": len(rs),
@@ -662,6 +791,26 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             print(f"  {k}: {json.dumps(v)[:150]}")
         else:
             print(f"  {k}: {v}")
+    # Technical replicates cannot support inference, and this screen's four
+    # "replicates" are flow re-sorts of one biological sample. Say so:
+    # whoever reads the FDR needs to know what population it generalises to.
+    bio = summary["biological_replicates"]
+    if len(bio) < 2:
+        print(f"\n  NOTE: the {len(per_sort)} sorts scored here are flow/"
+              f"technical replicates -- they share one biological replicate"
+              f"{' (' + str(bio[0]) + ')' if bio else ' (none declared)'}. "
+              f"Spread between them measures sorting and sequencing "
+              f"precision, not biological variability, so it is NOT used as "
+              f"the null: with it, {summary['controls_scored']} non-targeting "
+              f"controls behaved like real hits. The reported FDR is "
+              f"calibrated against control scatter instead. Effects "
+              f"generalise to this sample, not to the cell line.")
+    fpr = summary.get("control_false_positive_rate")
+    if fpr is not None and fpr > 0.10:
+        print(f"\n  CAVEAT: {fpr:.1%} of non-targeting controls are "
+              f"themselves significant at FDR 0.05. The null is not "
+              f"calibrated and the hit list should not be trusted as it "
+              f"stands.")
     if len(ctrls) < 20:
         print(f"\n  CAVEAT: {len(ctrls)} control construct(s) scored, too few "
               f"for an empirical null, and each sort was centred on the "
