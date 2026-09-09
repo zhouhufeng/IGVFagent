@@ -45,6 +45,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import hashlib
 import json
 import logging
 import math
@@ -158,18 +159,53 @@ def discover_screen(accession: str) -> dict:
 
 # ─── Guide counting ─────────────────────────────────────────────────────────
 
-def count_guides(accession: str, matcher: dict,
-                  max_reads: Optional[int]) -> "tuple[Counter, int, int]":
+COUNT_CACHE = rp.FASTQ_CACHE.parent / "_counts"
+
+
+def _count_cache_path(accession: str, matcher: dict, key: str,
+                       max_reads: Optional[int]) -> Path:
+    """Where the counts for exactly this library-and-key combination live.
+
+    The library itself is part of the key: a construct table that gains or
+    loses a sequence must not silently reuse counts made against the old one.
+    """
+    sig = hashlib.sha256()
+    sig.update(f"{key}|{max_reads}|".encode())
+    for sq in sorted(matcher["pref"]):
+        sig.update(sq.encode())
+    for v in matcher["pref"].values():
+        sig.update(str(len(v)).encode())
+    return COUNT_CACHE / f"{accession}.{key}.{sig.hexdigest()[:16]}.json"
+
+
+def count_guides(accession: str, matcher: dict, key: str,
+                  max_reads: Optional[int],
+                  reuse: bool = True) -> "tuple[Counter, int, int, bool]":
     """Reads per construct for one library.
 
-    Returns (counts, reads_scanned, reads_assigned) so the caller can report
-    the assignment rate. A rate near zero means the key is wrong for this
-    library -- worth seeing, rather than inferring from an all-zero table.
+    Returns (counts, reads_scanned, reads_assigned, from_cache). The scanned
+    and assigned totals let the caller report an assignment rate: a rate near
+    zero means the key is wrong for this library -- worth seeing, rather than
+    left to be inferred from an all-zero table.
 
-    `lengths` must be longest-first: RT templates nest (a 9 bp template is a
-    prefix of longer ones), and taking the first match found would hand the
-    read to the least specific construct.
+    Counts are cached per (library, counting key, read cap, construct set).
+    Scanning a screen's eight libraries takes about twenty minutes, and every
+    re-analysis at a different --tail or --min-count was repeating all of it
+    to reach numbers that had not changed. FASTQ downloads were already
+    cached; the counting was not.
     """
+    cache = _count_cache_path(accession, matcher, key, max_reads)
+    if reuse and cache.exists():
+        try:
+            d = json.loads(cache.read_text())
+            return (Counter(d["counts"]), int(d["scanned"]),
+                    int(d["assigned"]), True)
+        except (ValueError, KeyError, OSError):
+            # A truncated or hand-edited cache file is not worth a crash, and
+            # not worth trusting either.
+            logging.getLogger(__name__).warning(
+                "ignoring unreadable count cache %s", cache)
+
     comp = str.maketrans("ACGTN", "TGCAN")
     counts: "Counter[str]" = Counter()
     scanned = assigned = 0
@@ -198,7 +234,17 @@ def count_guides(accession: str, matcher: dict,
                 if hit:
                     counts[hit] += 1
                     assigned += 1
-    return counts, scanned, assigned
+    try:
+        COUNT_CACHE.mkdir(parents=True, exist_ok=True)
+        tmp = cache.with_suffix(".json.part")
+        tmp.write_text(json.dumps({"accession": accession, "key": key,
+                                    "max_reads": max_reads,
+                                    "scanned": scanned, "assigned": assigned,
+                                    "counts": dict(counts)}))
+        tmp.replace(cache)      # atomic: never leave a half-written cache
+    except OSError as e:
+        logging.getLogger(__name__).warning("could not cache counts: %s", e)
+    return counts, scanned, assigned, False
 
 
 # ─── Statistics ─────────────────────────────────────────────────────────────
@@ -488,14 +534,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     per_bin: "dict[str, Counter]" = {}
     rates = []
     for b in counted:
-        c, scanned, assigned = count_guides(
-            b["accession"], matcher, args.max_reads)
+        c, scanned, assigned, cached = count_guides(
+            b["accession"], matcher, key["column"], args.max_reads,
+            reuse=not args.recount)
         per_bin[b["accession"]] = c
         rate = assigned / scanned if scanned else 0.0
         rates.append(rate)
         print(f"  Rep{b['rep']} {_bin_label(b):<16}  {scanned:>9,} reads, "
               f"{assigned:>8,} assigned ({rate:>5.1%}), "
-              f"{len(c):>5} of {key['distinct']:,} constructs seen")
+              f"{len(c):>5} of {key['distinct']:,} constructs seen"
+              f"{'  (cached)' if cached else ''}")
     mean_rate = sum(rates) / len(rates) if rates else 0.0
     if mean_rate < 0.02:
         print(f"\n  Only {mean_rate:.1%} of reads carry a known "
@@ -607,6 +655,8 @@ def build_parser() -> argparse.ArgumentParser:
                     "counting key against (default: a bin being scored).")
     a.add_argument("--calibrate-reads", type=int, default=20000,
                     help="Reads sampled to choose the counting key.")
+    a.add_argument("--recount", action="store_true",
+                    help="Ignore cached counts and rescan the FASTQs.")
     a.add_argument("--all-bins", action="store_true",
                     help="Count every library, including bins the tail "
                          "comparison does not use (slower; for QC).")
