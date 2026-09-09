@@ -144,12 +144,21 @@ def discover_screen(accession: str) -> dict:
 
 # ─── Guide counting ─────────────────────────────────────────────────────────
 
-def count_guides(accession: str, spacer_to_id: "dict[str, str]",
-                  lengths: "list[int]", max_reads: Optional[int]) -> Counter:
-    """Reads per guide for one library."""
+def count_guides(accession: str, seq_to_guide: "dict[str, str]",
+                  lengths: "list[int]", max_reads: Optional[int]) -> "tuple[Counter, int, int]":
+    """Reads per construct for one library.
+
+    Returns (counts, reads_scanned, reads_assigned) so the caller can report
+    the assignment rate. A rate near zero means the key is wrong for this
+    library -- worth seeing, rather than inferring from an all-zero table.
+
+    `lengths` must be longest-first: RT templates nest (a 9 bp template is a
+    prefix of longer ones), and taking the first match found would hand the
+    read to the least specific construct.
+    """
     comp = str.maketrans("ACGTN", "TGCAN")
     counts: "Counter[str]" = Counter()
-    n = 0
+    scanned = assigned = 0
     rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
     for f in rp.list_files(accession):
         if str(f.get("file_format", "")).lower() != "fastq":
@@ -163,24 +172,26 @@ def count_guides(accession: str, spacer_to_id: "dict[str, str]",
             for i, line in enumerate(fh):
                 if i % 4 != 1:
                     continue
-                if max_reads and n >= max_reads:
+                if max_reads and scanned >= max_reads:
                     break
-                n += 1
+                scanned += 1
                 seq = line.strip().upper()
-                for s in (seq, seq.translate(comp)[::-1]):
-                    hit = None
-                    for L in lengths:
-                        for off in range(0, len(s) - L + 1):
-                            gid = spacer_to_id.get(s[off:off + L])
+                hit = None
+                for s_ in (seq, seq.translate(comp)[::-1]):
+                    for L in lengths:                 # longest first
+                        for off in range(0, len(s_) - L + 1):
+                            gid = seq_to_guide.get(s_[off:off + L])
                             if gid:
                                 hit = gid
                                 break
                         if hit:
                             break
                     if hit:
-                        counts[hit] += 1
                         break
-    return counts
+                if hit:
+                    counts[hit] += 1
+                    assigned += 1
+    return counts, scanned, assigned
 
 
 # ─── Statistics ─────────────────────────────────────────────────────────────
@@ -348,7 +359,8 @@ def make_plots(out: Path, rows: "list[dict]", per_bin: "dict[str, Counter]",
     # Library depth per bin -- a bin that failed to sequence invalidates its
     # replicate, and that must be visible rather than buried in a summary.
     fig, ax = plt.subplots(figsize=(11, 3.6))
-    labels = [f"R{b['rep']} {b['side'][:3]}{b['pct']}" for b in bins]
+    labels = [f"R{b['rep']} " + ("bulk" if b["side"] == "bulk"
+               else f"{b['side'][:3]}{b['pct']}") for b in bins]
     vals = [sum(per_bin.get(b["accession"], Counter()).values()) for b in bins]
     ax.bar(labels, vals, color="#8172B2")
     ax.set_ylabel("reads assigned to a guide")
@@ -378,6 +390,14 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
+def counted_probe(scr: dict, tail: int) -> str:
+    """A library to calibrate the key against: prefer a bin the scoring uses."""
+    for b in scr["bins"]:
+        if b["side"] in ("bottom", "top") and b["pct"] == tail:
+            return b["accession"]
+    return scr["bins"][0]["accession"]
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     scr = discover_screen(args.accession)
     if "error" in scr:
@@ -392,32 +412,83 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"No guide table: {lib['why']}")
         return 2
     gf = lib["guide_files"][0]
-    guides = rp.load_guide_table(gf["id"] or gf["accession"])
-    if not guides:
-        print(f"Guide table {gf['accession']} parsed to 0 guides.")
+    idx = load_guide_index(gf["id"] or gf["accession"])
+    if not idx["resolved"]:
+        print(f"Guide table {gf['accession']}: {idx['why']}")
         return 2
-    print(f"Guide table: {gf['accession']}  ({len(guides):,} guides)")
+    meta = {"target": idx["target"], "type": idx["type"]}
+    print(f"Guide table: {gf['accession']}  ({idx['n_rows']:,} constructs)")
 
-    # The table's own columns say what each guide targets and whether it is a
-    # control -- far better than parsing the guide name.
-    meta = _guide_metadata(gf["id"] or gf["accession"])
-    spacer_to_id: "dict[str, str]" = {}
-    for gid, sp in guides:
-        spacer_to_id.setdefault(sp, gid)
-    lengths = sorted({len(sp) for sp in spacer_to_id})
+    cal = calibrate_key(idx, (args.key_from or counted_probe(scr, args.tail)),
+                        args.calibrate_reads)
+    if cal["why"]:
+        print(f"  {cal['why']}")
+    if cal["tested"]:
+        print(f"Key calibration on {cal['n_reads']:,} reads "
+              f"({cal['read_len']} bp):")
+        print(f"    {'column':24} {'separates':>11} {'in reads':>9} {'ambig':>7}")
+        for t in sorted(cal["tested"], key=lambda t: -t["rate"]):
+            mark = ("  <- used" if cal["chosen"]
+                    and t["column"] == cal["chosen"]["column"] else "")
+            print(f"    {t['column']:24} {t['fraction']:>10.1%} "
+                  f"{t['rate']:>9.1%} {t['ambiguous']:>7.1%}{mark}")
+    if not cal["chosen"]:
+        print("\n  No candidate sequence column appears in the reads at all. "
+              "Either these FASTQs are not the construct amplicon, or the "
+              "library table describes a different assay. Not guessing.")
+        return 3
+    key = cal["chosen"]
+    seq_to_guide, lengths = key["seq_to_guide"], key["lengths"]
+    print(f"Counting by: {key['column']}  ({key['distinct']:,} distinct "
+          f"sequences, {min(lengths)}-{max(lengths)} bp)")
+    if key["distinct"] < idx["n_rows"] * 0.9:
+        print(f"  WARNING: {key['column']} does not separate all constructs; "
+              f"{idx['n_rows'] - key['distinct']:,} share a sequence with "
+              f"another and their reads cannot be told apart.")
+
+    # Counting a bin means downloading its whole FASTQ and scanning every
+    # read for a spacer, so count only the bins the comparison will use.
+    # This screen has 20 libraries but a bottom20/top20 comparison needs 8;
+    # counting the 40% tails and the bulk bins as well was 2.5x the download
+    # and the CPU for numbers nothing then read.
+    counted = bins if args.all_bins else [
+        b for b in bins if b["side"] in ("bottom", "top") and b["pct"] == args.tail]
+    if not counted:
+        have = ", ".join(_bin_label(b) for b in scr["bin_kinds"])
+        print(f"\nNo bin matches --tail {args.tail}. This screen has: {have}")
+        return 3
+    if len(counted) < len(bins):
+        skip = len(bins) - len(counted)
+        print(f"Counting:    {len(counted)} of {len(bins)} libraries "
+              f"(the {skip} not used by a bottom{args.tail}%/top{args.tail}% "
+              f"comparison are skipped; --all-bins counts them too)")
 
     per_bin: "dict[str, Counter]" = {}
-    for b in bins:
-        c = count_guides(b["accession"], spacer_to_id, lengths, args.max_reads)
+    rates = []
+    for b in counted:
+        c, scanned, assigned = count_guides(
+            b["accession"], seq_to_guide, lengths, args.max_reads)
         per_bin[b["accession"]] = c
-        print(f"  Rep{b['rep']} {b['side']}{b['pct']:<3}  "
-              f"{sum(c.values()):>8,} reads assigned, {len(c):>5} guides seen")
+        rate = assigned / scanned if scanned else 0.0
+        rates.append(rate)
+        print(f"  Rep{b['rep']} {_bin_label(b):<16}  {scanned:>9,} reads, "
+              f"{assigned:>8,} assigned ({rate:>5.1%}), "
+              f"{len(c):>5} of {key['distinct']:,} constructs seen")
+    mean_rate = sum(rates) / len(rates) if rates else 0.0
+    if mean_rate < 0.02:
+        print(f"\n  Only {mean_rate:.1%} of reads carry a known "
+              f"{key['column']}. That is too few to score: the key is probably "
+              f"wrong for this library, or these FASTQs are not the guide "
+              f"amplicon. Refusing to report numbers built on it.")
+        return 3
 
-    rows = score_screen(per_bin, bins, meta["target"], meta["type"],
+    rows = score_screen(per_bin, counted, meta["target"], meta["type"],
                          args.tail, args.min_count)
     if not rows:
-        print(f"\nNo target could be scored. Are both bottom{args.tail}% and "
-              f"top{args.tail}% present for at least one replicate?")
+        have = ", ".join(_bin_label(b) for b in scr["bin_kinds"])
+        print(f"\nNo target could be scored. Scoring needs both bottom"
+              f"{args.tail}% and top{args.tail}% for at least one replicate; "
+              f"this screen has: {have}")
         return 3
 
     label = args.label or f"{time.strftime('%Y%m%d_%H%M%S')}_{scr['series']}"
@@ -434,9 +505,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     with (out / "guide_counts_by_bin.tsv").open("w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
         w.writerow(["guide_id", "target"] +
-                    [f"R{b['rep']}_{b['side']}{b['pct']}" for b in bins])
-        for gid, _sp in guides:
-            row = [per_bin[b["accession"]].get(gid, 0) for b in bins]
+                    [f"R{b['rep']}_{b['side']}{b['pct']}" for b in counted])
+        for gid in sorted(idx["target"]):
+            row = [per_bin[b["accession"]].get(gid, 0) for b in counted]
             if any(row):
                 w.writerow([gid, meta["target"].get(gid, "")] + row)
 
@@ -444,10 +515,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     ctrls = [r for r in rows if "control" in (r["target_type"] or "").lower()]
     summary = {
         "screen": scr["series"], "query_set": args.accession,
-        "libraries": len(bins), "replicates": scr["replicates"],
+        "libraries_in_screen": len(bins), "libraries_counted": len(counted),
+        "bins_present": [_bin_label(b) for b in scr["bin_kinds"]],
+        "replicates": scr["replicates"],
         "tail_compared": f"bottom{args.tail}% vs top{args.tail}%",
         "direction": "positive score = enriched in LOW uptake = variant reduces uptake",
         "guide_table": gf["accession"],
+        "counting_key": key["column"],
+        "constructs_in_library": idx["n_rows"],
+        "constructs_distinguishable": key["distinct"],
+        "read_length": cal["read_len"],
+        "mean_read_assignment_rate": round(mean_rate, 4),
         "targets_scored": len(rows),
         "significant_fdr_0.05": len(sig),
         "controls_scored": len(ctrls),
@@ -455,7 +533,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "min_count": args.min_count,
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
-    plots = make_plots(out, rows, per_bin, bins, args.tail)
+    plots = make_plots(out, rows, per_bin, counted, args.tail)
 
     print()
     for k, v in summary.items():
@@ -473,14 +551,39 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
-def _guide_metadata(file_id: str) -> dict:
-    """guide_id -> intended target and guide type, from the library table."""
+# ─── Guide library index ────────────────────────────────────────────────────
+
+# Sequence columns that can identify a construct, and whether a match against
+# one is specific enough to trust. `barcode` is deliberately absent: the
+# LDLR pegRNA library's barcodes are 6 bp, so its 1,740 barcodes cover 42% of
+# all possible 6-mers -- scanning reads for them matched 100% of reads and
+# 100% of those matches were ambiguous. A barcode is readable only at a known
+# offset in a known amplicon, which the metadata does not give us.
+_KEY_COLUMNS = ("spacer", "protospacer", "rt_template_sequence", "peg_sequence")
+_MIN_KEY_LEN = 10        # shorter than this matches by chance far too often
+
+
+def load_guide_index(file_id: str) -> dict:
+    """Build a sequence -> guide_id index, choosing the discriminating column.
+
+    A CRISPR-KO library has one unique spacer per guide, so the spacer is the
+    counting key. A prime-editing library does NOT: the LDLR pegRNA library
+    has 1,740 constructs sharing just 52 spacers, because the spacer only
+    sets the nick site and the variant lives in the RT template. Counting
+    that library by spacer collapses 1,740 pegRNAs onto 52 keys and then
+    attributes every read to whichever construct happened to be first --
+    confident, precise, meaningless numbers. So pick the key by measuring
+    uniqueness rather than assuming a column.
+    """
     st, obj = rp.portal_json(
         f"{file_id}?format=json" if file_id.startswith("/")
         else f"/tabular-files/{file_id}/?format=json")
     href = (obj or {}).get("href")
-    out = {"target": {}, "type": {}}
+    out = {"resolved": False, "why": "", "key": "", "seq_to_guide": {},
+           "lengths": [], "target": {}, "type": {}, "n_rows": 0,
+           "n_constructs": 0, "candidates": []}
     if not href:
+        out["why"] = f"no href for {file_id}"
         return out
     dest = rp.REF_DIR / "guides" / Path(href).name
     if not dest.exists():
@@ -488,31 +591,138 @@ def _guide_metadata(file_id: str) -> dict:
     text = rp.read_text_maybe_gzip(dest)
     lines = text.splitlines()
     if not lines:
+        out["why"] = f"{dest.name} is empty"
         return out
     delim = max(("\t", ",", ";"), key=lambda d: len(lines[0].split(d)))
-    hdr = [h.strip().lower() for h in lines[0].split(delim)]
+    # csv.reader, not str.split: these tables carry quoted fields containing
+    # commas (putative_target_genes is '["ENSG00000130164"]'), and splitting
+    # naively shifts every column after it.
+    rows = list(csv.reader(lines, delimiter=delim))
+    hdr = [h.strip().lower() for h in rows[0]]
+    idx = {h: i for i, h in enumerate(hdr)}
 
-    def col(*names):
+    def cell(r: "list[str]", *names: str) -> str:
         for n in names:
-            if n in hdr:
-                return hdr.index(n)
-        return None
+            i = idx.get(n)
+            if i is not None and len(r) > i:
+                return r[i].strip()
+        return ""
 
-    gi = col("guide_id", "guide", "name", "id")
-    ti = col("intended_target_name", "target", "genomic_element")
-    ty = col("type", "guide_type", "targeting")
-    for ln in lines[1:]:
-        parts = ln.split(delim)
-        if gi is None or len(parts) <= gi:
+    recs = []
+    for r in rows[1:]:
+        gid = cell(r, "guide_id", "guide", "name", "id")
+        if not gid:
             continue
-        gid = parts[gi].strip()
-        if ti is not None and len(parts) > ti:
-            out["target"][gid] = parts[ti].strip() or gid
-        else:
-            out["target"][gid] = gid
-        if ty is not None and len(parts) > ty:
-            out["type"][gid] = parts[ty].strip()
+        recs.append((gid, r))
+    out["n_rows"] = len(recs)
+    if not recs:
+        out["why"] = f"{dest.name} has no guide_id column or no rows"
+        return out
+
+    # Score every candidate column by how many constructs it separates.
+    for col in _KEY_COLUMNS:
+        if col not in idx:
+            continue
+        seqs = {}
+        for gid, r in recs:
+            v = cell(r, col).upper()
+            if v and len(v) >= _MIN_KEY_LEN and set(v) <= set("ACGTN"):
+                seqs.setdefault(v, gid)
+        if seqs:
+            ls = sorted(len(k) for k in seqs)
+            out["candidates"].append(
+                {"column": col, "distinct": len(seqs),
+                 "fraction": round(len(seqs) / len(recs), 4),
+                 "median_len": ls[len(ls) // 2],
+                 "seq_to_guide": seqs,
+                 # Longest first: RT templates nest, and the first match
+                 # found would otherwise hand the read to the least
+                 # specific construct.
+                 "lengths": sorted(set(ls), reverse=True)})
+    if not out["candidates"]:
+        out["why"] = (f"{dest.name} has no usable sequence column "
+                      f"(looked for {', '.join(_KEY_COLUMNS)})")
+        return out
+    for gid, r in recs:
+        out["target"][gid] = cell(r, "intended_target_name", "target",
+                                  "genomic_element") or gid
+        out["type"][gid] = cell(r, "type", "guide_type", "targeting")
+    # Discrimination first, then shorter sequences: a key longer than the
+    # read can never be found in it. peg_sequence separates this library as
+    # well as rt_template_sequence does, but its entries are 128-134 bp
+    # against 128 bp reads, so choosing it by uniqueness alone would have
+    # produced a 0% assignment rate. calibrate_key() then confirms against
+    # real reads rather than trusting this ordering.
+    out["candidates"].sort(key=lambda c: (-c["distinct"], c["median_len"]))
+    out["resolved"] = True
     return out
+
+
+def calibrate_key(idx: dict, accession: str, sample: int = 20000) -> dict:
+    """Choose the counting key by testing candidates against real reads.
+
+    Uniqueness in the metadata says a key *can* tell constructs apart; only
+    the reads say whether it is *present* to be found. For the LDLR pegRNA
+    library the measured rates are spacer 7% (22% of hits ambiguous),
+    peg_sequence 0% (key longer than the read), rt_template_sequence 62%
+    (0.8% ambiguous) -- a ranking no amount of metadata would have revealed.
+    """
+    comp = str.maketrans("ACGTN", "TGCAN")
+    reads: "list[str]" = []
+    for f in rp.list_files(accession):
+        if str(f.get("file_format", "")).lower() != "fastq":
+            continue
+        name = Path(str(f.get("href") or f.get("accession"))).name
+        dest = rp.FASTQ_CACHE / name
+        if not dest.exists():
+            rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
+            rp.portal_download(f["href"], dest)
+        op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
+        with op(dest, "rt", errors="replace") as fh:       # type: ignore[operator]
+            for i, line in enumerate(fh):
+                if i % 4 == 1:
+                    reads.append(line.strip().upper())
+                    if len(reads) >= sample:
+                        break
+        if reads:
+            break
+    if not reads:
+        return {"chosen": idx["candidates"][0] if idx["candidates"] else None,
+                "read_len": 0, "tested": [],
+                "why": f"no FASTQ reads available from {accession} to calibrate"}
+
+    read_len = Counter(len(r) for r in reads).most_common(1)[0][0]
+    tested = []
+    for c in idx["candidates"]:
+        m, lens = c["seq_to_guide"], c["lengths"]
+        hit = amb = 0
+        for r0 in reads:
+            found = set()
+            for s_ in (r0, r0.translate(comp)[::-1]):
+                for L in lens:
+                    for off in range(0, len(s_) - L + 1):
+                        g = m.get(s_[off:off + L])
+                        if g:
+                            found.add(g)
+                            break
+                    if found:
+                        break
+            if found:
+                hit += 1
+                if len(found) > 1:
+                    amb += 1
+        tested.append({**{k: v for k, v in c.items()
+                          if k not in ("seq_to_guide", "lengths")},
+                       "rate": hit / len(reads),
+                       "ambiguous": amb / max(hit, 1)})
+    # Best assignment rate wins; discrimination breaks near-ties. A key that
+    # is present but cannot separate constructs is useless, and so is one
+    # that separates them but never appears.
+    ranked = sorted(zip(tested, idx["candidates"]),
+                    key=lambda t: (-round(t[0]["rate"], 2), -t[0]["distinct"]))
+    return {"chosen": ranked[0][1] if ranked and ranked[0][0]["rate"] > 0 else None,
+            "read_len": read_len, "tested": tested, "n_reads": len(reads),
+            "why": ""}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -529,6 +739,13 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--min-count", type=int, default=10,
                     help="Minimum combined reads for a guide in a replicate.")
     a.add_argument("--max-reads", type=int, default=None)
+    a.add_argument("--key-from", help="Library accession to calibrate the "
+                    "counting key against (default: a bin being scored).")
+    a.add_argument("--calibrate-reads", type=int, default=20000,
+                    help="Reads sampled to choose the counting key.")
+    a.add_argument("--all-bins", action="store_true",
+                    help="Count every library, including bins the tail "
+                         "comparison does not use (slower; for QC).")
     a.add_argument("--label")
     return p
 
