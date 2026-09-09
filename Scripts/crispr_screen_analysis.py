@@ -49,10 +49,22 @@ ROOT = rp.ROOT
 OUT_DIR = ROOT / "Docs" / "CrisprScreen"
 LOG_DIR = ROOT / "Docs" / "Logs"
 
-# richard-sherwood:18loci_uptake_Rep1_bottom20_ms
+# Bin naming is NOT consistent, even within one lab. Both of these are
+# Sherwood CRISPR FACS screens:
+#   richard-sherwood:18loci_uptake_Rep1_bottom20_ms
+#   richard-sherwood:0426_LDLR137-219_repo_Rep1_Bot20_ms
+# A pattern accepting only "bottom" matched every Top bin of the LDLR screen
+# and none of its Bot bins, so discovery returned 8 of 20 libraries, no
+# replicate had a complete pair, and the run produced nothing. Hence: both
+# spellings, plus low/high, plus the unsorted Bulk bin that screen also has.
 _ALIAS = re.compile(
-    r"(?P<series>[A-Za-z0-9_.\-]+?)_Rep(?P<rep>\d+)_(?P<side>bottom|top)"
-    r"(?P<pct>\d+)", re.I)
+    r"(?P<series>[A-Za-z0-9_.\-]+?)_Rep(?P<rep>\d+)_"
+    r"(?:(?P<side>bottom|bot|low|top|high)(?P<pct>\d+)|(?P<bulk>bulk))",
+    re.I)
+
+# Normalise the spellings onto one internal vocabulary.
+_SIDE_ALIASES = {"bottom": "bottom", "bot": "bottom", "low": "bottom",
+                 "top": "top", "high": "top"}
 
 
 def setup_logging() -> Path:
@@ -65,6 +77,13 @@ def setup_logging() -> Path:
     return log
 
 
+def _bin_label(b: dict) -> str:
+    """Human label for a bin. `bulk` has no percentage, so do not print one."""
+    side = b["side"] if isinstance(b, dict) else b
+    pct = b.get("pct", 0) if isinstance(b, dict) else 0
+    return "bulk (unsorted)" if side == "bulk" else f"{side}{pct}%"
+
+
 def _alias_of(fs: dict) -> str:
     return " ".join(fs.get("aliases") or [])
 
@@ -74,8 +93,14 @@ def parse_alias(alias: str) -> "Optional[dict]":
     if not m:
         return None
     series = m.group("series").split(":")[-1]
+    if m.group("bulk"):
+        # The unsorted population. Not a tail, but the natural denominator
+        # when a screen provides one -- and it must not be mistaken for one.
+        return {"series": series, "rep": int(m.group("rep")),
+                "side": "bulk", "pct": 0}
     return {"series": series, "rep": int(m.group("rep")),
-            "side": m.group("side").lower(), "pct": int(m.group("pct"))}
+            "side": _SIDE_ALIASES[m.group("side").lower()],
+            "pct": int(m.group("pct"))}
 
 
 def discover_screen(accession: str) -> dict:
@@ -110,6 +135,10 @@ def discover_screen(accession: str) -> dict:
     return {"series": meta["series"], "lab": lab, "assay": assay,
             "query_set": accession, "bins": bins,
             "replicates": sorted({b["rep"] for b in bins}),
+            "bin_kinds": sorted(
+                ({"side": s, "pct": p} for s, p in
+                 {(b["side"], b["pct"]) for b in bins}),
+                key=lambda d: (d["side"], d["pct"])),
             "sides": sorted({f"{b['side']}{b['pct']}" for b in bins})}
 
 
@@ -341,11 +370,11 @@ def cmd_discover(args: argparse.Namespace) -> int:
     print(f"Screen:     {scr['series']}")
     print(f"Assay:      {scr['assay']}   Lab: {scr['lab']}")
     print(f"Replicates: {scr['replicates']}")
-    print(f"Bins:       {', '.join(scr['sides'])}")
+    print(f"Bins:       {', '.join(_bin_label(b) for b in scr['bin_kinds'])}")
     print(f"\n{len(scr['bins'])} libraries:")
     for b in scr["bins"]:
         mark = "  <- queried" if b["accession"] == args.accession else ""
-        print(f"  {b['accession']}  Rep{b['rep']} {b['side']}{b['pct']}%{mark}")
+        print(f"  {b['accession']}  Rep{b['rep']} {_bin_label(b)}{mark}")
     return 0
 
 
