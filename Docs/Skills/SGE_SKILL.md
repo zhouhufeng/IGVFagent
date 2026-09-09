@@ -77,3 +77,63 @@ score-along-amplicon) and `sge_coverage.png`.
   mapped onto the amplicon.
 - **No replicate combination.** Each `analyze` scores one replicate pair;
   the published PALB2 analysis combines several.
+
+---
+
+# CRISPR FACS screens (`igvfagent crispr-screen`)
+
+Same principle, different assay. A sorted bin is not analysable alone:
+IGVFDS6464SOVZ is `18loci_uptake_Rep1_bottom20`, one tail of one replicate
+of a base-editing screen in HepG2 sorted on LDL-C uptake. The measurement
+IS the comparison between bins.
+
+```bash
+igvfagent crispr-screen discover IGVFDS6464SOVZ   # find the other 15 bins
+igvfagent crispr-screen analyze  IGVFDS6464SOVZ   # count, compare, score
+igvfagent crispr-screen analyze  IGVFDS6464SOVZ --tail 40
+```
+
+Discovery reads the submitter alias (`..._Rep1_bottom20_ms`), which encodes
+series, replicate and bin. That is a convention rather than a schema, so
+`discover` prints what it matched before any compute is spent.
+
+## Direction, stated everywhere it is computed
+
+Score is `log2(low tail / high tail)`. **Positive = enriched in the LOW
+tail = the variant reduces the sorted phenotype.** The check that this is
+the right way round is `LDLR`: disrupting the LDL receptor should reduce LDL
+uptake, and LDLR guides score **+0.57** — enriched in the low-uptake bin.
+
+## Measured on 18loci_uptake (4 replicates x 4 bins, 0.39 GB)
+
+```
+libraries: 16     targets scored: 1,656     significant (FDR<0.05): 11
+controls scored: 389    of which significant: 4
+```
+
+Correlation with the lab's own published `variant effects`
+(IGVFFI1678CDBR), 1,646 of 1,656 targets in common:
+
+```
+all targets            r = +0.31
+n_guide_obs >=  8      r = +0.33
+n_guide_obs >= 16      r = +0.48
+```
+
+Agreement strengthens with guide support, which is what a genuine but
+noisier reproduction looks like. It is **not** a faithful reimplementation:
+the lab fits a Bayesian model with per-guide editing-efficiency adjustment
+(their `edit_eff` column), while this takes a plain mean of per-replicate
+log2 ratios. Treat the ranking as indicative and the published scores as
+authoritative.
+
+## What is not modelled
+
+- No per-guide editing-efficiency weighting -- the largest known gap, and
+  the most likely reason r is 0.48 rather than higher.
+- One tail pair per run; the two pairs are not combined.
+- Replicates are combined as a mean of log2 ratios with a t-like z, not
+  pooled counts. Pooling would let the deepest-sequenced replicate dominate
+  and would leave no estimate of variability for a p-value.
+- A replicate missing either tail is excluded and named, rather than
+  silently dropped.

@@ -41,8 +41,11 @@ UNKNOWN = "unknown"
 ROUTE_GUIDANCE = {
     TRANSCRIPT: ("transcript quantification then single-cell or bulk analysis",
                  "supported: raw_pipeline_run"),
-    GUIDE: ("per-guide counts, and enrichment between selected populations",
-            "supported: raw_pipeline_guide_count"),
+    GUIDE: ("per-guide counts, then enrichment between the sorted "
+            "populations of the SAME screen -- one bin alone measures "
+            "library composition, not biology",
+            "supported: crispr_screen_analyze for a whole screen, "
+            "raw_pipeline_guide_count for a single library"),
     VARIANT: ("per-variant functional scores from amplicon variant calling",
               "supported for SGE: sge_analyze"),
     ELEMENT: ("per-element activity from barcode counts",

@@ -34,6 +34,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Specialized IGVF assay catalog (Parse SPLiT-seq, etc.)"),
     "explain":          ("igvfagent.data_illustration_interpretation",
                           "Explain an IGVF / ENCODE accession or search URL"),
+    "crispr-screen":    ("igvfagent.crispr_screen_analysis",
+                          "CRISPR FACS screens: reprocess a whole screen "
+                          "(all sorted bins) into per-variant effects"),
     "sge":              ("igvfagent.sge_analysis",
                           "Saturation genome editing: variant counts and "
                           "log2 functional scores from amplicon reads"),

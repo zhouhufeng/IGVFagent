@@ -4620,6 +4620,58 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "crispr_screen_analyze",
+        "★ REPROCESS A WHOLE CRISPR FACS SCREEN FROM RAW READS ★ — give it "
+        "ANY sorted-bin accession and it finds the screen's other bins and "
+        "replicates, counts guides in every library, compares the low tail "
+        "against the high tail per replicate, aggregates guides onto the "
+        "variant each installs, and reports per-variant effects with FDR "
+        "plus a volcano and replicate-agreement plot. USE THIS rather than "
+        "analysing one accession: a single bin is one tail of one replicate "
+        "and the measurement IS the comparison between bins, so counting "
+        "one library alone yields composition and no biology. On "
+        "IGVFDS6464SOVZ it pulls all 16 libraries of the 18loci_uptake "
+        "screen (4 replicates x 4 bins, 0.39 GB) and scores 1,656 targets. "
+        "Positive score = enriched in the LOW tail = the variant reduces "
+        "the sorted phenotype.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "Any sorted-bin MeasurementSet of the screen."},
+                "tail":      {**_S_INTEGER, "default": 20,
+                               "description":
+                               "Which tail pair to compare, e.g. 20 for "
+                               "bottom20% vs top20%."},
+                "min_count": {**_S_INTEGER, "default": 10},
+                "max_reads": {**_S_INTEGER},
+                "label":     {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["crispr-screen", "analyze"],
+        positional=("accession",),
+        flag_map={"tail": "--tail", "min_count": "--min-count",
+                   "max_reads": "--max-reads", "label": "--label"},
+    ),
+    _T(
+        "crispr_screen_discover",
+        "★ WHAT ELSE BELONGS TO THIS CRISPR SCREEN ★ — lists every sorted "
+        "bin and replicate of the screen a given accession belongs to, read "
+        "from the submitter alias (e.g. 18loci_uptake_Rep1_bottom20). Call "
+        "it to show a user why one accession is not analysable alone, or to "
+        "check the screen was identified correctly before spending compute.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["crispr-screen", "discover"],
+        positional=("accession",),
+    ),
+    _T(
         "sge_analyze",
         "★ ANALYSE SATURATION GENOME EDITING (SGE) DATA PROPERLY ★ — the "
         "tool for an SGE / saturation-mutagenesis MeasurementSet, which "
