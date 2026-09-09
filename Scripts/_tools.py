@@ -4674,17 +4674,25 @@ _TOOLS: "list[Tool]" = [
         "crispr_screen_analyze",
         "★ REPROCESS A WHOLE CRISPR FACS SCREEN FROM RAW READS ★ — give it "
         "ANY sorted-bin accession and it finds the screen's other bins and "
-        "replicates, counts guides in every library, compares the low tail "
-        "against the high tail per replicate, aggregates guides onto the "
-        "variant each installs, and reports per-variant effects with FDR "
-        "plus a volcano and replicate-agreement plot. USE THIS rather than "
-        "analysing one accession: a single bin is one tail of one replicate "
-        "and the measurement IS the comparison between bins, so counting "
-        "one library alone yields composition and no biology. On "
-        "IGVFDS6464SOVZ it pulls all 16 libraries of the 18loci_uptake "
-        "screen (4 replicates x 4 bins, 0.39 GB) and scores 1,656 targets. "
-        "Positive score = enriched in the LOW tail = the variant reduces "
-        "the sorted phenotype.",
+        "replicates, counts constructs in the libraries the comparison "
+        "needs, compares the low tail against the high tail per replicate, "
+        "aggregates constructs onto the variant each installs, and reports "
+        "per-variant effects with FDR plus a volcano and "
+        "replicate-agreement plot. USE THIS rather than analysing one "
+        "accession: a single bin is one tail of one replicate and the "
+        "measurement IS the comparison between bins, so counting one "
+        "library alone yields composition and no biology. It handles both "
+        "bin naming conventions in use (bottom20/top20 and Bot20/Top20) and "
+        "the unsorted Bulk bins some screens add. On IGVFDS6464SOVZ it "
+        "pulls the 18loci_uptake screen (4 replicates x 4 bins, 0.39 GB) "
+        "and scores 1,656 targets; on IGVFDS5542IBUS it finds all 20 "
+        "libraries of the LDLR137-219 screen. It also chooses the counting "
+        "key by testing candidates against real reads, so a prime-editing "
+        "library whose 1,741 pegRNAs share 52 spacers is counted by RT "
+        "template rather than collapsed onto the shared spacers -- the "
+        "output states which key was used and what fraction of reads it "
+        "assigned. Positive score = enriched in the LOW tail = the variant "
+        "reduces the sorted phenotype.",
         {
             "type": "object",
             "properties": {
@@ -4696,12 +4704,17 @@ _TOOLS: "list[Tool]" = [
                                "bottom20% vs top20%."},
                 "min_count": {**_S_INTEGER, "default": 10},
                 "max_reads": {**_S_INTEGER},
+                "all_bins":  {**_S_BOOLEAN, "description":
+                               "Also count bins the tail comparison does "
+                               "not use (the other tail, and Bulk). Slower; "
+                               "for QC of library complexity."},
                 "label":     {**_S_STRING},
             },
             "required": ["accession"],
         },
         cli=["crispr-screen", "analyze"],
         positional=("accession",),
+        bool_flags={"all_bins"},
         flag_map={"tail": "--tail", "min_count": "--min-count",
                    "max_reads": "--max-reads", "label": "--label"},
     ),

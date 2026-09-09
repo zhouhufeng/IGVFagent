@@ -44,10 +44,24 @@ else
   USER_="${IGVF_ARANGO_USER:-}"
   PASS_="${IGVF_ARANGO_PASSWORD:-}"
 fi
-[[ -n "$USER_" && -n "$PASS_" ]] || die \
-  "no ArangoDB credentials: $CREDS is absent and IGVF_ARANGO_USER / \
-IGVF_ARANGO_PASSWORD are unset"
-DEX=(docker exec -e "IGVF_ARANGO_USER=$USER_" -e "IGVF_ARANGO_PASSWORD=$PASS_" "$CONTAINER")
+# Prefer credentials the container already holds, from .env.prod. Passing
+# them with `docker exec -e` puts the password in the VM's process list for
+# the life of every call, where any local user can read it with `ps` -- and
+# running this script over ssh with an env prefix puts it there twice. The
+# container gets IGVF_ARANGO_* from Deploy/.env.prod (mode 600), which
+# make-live.sh upserts, so normally no credential needs to travel here at all.
+if docker exec "$CONTAINER" sh -c '[ -n "$IGVF_ARANGO_PASSWORD" ]' 2>/dev/null; then
+  echo "  credentials: already in the container environment (.env.prod)"
+  DEX=(docker exec "$CONTAINER")
+else
+  [[ -n "$USER_" && -n "$PASS_" ]] || die \
+    "no ArangoDB credentials: the container has none, $CREDS is absent, and \
+IGVF_ARANGO_USER / IGVF_ARANGO_PASSWORD are unset. Run Deploy/make-live.sh to \
+put them in .env.prod, which keeps them out of the process list."
+  echo "  credentials: passed per-exec (visible in \`ps\` on this host --" \
+       "run Deploy/make-live.sh to move them into .env.prod)"
+  DEX=(docker exec -e "IGVF_ARANGO_USER=$USER_" -e "IGVF_ARANGO_PASSWORD=$PASS_" "$CONTAINER")
+fi
 
 step "1. Inventory the graph"
 "${DEX[@]}" igvfagent kg-mirror inventory >/dev/null 2>&1 \

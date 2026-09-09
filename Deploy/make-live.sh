@@ -64,6 +64,25 @@ SECRET_KEY=$(printf '%s\n' "$CREDS" | sed -n 2p)
 [[ -n "$ACCESS_KEY" && -n "$SECRET_KEY" ]] || die "empty key pair"
 printf 'key id %s, secret %s chars (never printed)\n' "$ACCESS_KEY" "${#SECRET_KEY}"
 
+step "1b. Read the ArangoDB credentials (optional)"
+# The Knowledge Graph mirror and every live KG query need these. Putting
+# them in .env.prod is what lets Deploy/mirror-kg.sh run without passing a
+# password on a command line, where `ps` on the VM would expose it.
+ARANGO_CREDS="Docs/Secret/ArangoDB-logins.txt"
+ARANGO_USER=""; ARANGO_PASS=""
+if [[ -f "$ARANGO_CREDS" ]]; then
+  ARANGO_USER=$(grep -i '^username:' "$ARANGO_CREDS" | cut -d: -f2  | tr -d ' \r')
+  ARANGO_PASS=$(grep -i '^password:' "$ARANGO_CREDS" | cut -d: -f2- | tr -d ' \r')
+else
+  ARANGO_USER="${IGVF_ARANGO_USER:-}"; ARANGO_PASS="${IGVF_ARANGO_PASSWORD:-}"
+fi
+if [[ -n "$ARANGO_USER" && -n "$ARANGO_PASS" ]]; then
+  printf 'ArangoDB user %s, password %s chars (never printed)\n' \
+    "$ARANGO_USER" "${#ARANGO_PASS}"
+else
+  printf 'none found — the KG mirror will need credentials passed to it\n'
+fi
+
 step "2. Confirm the key actually grants extra visibility"
 COUNTS=$(ACCESS_KEY="$ACCESS_KEY" SECRET_KEY="$SECRET_KEY" python3 - <<'PY'
 import base64, json, os, urllib.request
@@ -112,6 +131,8 @@ set -euo pipefail
 ROOT="$1"
 read -r ACCESS_KEY
 read -r SECRET_KEY
+read -r ARANGO_USER || ARANGO_USER=""
+read -r ARANGO_PASS || ARANGO_PASS=""
 [ -n "$ACCESS_KEY" ] && [ -n "$SECRET_KEY" ] || { echo "empty credentials over stdin" >&2; exit 1; }
 cd "$ROOT/Deploy"
 cp -n .env.prod ".env.prod.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
@@ -127,13 +148,19 @@ upsert() {  # replace in place, else append -- never leave two definitions
 }
 upsert IGVF_ACCESS_KEY        "$ACCESS_KEY"
 upsert IGVF_SECRET_ACCESS_KEY "$SECRET_KEY"
+if [ -n "$ARANGO_USER" ] && [ -n "$ARANGO_PASS" ]; then
+  upsert IGVF_ARANGO_USER     "$ARANGO_USER"
+  upsert IGVF_ARANGO_PASSWORD "$ARANGO_PASS"
+fi
 chmod 600 .env.prod
 echo "IGVF_ACCESS_KEY lines:        $(grep -c '^IGVF_ACCESS_KEY=' .env.prod)"
 echo "IGVF_SECRET_ACCESS_KEY lines: $(grep -c '^IGVF_SECRET_ACCESS_KEY=' .env.prod)"
+echo "IGVF_ARANGO_PASSWORD lines:   $(grep -c '^IGVF_ARANGO_PASSWORD=' .env.prod)"
 REMOTE_SCRIPT_EOF
 )
 REMOTE_B64=$(printf '%s' "$REMOTE_SCRIPT" | base64 | tr -d '\n')
-printf '%s\n%s\n' "$ACCESS_KEY" "$SECRET_KEY" | "${SSH[@]}" \
+printf '%s\n%s\n%s\n%s\n' "$ACCESS_KEY" "$SECRET_KEY" \
+  "$ARANGO_USER" "$ARANGO_PASS" | "${SSH[@]}" \
   "printf %s '$REMOTE_B64' | base64 -d > /tmp/mklive.\$\$.sh && bash /tmp/mklive.\$\$.sh '$REMOTE'; rc=\$?; rm -f /tmp/mklive.\$\$.sh; exit \$rc" \
   || die "could not update .env.prod"
 
@@ -151,7 +178,10 @@ step "6. Verify inside the running container"
 "${SSH[@]}" "set -e; \
   docker exec igvfagent-app python3 -c 'from igvfagent import _credentials as c; d=c.describe(); print(\"credentials:\", d[\"source\"], d[\"key_id\"])'; \
   docker exec igvfagent-app kb --version 2>&1 | grep -i kb_python || echo 'ALIGNER MISSING'; \
-  docker exec igvfagent-app igvfagent portal search --type MeasurementSet --limit 1 2>/dev/null | grep -iE 'total|matches'"
+  docker exec igvfagent-app igvfagent portal search --type MeasurementSet --limit 1 2>/dev/null | grep -iE 'total|matches'; \
+  docker exec igvfagent-app sh -c '[ -n \"\$IGVF_ARANGO_PASSWORD\" ]' \
+    && echo 'ArangoDB credentials: present in the container' \
+    || echo 'ArangoDB credentials: absent (mirror-kg.sh will need them passed in)'"
 
 step "7. Prove the new pipeline works on a real dataset"
 "${SSH[@]}" "docker exec igvfagent-app igvfagent raw-pipeline plan IGVFDS6639ECQN 2>/dev/null \
