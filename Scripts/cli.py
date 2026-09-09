@@ -40,6 +40,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "crispr-screen":    ("igvfagent.crispr_screen_analysis",
                           "CRISPR FACS screens: reprocess a whole screen "
                           "(all sorted bins) into per-variant effects"),
+    "gradient-screen":  ("igvfagent.gradient_screen_analysis",
+                          "FACS screens sorted into lettered expression bins "
+                          "(A-F): mean-bin scores per construct"),
     "sge":              ("igvfagent.sge_analysis",
                           "Saturation genome editing: variant counts and "
                           "log2 functional scores from amplicon reads"),

@@ -32,6 +32,13 @@ TRANSCRIPT = "transcript"      # RNA readout: quantify against a transcriptome
 MULTIMODAL = "multimodal"      # two measurements from the same cell
 GUIDE = "guide"                # reads are an sgRNA library
 VARIANT = "variant"            # amplicon of a variant library (SGE/MAVE)
+# A FACS-sorted CRISPR screen read out by sequencing alleles. Distinct from
+# VARIANT: the measurement is how an allele's frequency SHIFTS between sorted
+# bins, so it needs the screen's sibling bins, which sge_analyze neither
+# gathers nor compares. Routing these to VARIANT sent 590 measurement sets to
+# a tool that answers "No editing-template design reachable" -- the library
+# publishes prime-editing guide sequences, not an SGE editing template.
+SORTED_ALLELIC = "sorted_allelic"
 ELEMENT = "element"            # MPRA/STARR: element activity from barcodes
 CHROMATIN = "chromatin"        # ATAC/ChIP/Hi-C: genomic, not transcript
 GENOME = "genome"              # WGS/methylation
@@ -53,6 +60,12 @@ ROUTE_GUIDANCE = {
             "raw_pipeline_guide_count for a single library"),
     VARIANT: ("per-variant functional scores from amplicon variant calling",
               "supported for SGE: sge_analyze"),
+    SORTED_ALLELIC: (
+        "per-variant scores from how allele frequencies shift across the "
+        "screen's sorted bins",
+        "supported: crispr_screen_analyze for a bottom/top tail sort; "
+        "gradient_screen_analyze for a letter-bin expression gradient. Both "
+        "need the screen's sibling bins -- one bin alone measures nothing"),
     ELEMENT: ("per-element activity from barcode counts",
               "partially supported: the mpra_* and starr_* tools"),
     CHROMATIN: ("peak or contact analysis against the genome, not a "
@@ -72,8 +85,12 @@ READOUT = {
     "grna sequencing": GUIDE,                       # 560
     "sgrna sequencing": GUIDE,
     "guide sequencing": GUIDE,
-    "endogenous allelic sequencing": VARIANT,       # 535
-    "exogenous allelic sequencing": VARIANT,        # 55
+    # Both are FACS-sorted screens (assay_term "in vitro CRISPR screen using
+    # flow cytometry"), not SGE. 398 of the endogenous ones are letter-bin
+    # gradients (BinA..BinF) and 20 are tail sorts; all 55 exogenous ones are
+    # tail sorts.
+    "endogenous allelic sequencing": SORTED_ALLELIC,   # 535
+    "exogenous allelic sequencing": SORTED_ALLELIC,    # 55
 }
 
 # preferred_assay_titles / assay_titles -> route.
@@ -108,7 +125,9 @@ ASSAY = {
     # --- variant libraries ----------------------------------------------
     "sge": VARIANT,                                 # 1167
     "immune-sge": VARIANT,                          # 841
-    "variant-effects": VARIANT,                     # 488
+    # All 488 carry an allelic-sequencing readout, so READOUT decides them
+    # first; this keeps the title map honest if one ever omits the readout.
+    "variant-effects": SORTED_ALLELIC,              # 488
     "label-seq": VARIANT,                           # 196
     "vamp-seq (multistep)": VARIANT,                # 144
     "vamp-seq": VARIANT,                            # 56
@@ -200,5 +219,6 @@ def coverage() -> dict:
 
 
 __all__ = ["classify", "coverage", "ASSAY", "READOUT", "ROUTE_GUIDANCE",
+            "SORTED_ALLELIC",
            "TRANSCRIPT", "MULTIMODAL", "GUIDE", "VARIANT", "ELEMENT",
            "CHROMATIN", "GENOME", "PROTEIN", "UNKNOWN"]

@@ -162,92 +162,6 @@ def discover_screen(accession: str) -> dict:
 
 # ─── Guide counting ─────────────────────────────────────────────────────────
 
-COUNT_CACHE = rp.FASTQ_CACHE.parent / "_counts"
-
-
-def _count_cache_path(accession: str, matcher: dict, key: str,
-                       max_reads: Optional[int],
-                       read_types: "Optional[list[str]]" = None) -> Path:
-    """Where the counts for exactly this library-and-key combination live.
-
-    The library itself is part of the key: a construct table that gains or
-    loses a sequence must not silently reuse counts made against the old one.
-    """
-    sig = hashlib.sha256()
-    sig.update(f"{key}|{max_reads}|{','.join(read_types or ['*'])}|".encode())
-    for sq in sorted(matcher["pref"]):
-        sig.update(sq.encode())
-    for v in matcher["pref"].values():
-        sig.update(str(len(v)).encode())
-    return COUNT_CACHE / f"{accession}.{key}.{sig.hexdigest()[:16]}.json"
-
-
-def count_guides(accession: str, matcher: dict, key: str,
-                  max_reads: Optional[int], reuse: bool = True,
-                  read_types: "Optional[list[str]]" = None
-                  ) -> "tuple[Counter, int, int, bool]":
-    """Reads per construct for one library.
-
-    Returns (counts, reads_scanned, reads_assigned, from_cache). The scanned
-    and assigned totals let the caller report an assignment rate: a rate near
-    zero means the key is wrong for this library -- worth seeing, rather than
-    left to be inferred from an all-zero table.
-
-    Counts are cached per (library, counting key, read cap, construct set).
-    Scanning a screen's eight libraries takes about twenty minutes, and every
-    re-analysis at a different --tail or --min-count was repeating all of it
-    to reach numbers that had not changed. FASTQ downloads were already
-    cached; the counting was not.
-    """
-    cache = _count_cache_path(accession, matcher, key, max_reads, read_types)
-    if reuse and cache.exists():
-        try:
-            d = json.loads(cache.read_text())
-            return (Counter(d["counts"]), int(d["scanned"]),
-                    int(d["assigned"]), True)
-        except (ValueError, KeyError, OSError):
-            # A truncated or hand-edited cache file is not worth a crash, and
-            # not worth trusting either.
-            logging.getLogger(__name__).warning(
-                "ignoring unreadable count cache %s", cache)
-
-    comp = str.maketrans("ACGTN", "TGCAN")
-    counts: "Counter[str]" = Counter()
-    scanned = assigned = 0
-    rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
-    for f in rp.biological_fastqs(accession, read_types):
-        name = Path(str(f.get("href") or f.get("accession"))).name
-        dest = rp.FASTQ_CACHE / name
-        if not dest.exists():
-            rp.portal_download(f["href"], dest)
-        op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
-        with op(dest, "rt", errors="replace") as fh:        # type: ignore[operator]
-            for i, line in enumerate(fh):
-                if i % 4 != 1:
-                    continue
-                if max_reads and scanned >= max_reads:
-                    break
-                scanned += 1
-                seq = line.strip().upper()
-                hit = None
-                for s_ in (seq, seq.translate(comp)[::-1]):
-                    hit = rp.match_read(s_, matcher)
-                    if hit:
-                        break
-                if hit:
-                    counts[hit] += 1
-                    assigned += 1
-    try:
-        COUNT_CACHE.mkdir(parents=True, exist_ok=True)
-        tmp = cache.with_suffix(".json.part")
-        tmp.write_text(json.dumps({"accession": accession, "key": key,
-                                    "max_reads": max_reads,
-                                    "scanned": scanned, "assigned": assigned,
-                                    "counts": dict(counts)}))
-        tmp.replace(cache)      # atomic: never leave a half-written cache
-    except OSError as e:
-        logging.getLogger(__name__).warning("could not cache counts: %s", e)
-    return counts, scanned, assigned, False
 
 
 # ─── Statistics ─────────────────────────────────────────────────────────────
@@ -571,7 +485,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     per_bin: "dict[str, Counter]" = {}
     rates = []
     for b in counted:
-        c, scanned, assigned, cached = count_guides(
+        c, scanned, assigned, cached = rp.count_guides(
             b["accession"], matcher, key["column"], args.max_reads,
             reuse=not args.recount, read_types=cal.get("read_type"))
         per_bin[b["accession"]] = c

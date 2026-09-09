@@ -4736,6 +4736,64 @@ _TOOLS: "list[Tool]" = [
         positional=("accession",),
     ),
     _T(
+        "gradient_screen_analyze",
+        "★ ANALYSE A FACS SCREEN SORTED INTO LETTERED EXPRESSION BINS ★ — "
+        "for a screen whose bins are BinA..BinF rather than a bottom/top "
+        "tail pair. 554 MeasurementSets on the Portal have this shape and no "
+        "other tool fits them: crispr_screen_analyze compares two tails, "
+        "while this computes each construct's frequency-weighted MEAN BIN "
+        "across all six, which is the construct's centre of mass along the "
+        "expression axis. Give it ANY bin of the screen and it finds the "
+        "rest through the shared construct library plus the alias series, "
+        "counts every bin, centres each sort on its non-targeting controls "
+        "so re-drawn gates do not read as biology, and reports per-construct "
+        "delta-mean-bin with FDR plus QC and plots. Covers both families: "
+        "Variant-EFFECTS / prime-editing read out by allelic sequencing "
+        "(e.g. IGVFDS3899ANMJ, PPIF promoter, 66 sets over 11 sorts) and "
+        "CRISPR FlowFISH read out by gRNA sequencing (e.g. IGVFDS8710ZSOZ, "
+        "KITLG, 24 sets over 4 flow replicates). Positive delta_bins = "
+        "sorted into HIGHER expression bins. USE THIS rather than "
+        "raw_pipeline_run, which correctly refuses these reads, and rather "
+        "than sge_analyze, which wants an SGE editing-template design these "
+        "libraries do not publish.",
+        {
+            "type": "object",
+            "properties": {
+                "accession":  {**_S_STRING, "description":
+                                "Any lettered-bin MeasurementSet of the screen."},
+                "min_count":  {**_S_INTEGER, "default": 20,
+                                "description":
+                                "Minimum total reads for a construct in a sort."},
+                "max_reads":  {**_S_INTEGER, "description":
+                                "Cap reads scanned per library."},
+                "max_sorts":  {**_S_INTEGER, "description":
+                                "Score only the first N sorts, for a quick look."},
+                "label":      {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["gradient-screen", "analyze"],
+        positional=("accession",),
+        flag_map={"min_count": "--min-count", "max_reads": "--max-reads",
+                   "max_sorts": "--max-sorts", "label": "--label"},
+    ),
+    _T(
+        "gradient_screen_discover",
+        "★ WHAT ELSE BELONGS TO THIS LETTERED-BIN SCREEN ★ — lists every bin "
+        "and sort of the screen a given accession belongs to, reading the "
+        "submitter alias (e.g. CRUDO_KITLG-Auxin6hrs-FF2-BinC, or "
+        "PPIF_promoter-BioRep3-FFrep3-BinF). Call it to show a user why one "
+        "bin is not analysable alone, or to check the screen and its "
+        "replicate structure before spending compute.",
+        {
+            "type": "object",
+            "properties": {"accession": {**_S_STRING}},
+            "required": ["accession"],
+        },
+        cli=["gradient-screen", "discover"],
+        positional=("accession",),
+    ),
+    _T(
         "sge_analyze",
         "★ ANALYSE SATURATION GENOME EDITING (SGE) DATA PROPERLY ★ — the "
         "tool for an SGE / saturation-mutagenesis MeasurementSet, which "
