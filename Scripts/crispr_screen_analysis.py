@@ -505,7 +505,10 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                 w.writerow([gid, meta["target"].get(gid, "")] + row)
 
     sig = [r for r in rows if r["fdr"] < 0.05]
-    ctrls = [r for r in rows if "control" in (r["target_type"] or "").lower()]
+    # Both spellings: this metadata uses "non-targeting", others "control".
+    ctrls = [r for r in rows
+             if any(w in (r["target_type"] or "").lower()
+                    for w in ("control", "non-targeting", "nontargeting"))]
     summary = {
         "screen": scr["series"], "query_set": args.accession,
         "libraries_in_screen": len(bins), "libraries_counted": len(counted),
@@ -522,6 +525,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "targets_scored": len(rows),
         "significant_fdr_0.05": len(sig),
         "controls_scored": len(ctrls),
+        "control_null_usable": len(ctrls) >= 20,
         "controls_significant": sum(1 for r in ctrls if r["fdr"] < 0.05),
         "min_count": args.min_count,
     }
@@ -531,6 +535,19 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     print()
     for k, v in summary.items():
         print(f"  {k}: {v}")
+    # A screen with a handful of non-targeting constructs cannot support an
+    # empirical null, and saying so matters: the FDR below then rests entirely
+    # on the spread between replicates. The LDLR library carries exactly one
+    # non-targeting construct in 1,741, which reads as a control column being
+    # present without being usable.
+    if len(ctrls) < 20:
+        print(f"\n  CAVEAT: only {len(ctrls)} non-targeting control(s) were "
+              f"scored, too few for an empirical null. The FDR above comes "
+              f"from the spread across replicates alone, so it measures "
+              f"consistency between replicates, not the false-discovery rate "
+              f"you would get by calibrating against constructs known to do "
+              f"nothing. Treat the ranking as more trustworthy than the "
+              f"absolute q-values.")
     print(f"\nTop 10 by significance:")
     print(f"  {'target':34} {'type':18} {'log2':>7} {'n':>4} {'fdr':>9}")
     for r in rows[:10]:
