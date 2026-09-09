@@ -78,7 +78,12 @@ PLAN_GB=$(awk -F'\t' '{s+=$2} END{printf "%.1f", s}' /tmp/kg_plan.txt)
 TOTAL_COLS=$(( $(wc -l < "$INV" | tr -d ' ') - 1 ))
 echo "  $TOTAL_COLS collections in the graph"
 echo "  $PLANNED fit within the ${BUDGET_GB} GB budget  (~${PLAN_GB} GB)"
-echo "  excluded (too large): $(awk -F'\t' 'NR>1{print $1}' "$INV" | comm -23 <(awk -F'\t' 'NR>1{print $1}' "$INV" | sort) <(cut -f1 /tmp/kg_plan.txt | sort) | tr '\n' ' ')" 2>/dev/null || true
+# The inventory is COMMA separated while the plan is tab separated; using
+# one field separator for both printed the entire CSV as "excluded".
+EXCLUDED=$(comm -23 \
+  <(awk -F',' 'NR>1{print $2}' "$INV" | sort) \
+  <(cut -f1 /tmp/kg_plan.txt | sort) | tr '\n' ' ')
+echo "  excluded (too large for the budget): ${EXCLUDED:-none}"
 df -h /mnt/igvf-data | awk 'NR>1{printf "  volume: %s used of %s (%s), %s free\n", $3,$2,$5,$4}'
 
 if [[ "$CHECK_ONLY" == 1 ]]; then
