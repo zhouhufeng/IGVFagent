@@ -2100,6 +2100,13 @@ def main() -> None:
                 if entry.get("meta"):
                     st.caption(entry["meta"])
 
+        # The turn about to run renders HERE, inside the tab and directly
+        # after the replayed transcript. Without this it was emitted at page
+        # level -- after the whole tabs widget -- so a question and its
+        # answer appeared detached from the conversation, and the question
+        # looked like it had never been asked.
+        st.session_state["_turn_area"] = st.container()
+
         # Suggestions on first load
         if not st.session_state.messages:
             st.info(
@@ -2196,11 +2203,13 @@ def main() -> None:
         pre_errors.append("`OPENAI_API_KEY` is not set.")
 
     st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
+    turn = st.session_state.get("_turn_area") or st.container()
+    with turn:
+        with st.chat_message("user"):
+            st.markdown(query)
 
     if pre_errors:
-        with st.chat_message("assistant"):
+        with turn.chat_message("assistant"):
             st.error("Pre-flight check blocked the run:")
             for e in pre_errors:
                 st.markdown(f"- {e}")
@@ -2216,7 +2225,7 @@ def main() -> None:
         })
         return
 
-    with st.chat_message("assistant"):
+    with turn.chat_message("assistant"):
         for w in pre_warnings:
             st.warning(w)
         # Live event stream container
