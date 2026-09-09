@@ -938,9 +938,40 @@ _PROJECT_ROOT = Path(
 ).resolve()
 
 
+# Output DIRECTORIES as an answer names them -- "Visualizations (in
+# Docs/SingleCell/<run>/Plots/)" -- carry no file extension, so the
+# extension-keyed patterns below never match them. An answer that then lists
+# bare filenames underneath gives the renderer nothing at all: the filenames
+# have no directory and the directory has no extension. That is how six
+# existing plots were described in prose and none of them displayed.
+_OUTPUT_DIR_IN_TEXT = re.compile(r"(?:/workspace/)?((?:Docs|Data)/[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)*)")
+
+
 def _extract_paths_from_text(text: str) -> "list[str]":
     found: "list[str]" = []
     seen: "set[str]" = set()
+    # Directories are collected separately, because the final filter below
+    # is filter_artifacts(), whose default demands a regular FILE -- a
+    # directory passed through it is dropped as "not a regular file", which
+    # is what silently discarded the run folder on the first attempt. They
+    # are vetted with require_file=False, the guard's own provision for
+    # callers handling a run directory, then appended after that filter.
+    dirs: "list[str]" = []
+    for m in _OUTPUT_DIR_IN_TEXT.finditer(text or ""):
+        rel = m.group(1).rstrip("/")
+        if rel in seen:
+            continue
+        cand = Path(rel)
+        if not cand.is_absolute():
+            cand = _PROJECT_ROOT / rel
+        try:
+            if not cand.is_dir():
+                continue
+            if _pathguard.why_blocked(cand, require_file=False) is None:
+                seen.add(rel)
+                dirs.append(str(cand))
+        except OSError:
+            continue
     for rx in (_PATH_IN_TICKS, _BARE_ABS_PATH, _BARE_REL_PATH):
         for m in rx.finditer(text or ""):
             p = m.group(1).strip()
@@ -963,7 +994,7 @@ def _extract_paths_from_text(text: str) -> "list[str]":
     # extension, including ones outside the workspace and credential files
     # inside it. Everything the UI renders funnels through here, so this is
     # the one place the guard has to hold. See Scripts/_pathguard.py.
-    return _pathguard.filter_artifacts(found)
+    return _pathguard.filter_artifacts(found) + dirs
 
 
 def _download_button(path: str, key_hint: str = "") -> None:
