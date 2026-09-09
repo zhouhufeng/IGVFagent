@@ -62,6 +62,7 @@ import raw_data_pipeline as rp                                # noqa: E402
 
 ROOT = rp.ROOT
 OUT_DIR = ROOT / "Docs" / "CrisprScreen"
+_LN2 = math.log(2.0)
 LOG_DIR = ROOT / "Docs" / "Logs"
 
 # Bin naming is NOT consistent, even within one lab. Both of these are
@@ -350,8 +351,8 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
         print(f"  NOTE: replicate(s) {skipped} lack a complete "
               f"bottom{low_pct}%/top{low_pct}% pair and are excluded. "
               f"Scoring uses replicates {usable}.")
-    # guide -> [log2 ratio per replicate]
-    ratios: "dict[str, list[float]]" = defaultdict(list)
+    # guide -> [(log2 ratio, counting-noise variance of that ratio), ...]
+    ratios: "dict[str, list[tuple[float, float]]]" = defaultdict(list)
     for rep in usable:
         lo = next((b for b in bins if b["rep"] == rep and b["side"] == "bottom"
                     and b["pct"] == low_pct), None)
@@ -369,28 +370,40 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
                 continue
             # +0.5 so a guide absent from one tail still yields a finite,
             # bounded ratio instead of being dropped or becoming infinite.
-            ratios[g].append(math.log2(((a + 0.5) / tlo) / ((b_ + 0.5) / thi)))
+            lr = math.log2(((a + 0.5) / tlo) / ((b_ + 0.5) / thi))
+            # Counting noise alone puts a floor under how precise this ratio
+            # can be. By the delta method, a log2 count has variance
+            # 1/(n ln2^2), so the log2 ratio of two counts has variance
+            # (1/a + 1/b)/ln2^2. A variant observed 50 times cannot be
+            # measured to 0.001 no matter how well its replicates agree.
+            pvar = (1.0 / (a + 0.5) + 1.0 / (b_ + 0.5)) / (_LN2 ** 2)
+            ratios[g].append((lr, pvar))
 
     # Aggregate guides onto the variant each installs.
-    by_target: "dict[str, list[float]]" = defaultdict(list)
+    by_target: "dict[str, list[tuple[float, float]]]" = defaultdict(list)
     tgt_type: "dict[str, str]" = {}
-    for g, vals in ratios.items():
+    for g, obs in ratios.items():
         t = guide_target.get(g)
         if not t:
             continue
-        by_target[t].extend(vals)
+        by_target[t].extend(obs)
         tgt_type.setdefault(t, guide_type.get(g, ""))
 
     stats_by_target = {}
-    for t, vals in by_target.items():
-        k = len(vals)
+    for t, obs in by_target.items():
+        k = len(obs)
+        vals = [v for v, _pv in obs]
         mean = sum(vals) / k
         if k > 1:
             var = sum((v - mean) ** 2 for v in vals) / (k - 1)
             sd = math.sqrt(var)
         else:
             sd = float("nan")
-        stats_by_target[t] = (k, mean, sd)
+        # The counting-noise sd this target's own read depths imply for the
+        # mean of k observations, converted back to an sd on the same scale
+        # as the empirical sd so the two can be compared directly.
+        sd_count = math.sqrt(sum(pv for _v, pv in obs) / k)
+        stats_by_target[t] = (k, mean, sd, sd_count)
 
     # Variance moderation. Even under the t distribution, a target whose few
     # observations happen to agree almost exactly gets an sd near zero and a
@@ -399,14 +412,18 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
     # from targets with k >= 3 because their sd is the better estimate. This
     # is the idea behind limma's variance moderation, at its simplest: the
     # screen's own spread is a prior on how quiet a target can plausibly be.
-    ref_sds = [sd for k, _m, sd in stats_by_target.values()
+    ref_sds = [sd for k, _m, sd, _sc in stats_by_target.values()
                if k >= 3 and not math.isnan(sd) and sd > 0]
     sd_floor = _percentile(ref_sds, 0.10) if ref_sds else 0.0
 
     rows = []
-    for t, (k, mean, sd) in stats_by_target.items():
+    for t, (k, mean, sd, sd_count) in stats_by_target.items():
         if k > 1:
-            sd_used = max(sd, sd_floor)
+            # Three lower bounds, whichever binds hardest. The empirical
+            # floor needs k >= 3 targets to exist at all, and a screen with
+            # only two replicates has none -- there the counting-noise floor
+            # is the whole protection, which is why it is not optional.
+            sd_used = max(sd, sd_floor, sd_count)
             se = sd_used / math.sqrt(k)
             tstat = mean / se if se > 0 else 0.0
             # df = k-1, the honest degrees of freedom for k observations.
@@ -417,6 +434,7 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
         rows.append({"target": t, "target_type": tgt_type.get(t, ""),
                       "n_guide_obs": k, "mean_log2_low_over_high": round(mean, 4),
                       "sd": None if math.isnan(sd) else round(sd, 4),
+                      "sd_counting": round(sd_count, 4),
                       "sd_used": None if math.isnan(sd_used) else round(sd_used, 4),
                       "t": round(tstat, 4), "df": max(k - 1, 0),
                       "p_value": pval})
@@ -649,8 +667,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     out = OUT_DIR / label
     out.mkdir(parents=True, exist_ok=True)
     cols = ["target", "target_type", "n_guide_obs",
-            "mean_log2_low_over_high", "sd", "sd_used", "t", "df",
-            "p_value", "fdr"]
+            "mean_log2_low_over_high", "sd", "sd_counting", "sd_used",
+            "t", "df", "p_value", "fdr"]
     with (out / "variant_effects.tsv").open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t",
                             extrasaction="ignore")

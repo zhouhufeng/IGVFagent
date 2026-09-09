@@ -133,11 +133,26 @@ v = next(r for r in rows if r["target"] == "V")
 check("a replicate lacking one tail is excluded", v["n_guide_obs"] == 3,
       f"n={v['n_guide_obs']}")
 
+# A two-replicate screen has no k>=3 targets, so the empirical variance
+# floor has nothing to estimate from and degenerates to zero. This case was
+# written expecting the t distribution to carry the correction alone, and it
+# FAILED at p = 1.5e-5 -- Cauchy tails are heavy, but not heavy enough when
+# an sd of 1e-5 sends |t| past 40,000. That is what the counting-noise floor
+# is for: it is per-target, needs no reference distribution, and binds here.
+per_bin, bins = synth({"g_quiet": [(2000, 400), (2010, 402)]}, reps=(1, 2))
+rows, mod = cs.score_screen(per_bin, bins,
+                            {"g_quiet": "V", "filler": "F"}, {}, 20, 10)
+v = next(r for r in rows if r["target"] == "V")
+check("2-replicate screen: no floor available", mod["sd_floor"] == 0.0,
+      f"floor={mod['sd_floor']} from n={mod['n_ref_sd']}")
+check("2-replicate screen: counting-noise floor prevents p~0",
+      v["p_value"] > 1e-3, f"n={v['n_guide_obs']} p={v['p_value']:.3e}")
+
 # BH must stay monotone and bounded.
 qs = cs.benjamini_hochberg([0.001, 0.01, 0.02, 0.5, 0.9])
 check("BH is monotone non-decreasing",
       all(qs[i] <= qs[i + 1] + 1e-12 for i in range(len(qs) - 1)), f"{qs}")
 check("BH q-values stay <= 1", all(q <= 1.0 + 1e-12 for q in qs))
 
-print(f"\n{22} cases, {len(FAILURES)} failure(s)")
+print(f"\n{24} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
