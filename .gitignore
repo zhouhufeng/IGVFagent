@@ -94,6 +94,15 @@ Docs/SHAREseq/2*
 Docs/STARRseq/2*
 Docs/FlowFISH/2*
 Docs/SingleCell/2*
+
+# Analysis output roots added with the raw-data pipelines. Everything under
+# these is generated -- timestamped run directories, TSVs, PNGs -- and none
+# of it has ever been tracked, unlike Docs/CRISPRi and friends above, which
+# hold hand-written notes beside their 2* run dirs and so ignore only those.
+Docs/CrisprScreen/
+Docs/SGE/
+Docs/MCT/
+Docs/RawPipeline/
 Docs/EnhancerGene/2*
 Docs/VariantAnnotation/2*
 Docs/Multiome10x/2*
