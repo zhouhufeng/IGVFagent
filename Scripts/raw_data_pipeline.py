@@ -374,6 +374,42 @@ def match_read(seq: str, m: dict) -> "Optional[str]":
     return best_gid
 
 
+def biological_fastqs(accession: str,
+                       read_types: "Optional[list[str]]" = None) -> "list[dict]":
+    """The FASTQs that carry biological sequence, index reads excluded.
+
+    A sequencing run publishes the sample indexes as FASTQs too, and the
+    Portal returns them in no guaranteed order. IGVFDS3899ANMJ lists them
+    FIRST -- ['I1', 'I2', 'R2', 'R1', ...] -- so any code that took files in
+    listing order calibrated its counting key against 8 bp index reads,
+    found 0% of every candidate, and concluded the dataset was not
+    analysable. Against that dataset's real 150 bp reads the RT template is
+    present in 65.5% of them.
+
+    illumina_read_type is the Portal's own statement of the role, so it is
+    what gets used. When no file declares one, every FASTQ is returned
+    rather than none: a missing field must not empty the list.
+    """
+    fq = [f for f in list_files(accession)
+          if str(f.get("file_format", "")).lower() == "fastq"]
+    typed = [f for f in fq if str(f.get("illumina_read_type") or "").strip()]
+    if not typed:
+        return fq
+    bio = [f for f in typed
+           if str(f["illumina_read_type"]).strip().upper() not in
+           ("I1", "I2", "I5", "I7")]
+    # Sort R1 before R2 so behaviour does not depend on listing order.
+    bio.sort(key=lambda f: str(f.get("illumina_read_type") or ""))
+    if read_types:
+        want = {r.strip().upper() for r in read_types}
+        sel = [f for f in bio
+               if str(f.get("illumina_read_type") or "").strip().upper() in want]
+        # Never return nothing because a caller asked for a mate this
+        # library does not have; fall back to every biological read.
+        return sel or bio or fq
+    return bio or fq
+
+
 def load_guide_index(file_id: str) -> dict:
     """Build a sequence -> guide_id index, choosing the discriminating column.
 
@@ -470,18 +506,35 @@ def load_guide_index(file_id: str) -> dict:
 
 
 def calibrate_key(idx: dict, accession: str, sample: int = 20000) -> dict:
-    """Choose the counting key by testing candidates against real reads.
+    """Choose the counting key AND the read that carries it, from real reads.
 
-    Uniqueness in the metadata says a key *can* tell constructs apart; only
-    the reads say whether it is *present* to be found. For the LDLR pegRNA
-    library the measured rates are spacer 7% (22% of hits ambiguous),
+    Two things get measured here, because assuming either one has already
+    been wrong.
+
+    WHICH KEY. Uniqueness in the metadata says a key *can* tell constructs
+    apart; only the reads say whether it is *present* to be found. For the
+    LDLR pegRNA library: spacer 7% of reads (22% of hits ambiguous),
     peg_sequence 0% (key longer than the read), rt_template_sequence 62%
-    (0.8% ambiguous) -- a ranking no amount of metadata would have revealed.
+    (0% ambiguous). No amount of metadata would have produced that ranking.
+
+    WHICH READ. A paired-end amplicon does not necessarily carry the
+    construct in both mates. IGVFDS3899ANMJ, an endogenous-allelic-sequencing
+    readout of prime-edited PPIF promoter, carries the RT template in 65.5%
+    of its R2 reads and 0.0% of its R1 reads -- the edit sits at one end of
+    an amplicon longer than 2x150 bp. Sampling only the first file, which is
+    what this used to do, calibrated on R1, measured zero for every
+    candidate, and declared the dataset unanalysable. Counting both mates
+    would instead have halved the apparent rate for nothing.
+
+    Returns `chosen` (the key), `read_type` (the mate to count, or None for
+    all of them) and `tested`, a row per (read type, candidate) pair.
     """
     comp = str.maketrans("ACGTN", "TGCAN")
-    reads: "list[str]" = []
-    for f in list_files(accession):
-        if str(f.get("file_format", "")).lower() != "fastq":
+    # Reads grouped by the mate they came from, so each can be judged.
+    by_type: "dict[str, list[str]]" = {}
+    for f in biological_fastqs(accession):
+        rt = str(f.get("illumina_read_type") or "R?").strip().upper()
+        if len(by_type.get(rt, [])) >= sample:
             continue
         name = Path(str(f.get("href") or f.get("accession"))).name
         dest = FASTQ_CACHE / name
@@ -489,46 +542,66 @@ def calibrate_key(idx: dict, accession: str, sample: int = 20000) -> dict:
             FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
             portal_download(f["href"], dest)
         op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
+        acc: "list[str]" = by_type.setdefault(rt, [])
         with op(dest, "rt", errors="replace") as fh:       # type: ignore[operator]
             for i, line in enumerate(fh):
                 if i % 4 == 1:
-                    reads.append(line.strip().upper())
-                    if len(reads) >= sample:
+                    acc.append(line.strip().upper())
+                    if len(acc) >= sample:
                         break
-        if reads:
-            break
-    if not reads:
+    by_type = {k: v for k, v in by_type.items() if v}
+    if not by_type:
         return {"chosen": idx["candidates"][0] if idx["candidates"] else None,
-                "read_len": 0, "tested": [],
+                "read_type": None, "read_len": 0, "tested": [], "n_reads": 0,
                 "why": f"no FASTQ reads available from {accession} to calibrate"}
 
-    read_len = Counter(len(r) for r in reads).most_common(1)[0][0]
     tested = []
-    for c in idx["candidates"]:
-        mt = build_matcher(c["seq_to_guide"])
-        hit = amb = 0
-        for r0 in reads:
-            found = set()
-            for s_ in (r0, r0.translate(comp)[::-1]):
-                g = match_read(s_, mt)
-                if g:
-                    found.add(g)
-            if found:
-                hit += 1
-                if len(found) > 1:
-                    amb += 1
-        tested.append({**{k: v for k, v in c.items()
-                          if k not in ("seq_to_guide", "lengths")},
-                       "rate": hit / len(reads),
-                       "ambiguous": amb / max(hit, 1)})
+    for rt, reads in sorted(by_type.items()):
+        rlen = Counter(len(r) for r in reads).most_common(1)[0][0]
+        for c in idx["candidates"]:
+            mt = build_matcher(c["seq_to_guide"])
+            hit = amb = 0
+            for r0 in reads:
+                found = set()
+                for s_ in (r0, r0.translate(comp)[::-1]):
+                    g = match_read(s_, mt)
+                    if g:
+                        found.add(g)
+                if found:
+                    hit += 1
+                    if len(found) > 1:
+                        amb += 1
+            tested.append({**{k: v for k, v in c.items()
+                              if k not in ("seq_to_guide", "lengths")},
+                           "read_type": rt, "read_len": rlen,
+                           "n_reads": len(reads),
+                           "rate": hit / len(reads),
+                           "ambiguous": amb / max(hit, 1)})
+
     # Best assignment rate wins; discrimination breaks near-ties. A key that
     # is present but cannot separate constructs is useless, and so is one
     # that separates them but never appears.
-    ranked = sorted(zip(tested, idx["candidates"]),
-                    key=lambda t: (-round(t[0]["rate"], 2), -t[0]["distinct"]))
-    return {"chosen": ranked[0][1] if ranked and ranked[0][0]["rate"] > 0 else None,
-            "read_len": read_len, "tested": tested, "n_reads": len(reads),
-            "why": ""}
+    order = sorted(range(len(tested)),
+                   key=lambda n: (-round(tested[n]["rate"], 2),
+                                  -tested[n]["distinct"]))
+    best = tested[order[0]] if order else None
+    if not best or best["rate"] <= 0:
+        return {"chosen": None, "read_type": None,
+                "read_len": max((t["read_len"] for t in tested), default=0),
+                "tested": tested,
+                "n_reads": sum(len(v) for v in by_type.values()), "why": ""}
+    chosen = next(c for c in idx["candidates"]
+                  if c["column"] == best["column"])
+    # Count every mate that carries the key nearly as well as the best one.
+    # Restricting to one mate is right when only one carries it, and wrong
+    # when both do -- that would throw away half the depth.
+    good = sorted({t["read_type"] for t in tested
+                   if t["column"] == best["column"]
+                   and t["rate"] >= best["rate"] * 0.5})
+    return {"chosen": chosen,
+            "read_type": None if len(good) == len(by_type) else good,
+            "read_len": best["read_len"], "tested": tested,
+            "n_reads": best["n_reads"], "why": ""}
 
 
 def load_guide_table(file_id: str) -> "list[tuple[str, str]]":
@@ -1640,8 +1713,7 @@ def cmd_guide_count(args: argparse.Namespace) -> int:
     print(f"Counting by:    {key['column']}  ({key['distinct']:,} distinct, "
           f"{min(lengths)}-{max(lengths)} bp)")
 
-    files = [f for f in list_files(args.accession)
-             if str(f.get("file_format", "")).lower() == "fastq"]
+    files = biological_fastqs(args.accession)
     total_gb = sum(gb(f.get("file_size")) for f in files)
     if args.max_download_gb and total_gb > args.max_download_gb:
         print(f"Reads total {total_gb} GB, over --max-download-gb "

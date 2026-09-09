@@ -136,5 +136,44 @@ check("barcode excluded from candidate columns",
 check("key length floor rules out short keys",
       rp._MIN_KEY_LEN >= 10, True)
 
-print(f"\n{9 + 4} cases, {len(FAILURES)} failure(s)")
+# ── biological read selection ──────────────────────────────────────────────
+
+# Index reads carry no biological sequence, and the Portal returns files in
+# no guaranteed order: IGVFDS3899ANMJ lists ['I1','I2','R2','R1',...], so
+# taking files in listing order sampled 8 bp index reads, measured 0% for
+# every candidate key, and called the dataset unanalysable.
+def fake_files(roles):
+    return [{"accession": f"F{i}", "file_format": "fastq",
+             "illumina_read_type": r} for i, r in enumerate(roles)]
+
+
+def select(roles, want=None, monkey={}):
+    import Scripts.raw_data_pipeline as _rp
+    orig = _rp.list_files
+    _rp.list_files = lambda _a: fake_files(roles)
+    try:
+        return [f["illumina_read_type"]
+                for f in _rp.biological_fastqs("X", want)]
+    finally:
+        _rp.list_files = orig
+
+
+check("index reads are dropped",
+      select(["I1", "I2", "R2", "R1"]), ["R1", "R2"])
+check("order does not depend on Portal listing order",
+      select(["R2", "R1"]), ["R1", "R2"])
+check("I5/I7 index naming also dropped",
+      select(["I5", "I7", "R1"]), ["R1"])
+# A library with no declared read types must not come back empty.
+check("untyped files all kept rather than none",
+      select([None, None]), [None, None])
+# An all-index library would otherwise return nothing to count.
+check("all-index library falls back rather than emptying",
+      select(["I1", "I2"]), ["I1", "I2"])
+check("read_types filter selects one mate",
+      select(["I1", "R1", "R2"], want=["R2"]), ["R2"])
+check("a filter for an absent mate falls back to all biological reads",
+      select(["R1"], want=["R2"]), ["R1"])
+
+print(f"\n{13 + 7} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

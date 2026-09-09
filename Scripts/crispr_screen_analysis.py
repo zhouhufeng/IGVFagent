@@ -164,14 +164,15 @@ COUNT_CACHE = rp.FASTQ_CACHE.parent / "_counts"
 
 
 def _count_cache_path(accession: str, matcher: dict, key: str,
-                       max_reads: Optional[int]) -> Path:
+                       max_reads: Optional[int],
+                       read_types: "Optional[list[str]]" = None) -> Path:
     """Where the counts for exactly this library-and-key combination live.
 
     The library itself is part of the key: a construct table that gains or
     loses a sequence must not silently reuse counts made against the old one.
     """
     sig = hashlib.sha256()
-    sig.update(f"{key}|{max_reads}|".encode())
+    sig.update(f"{key}|{max_reads}|{','.join(read_types or ['*'])}|".encode())
     for sq in sorted(matcher["pref"]):
         sig.update(sq.encode())
     for v in matcher["pref"].values():
@@ -180,8 +181,9 @@ def _count_cache_path(accession: str, matcher: dict, key: str,
 
 
 def count_guides(accession: str, matcher: dict, key: str,
-                  max_reads: Optional[int],
-                  reuse: bool = True) -> "tuple[Counter, int, int, bool]":
+                  max_reads: Optional[int], reuse: bool = True,
+                  read_types: "Optional[list[str]]" = None
+                  ) -> "tuple[Counter, int, int, bool]":
     """Reads per construct for one library.
 
     Returns (counts, reads_scanned, reads_assigned, from_cache). The scanned
@@ -195,7 +197,7 @@ def count_guides(accession: str, matcher: dict, key: str,
     to reach numbers that had not changed. FASTQ downloads were already
     cached; the counting was not.
     """
-    cache = _count_cache_path(accession, matcher, key, max_reads)
+    cache = _count_cache_path(accession, matcher, key, max_reads, read_types)
     if reuse and cache.exists():
         try:
             d = json.loads(cache.read_text())
@@ -211,9 +213,7 @@ def count_guides(accession: str, matcher: dict, key: str,
     counts: "Counter[str]" = Counter()
     scanned = assigned = 0
     rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
-    for f in rp.list_files(accession):
-        if str(f.get("file_format", "")).lower() != "fastq":
-            continue
+    for f in rp.biological_fastqs(accession, read_types):
         name = Path(str(f.get("href") or f.get("accession"))).name
         dest = rp.FASTQ_CACHE / name
         if not dest.exists():
@@ -638,7 +638,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     for b in counted:
         c, scanned, assigned, cached = count_guides(
             b["accession"], matcher, key["column"], args.max_reads,
-            reuse=not args.recount)
+            reuse=not args.recount, read_types=cal.get("read_type"))
         per_bin[b["accession"]] = c
         rate = assigned / scanned if scanned else 0.0
         rates.append(rate)
