@@ -744,6 +744,9 @@ def _sidebar() -> dict:
     public = _public_mode()
     with st.sidebar:
         st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
+        # Which build is actually serving this page. Without it, a
+        # stale container is indistinguishable from a fixed one.
+        st.caption(deployed_build_id())
         st.caption(
             "Natural-language interface to the IGVF / ENCODE single-cell, "
             "variant, regulatory-element, and literature stack."
@@ -1305,6 +1308,35 @@ def _render_one(path: str, *, depth: int = 0) -> None:
     st.code(path)
     if Path(path).is_file():
         _download_button(path, key_hint="misc")
+
+
+def deployed_build_id() -> str:
+    """A fingerprint of the Python actually loaded, plus the build SHA if set.
+
+    An external tester reported the hosted site still returning a fixed bug
+    and asked us to show the deployed commit, because the UI showed only
+    "v0.2.9" whether or not the fix was in the image. A git SHA alone would
+    not have helped: this container serves an installed package and has no
+    repository, and modules are sometimes copied in without a rebuild. So
+    the primary identifier is a content hash of the top-level modules --
+    the same construction Deploy/redeploy.sh compares against the checkout,
+    so the two can be matched by eye.
+    """
+    try:
+        import hashlib
+        pkg = Path(_pathguard.__file__).resolve().parent
+        # Reproduce Deploy/redeploy.sh's hash EXACTLY -- per-file sha256 hex,
+        # the hex strings sorted as text, joined by newlines with a trailing
+        # one, then hashed. A near-miss construction would print a value that
+        # looks comparable to redeploy.sh's output and never matches it.
+        digests = sorted(hashlib.sha256(f.read_bytes()).hexdigest()
+                          for f in pkg.glob("*.py"))
+        blob = "".join(d + "\n" for d in digests).encode()
+        code = hashlib.sha256(blob).hexdigest()[:12]
+    except Exception:
+        code = "unknown"
+    sha = (os.environ.get("IGVF_GIT_SHA") or "").strip()[:7]
+    return f"code {code}" + (f" · build {sha}" if sha else "")
 
 
 def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
@@ -2374,6 +2406,7 @@ def main() -> None:
                 _render_artefacts(artefacts)
 
         meta_caption = (
+            f"build `{deployed_build_id()}`  ·  "
             f"backend `{result.backend}`  ·  model `{result.model}`  ·  "
             f"{result.iterations} iter · {result.tool_calls_made} tool calls "
             f"· stop `{result.stop_reason}`"
