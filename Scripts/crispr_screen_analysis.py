@@ -59,6 +59,8 @@ from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import raw_data_pipeline as rp                                # noqa: E402
+from _stats import (_norm_sf, _percentile, _t_sf,             # noqa: E402,F401
+                     benjamini_hochberg, moderated_t)
 
 ROOT = rp.ROOT
 OUT_DIR = ROOT / "Docs" / "CrisprScreen"
@@ -249,73 +251,6 @@ def count_guides(accession: str, matcher: dict, key: str,
 
 
 # ─── Statistics ─────────────────────────────────────────────────────────────
-
-def _norm_sf(z: float) -> float:
-    """Two-sided normal tail probability, via erfc. No scipy needed."""
-    return math.erfc(abs(z) / math.sqrt(2.0))
-
-
-def _t_sf(t: float, df: int) -> float:
-    """Two-sided Student-t tail probability.
-
-    The normal is the wrong reference here and it is not a subtle error. A
-    variant with two replicate observations that happen to agree to within
-    0.016 log2 units gets se = 0.011 and z = -215, which the normal reports
-    as p = 0 exactly -- infinite confidence from two numbers. The t
-    distribution with df = k-1 is the textbook correction: at df = 1 it is
-    Cauchy, whose tails are heavy enough that |t| = 215 is p ~ 3e-3 rather
-    than 0.
-
-    scipy is present in both the local environment and the deployed image,
-    but the fallback matters: without it this would silently revert to the
-    normal and to implausible p-values, so it degrades to a documented
-    df-scaled approximation instead of pretending nothing changed.
-    """
-    if df < 1 or not math.isfinite(t):
-        return 1.0
-    try:
-        from scipy import stats
-        return float(2.0 * stats.t.sf(abs(t), df))
-    except ImportError:
-        pass
-    if df == 1:                       # Cauchy, exactly
-        return 2.0 * (0.5 - math.atan(abs(t)) / math.pi)
-    if df == 2:                       # closed form
-        return 1.0 - abs(t) / math.sqrt(2.0 + t * t)
-    # Otherwise the normal on a variance-inflated statistic. Approximate,
-    # and conservative in the direction that matters: it does not turn a
-    # small sample into certainty.
-    return _norm_sf(abs(t) / math.sqrt(df / max(df - 2.0, 1.0)))
-
-
-def _percentile(xs: "list[float]", q: float) -> float:
-    """Linear-interpolated percentile. Small helper, avoids a numpy import
-    in a function that otherwise only needs the standard library."""
-    if not xs:
-        return 0.0
-    ys = sorted(xs)
-    if len(ys) == 1:
-        return ys[0]
-    i = (len(ys) - 1) * q
-    lo, hi = int(math.floor(i)), int(math.ceil(i))
-    return ys[lo] + (ys[hi] - ys[lo]) * (i - lo)
-
-
-def benjamini_hochberg(pvals: "list[float]") -> "list[float]":
-    """BH-adjusted p-values, order preserved."""
-    n = len(pvals)
-    if n == 0:
-        return []
-    order = sorted(range(n), key=lambda i: pvals[i])
-    adj = [0.0] * n
-    prev = 1.0
-    for rank, idx in enumerate(reversed(order), start=1):
-        i = n - rank + 1
-        val = min(prev, pvals[idx] * n / i)
-        adj[idx] = val
-        prev = val
-    return adj
-
 
 def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
                   guide_target: "dict[str, str]", guide_type: "dict[str, str]",
