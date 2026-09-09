@@ -33,10 +33,20 @@ CHECK_ONLY=0
 die()  { printf '\nFAILED: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n=== %s ===\n' "$1"; }
 
-[[ -f "$CREDS" ]] || die "$CREDS not found (run from the repo root)"
-USER_=$(grep -i '^username:' "$CREDS" | cut -d: -f2  | tr -d ' \r')
-PASS_=$(grep -i '^password:' "$CREDS" | cut -d: -f2- | tr -d ' \r')
-[[ -n "$USER_" && -n "$PASS_" ]] || die "could not parse username/password"
+# Credentials come from the file when present, else the environment. The
+# file is gitignored and so never reaches the VM by `git pull`, and copying
+# it there just to read it twice would leave a third copy of a secret on
+# disk for no gain.
+if [[ -f "$CREDS" ]]; then
+  USER_=$(grep -i '^username:' "$CREDS" | cut -d: -f2  | tr -d ' \r')
+  PASS_=$(grep -i '^password:' "$CREDS" | cut -d: -f2- | tr -d ' \r')
+else
+  USER_="${IGVF_ARANGO_USER:-}"
+  PASS_="${IGVF_ARANGO_PASSWORD:-}"
+fi
+[[ -n "$USER_" && -n "$PASS_" ]] || die \
+  "no ArangoDB credentials: $CREDS is absent and IGVF_ARANGO_USER / \
+IGVF_ARANGO_PASSWORD are unset"
 DEX=(docker exec -e "IGVF_ARANGO_USER=$USER_" -e "IGVF_ARANGO_PASSWORD=$PASS_" "$CONTAINER")
 
 step "1. Inventory the graph"
