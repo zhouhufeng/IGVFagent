@@ -1871,6 +1871,21 @@ def _running_jobs() -> "list[dict]":
     return out
 
 
+def _heavy_slot_line() -> str:
+    """One line on analysis-slot usage, or empty when unavailable."""
+    try:
+        from igvfagent import _joblock
+    except Exception:                                        # noqa: BLE001
+        try:
+            import _joblock                                  # type: ignore
+        except Exception:                                    # noqa: BLE001
+            return ""
+    try:
+        return _joblock.describe()
+    except Exception:                                        # noqa: BLE001
+        return ""
+
+
 def _jobs_body() -> None:
     """Render the job list. Re-reads state on every call, so a fragment
     wrapper showing it repeatedly reports current progress rather than a
@@ -1901,6 +1916,9 @@ def _jobs_body() -> None:
                 st.caption(f"⏳ {prog['phase']} · {prog.get('detail','')}")
             for ln in j.get("tail", []):
                 st.caption(ln[:110])
+        slots = _heavy_slot_line()
+        if slots:
+            st.caption(f"⚙ {slots}")
         if active:
             st.caption(f"Refreshing every {_JOBS_REFRESH_S}s · "
                        f"{time.strftime('%H:%M:%S')}")

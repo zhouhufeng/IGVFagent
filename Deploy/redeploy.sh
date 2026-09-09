@@ -135,6 +135,22 @@ echo "==> 3/5  rebuilding the image (no cache — a reused layer is how this sil
 # cost nothing; now a raw-pipeline alignment can be hours into a 45 GB job,
 # and losing it silently to a routine redeploy is the kind of thing you only
 # notice afterwards. Refuse unless the operator says to go ahead.
+# A heavy analysis is not necessarily a tracked job: `sc-analyze pipeline`
+# invoked directly holds no job file, and recreating the container kills it
+# mid-run. Check for the process too, or a redeploy silently destroys hours
+# of somebody's analysis -- which nearly happened.
+HEAVY=$(pgrep -fc "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge) " 2>/dev/null || echo 0)
+if [ "${HEAVY:-0}" -gt 0 ] && [ "${FORCE_RECREATE:-0}" != "1" ]; then
+  echo
+  echo "REFUSING to recreate: $HEAVY analysis process(es) are running."
+  pgrep -fa "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge) " 2>/dev/null \
+    | cut -c1-140 | sed 's/^/  /'
+  echo
+  echo "Recreating the container would kill them. Wait, or re-run with"
+  echo "FORCE_RECREATE=1 to discard them deliberately."
+  exit 3
+fi
+
 if docker exec igvfagent-app sh -c 'ls /workspace/Data/RawPipeline/_jobs/*.json' \
      >/dev/null 2>&1; then
   RUNNING=$(docker exec igvfagent-app igvfagent raw-pipeline status 2>/dev/null \

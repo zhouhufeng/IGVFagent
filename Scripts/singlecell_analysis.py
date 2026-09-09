@@ -540,6 +540,7 @@ def plot_tsne(adata, *, color: "list[str]", out: Path, suffix: str = "",
 
 def run_pipeline(*, input_path: Path, label: str,
                   min_genes: int = 200, min_cells: int = 3,
+                  min_counts: int = 0, knee: bool = False,
                   max_mito: float = 20.0, mito_prefix: str = "MT-",
                   n_hvg: int = 2000, n_pcs: int = 50,
                   n_neighbors: int = 15, resolution: float = 1.0,
@@ -559,7 +560,11 @@ def run_pipeline(*, input_path: Path, label: str,
     summary["loaded_n_vars"] = adata.n_vars
 
     logger.info("==> QC + filter")
+    # min_counts / knee must reach qc() from here too, not just from
+    # `sc-analyze qc`: the empty-droplet filter is worth most on the full
+    # pipeline, where 700k ambient barcodes otherwise reach clustering.
     summary["qc"] = qc(adata, min_genes=min_genes, min_cells=min_cells,
+                         min_counts=min_counts, knee=knee,
                          max_mito=max_mito, mito_prefix=mito_prefix, out=out)
 
     logger.info("==> Normalize + HVG (top %d)", n_hvg)
@@ -758,6 +763,41 @@ def cmd_pipeline(args: argparse.Namespace) -> int:
     mkdirs(); setup_logging("pipeline_" + (args.label or "run"))
     highlight = [g.strip() for g in (args.highlight_genes or "").split(",")
                   if g.strip()]
+
+    # Take a heavy slot. Measured on the deployment, this pipeline peaked at
+    # 18.2 GB on a 1.46 GB h5ad against a 22 GB container cap -- two at once
+    # exceeds it and Docker OOM-kills the CONTAINER, ending every user's
+    # session rather than just the second job. Queueing turns that into one
+    # person waiting.
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import _joblock
+    except ImportError:
+        _joblock = None                                      # type: ignore
+
+    def _announce(hs):
+        for h in hs:
+            print(f"QUEUED: waiting for another analysis to finish — "
+                  f"{h.get('what')} ({h.get('label') or 'unlabelled'}) "
+                  f"started {h.get('started')}. This run will begin "
+                  f"automatically; nothing is lost.", file=sys.stderr,
+                  flush=True)
+
+    if _joblock is None:
+        return _run_pipeline_body(args, highlight)
+    with _joblock.heavy_slot("sc-analyze pipeline", args.label or "run",
+                              on_wait=_announce) as got:
+        if not got:
+            print(f"NOT RUN: no analysis slot became free within "
+                  f"{_joblock.WAIT:.0f}s. {_joblock.describe()}. Nothing was "
+                  f"computed and no output was written. Retry when the "
+                  f"running analysis finishes, or raise IGVF_HEAVY_SLOTS if "
+                  f"the machine has memory for more.", file=sys.stderr)
+            return 75          # EX_TEMPFAIL: try again, not a defect
+        return _run_pipeline_body(args, highlight)
+
+
+def _run_pipeline_body(args: argparse.Namespace, highlight) -> int:
     out = run_pipeline(
         input_path=Path(args.input),
         label=args.label or "pipeline",
