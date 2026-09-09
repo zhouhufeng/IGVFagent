@@ -736,7 +736,14 @@ def run(
 
         if not msg.tool_calls:
             final_answer = msg.content or ""
-            stop_reason = "complete"
+            # A backend that could not get the model to speak its tool
+            # protocol has not completed anything. Reporting that as
+            # "complete" is how a run that made zero tool calls came back as
+            # "Done - stop complete", carrying the model's own invented
+            # explanation for why it had stopped.
+            stop_reason = ("protocol_violation"
+                           if msg.stop_reason == "protocol_violation"
+                           else "complete")
             break
 
         # Mirror assistant message into the conversation for the next LLM call.

@@ -812,6 +812,15 @@ results.
 {tools_block}
 """
 
+_PROTOCOL_VIOLATION_NOTE = (
+    "**This run did not complete.** The model did not use the tool protocol: "
+    "it returned neither a tool call nor a final answer, twice. Nothing below "
+    "is the result of analysis, and any claim in it about tools being "
+    "unavailable is the model's own inference, not a real backend fault. "
+    "Re-run the query, or select a different model in the sidebar.\n\n"
+    "---\n\n"
+)
+
 _CLAUDE_CLI_TOOL_CALL_RE = __import__("re").compile(
     r"<tool_call>\s*"
     r"<name>\s*(?P<name>[A-Za-z0-9_\-]+)\s*</name>\s*"
@@ -959,6 +968,25 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
     # prompt from stdin when given no positional argument, and stdin has no
     # such limit.
     cmd = ["claude", "--print", "--output-format", "text"]
+    # Disable Claude Code's OWN tools. We use the CLI as a text completion
+    # engine: the tools it must call are IGVFagent's, described in the
+    # prompt and invoked by emitting <tool_call> XML that we parse back. The
+    # prompt already tells the model not to reach for Bash/Read/Edit, so
+    # this only enforces what it asks for.
+    #
+    # Defence in depth, NOT a proven bug fix. It was tried as a fix for the
+    # IGVFDS5997IVEM run, where the model emitted no XML at all and claimed
+    # every tool returned "No such tool available". That hypothesis did not
+    # survive testing: with the real 249-tool, 138 KB prompt in this
+    # container, claude-sonnet-5 emitted valid <tool_call> XML both with
+    # native tools enabled and disabled. The protocol lapse is intermittent
+    # model behaviour, and what actually contains it is the retry below.
+    #
+    # The reason to keep this anyway is exposure: the nested CLI was being
+    # handed Bash and Write inside the container that holds the Portal API
+    # key. Set IGVF_CLI_NATIVE_TOOLS=1 to restore the old behaviour.
+    if os.environ.get("IGVF_CLI_NATIVE_TOOLS", "0") != "1":
+        cmd.extend(["--tools", ""])
     if model and model.strip():
         cmd.extend(["--model", model.strip()])
 
@@ -981,6 +1009,51 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
 
     text = result.stdout or ""
     content, tool_calls = _xml_cli_parse_response(text, prefix="cc")
+
+    # Neither a <tool_call> nor a <final_answer> means the model ignored the
+    # protocol. The parser falls back to returning the raw prose, which the
+    # agent loop then accepts as a finished answer -- so a run that did no
+    # work at all was reported as "stop complete" with the model's own
+    # invented explanation as the result. Retry once, saying plainly what
+    # was missing, before letting that through.
+    if not tool_calls and not _CLAUDE_CLI_FINAL_RE.search(text):
+        logger.warning("claude_cli: response had no <tool_call> and no "
+                       "<final_answer>; retrying once with a corrective note")
+        retry_prompt = (
+            prompt
+            + "\n\n# Protocol reminder\n\n"
+              "Your previous response contained neither a <tool_call> nor a "
+              "<final_answer> block, so it could not be used. You do not "
+              "have Claude Code's own tools here and must not try to invoke "
+              "them; the only tools that exist are the ones listed above, "
+              "and the only way to call one is to emit the <tool_call> XML "
+              "block exactly as specified. If a tool call appears to fail, "
+              "that is reported to you as a tool result -- it is not a "
+              "backend outage. Respond now with either one or more "
+              "<tool_call> blocks or a single <final_answer> block."
+        )
+        try:
+            retry = subprocess.run(
+                cmd, input=retry_prompt, capture_output=True, text=True,
+                timeout=timeout, check=False,
+            )
+            if retry.returncode == 0:
+                rtext = retry.stdout or ""
+                rcontent, rcalls = _xml_cli_parse_response(rtext, prefix="cc")
+                if rcalls or _CLAUDE_CLI_FINAL_RE.search(rtext):
+                    text, content, tool_calls = rtext, rcontent, rcalls
+                else:
+                    # Say so rather than passing prose off as an answer.
+                    return Message(
+                        content=_PROTOCOL_VIOLATION_NOTE + rcontent,
+                        tool_calls=[], stop_reason="protocol_violation",
+                        backend="claude_cli",
+                        model=model or "(claude-code default)",
+                        raw={"stdout_len": len(rtext), "retried": True},
+                    )
+        except subprocess.TimeoutExpired:
+            logger.warning("claude_cli: protocol retry timed out")
+
     return Message(
         content=content,
         tool_calls=tool_calls,
