@@ -29,6 +29,7 @@ from typing import Optional
 
 # Route names. `transcript` is the only one that may go to kallisto.
 TRANSCRIPT = "transcript"      # RNA readout: quantify against a transcriptome
+MULTIMODAL = "multimodal"      # two measurements from the same cell
 GUIDE = "guide"                # reads are an sgRNA library
 VARIANT = "variant"            # amplicon of a variant library (SGE/MAVE)
 ELEMENT = "element"            # MPRA/STARR: element activity from barcodes
@@ -41,6 +42,10 @@ UNKNOWN = "unknown"
 ROUTE_GUIDANCE = {
     TRANSCRIPT: ("transcript quantification then single-cell or bulk analysis",
                  "supported: raw_pipeline_run"),
+    MULTIMODAL: ("each modality analysed with the normalisation it needs, "
+                 "then compared on the cells they share -- the agreement "
+                 "between modalities is the point of the assay",
+                 "supported for snMCT-seq: mct_analyze"),
     GUIDE: ("per-guide counts, then enrichment between the sorted "
             "populations of the SAME screen -- one bin alone measures "
             "library composition, not biology",
@@ -75,7 +80,11 @@ READOUT = {
 ASSAY = {
     # --- RNA readout -----------------------------------------------------
     "10x multiome": TRANSCRIPT,                     # 1982
-    "snmct-seq": TRANSCRIPT,                        # 933
+    # 933 datasets. Routing this to TRANSCRIPT analysed the RNA matrix and
+    # silently dropped the methylation half -- the half the assay exists for.
+    "snmct-seq": MULTIMODAL,
+    "snm3c-seq": MULTIMODAL,                        # 90: methylation + 3C
+    "scmultiome-nt-seq": MULTIMODAL,                # 12
     "cc-perturb-seq": TRANSCRIPT,                   # 818
     "share-seq": TRANSCRIPT,                        # 682
     "perturb-seq": TRANSCRIPT,                      # 507
@@ -84,7 +93,6 @@ ASSAY = {
     "tap-seq": TRANSCRIPT,                          # 200
     "rna-seq": TRANSCRIPT,                          # 196
     "10x multiome with multi-seq": TRANSCRIPT,      # 142
-    "snm3c-seq": TRANSCRIPT,                        # 90
     "scnt-seq2": TRANSCRIPT,                        # 79
     "mtscmultiome": TRANSCRIPT,                     # 76
     "morf-share-seq": TRANSCRIPT,                   # 73
@@ -92,7 +100,6 @@ ASSAY = {
     "parse perturb-seq": TRANSCRIPT,                # 19
     "spatial transcriptomics": TRANSCRIPT,          # 18
     "scrna-seq": TRANSCRIPT,                        # 16
-    "scmultiome-nt-seq": TRANSCRIPT,                # 12
     "ont drna": TRANSCRIPT,                         # 8
     "in vivo perturb-seq": TRANSCRIPT,              # 4
     "scnt-seq": TRANSCRIPT,                         # 4
@@ -193,5 +200,5 @@ def coverage() -> dict:
 
 
 __all__ = ["classify", "coverage", "ASSAY", "READOUT", "ROUTE_GUIDANCE",
-           "TRANSCRIPT", "GUIDE", "VARIANT", "ELEMENT", "CHROMATIN",
-           "GENOME", "PROTEIN", "UNKNOWN"]
+           "TRANSCRIPT", "MULTIMODAL", "GUIDE", "VARIANT", "ELEMENT",
+           "CHROMATIN", "GENOME", "PROTEIN", "UNKNOWN"]

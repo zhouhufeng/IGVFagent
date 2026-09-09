@@ -4620,6 +4620,57 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "mct_analyze",
+        "★ ANALYSE snMCT-seq / snm3C-seq — BOTH MODALITIES ★ — these assays "
+        "measure methylation AND the transcriptome from the SAME nucleus, "
+        "published as separate matrices. The generic single-cell route "
+        "analyses whichever matrix sorts first and silently drops the "
+        "other, so it reports an RNA clustering and never mentions the "
+        "methylation the assay exists to measure. This analyses each half "
+        "with the normalisation it needs -- RNA counts are log-normalised, "
+        "methylation values are ALREADY a ratio centred on 1 and must not "
+        "be -- then cross-tabulates the two clusterings on the cells they "
+        "share and reports an adjusted Rand index. It also interrogates the "
+        "methylation clusters against the per-cell QC report and says "
+        "whether they track a methylation level (biology) or read depth "
+        "(library artefact).",
+        {
+            "type": "object",
+            "properties": {
+                "accession":  {**_S_STRING, "description":
+                                "snMCT-seq MeasurementSet (IGVFDS...)."},
+                "resolution": {**_S_NUMBER, "default": 1.0,
+                                "description": "Leiden resolution for the "
+                                               "methylation clustering."},
+                "n_pcs":      {**_S_INTEGER, "default": 30},
+                "skip_rna":   {**_S_BOOLEAN, "description":
+                                "Methylation only."},
+                "label":      {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["mct", "analyze"],
+        positional=("accession",),
+        flag_map={"resolution": "--resolution", "n_pcs": "--n-pcs",
+                   "label": "--label"},
+        bool_flags=("skip_rna",),
+    ),
+    _T(
+        "mct_discover",
+        "★ WHICH snMCT-seq MODALITIES ARE PUBLISHED ★ — lists the "
+        "cell-by-gene, cell-by-bin methylation, cell-by-position "
+        "methylation and per-cell QC files for an snMCT-seq dataset, with "
+        "sizes, and says plainly when a half is missing. Call it before "
+        "mct_analyze, or to explain what a dual-modality dataset contains.",
+        {
+            "type": "object",
+            "properties": {"accession": {**_S_STRING}},
+            "required": ["accession"],
+        },
+        cli=["mct", "discover"],
+        positional=("accession",),
+    ),
+    _T(
         "crispr_screen_analyze",
         "★ REPROCESS A WHOLE CRISPR FACS SCREEN FROM RAW READS ★ — give it "
         "ANY sorted-bin accession and it finds the screen's other bins and "

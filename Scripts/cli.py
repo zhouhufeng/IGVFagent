@@ -34,6 +34,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Specialized IGVF assay catalog (Parse SPLiT-seq, etc.)"),
     "explain":          ("igvfagent.data_illustration_interpretation",
                           "Explain an IGVF / ENCODE accession or search URL"),
+    "mct":              ("igvfagent.mct_analysis",
+                          "snMCT-seq: RNA and methylation from the same "
+                          "nuclei, analysed and cross-compared"),
     "crispr-screen":    ("igvfagent.crispr_screen_analysis",
                           "CRISPR FACS screens: reprocess a whole screen "
                           "(all sorted bins) into per-variant effects"),
