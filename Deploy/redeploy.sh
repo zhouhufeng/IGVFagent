@@ -128,17 +128,10 @@ git -C "$ROOT" pull --ff-only
 echo "==> 2/5  seeding read-only fixtures onto the mounted volume"
 seed_fixtures
 
-echo "==> 3/5  rebuilding the image (no cache — a reused layer is how this silently no-ops)"
-"${COMPOSE[@]}" build --no-cache app
-
-# Recreating the container kills anything running inside it. That used to
-# cost nothing; now a raw-pipeline alignment can be hours into a 45 GB job,
-# and losing it silently to a routine redeploy is the kind of thing you only
-# notice afterwards. Refuse unless the operator says to go ahead.
-# A heavy analysis is not necessarily a tracked job: `sc-analyze pipeline`
-# invoked directly holds no job file, and recreating the container kills it
-# mid-run. Check for the process too, or a redeploy silently destroys hours
-# of somebody's analysis -- which nearly happened.
+# Checked BEFORE the rebuild, not after. A --no-cache build takes about
+# three minutes; refusing afterwards burns that for nothing and, worse,
+# leaves a freshly built image that never got deployed -- so the next
+# operator sees a new image and a running container that do not match.
 # kg-mirror and mct belong here too. The mirror runs as docker exec into
 # the container, so recreating it kills the exec mid-collection -- and a
 # 240 GB mirror is hours of work. Adding each long-running skill to this
@@ -173,6 +166,18 @@ if docker exec igvfagent-app sh -c 'ls /workspace/Data/RawPipeline/_jobs/*.json'
   fi
 fi
 
+
+echo "==> 3/5  rebuilding the image (no cache — a reused layer is how this silently no-ops)"
+"${COMPOSE[@]}" build --no-cache app
+
+# Recreating the container kills anything running inside it. That used to
+# cost nothing; now a raw-pipeline alignment can be hours into a 45 GB job,
+# and losing it silently to a routine redeploy is the kind of thing you only
+# notice afterwards. Refuse unless the operator says to go ahead.
+# A heavy analysis is not necessarily a tracked job: `sc-analyze pipeline`
+# invoked directly holds no job file, and recreating the container kills it
+# mid-run. Check for the process too, or a redeploy silently destroys hours
+# of somebody's analysis -- which nearly happened.
 echo "==> 4/5  recreating the container"
 "${COMPOSE[@]}" up -d --force-recreate app
 
