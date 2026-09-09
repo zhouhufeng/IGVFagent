@@ -8,6 +8,20 @@ between bins, so counting guides in that one library gives library
 composition and nothing about biology. Asked to "analyse IGVFDS6464SOVZ",
 the honest move is to find its 15 siblings and analyse the screen.
 
+Two things about these screens refuse to be assumed, and both are settled by
+measurement rather than convention:
+
+  Bin names. The same lab writes both "_Rep1_bottom20_ms" and
+  "_Rep1_Bot20_ms", and some screens add an unsorted "_Bulk_ms".
+
+  What identifies a construct. A CRISPR-KO library has one unique spacer per
+  guide. A prime-editing library does not -- the LDLR library's 1,741 pegRNAs
+  share 52 spacers, because the spacer only sets the nick site and the variant
+  lives in the RT template. Counting that by spacer yields effect sizes and
+  FDRs for variants whose reads were never told apart. So the counting key is
+  chosen by testing candidate columns against real reads; see
+  raw_data_pipeline.load_guide_index and calibrate_key.
+
 The pipeline mirrors what the lab's own AnalysisSet publishes, which is the
 canonical shape for this assay:
 
@@ -288,8 +302,20 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
 
 # ─── Plots ──────────────────────────────────────────────────────────────────
 
+def is_control(target_type: "Optional[str]") -> bool:
+    """Whether a construct is a control, across the spellings in use.
+
+    This metadata says "non-targeting"; other libraries say "control". A
+    predicate matching only "control" found none of the LDLR library's, so
+    the volcano drew no control points and the summary reported none.
+    """
+    t = (target_type or "").lower()
+    return any(w in t for w in ("control", "non-targeting", "nontargeting"))
+
+
 def make_plots(out: Path, rows: "list[dict]", per_bin: "dict[str, Counter]",
-                bins: "list[dict]", low_pct: int) -> "list[Path]":
+                bins: "list[dict]", low_pct: int,
+                screen: str = "") -> "list[Path]":
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -302,8 +328,7 @@ def make_plots(out: Path, rows: "list[dict]", per_bin: "dict[str, Counter]",
 
     eff = np.array([r["mean_log2_low_over_high"] for r in rows])
     fdr = np.array([max(r["fdr"], 1e-12) for r in rows])
-    is_ctrl = np.array([("control" in (r["target_type"] or "").lower())
-                        for r in rows])
+    is_ctrl = np.array([is_control(r["target_type"]) for r in rows])
     fig, ax = plt.subplots(1, 2, figsize=(13, 4.8))
     ax[0].scatter(eff[~is_ctrl], -np.log10(fdr[~is_ctrl]), s=14,
                   c="#4C72B0", label="variants", alpha=.7)
@@ -314,8 +339,12 @@ def make_plots(out: Path, rows: "list[dict]", per_bin: "dict[str, Counter]",
     ax[0].axvline(0, ls=":", lw=1, c="grey")
     ax[0].set_xlabel(f"mean log2( bottom{low_pct}% / top{low_pct}% )")
     ax[0].set_ylabel("-log10 FDR")
-    ax[0].set_title("Variant effects on LDL-C uptake\n"
-                    "positive = enriched in LOW uptake = variant reduces uptake")
+    # The sorted phenotype is whatever this screen sorted on, which the tool
+    # cannot know -- it was hardcoded to "LDL-C uptake" from the first screen
+    # it was written against, and would have mislabelled every other one.
+    ax[0].set_title(f"Variant effects{' — ' + screen if screen else ''}\n"
+                    f"positive = enriched in the LOW bin = variant reduces "
+                    f"the sorted phenotype")
     ax[0].legend(fontsize=8)
 
     # Replicate agreement: the honest check on whether any of this is signal.
@@ -506,9 +535,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     sig = [r for r in rows if r["fdr"] < 0.05]
     # Both spellings: this metadata uses "non-targeting", others "control".
-    ctrls = [r for r in rows
-             if any(w in (r["target_type"] or "").lower()
-                    for w in ("control", "non-targeting", "nontargeting"))]
+    ctrls = [r for r in rows if is_control(r["target_type"])]
     summary = {
         "screen": scr["series"], "query_set": args.accession,
         "libraries_in_screen": len(bins), "libraries_counted": len(counted),
@@ -530,7 +557,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "min_count": args.min_count,
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
-    plots = make_plots(out, rows, per_bin, counted, args.tail)
+    plots = make_plots(out, rows, per_bin, counted, args.tail,
+                        screen=scr['series'])
 
     print()
     for k, v in summary.items():
