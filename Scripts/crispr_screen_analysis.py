@@ -144,8 +144,8 @@ def discover_screen(accession: str) -> dict:
 
 # ─── Guide counting ─────────────────────────────────────────────────────────
 
-def count_guides(accession: str, seq_to_guide: "dict[str, str]",
-                  lengths: "list[int]", max_reads: Optional[int]) -> "tuple[Counter, int, int]":
+def count_guides(accession: str, matcher: dict,
+                  max_reads: Optional[int]) -> "tuple[Counter, int, int]":
     """Reads per construct for one library.
 
     Returns (counts, reads_scanned, reads_assigned) so the caller can report
@@ -178,14 +178,7 @@ def count_guides(accession: str, seq_to_guide: "dict[str, str]",
                 seq = line.strip().upper()
                 hit = None
                 for s_ in (seq, seq.translate(comp)[::-1]):
-                    for L in lengths:                 # longest first
-                        for off in range(0, len(s_) - L + 1):
-                            gid = seq_to_guide.get(s_[off:off + L])
-                            if gid:
-                                hit = gid
-                                break
-                        if hit:
-                            break
+                    hit = rp.match_read(s_, matcher)
                     if hit:
                         break
                 if hit:
@@ -412,14 +405,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"No guide table: {lib['why']}")
         return 2
     gf = lib["guide_files"][0]
-    idx = load_guide_index(gf["id"] or gf["accession"])
+    idx = rp.load_guide_index(gf["id"] or gf["accession"])
     if not idx["resolved"]:
         print(f"Guide table {gf['accession']}: {idx['why']}")
         return 2
     meta = {"target": idx["target"], "type": idx["type"]}
     print(f"Guide table: {gf['accession']}  ({idx['n_rows']:,} constructs)")
 
-    cal = calibrate_key(idx, (args.key_from or counted_probe(scr, args.tail)),
+    cal = rp.calibrate_key(idx, (args.key_from or counted_probe(scr, args.tail)),
                         args.calibrate_reads)
     if cal["why"]:
         print(f"  {cal['why']}")
@@ -438,7 +431,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
               "library table describes a different assay. Not guessing.")
         return 3
     key = cal["chosen"]
-    seq_to_guide, lengths = key["seq_to_guide"], key["lengths"]
+    matcher, lengths = rp.build_matcher(key["seq_to_guide"]), key["lengths"]
     print(f"Counting by: {key['column']}  ({key['distinct']:,} distinct "
           f"sequences, {min(lengths)}-{max(lengths)} bp)")
     if key["distinct"] < idx["n_rows"] * 0.9:
@@ -467,7 +460,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     rates = []
     for b in counted:
         c, scanned, assigned = count_guides(
-            b["accession"], seq_to_guide, lengths, args.max_reads)
+            b["accession"], matcher, args.max_reads)
         per_bin[b["accession"]] = c
         rate = assigned / scanned if scanned else 0.0
         rates.append(rate)
@@ -549,180 +542,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"Plot: {p}")
     print(f"Output: {out}")
     return 0
-
-
-# ─── Guide library index ────────────────────────────────────────────────────
-
-# Sequence columns that can identify a construct, and whether a match against
-# one is specific enough to trust. `barcode` is deliberately absent: the
-# LDLR pegRNA library's barcodes are 6 bp, so its 1,740 barcodes cover 42% of
-# all possible 6-mers -- scanning reads for them matched 100% of reads and
-# 100% of those matches were ambiguous. A barcode is readable only at a known
-# offset in a known amplicon, which the metadata does not give us.
-_KEY_COLUMNS = ("spacer", "protospacer", "rt_template_sequence", "peg_sequence")
-_MIN_KEY_LEN = 10        # shorter than this matches by chance far too often
-
-
-def load_guide_index(file_id: str) -> dict:
-    """Build a sequence -> guide_id index, choosing the discriminating column.
-
-    A CRISPR-KO library has one unique spacer per guide, so the spacer is the
-    counting key. A prime-editing library does NOT: the LDLR pegRNA library
-    has 1,740 constructs sharing just 52 spacers, because the spacer only
-    sets the nick site and the variant lives in the RT template. Counting
-    that library by spacer collapses 1,740 pegRNAs onto 52 keys and then
-    attributes every read to whichever construct happened to be first --
-    confident, precise, meaningless numbers. So pick the key by measuring
-    uniqueness rather than assuming a column.
-    """
-    st, obj = rp.portal_json(
-        f"{file_id}?format=json" if file_id.startswith("/")
-        else f"/tabular-files/{file_id}/?format=json")
-    href = (obj or {}).get("href")
-    out = {"resolved": False, "why": "", "key": "", "seq_to_guide": {},
-           "lengths": [], "target": {}, "type": {}, "n_rows": 0,
-           "n_constructs": 0, "candidates": []}
-    if not href:
-        out["why"] = f"no href for {file_id}"
-        return out
-    dest = rp.REF_DIR / "guides" / Path(href).name
-    if not dest.exists():
-        rp.portal_download(href, dest)
-    text = rp.read_text_maybe_gzip(dest)
-    lines = text.splitlines()
-    if not lines:
-        out["why"] = f"{dest.name} is empty"
-        return out
-    delim = max(("\t", ",", ";"), key=lambda d: len(lines[0].split(d)))
-    # csv.reader, not str.split: these tables carry quoted fields containing
-    # commas (putative_target_genes is '["ENSG00000130164"]'), and splitting
-    # naively shifts every column after it.
-    rows = list(csv.reader(lines, delimiter=delim))
-    hdr = [h.strip().lower() for h in rows[0]]
-    idx = {h: i for i, h in enumerate(hdr)}
-
-    def cell(r: "list[str]", *names: str) -> str:
-        for n in names:
-            i = idx.get(n)
-            if i is not None and len(r) > i:
-                return r[i].strip()
-        return ""
-
-    recs = []
-    for r in rows[1:]:
-        gid = cell(r, "guide_id", "guide", "name", "id")
-        if not gid:
-            continue
-        recs.append((gid, r))
-    out["n_rows"] = len(recs)
-    if not recs:
-        out["why"] = f"{dest.name} has no guide_id column or no rows"
-        return out
-
-    # Score every candidate column by how many constructs it separates.
-    for col in _KEY_COLUMNS:
-        if col not in idx:
-            continue
-        seqs = {}
-        for gid, r in recs:
-            v = cell(r, col).upper()
-            if v and len(v) >= _MIN_KEY_LEN and set(v) <= set("ACGTN"):
-                seqs.setdefault(v, gid)
-        if seqs:
-            ls = sorted(len(k) for k in seqs)
-            out["candidates"].append(
-                {"column": col, "distinct": len(seqs),
-                 "fraction": round(len(seqs) / len(recs), 4),
-                 "median_len": ls[len(ls) // 2],
-                 "seq_to_guide": seqs,
-                 # Longest first: RT templates nest, and the first match
-                 # found would otherwise hand the read to the least
-                 # specific construct.
-                 "lengths": sorted(set(ls), reverse=True)})
-    if not out["candidates"]:
-        out["why"] = (f"{dest.name} has no usable sequence column "
-                      f"(looked for {', '.join(_KEY_COLUMNS)})")
-        return out
-    for gid, r in recs:
-        out["target"][gid] = cell(r, "intended_target_name", "target",
-                                  "genomic_element") or gid
-        out["type"][gid] = cell(r, "type", "guide_type", "targeting")
-    # Discrimination first, then shorter sequences: a key longer than the
-    # read can never be found in it. peg_sequence separates this library as
-    # well as rt_template_sequence does, but its entries are 128-134 bp
-    # against 128 bp reads, so choosing it by uniqueness alone would have
-    # produced a 0% assignment rate. calibrate_key() then confirms against
-    # real reads rather than trusting this ordering.
-    out["candidates"].sort(key=lambda c: (-c["distinct"], c["median_len"]))
-    out["resolved"] = True
-    return out
-
-
-def calibrate_key(idx: dict, accession: str, sample: int = 20000) -> dict:
-    """Choose the counting key by testing candidates against real reads.
-
-    Uniqueness in the metadata says a key *can* tell constructs apart; only
-    the reads say whether it is *present* to be found. For the LDLR pegRNA
-    library the measured rates are spacer 7% (22% of hits ambiguous),
-    peg_sequence 0% (key longer than the read), rt_template_sequence 62%
-    (0.8% ambiguous) -- a ranking no amount of metadata would have revealed.
-    """
-    comp = str.maketrans("ACGTN", "TGCAN")
-    reads: "list[str]" = []
-    for f in rp.list_files(accession):
-        if str(f.get("file_format", "")).lower() != "fastq":
-            continue
-        name = Path(str(f.get("href") or f.get("accession"))).name
-        dest = rp.FASTQ_CACHE / name
-        if not dest.exists():
-            rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
-            rp.portal_download(f["href"], dest)
-        op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
-        with op(dest, "rt", errors="replace") as fh:       # type: ignore[operator]
-            for i, line in enumerate(fh):
-                if i % 4 == 1:
-                    reads.append(line.strip().upper())
-                    if len(reads) >= sample:
-                        break
-        if reads:
-            break
-    if not reads:
-        return {"chosen": idx["candidates"][0] if idx["candidates"] else None,
-                "read_len": 0, "tested": [],
-                "why": f"no FASTQ reads available from {accession} to calibrate"}
-
-    read_len = Counter(len(r) for r in reads).most_common(1)[0][0]
-    tested = []
-    for c in idx["candidates"]:
-        m, lens = c["seq_to_guide"], c["lengths"]
-        hit = amb = 0
-        for r0 in reads:
-            found = set()
-            for s_ in (r0, r0.translate(comp)[::-1]):
-                for L in lens:
-                    for off in range(0, len(s_) - L + 1):
-                        g = m.get(s_[off:off + L])
-                        if g:
-                            found.add(g)
-                            break
-                    if found:
-                        break
-            if found:
-                hit += 1
-                if len(found) > 1:
-                    amb += 1
-        tested.append({**{k: v for k, v in c.items()
-                          if k not in ("seq_to_guide", "lengths")},
-                       "rate": hit / len(reads),
-                       "ambiguous": amb / max(hit, 1)})
-    # Best assignment rate wins; discrimination breaks near-ties. A key that
-    # is present but cannot separate constructs is useless, and so is one
-    # that separates them but never appears.
-    ranked = sorted(zip(tested, idx["candidates"]),
-                    key=lambda t: (-round(t[0]["rate"], 2), -t[0]["distinct"]))
-    return {"chosen": ranked[0][1] if ranked and ranked[0][0]["rate"] > 0 else None,
-            "read_len": read_len, "tested": tested, "n_reads": len(reads),
-            "why": ""}
 
 
 def build_parser() -> argparse.ArgumentParser:
