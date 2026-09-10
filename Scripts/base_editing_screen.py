@@ -62,6 +62,8 @@ import csv
 import json
 import logging
 import math
+import shutil
+import subprocess
 import sys
 import time
 from collections import Counter, defaultdict
@@ -381,6 +383,135 @@ def score_screen(per_bin: "dict[str, dict]", bins: "list[dict]",
                    "test_basis": "log2_raw (activity is reported, not divided out)"}
 
 
+# ─── Handing counts to the real BEAN ───────────────────────────────────────
+
+def bean_available() -> "tuple[bool, str]":
+    """Is the real `bean` runnable, and which build?
+
+    Probed with `--help`, NOT `--version`: BEAN has no --version flag and
+    answers "error: unrecognized arguments: --version" with exit 2. An
+    agent-authored wrapper used --version as its installed-check and so
+    reported "crispr-bean not installed. Install with: pip install
+    crispr-bean" against a working installation -- a false negative that is
+    indistinguishable, to the reader, from a real missing dependency.
+    """
+    exe = shutil.which("bean")
+    if not exe:
+        return False, "not on PATH"
+    try:
+        r = subprocess.run([exe, "--help"], capture_output=True, text=True,
+                            timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"{type(e).__name__}: {e}"
+    if r.returncode != 0:
+        return False, f"`bean --help` exited {r.returncode}"
+    subs = ""
+    for line in (r.stdout or "").splitlines():
+        if "{" in line and "count" in line:
+            subs = line.strip()
+            break
+    return True, f"{exe} ({subs[:70]})" if subs else exe
+
+
+def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
+                       act: "dict[str, dict]", lib: dict,
+                       editor: str) -> dict:
+    """Write the three CSVs (plus edits) that `bean create-screen` consumes.
+
+    This is the intended division of labour. IGVFagent contributes the
+    base-edit-aware guide assignment -- the part that takes read assignment
+    from 36.7% to 62.5% on this screen -- and BEAN contributes the Bayesian
+    variant model that is deliberately not reimplemented here. create-screen
+    is the seam: gRNA info, sample info, a guide x sample count matrix, and
+    optionally per-guide edit counts, which is exactly what counting already
+    produced.
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    samples = []
+    for b in bins:
+        sid = f"rep{b['rep']}_{b['side']}{b['pct']}"
+        samples.append({"sample_id": sid, "replicate": b["rep"],
+                         "condition": f"{b['side']}{b['pct']}",
+                         "sorting_bin": b["side"], "bin_pct": b["pct"],
+                         "accession": b["accession"]})
+    sample_ids = [r["sample_id"] for r in samples]
+
+    guides = sorted(lib["target_of"])
+    info_path = out / "bean_gRNA_info.csv"
+    with info_path.open("w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["name", "target", "type", "editing_activity", "editor"])
+        for g in guides:
+            a = act.get(g, {})
+            w.writerow([g, lib["target_of"].get(g, g),
+                         lib["type_of"].get(g, ""),
+                         "" if a.get("activity") is None else round(a["activity"], 5),
+                         editor])
+
+    samples_path = out / "bean_sample_info.csv"
+    with samples_path.open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(samples[0]))
+        w.writeheader()
+        for r in samples:
+            w.writerow(r)
+
+    counts_path = out / "bean_gRNA_counts.csv"
+    edits_path = out / "bean_edit_counts.csv"
+    with counts_path.open("w", newline="") as cf, \
+         edits_path.open("w", newline="") as ef:
+        cw, ew = csv.writer(cf), csv.writer(ef)
+        cw.writerow(["name"] + sample_ids)
+        ew.writerow(["name"] + sample_ids)
+        for g in guides:
+            cw.writerow([g] + [per_bin.get(b["accession"], {})
+                                .get("counts", Counter()).get(g, 0)
+                                for b in bins])
+            ew.writerow([g] + [per_bin.get(b["accession"], {})
+                                .get("edited", Counter()).get(g, 0)
+                                for b in bins])
+    return {"gRNA_info": info_path, "sample_info": samples_path,
+             "gRNA_counts": counts_path, "edit_counts": edits_path,
+             "n_guides": len(guides), "n_samples": len(sample_ids)}
+
+
+def run_bean(out: Path, tables: dict, mode: str = "variant",
+              timeout: int = 7200) -> dict:
+    """`bean create-screen` then `bean run`, reporting each step honestly."""
+    exe = shutil.which("bean")
+    if not exe:
+        return {"ran": False, "why": "bean not on PATH"}
+    steps = []
+    prefix = out / "bean_screen"
+    cmds = [
+        ("create-screen",
+         [exe, "create-screen",
+          str(tables["gRNA_info"]), str(tables["sample_info"]),
+          str(tables["gRNA_counts"]),
+          "-e", str(tables["edit_counts"]),
+          "-o", str(prefix)]),
+    ]
+    h5 = Path(f"{prefix}.h5ad")
+    for name, cmd in cmds:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        steps.append({"step": name, "exit_code": r.returncode,
+                       "stderr": (r.stderr or "").strip()[-400:],
+                       "cmd": " ".join(cmd)})
+        if r.returncode != 0:
+            return {"ran": False, "why": f"{name} exited {r.returncode}",
+                     "steps": steps}
+    if not h5.exists():
+        return {"ran": False, "why": f"{name} exited 0 but wrote no {h5.name}",
+                 "steps": steps}
+    r = subprocess.run([exe, "run", mode, str(h5), "-o", str(out / "bean_run")],
+                        capture_output=True, text=True, timeout=timeout)
+    steps.append({"step": f"run {mode}", "exit_code": r.returncode,
+                   "stderr": (r.stderr or "").strip()[-600:],
+                   "cmd": f"bean run {mode} {h5.name}"})
+    return {"ran": r.returncode == 0, "screen_h5ad": str(h5),
+             "why": "" if r.returncode == 0 else f"bean run exited {r.returncode}",
+             "steps": steps}
+
+
 # ─── Commands ───────────────────────────────────────────────────────────────
 
 def _bean_command(accession: str, lib_file: str, editor: "Optional[str]") -> str:
@@ -423,7 +554,14 @@ def cmd_discover(args: argparse.Namespace) -> int:
                                      "bystander/tiling analysis")):
         have = need in cols
         print(f"  {need:9} {'present' if have else 'NOT PUBLISHED'} — {why}")
-    print(f"\nFull BEAN pipeline for this screen:\n  {_bean_command(args.accession, lib['file'], lib['editor'])}")
+    ok, detail = bean_available()
+    print(f"\nReal `bean` on this host: "
+          f"{'YES — ' + detail if ok else 'NO — ' + detail}")
+    if ok:
+        print("  `bean analyze --run-bean` will hand the counts to it "
+              "(create-screen + run).")
+    print(f"\nFull BEAN pipeline for this screen:\n  "
+          f"{_bean_command(args.accession, lib['file'], lib['editor'])}")
     return 0
 
 
@@ -565,6 +703,34 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         ],
         "full_bean_pipeline": _bean_command(args.accession, lib["file"], editor),
     }
+    # Hand the base-edit-aware counts to the real BEAN, when asked for and
+    # available. This is the point of the split: our mapping, BEAN's model.
+    ok, detail = bean_available()
+    summary["real_bean_available"] = ok
+    summary["real_bean"] = detail
+    bean_result = None
+    if args.run_bean:
+        if not ok:
+            print(f"\n  --run-bean requested but the real bean is not usable: "
+                  f"{detail}\n  Install it with: bash Deploy/install-bean.sh "
+                  f"(or rebuild with IGVF_INSTALL_CRISPR_BEAN=1)")
+            summary["bean_run"] = {"ran": False, "why": detail}
+        else:
+            tables = write_bean_tables(out, counted, per_bin, act, lib, editor)
+            print(f"\n  Wrote BEAN inputs: {tables['n_guides']:,} guides x "
+                  f"{tables['n_samples']} samples")
+            bean_result = run_bean(out, tables, mode=args.bean_mode)
+            summary["bean_run"] = bean_result
+            for st in bean_result.get("steps", []):
+                flag = "ok" if st["exit_code"] == 0 else f"FAILED({st['exit_code']})"
+                print(f"    bean {st['step']:16} {flag}")
+                if st["exit_code"] != 0 and st.get("stderr"):
+                    print(f"      {st['stderr'].splitlines()[-1][:150]}")
+            if bean_result["ran"]:
+                print(f"  BEAN model ran: {out / 'bean_run'}")
+            else:
+                print(f"  BEAN did not complete: {bean_result['why']}")
+
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     plots = make_plots(out, rows, act, lib["type_of"], scr["series"])
 
@@ -678,6 +844,12 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--min-count", type=int, default=10)
     a.add_argument("--max-reads", type=int, default=None)
     a.add_argument("--calibrate-reads", type=int, default=40000)
+    a.add_argument("--run-bean", action="store_true",
+                    help="Also hand the counts to the real `bean` "
+                         "(create-screen + run) for its Bayesian model.")
+    a.add_argument("--bean-mode", default="variant",
+                    choices=["variant", "tiling"],
+                    help="Which BEAN model to fit with --run-bean.")
     a.add_argument("--label")
     return p
 
