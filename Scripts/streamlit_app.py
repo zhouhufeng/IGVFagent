@@ -1556,13 +1556,35 @@ def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
 def _render_artefacts(paths: "list[str]") -> None:
     if not paths:
         return
-    # Dedupe while preserving order.
-    seen: "set[str]" = set()
-    paths = [p for p in paths if not (p in seen or seen.add(p))]
 
     # Turn announced directories into the files inside them, so a run's
     # figures render instead of a folder icon the user cannot open.
     paths = _expand_artefact_dirs(paths)
+
+    # Dedupe AFTER expansion, on the resolved path, keeping first-seen order.
+    #
+    # Both halves of that matter. Deduping BEFORE expansion cannot see that a
+    # directory and a file inside it are the same artefact: a run announcing
+    # "Output: <run dir>" and "Report: <run dir>/report.md" -- which is the
+    # normal shape -- expands the directory to report.md and then lists the
+    # file again. And comparing raw STRINGS misses it even then, because
+    # _collect_run_artefacts stores relative paths while _expand_artefact_dirs
+    # emits absolute ones, so "Docs/x/report.md" and
+    # "/workspace/Docs/x/report.md" are two entries for one file. That is the
+    # duplication reported in the Artefacts panel, still present after the
+    # earlier normalisation fix because that fix ran on the wrong side of the
+    # expansion.
+    seen: "set[Path]" = set()
+    deduped: "list[str]" = []
+    for p in paths:
+        key = _norm_path(p)
+        if key is None:
+            key = Path(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(p)
+    paths = deduped
 
     images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
         [], [], [], [], [], [], [], []

@@ -201,5 +201,68 @@ check("hosted run may only with an explicit operator opt-in",
 for k in ("IGVF_PUBLIC_MODE", "IGVF_ALLOW_UPLOAD_EXTENSIONS"):
     os.environ.pop(k, None)
 
-print(f"\n{16 + 12} cases, {len(FAILURES)} failure(s)")
+
+# ── the same file must not be listed twice ────────────────────────────────
+#
+# The evaluation reported duplicated paths in the Artefacts panel, and they
+# were STILL there after the first normalisation fix, because that fix ran on
+# the wrong side of the directory expansion. A run announcing both
+# "Output: <run dir>" and "Report: <run dir>/report.md" -- the normal shape --
+# expanded the directory to report.md and then listed the file again. Worse,
+# a raw-string dedup could not see it: _collect_run_artefacts stores RELATIVE
+# paths while _expand_artefact_dirs emits ABSOLUTE ones, so
+# "Docs/x/report.md" and "/workspace/Docs/x/report.md" survived as two
+# entries for one file.
+
+tmp3 = Path(tempfile.mkdtemp(prefix="dedup_test_"))
+sa._PROJECT_ROOT = tmp3
+run3 = tmp3 / "20260910_120000_run"
+(run3 / "Plots").mkdir(parents=True)
+(run3 / "report.md").write_text("r")
+(run3 / "Plots" / "fig.png").write_bytes(b"\x89PNG")
+
+
+def rendered(reported, answer=""):
+    """What _render_artefacts would list, after expansion and dedup."""
+    paths = sa._expand_artefact_dirs(sa._collect_run_artefacts(reported, answer))
+    seen, out = set(), []
+    for p in paths:
+        k = sa._norm_path(p) or Path(p)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(p)
+    return out
+
+
+def distinct_files(paths):
+    return len({(sa._norm_path(p) or Path(p)) for p in paths}) == len(paths)
+
+
+f3 = str(run3 / "report.md")
+d3 = str(run3)
+for label, reported in (
+    ("dir + file inside it", [d3, f3]),
+    ("file + dir", [f3, d3]),
+    ("dir listed twice", [d3, d3, f3]),
+    ("absolute + relative", [f3, str(Path(f3).relative_to(tmp3))]),
+):
+    got = rendered(reported)
+    check(f"no file listed twice: {label}", distinct_files(got), str(len(got)))
+
+# Expanding the run dir must still surface the figure exactly once.
+got = rendered([d3])
+check("expanding a run dir yields its figure",
+      any(g.endswith("fig.png") for g in got), str(got))
+check("and yields it once", sum(1 for g in got if g.endswith("fig.png")) == 1)
+check("and the report once", sum(1 for g in got if g.endswith("report.md")) == 1)
+
+# A file cited in the answer as well as reported is still one entry.
+got = rendered([f3], f"See {f3} and {Path(f3).relative_to(tmp3)} for details.")
+check("reported + cited twice in the answer -> one entry",
+      distinct_files(got) and len(got) == 1, str(got))
+
+_sh.rmtree(tmp3, ignore_errors=True)
+
+print(f"\n{16 + 12 + 8} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
