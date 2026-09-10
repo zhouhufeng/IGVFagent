@@ -295,10 +295,15 @@ and `bean run sorting variant`, and reports BEAN's per-target posteriors
 front whether it can complete for a given screen, because two things are
 measured rather than assumed:
 
-- **An unsorted bin is required** as `--control-condition`. `IGVFDS5542IBUS`
-  has one; `IGVFDS6464SOVZ` (bottom20/bottom40/top20/top40) does not, so no
-  invocation completes on it. The counts and `bean_screen.h5ad` are still
-  written, so BEAN can be pointed at them if a reference is ever published.
+- **An unsorted bin is required** as `--control-condition`, and it is found
+  by shared `construct_library_sets` rather than by alias prefix. The
+  depositor does not use one naming scheme per screen: `IGVFDS6464SOVZ`'s
+  tails are `18loci_uptake_Rep*_bottom20` and its unsorted bins are
+  `B*_18loci_Rep*_bulk`, so grouping on the parsed series name split one
+  screen into two and lost all four. With them, `bean run` returns 1,659
+  target posteriors. Where a screen truly has none, the counts and
+  `bean_screen.h5ad` are still written and `bean run` is declined rather than
+  handed a tail bin as its baseline.
 - **BEAN's activity normalisation is unavailable on IGVF data.** Both it and
   `--scale-by-acc` route through MixtureNormal, which reads
   `screen.layers['X_bcmatch']` — counts assigned by guide barcode, which IGVF
