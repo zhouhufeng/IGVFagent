@@ -570,6 +570,33 @@ FORCE_RECREATE=1 bash Deploy/redeploy.sh
 `kg-mirror` keeps per-collection state, so interrupting it loses only the
 collection in flight, not the collections already mirrored.
 
+### Optional: install BEAN for base-editing screens
+
+`igvfagent bean` implements BEAN's guide-assignment method independently, and
+that is the part that fixes the 36.7% → 62.5% read assignment. It does **not**
+reimplement BEAN's Bayesian variant/tiling model, and for effect sizes on a
+base-editing screen that model is what you want. To have the real `bean`
+available to the agent, build with it:
+
+```bash
+IGVF_INSTALL_CRISPR_BEAN=1 bash Deploy/redeploy.sh
+```
+
+Off by default: it pulls in torch + pyro and roughly doubles the image, and
+most deployments do not analyse base-editing screens.
+
+**It cannot be added afterwards.** The runtime layer has no compiler, and
+BEAN's `bean/mapping/CRISPResso2Align.pyx` needs Cython, so
+`pip install crispr-bean` inside a running container fails with
+`CompileError: bean/mapping/CRISPResso2Align.pyx`. The builder stage already
+has `build-essential` for the `[hic]` extra, so that is where it goes — which
+means this is a build-time decision, not a runtime one.
+
+BEAN is AGPL-3.0 and IGVFagent is Apache-2.0. This **installs** it as a
+separate program invoked as a subprocess — no linking, no vendoring, no
+licence propagation. See [Reference GitHub
+repositories](#reference-github-repositories).
+
 ### Credentials and the shared-deployment settings
 
 `Deploy/make-live.sh` pushes the IGVF Portal key pair and the ArangoDB

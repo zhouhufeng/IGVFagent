@@ -55,6 +55,32 @@ RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install --upgrade pip \
  && /opt/venv/bin/pip install '.[all]'
 
+# crispr-bean (BEAN) for base-editing screens. OPT-IN, because it pulls in
+# torch + pyro for its Bayesian variant/tiling model and roughly doubles the
+# image; most deployments do not analyse base-editing screens.
+#
+#   docker compose build --build-arg INSTALL_CRISPR_BEAN=1
+#
+# It cannot be installed into the RUNTIME layer at all: that layer has no
+# compiler, and BEAN's bean/mapping/CRISPResso2Align.pyx needs Cython and a
+# C toolchain, so `pip install crispr-bean` there dies with
+# "CompileError: bean/mapping/CRISPResso2Align.pyx". Here in the builder
+# stage build-essential is already present for the [hic] extra.
+#
+# BEAN is AGPL-3.0 and IGVFagent is Apache-2.0. This INSTALLS it as a
+# separate program invoked as a subprocess -- no linking, no vendoring, no
+# licence propagation. `igvfagent bean` implements BEAN's guide-assignment
+# method independently; the installed `bean` binary is what provides the
+# Bayesian model that is deliberately not reimplemented.
+ARG INSTALL_CRISPR_BEAN=0
+RUN if [ "$INSTALL_CRISPR_BEAN" = "1" ]; then \
+        /opt/venv/bin/pip install cython numpy \
+     && /opt/venv/bin/pip install crispr-bean \
+     && /opt/venv/bin/bean --version; \
+    else \
+        echo "crispr-bean NOT installed (INSTALL_CRISPR_BEAN=0)."; \
+    fi
+
 
 # ---------------------------- runtime stage --------------------------------
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime

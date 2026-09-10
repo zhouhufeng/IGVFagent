@@ -21,6 +21,14 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        # crispr-bean (BEAN) for base-editing screens. Off by default: it
+        # pulls torch + pyro and roughly doubles the image. It CANNOT be
+        # installed after the fact -- the runtime layer has no compiler and
+        # BEAN's CRISPResso2Align.pyx needs Cython -- so this must be
+        # decided at build time.
+        #     IGVF_INSTALL_CRISPR_BEAN=1 bash Deploy/redeploy.sh
+        INSTALL_CRISPR_BEAN: ${IGVF_INSTALL_CRISPR_BEAN:-0}
     image: igvfagent:latest
     container_name: igvfagent-app
     restart: unless-stopped
