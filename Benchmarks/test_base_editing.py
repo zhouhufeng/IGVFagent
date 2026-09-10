@@ -19,6 +19,7 @@ mismatches would also absorb sequencing error and cross-map similar guides.
 
 These cases are offline and synthetic.
 """
+import re
 import sys
 from pathlib import Path
 
@@ -362,5 +363,29 @@ check("every emitted line is either a bean command or a # comment",
 check("the editor picks the base for -b (CBE -> C)", "-b C" in cmd_full)
 check("ABE picks A", "-b A" in cmd_bulk)
 
-print(f"\n{21 + 10 + 17 + 11 + 13 + 14} cases, {len(FAILURES)} failure(s)")
+# ─── Every advertised subcommand must resolve ─────────────────────────────
+# main() builds its dispatch table from module-level names, so a lost or
+# renamed cmd_* function is a NameError at the first real invocation and
+# nowhere earlier. That is exactly what happened: an edit that replaced the
+# span from _bean_command to cmd_count deleted cmd_discover, which sat
+# between them, and 86 passing cases said nothing because none of them
+# reached main(). Import-time success is not enough -- the table is built
+# inside the function body.
+import inspect  # noqa: E402
+src = inspect.getsource(bes.main)
+advertised = re.findall(r'"(\w+)": (cmd_\w+)', src)
+check("the dispatch table is non-empty", len(advertised) >= 3)
+for name, fn in advertised:
+    check(f"subcommand {name!r} resolves to a callable",
+          callable(getattr(bes, fn, None)))
+# The parser and the table must agree in both directions, or a subcommand is
+# either unreachable or accepted and then unhandled.
+parser_cmds = set(re.findall(r'add_parser\(\s*"(\w+)"', inspect.getsource(bes)))
+table_cmds = {n for n, _ in advertised}
+check("every parser subcommand has a handler",
+      not (parser_cmds - table_cmds), f"unhandled: {parser_cmds - table_cmds}")
+check("every handler is reachable from the parser",
+      not (table_cmds - parser_cmds), f"unreachable: {table_cmds - parser_cmds}")
+
+print(f"\n{21 + 10 + 17 + 11 + 13 + 14 + 6} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

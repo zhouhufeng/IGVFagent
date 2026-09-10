@@ -792,12 +792,61 @@ def _bean_command(accession: str, lib_file: str, editor: "Optional[str]",
         # Without a barcode the only fittable models forbid the activity
         # column, so say which one this is rather than leaving the reader to
         # discover it from a KeyError.
-        run += ("  --uniform-edit --ignore-bcmatch"
+        run += (" --uniform-edit --ignore-bcmatch"
                  "\n  # --uniform-edit because no guide barcode is published:"
                  " MixtureNormal (and --scale-by-acc) read X_bcmatch."
                  " This fits BEAN's Normal model, WITHOUT activity"
                  " normalisation.")
     return f"{count}\n  {qc}\n  {run}"
+
+
+def cmd_discover(args: argparse.Namespace) -> int:
+    scr = cs.discover_screen(args.accession)
+    if "error" in scr:
+        print(scr["error"])
+        return 2
+    lib = load_library(args.accession)
+    print(f"Screen:     {scr['series']}  ({len(scr['bins'])} libraries, "
+          f"replicates {scr['replicates']})")
+    print(f"Bins:       {', '.join(cs._bin_label(b) for b in scr['bin_kinds'])}")
+    if not lib["resolved"]:
+        print(f"Library:    UNRESOLVED — {lib['why']}")
+        return 2
+    print(f"Library:    {lib['file']}  ({lib['n_guides']:,} guides)")
+    print(f"Editor:     {lib['editor'] or 'not stated in guide names'}"
+          f"  (from the library's own guide names)")
+    types = Counter(v for v in lib["type_of"].values() if v)
+    print(f"Classes:    {dict(types)}")
+    idx = lib["index"]
+    cols = {c["column"] for c in idx["candidates"]}
+    print(f"Sequence columns present: {', '.join(sorted(cols))}")
+    for need, why in (("barcode", "BEAN resolves masked-sequence collisions "
+                                   "with a guide barcode read from R2"),
+                       ("reporter", "BEAN counts reporter alleles for "
+                                     "bystander/tiling analysis")):
+        have = need in cols
+        print(f"  {need:9} {'present' if have else 'NOT PUBLISHED'} — {why}")
+    ok, detail = bean_available()
+    print(f"\nReal `bean` on this host: "
+          f"{'YES — ' + detail if ok else 'NO — ' + detail}")
+    if ok:
+        # Whether `bean run` can model THIS screen is a property of its bins,
+        # not of the install, and it is knowable here -- before a counting
+        # run spends an hour to end in a decline. `bean run sorting` needs an
+        # unsorted sample as its --control-condition; a screen that sequenced
+        # only its tails never measured one.
+        ctl, why = control_condition(
+            [condition_label(b["side"], b["pct"]) for b in scr["bins"]])
+        if ctl:
+            print("  `bean analyze --run-bean` will hand the counts to it "
+                  f"(create-screen + run), with --control-condition {ctl}.")
+        else:
+            print("  `bean analyze --run-bean` will write BEAN's screen "
+                  "object but STOP before `bean run`:")
+            print(f"    {why}")
+    print(f"\nFull BEAN pipeline for this screen:\n  "
+          f"{_bean_command(args.accession, lib['file'], lib['editor'], scr, 'barcode' in cols)}")
+    return 0
 
 
 def cmd_count(args: argparse.Namespace) -> int:
