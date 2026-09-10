@@ -286,7 +286,26 @@ igvfagent gradient-screen analyze  IGVFDS8710ZSOZ --label kitlg
 igvfagent bean discover IGVFDS6464SOVZ        # editor, and which BEAN inputs IGVF publishes
 igvfagent bean count    IGVFDS6464SOVZ        # measure which masking recovers reads
 igvfagent bean analyze  IGVFDS6464SOVZ --label ldl_abe
+igvfagent bean analyze  IGVFDS5542IBUS --run-bean   # hand the counts to real BEAN
 ```
+
+`--run-bean` writes BEAN's own four input tables, runs `bean create-screen`
+and `bean run sorting variant`, and reports BEAN's per-target posteriors
+(`mu`, `mu_sd`, `mu_z`) next to the per-guide scores. `bean discover` says up
+front whether it can complete for a given screen, because two things are
+measured rather than assumed:
+
+- **An unsorted bin is required** as `--control-condition`. `IGVFDS5542IBUS`
+  has one; `IGVFDS6464SOVZ` (bottom20/bottom40/top20/top40) does not, so no
+  invocation completes on it. The counts and `bean_screen.h5ad` are still
+  written, so BEAN can be pointed at them if a reference is ever published.
+- **BEAN's activity normalisation is unavailable on IGVF data.** Both it and
+  `--scale-by-acc` route through MixtureNormal, which reads
+  `screen.layers['X_bcmatch']` — counts assigned by guide barcode, which IGVF
+  does not publish. The models that avoid that read reject
+  `--guide-activity-col`, so BEAN supplies the posterior under its Normal
+  model and `log2_per_edit` stays this tool's own activity-aware estimate.
+  The output labels which model produced which number.
 
 The counting key is chosen by measurement in all three: a prime-editing
 library shares one spacer across every variant it installs, so keying on
