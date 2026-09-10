@@ -259,7 +259,7 @@ def score_screen(per_bin: "dict[str, Counter]", bins: "list[dict]",
     # t statistic set by luck rather than by effect size. Floor each sd at a
     # low percentile of the sds actually observed across the screen, taken
     # from targets with k >= 3 because their sd is the better estimate. This
-    # is the idea behind limma's variance moderation, at its simplest: the
+    # is the idea behind limma's variance moderation (the idea, not the estimator; see README.md "Methods, sources and attribution"), at its simplest: the
     # screen's own spread is a prior on how quiet a target can plausibly be.
     ref_sds = [sd for k, _m, sd, _sc in stats_by_target.values()
                if k >= 3 and not math.isnan(sd) and sd > 0]

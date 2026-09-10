@@ -145,6 +145,123 @@ python3 Scripts/crispri_data_skills.py analyze-local --input Data/Input/VariantL
 python3 Scripts/crispri_data_skills.py write-playbook
 ```
 
+## Raw reads → count matrix → analysis
+
+The routing front door for any dataset's raw data. `plan` reports the route,
+the download size and whether an aligner is present, and downloads nothing;
+`run` executes it. It REFUSES assays whose reads are not a transcript
+library, naming the right tool instead — only 59.5% of the Portal's 11,070
+MeasurementSets are transcript assays, so a default of "quantify it as RNA"
+is wrong for 4,486 of them.
+
+```bash
+igvfagent raw-pipeline plan          IGVFDS7013XXYV      # route + cost, no download
+igvfagent raw-pipeline run           IGVFDS7013XXYV --label multiome_run
+igvfagent raw-pipeline run           IGVFDS7013XXYV --detach     # long jobs
+igvfagent raw-pipeline status                                    # detached runs
+igvfagent raw-pipeline assay-coverage                            # which assays are classified
+igvfagent raw-pipeline guide-library IGVFDS6464SOVZ              # is the sgRNA library reachable?
+igvfagent raw-pipeline guide-count   IGVFDS6464SOVZ              # count guides in one library
+```
+
+## IGVF Portal queries
+
+```bash
+igvfagent portal search --type MeasurementSet --limit 25
+igvfagent portal get IGVFDS6464SOVZ
+igvfagent portal schema MeasurementSet
+igvfagent portal list-types
+igvfagent portal facets --type MeasurementSet
+igvfagent portal report --type MeasurementSet
+```
+
+## IGVF Catalog queries
+
+```bash
+igvfagent catalog get-entity ENSG00000141510
+igvfagent catalog resolve-id rs7412
+igvfagent catalog variant-evidence --variant rs7412
+igvfagent catalog variant-enhancers --variant rs1250566
+igvfagent catalog search-region --region chr19:44900000-45000000
+igvfagent catalog find-associations --from-id ENSG00000130164
+igvfagent catalog find-ld --variant rs7412
+```
+
+`variant-evidence` ranks variants by how many DISTINCT assay types support
+them, which is the question "is this variant well evidenced" actually asks.
+
+## Variant lists
+
+```bash
+igvfagent variant-list annotate --input Data/Input/VariantList/example_variants.csv
+igvfagent variant-list parse    --input my_variants.txt
+```
+
+## Enrichment (ORA / GSEA)
+
+```bash
+igvfagent enrich ora      --genes TP53,MDM2,CDKN1A
+igvfagent enrich gsea     --ranked my_scores.tsv
+igvfagent enrich go       --genes TP53,MDM2,CDKN1A
+igvfagent enrich pathways --genes TP53,MDM2,CDKN1A
+igvfagent enrich showcase                              # cell-cycle positive control
+```
+
+## Single-cell effect-size / power estimation (scEPS)
+
+```bash
+igvfagent sceps estimate  --input processed.h5ad
+igvfagent sceps cluster   --input processed.h5ad
+igvfagent sceps aggregate
+```
+
+## Open4Gene enhancer–gene links
+
+```bash
+igvfagent open4gene link --gene PCSK9
+```
+
+## Documents (PDF / DOCX / tables)
+
+```bash
+igvfagent document read    --path Data/Uploads/<session>/paper.pdf
+igvfagent document analyze --path Data/Uploads/<session>/manifest.csv
+igvfagent document plan    --path Data/Uploads/<session>/manifest.csv
+```
+
+## figshare retrieval
+
+```bash
+igvfagent figshare search   --query "MPRA"
+igvfagent figshare article  --id 12345678
+igvfagent figshare files    --id 12345678
+igvfagent figshare download --id 12345678
+```
+
+## Paper replication benchmarks
+
+End-to-end: resolve a paper, harvest its accessions and claims, route them
+to an IGVFagent chain, scaffold and run it, then score the reproduction
+against the paper's stated numbers.
+
+```bash
+igvfagent bench resolve  --query "Rosen 2025 MPRA"
+igvfagent bench harvest  --paper-id rosen2025
+igvfagent bench route    --paper-id rosen2025
+igvfagent bench scaffold --paper-id rosen2025
+igvfagent bench run      --paper-id rosen2025
+igvfagent bench score    --paper-id rosen2025
+igvfagent bench report   --paper-id rosen2025
+```
+
+## MCP server (expose IGVFagent to other agents)
+
+```bash
+igvfagent mcp list          # tools that would be exposed
+igvfagent mcp manifest      # MCP manifest JSON
+igvfagent mcp serve         # run the server
+```
+
 ## CRISPR screens from raw reads (three shapes, three tools)
 
 A sorted CRISPR screen is not analysable one bin at a time: the measurement
@@ -195,6 +312,93 @@ igvfagent mct analyze  IGVFDS4826YNLK --label mct_run
 Both halves are analysed and cross-compared. Methylation ratios are NOT
 log-normalised, which is what makes a methylome look like an expression
 matrix.
+
+## Catalog GRN and protein-variant effects
+
+```bash
+igvfagent grn network --regulator ENSG00000141510
+igvfagent grn protein-variants --protein P04637
+```
+
+## eQTL / MPRA concordance
+
+```bash
+igvfagent eqtl-mpra tissues --genes PCSK9,LDLR
+igvfagent eqtl-mpra eqtl --genes PCSK9 --tissue Liver
+igvfagent eqtl-mpra concordance --genes PCSK9,LDLR --tissue Liver
+```
+
+## Pathway / interaction network for a gene list
+
+```bash
+igvfagent pathway-viz network --genes TP53,MDM2,CDKN1A --sources reactome,kegg
+```
+
+## scE2G bulk ingestion into the local KG
+
+```bash
+igvfagent sce2g-kg pull --region chr19:44900000-45000000
+```
+
+## Cross-source variant verification
+
+```bash
+igvfagent variant-verify clinvar --annotated Data/Annotated/VariantList/my_run.csv
+```
+
+Re-checks annotations against current ClinVar rather than trusting a cached
+call.
+
+## Reading back artefacts
+
+The agent's own read path — how it inspects what a previous step wrote,
+instead of re-running the analysis to see the answer.
+
+```bash
+igvfagent artifact ls   --path Docs/CrisprScreen
+igvfagent artifact read --path Docs/CrisprScreen/ldl_abe/summary.json
+igvfagent artifact grep --pattern "significant_fdr" --path Docs
+```
+
+## Skill cards (machine-readable skill specifications)
+
+```bash
+igvfagent skillcard list
+igvfagent skillcard show --skill crispr-screen
+igvfagent skillcard export
+igvfagent skillcard coverage        # which skills have validation
+```
+
+## Agent-authored extensions
+
+IGVFagent writing its own tools and skills. **An authored skill is Python
+this host later executes**, so on a shared deployment this turns "knows the
+password" into "can run code" — gated by `IGVF_ALLOW_AGENT_AUTHORING`, and
+visitor uploads are separately gated by `IGVF_ALLOW_UPLOAD_EXTENSIONS`.
+
+```bash
+igvfagent extauthor list
+igvfagent extauthor write-tool      # manifest for an existing CLI
+igvfagent extauthor write-skill     # new Python skill module
+igvfagent extauthor validate
+igvfagent extauthor remove
+```
+
+## Evaluation tiers and playbook freezing
+
+Three-tier evaluation — skill correctness, planning quality, conclusion
+validity — and freezing a recorded session into a deterministic playbook so
+the same question re-runs the same way.
+
+```bash
+igvfagent eval-tiers list
+igvfagent eval-tiers tier2
+igvfagent eval-tiers tier3
+
+igvfagent playbook-freeze list
+igvfagent playbook-freeze freeze
+igvfagent playbook-freeze check
+```
 
 ## Functional-assay calibration → ACMG/AMP evidence
 

@@ -128,6 +128,8 @@ In short — **two ways to drive every skill, one shared contract**:
 - [Capabilities](#capabilities)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
+- [Methods, sources and attribution](#methods-sources-and-attribution)
+- [Recreating the hosted container (and why you must)](#recreating-the-hosted-container-and-why-you-must)
 - [Configuration](#configuration)
 - [Smoke test](#smoke-test)
 - [Skill catalog and usage](#skill-catalog-and-usage)
@@ -523,6 +525,155 @@ the dropdown.
 
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
+
+## Methods, sources and attribution
+
+Where IGVFagent implements a published method rather than inventing one, the
+source is named here and in the docstring of the module that implements it.
+Formal citations are given only where verified; otherwise the canonical
+repository or documentation URL is given, which is what a reader needs to
+check the method.
+
+### Reimplemented methods
+
+| Method | Source | What IGVFagent does with it |
+|---|---|---|
+| **BEAN** — base-editing-aware guide mapping and activity normalisation | `crispr-bean`, Pinello Lab · <https://github.com/pinellolab/crispr-bean> · docs <https://pinellolab.github.io/crispr-bean/> · **AGPL-3.0** | `Scripts/base_editing_screen.py` and `raw_data_pipeline.mask_sequence` / `build_masked_matcher` follow BEAN's `GuideEditCounter`: the edited base is normalised to its product on both sides before comparison, rather than allowing free mismatches. Per-guide self-edit rate is used as the editing-activity estimate. **BEAN's `run` Bayesian variant/tiling model is NOT reimplemented**; `igvfagent bean` prints the real `bean` command for it. |
+| **CRISPResso2** | used *inside* BEAN for allele alignment (`bean/mapping/CRISPResso2Align.pyx`) | Not used or reimplemented here — noted because BEAN's reporter-allele calling depends on it, and that is one of the steps IGVFagent does not provide. |
+| **Variance moderation** (empirical-Bayes shrinkage of per-feature variance) | the idea is limma's | `Scripts/_stats.py` floors each target's sd using the screen's own spread, so a target whose few replicates happen to agree cannot produce an arbitrarily large *t*. This is limma's *idea* at its simplest, not limma's estimator. |
+| **Benjamini–Hochberg FDR** | standard procedure | `_stats.benjamini_hochberg`, order-preserving and monotone. |
+| **Adjusted Rand index** | standard statistic (Hubert & Arabie) | `Scripts/mct_analysis.py`, comparing the RNA and methylation clusterings of the same nuclei. |
+
+### External software invoked (not reimplemented)
+
+| Tool | Source | Used for |
+|---|---|---|
+| **kallisto \| bustools** (`kb-python`) | <https://github.com/pachterlab/kb_python> | FASTQ → count matrix in `raw-pipeline`. The only aligner shipped, which is why genomic assays (ATAC-seq, Hi-C) are refused rather than mis-quantified. |
+| **scanpy** / **anndata** | <https://scanpy.readthedocs.io> | QC, HVG selection, PCA, Leiden, markers in `sc-analyze`. |
+| **seqspec** | <https://github.com/pachterlab/seqspec> | Read-structure parsing when a dataset publishes it. |
+
+### Data sources whose conventions are followed
+
+| Source | Note |
+|---|---|
+| **ENCODE-rE2G**, **scE2G** | Enhancer–gene predictions retrieved from the IGVF Catalog. These records are `class=prediction` with **null** `p_value_adj` and `significant`; IGVFagent reports them with their model score and refuses to describe them as statistically significant or non-significant. |
+| **IGVF Catalog / Portal** | <https://api.catalogkg.igvf.org>, <https://api.data.igvf.org>. `page=` is the only working pagination parameter — `skip=` and `offset=` are silently ignored, and the per-request cap is 500. |
+| **ALLCools** conventions for snmC data | Methylation ratios are **not** log-normalised in `mct`, which is the step that makes a methylome look like an expression matrix. |
+
+### Alternatives deliberately not implemented
+
+For pooled screens, count-based negative-binomial models (**MAGeCK**-style)
+have materially more power than the per-guide tail-enrichment tests used
+here, because they model counting noise across guides rather than testing
+each guide independently. This is measurable rather than theoretical: on
+`IGVFDS6464SOVZ`, none of 1,640 positive controls reaches FDR 0.05 under
+per-guide testing at four replicates, while the top-ranked controls are the
+biologically expected LDLR and HNF4A splice sites with the correct sign. Use
+BEAN or MAGeCK for effect sizes on such screens; IGVFagent's contribution
+there is correct guide assignment, QC, and the honest statement of what its
+own test can and cannot support.
+
+### Licensing
+
+IGVFagent is **Apache-2.0**. BEAN is **AGPL-3.0**. No BEAN source code is
+copied into this repository — the masked-matching *method* was read from
+BEAN's `GuideEditCounter` and implemented independently, and BEAN's
+identifiers appear here only in comments that credit and explain it. If you
+want BEAN's own model, invoke `bean` as a separate program rather than
+vendoring it, which would place its licence over this code.
+
+## Recreating the hosted container (and why you must)
+
+**The container does not mount the source tree.** `Scripts/streamlit_app.py`
+imports `from igvfagent import ...` — the package `pip install` bakes into
+`/opt/venv` at image **build** time. So `git pull` on the host updates the
+checkout and changes nothing about the running site, however many times you
+pull. This has cost real debugging time: an external tester reported a bug
+that was already fixed and pushed, because the container was serving an
+image built before the fix.
+
+### Check first, then rebuild
+
+```bash
+bash Deploy/redeploy.sh --check     # compare running code against the checkout
+bash Deploy/redeploy.sh             # pull, rebuild --no-cache, recreate, verify
+```
+
+`--check` hashes the top-level modules inside the container and the same
+files in the checkout and prints both. The sidebar shows that same hash, so
+you can confirm what a browser is talking to without shell access.
+
+One wording caveat: it prints `STALE` for **any** difference, in either
+direction. A container carrying newer code than the checkout is also
+reported stale.
+
+### It refuses while analyses are running, on purpose
+
+```
+REFUSING to recreate: 2 analysis process(es) are running.
+```
+
+`--force-recreate` kills running work. The guard checks for
+`sc-analyze`, `raw-pipeline`, `crispr-screen`, `gradient-screen`, `bean`,
+`sge`, `mct`, `kg-mirror` and `mirror-kg.sh` **before** rebuilding, so a
+long job is not destroyed after a ten-minute image build. Override
+deliberately with `FORCE_RECREATE=1`, having decided the running work is
+expendable:
+
+```bash
+FORCE_RECREATE=1 bash Deploy/redeploy.sh
+```
+
+`kg-mirror` keeps per-collection state, so interrupting it loses only the
+collection in flight, not the collections already mirrored.
+
+### Credentials and the shared-deployment settings
+
+`Deploy/make-live.sh` pushes the IGVF Portal key pair and the ArangoDB
+credentials into `Deploy/.env.prod` (mode 600) and then redeploys, verifying
+inside the container afterwards. Secrets travel on **stdin**, never in argv,
+because argv is visible in `ps` on the host for the life of the call.
+
+```bash
+bash Deploy/make-live.sh --check    # report only
+bash Deploy/make-live.sh            # upsert credentials, redeploy, verify
+```
+
+Environment changes need a **recreate**, not a restart. Two settings matter
+on a shared deployment and both default to closed:
+
+| Variable | Default | What it allows |
+|---|---|---|
+| `IGVF_ALLOW_AGENT_AUTHORING` | `0` | the agent writing tools/skills this host then executes |
+| `IGVF_ALLOW_UPLOAD_EXTENSIONS` | `0` | a **visitor** uploading a `.py` this host then executes |
+| `IGVF_HEAVY_SLOTS` | `1` | concurrent heavy analyses before queueing |
+| `IGVF_PUBLIC_MODE` | `0` | fixed backend + curated model allowlist |
+
+If the deployment is reachable by anyone who has the password, leave the
+first two at `0`.
+
+### When a hot copy is the right answer instead
+
+Some fixes reach a running container without a rebuild, which matters when a
+multi-day job is in flight:
+
+- **`streamlit_app.py`** — Streamlit re-reads its main script on every
+  rerun, so a copied file takes effect on the next interaction.
+- **Any CLI skill module** — every tool call runs `igvfagent <skill>` as a
+  fresh subprocess, so a copied module is picked up immediately.
+- **NOT `_agent.py`, `_llm.py` or `_tools.py`** — these are imported into the
+  long-lived Streamlit process and cached in `sys.modules`. A new *tool* in
+  particular will not appear in the agent's registry until the process
+  restarts, even though its CLI works.
+
+```bash
+D=/opt/venv/lib/python3.11/site-packages/igvfagent
+docker cp Scripts/<module>.py igvfagent-app:$D/<module>.py
+docker exec igvfagent-app sh -c "rm -rf $D/__pycache__"
+```
+
+A hot copy is a **stopgap**: it lives in the container, not the image, so a
+restart reverts it. Follow it with a real `redeploy.sh` at the next window.
 
 ## Choosing an LLM backend
 

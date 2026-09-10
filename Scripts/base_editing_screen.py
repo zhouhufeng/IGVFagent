@@ -19,6 +19,15 @@ before we measured it, and named the cause: "it is important to allow for
 self-editing in gRNA assignment (allow for A2G edits in the gRNA when
 aligning)".
 
+SOURCE. crispr-bean ("Base Editing screens' Activity-Normalized variant
+effect size estimation"), Pinello Lab:
+    repository  https://github.com/pinellolab/crispr-bean   (AGPL-3.0)
+    docs        https://pinellolab.github.io/crispr-bean/
+    method read from bean/mapping/GuideEditCounter.py
+No BEAN source is copied here. IGVFagent is Apache-2.0 and BEAN is AGPL-3.0,
+so the METHOD was read and reimplemented; to use BEAN's own model, invoke
+`bean` as a separate program rather than vendoring it.
+
 WHAT IS TAKEN FROM BEAN. The matching method: crispr-bean's GuideEditCounter
 compares mask_sequence(read) against the masked library, normalising the
 edited base to its product on both sides rather than allowing free

@@ -355,7 +355,11 @@ _PREFIX_K_MAX = 12
 # is what stochastic self-editing looks like. A collaborator flagged the low
 # rate before we measured it.
 #
-# THE METHOD IS BEAN'S, NOT AN INVENTION. crispr-bean's GuideEditCounter
+# THE METHOD IS BEAN'S, NOT AN INVENTION. Source: crispr-bean, Pinello Lab,
+# https://github.com/pinellolab/crispr-bean (AGPL-3.0), method read from
+# bean/mapping/GuideEditCounter.py. No BEAN code is copied; see the
+# "Methods, sources and attribution" section of README.md.
+# crispr-bean's GuideEditCounter
 # compares `mask_sequence(seq) == guides.masked_sequence`: every edited base
 # is normalised to its product on BOTH sides before comparison, rather than
 # allowing free mismatches. That distinction matters -- free mismatches would
