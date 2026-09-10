@@ -185,6 +185,22 @@ check("it says the artefacts were still written",
       "were still written" in why)
 check("it explains why a tail is not a substitute",
       "itself selected" in why)
+# The condition label is one formula, shared by write_bean_tables and by
+# discover, so the control condition reported before a run is the one BEAN
+# is actually given. An unsorted bin has no percentage: f"{side}{pct}" made
+# it "bulkNone", which matched by luck and would have reached BEAN's tables.
+check("a tail bin's label carries its percentage",
+      bes.condition_label("top", 20) == "top20")
+check("an unsorted bin is labelled just 'bulk'",
+      bes.condition_label("bulk", None) == "bulk")
+check("a bulk bin with a percentage is still 'bulk'",
+      bes.condition_label("bulk", 100) == "bulk")
+check("a percentage-less tail does not become 'topNone'",
+      bes.condition_label("top", None) == "top")
+check("discover's label is the control condition BEAN gets",
+      bes.control_condition([bes.condition_label("bottom", 20),
+                              bes.condition_label("bulk", None),
+                              bes.condition_label("top", 20)])[0] == "bulk")
 # The refusal must not fire on a screen that HAS a bulk bin, or `bean run`
 # never gets a chance on the one design it can actually model.
 check("a bulk bin is chosen as the control",
@@ -203,5 +219,49 @@ check("None instead of a list does not crash",
 check("'nonbulk20' is not mistaken for a control",
       bes.control_condition(["nonbulk20", "top20"])[0] is None)
 
-print(f"\n{21 + 10 + 12} cases, {len(FAILURES)} failure(s)")
+# ─── The activity floor on log2_per_edit ───────────────────────────────────
+# log2_raw / activity is unbounded as activity -> 0. On IGVFDS5542IBUS
+# (0426_LDLR137-219, not a base-editing screen, so measured activity ~0.001)
+# the top-hits table printed -436.54 as an effect size next to a log2_raw of
+# -0.30. The divisor there is a rate estimated from a handful of reads, so
+# the ratio reports the divisor's noise.
+check("the floor is documented as a module constant",
+      0 < bes.PER_EDIT_ACTIVITY_FLOOR < 0.1)
+
+def _per_edit(mean, activity):
+    return (mean / activity
+            if (activity or 0) >= bes.PER_EDIT_ACTIVITY_FLOOR else None)
+
+check("activity of 0.001 withholds the ratio", _per_edit(-0.30, 0.001) is None)
+check("activity of exactly 0 withholds the ratio", _per_edit(-0.30, 0) is None)
+check("unmeasured activity withholds the ratio", _per_edit(-0.30, None) is None)
+check("a well-editing guide still gets a ratio",
+      abs(_per_edit(-0.30, 0.60) + 0.5) < 1e-9)
+check("the floor itself is inclusive, not excluded",
+      _per_edit(1.0, bes.PER_EDIT_ACTIVITY_FLOOR) is not None)
+check("no surviving ratio can exceed 1/floor of its numerator",
+      abs(_per_edit(1.0, bes.PER_EDIT_ACTIVITY_FLOOR))
+      <= 1.0 / bes.PER_EDIT_ACTIVITY_FLOOR + 1e-9)
+
+# ─── Reading BEAN's own posteriors ─────────────────────────────────────────
+# BEAN names its result file after the model it fitted and nests it under a
+# directory named after the input, so the path is not knowable in advance.
+import tempfile  # noqa: E402
+with tempfile.TemporaryDirectory() as td:
+    d = Path(td) / "bean_run_result.bean_screen"
+    d.mkdir(parents=True)
+    (d / "bean_element_result.Normal.csv").write_text(
+        ",target,n_guides,mu,mu_sd,mu_z,sd\n"
+        "0,chr19:1:A:G,2,-0.5,0.9,-0.55,1.1\n"
+        "1,chr19:2:C:T,1,0.1,0.9,2.40,1.1\n")
+    res = bes.read_bean_results(Path(td))
+    check("BEAN's result file is found by glob, not by construction",
+          res["n_targets"] == 2)
+    check("targets are ranked by |mu_z|, not by file order",
+          res["top"][0]["target"] == "chr19:2:C:T")
+    check("the posterior mean is carried through", res["top"][1]["mu"] == -0.5)
+check("a run directory with no result reads as zero targets, not a crash",
+      bes.read_bean_results(Path("/nonexistent"))["n_targets"] == 0)
+
+print(f"\n{21 + 10 + 17 + 11} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

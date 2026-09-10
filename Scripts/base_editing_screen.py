@@ -294,6 +294,14 @@ def activity_summary(act: "dict[str, dict]", type_of: "dict[str, str]") -> dict:
              "n_total": len(act)}
 
 
+# Below this per-guide editing rate, log2_raw/activity is dominated by the
+# divisor's own sampling error and is withheld rather than reported. 2% is an
+# order of magnitude under the median editing activity at positive controls
+# in the ABE screen measured here, so it excludes only guides with no usable
+# rate -- not weakly-editing guides that still have one.
+PER_EDIT_ACTIVITY_FLOOR = 0.02
+
+
 # ─── Activity-normalised scoring ────────────────────────────────────────────
 
 def score_screen(per_bin: "dict[str, dict]", bins: "list[dict]",
@@ -360,7 +368,15 @@ def score_screen(per_bin: "dict[str, dict]", bins: "list[dict]",
         st = moderated_t(vals, sd_floor, sd_count)
         a = act.get(g, {})
         activity = a.get("activity")
-        per_edit = (st["mean"] / activity) if (activity and activity > 0) else None
+        # log2_raw / activity is unbounded as activity -> 0, and on the
+        # LDLR137-219 screen (activity ~0.001, because it is not a base
+        # editing screen at all) it printed -436.54 as an effect size. A
+        # number like that is not a weak estimate, it is no estimate: the
+        # divisor is a rate measured from a handful of reads. Below the floor
+        # the ratio is withheld and the low activity is what gets reported,
+        # which is the same reasoning that keeps the p-value on log2_raw.
+        per_edit = (st["mean"] / activity
+                     if (activity or 0) >= PER_EDIT_ACTIVITY_FLOOR else None)
         rows.append({
             "guide": g, "target": target_of.get(g, g),
             "guide_type": type_of.get(g, ""),
@@ -442,7 +458,7 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
         else:                       # bulk / unsorted spans everything
             lo, hi = 0.0, 1.0
         samples.append({"sample_id": sid, "replicate": b["rep"],
-                         "condition": f"{b['side']}{b['pct']}",
+                         "condition": condition_label(b["side"], b["pct"]),
                          "sorting_bin": b["side"], "bin_pct": b["pct"],
                          "lower_quantile": lo, "upper_quantile": hi,
                          "accession": b["accession"]})
@@ -485,6 +501,14 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
              "gRNA_counts": counts_path, "edit_counts": edits_path,
              "n_guides": len(guides), "n_samples": len(sample_ids),
              "conditions": sorted({r["condition"] for r in samples})}
+
+
+def condition_label(side: str, pct) -> str:
+    """BEAN's condition name for a bin. An unsorted bin has no percentage,
+    so f"{side}{pct}" spelled it "bulkNone" -- which still matched the
+    control-condition test by luck, and would have appeared verbatim in
+    BEAN's own output tables."""
+    return side if side == "bulk" or pct is None else f"{side}{pct}"
 
 
 def control_condition(conditions) -> "tuple[str | None, str]":
@@ -566,27 +590,105 @@ def run_bean(out: Path, tables: dict, mode: str = "variant",
     if not control:
         return {"ran": False, "steps": steps,
                  "screen_h5ad": str(h5), "why": why}
-    run_dir = out / "bean_run"
-    cmd = [exe, "run", screen_type, mode, str(h5),
-            "--control-condition", control,
-            "--replicate-col", "replicate",
-            "--condition-col", "condition",
-            "--target-col", "target",
-            "--guide-activity-col", "editing_activity",
-            "--sorting-bin-lower-quantile-col", "lower_quantile",
-            "--sorting-bin-upper-quantile-col", "upper_quantile",
-            "--outdir", str(run_dir)]
-    if n_iter:
-        cmd += ["--n-iter", str(n_iter)]
-    run_dir.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    steps.append({"step": f"run {screen_type} {mode}",
-                   "exit_code": r.returncode,
-                   "stderr": (r.stderr or "").strip()[-600:],
-                   "cmd": " ".join(cmd)})
-    return {"ran": r.returncode == 0, "screen_h5ad": str(h5),
-             "why": "" if r.returncode == 0 else f"bean run exited {r.returncode}",
-             "steps": steps}
+    # Two invocations, tried in order, because BEAN's models differ in what
+    # they require of the input -- and the one that consumes editing activity
+    # requires something IGVF does not publish.
+    #
+    #   MixtureNormal (default)  consumes --guide-activity-col, and its data
+    #       class reads screen.layers["X_bcmatch"] unconditionally
+    #       (bean/preprocessing/data_class.py:309, via
+    #       VariantSortingReporterScreenData). X_bcmatch is the count of reads
+    #       assigned by GUIDE BARCODE, which IGVF's guide libraries do not
+    #       carry -- so this path dies with KeyError: 'X_bcmatch'.
+    #
+    #   Normal (--uniform-edit)  guards that read behind use_bcmatch
+    #       (data_class.py:1120), so --ignore-bcmatch makes it runnable. But
+    #       it raises "Can't use the guide activity column while constraining
+    #       uniform edit" if --guide-activity-col is passed, and writes
+    #       edit_eff = 1.0 for every guide.
+    #
+    # So on IGVF-published base-editing data, BEAN's Bayesian model is
+    # available WITHOUT activity normalisation, or not at all. Both facts are
+    # recorded rather than one being hidden: the fallback runs, and the result
+    # is labelled with the model that produced it so nobody reads a Normal
+    # posterior as an activity-normalised one. IGVFagent's own log2_per_edit
+    # stays the activity-aware view, and BEAN contributes the posterior.
+    attempts = [
+        ("activity", ["--guide-activity-col", "editing_activity"]),
+        ("uniform-edit fallback", ["--uniform-edit", "--ignore-bcmatch"]),
+    ]
+    base = [exe, "run", screen_type, mode, str(h5),
+             "--control-condition", control,
+             "--replicate-col", "replicate",
+             "--condition-col", "condition",
+             "--target-col", "target",
+             "--sorting-bin-lower-quantile-col", "lower_quantile",
+             "--sorting-bin-upper-quantile-col", "upper_quantile"]
+    for label, extra in attempts:
+        run_dir = out / ("bean_run" if label == "activity"
+                          else "bean_run_uniform")
+        cmd = base + extra + ["--outdir", str(run_dir)]
+        if n_iter:
+            cmd += ["--n-iter", str(n_iter)]
+        run_dir.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                            timeout=timeout)
+        err = (r.stderr or "").strip()
+        steps.append({"step": f"run {screen_type} {mode} [{label}]",
+                       "exit_code": r.returncode,
+                       "stderr": err[-600:], "cmd": " ".join(cmd)})
+        if r.returncode == 0:
+            res = {"ran": True, "screen_h5ad": str(h5), "steps": steps,
+                    "model": "MixtureNormal" if label == "activity"
+                              else "Normal",
+                    "activity_normalised": label == "activity",
+                    "outdir": str(run_dir), "why": ""}
+            if label != "activity":
+                res["caveat"] = (
+                    "BEAN's activity-normalised MixtureNormal model needs the "
+                    "X_bcmatch layer -- read counts assigned by guide barcode "
+                    "-- which IGVF's guide libraries do not publish. These "
+                    "posteriors come from BEAN's Normal model under "
+                    "--uniform-edit, which assumes every guide edits with "
+                    "efficiency 1.0 and refuses --guide-activity-col. For the "
+                    "activity-aware view use this tool's own log2_per_edit, "
+                    "which is reported alongside.")
+            res["results"] = read_bean_results(run_dir)
+            return res
+        # Only fall through on the bcmatch barrier. Any other failure is a
+        # real error and must not be masked by a weaker model quietly
+        # succeeding in its place.
+        if "X_bcmatch" not in err:
+            return {"ran": False, "screen_h5ad": str(h5), "steps": steps,
+                     "why": f"bean run exited {r.returncode}"}
+    return {"ran": False, "screen_h5ad": str(h5), "steps": steps,
+             "why": "bean run failed under both the activity and the "
+                     "uniform-edit model"}
+
+
+def read_bean_results(run_dir: Path) -> dict:
+    """BEAN's per-target posteriors, if it wrote any.
+
+    BEAN names the file after the model it fitted and nests it under a
+    directory named after the input, so the path is not knowable in advance
+    -- glob for it rather than construct it.
+    """
+    hits = sorted(run_dir.glob("**/bean_element_result.*.csv"))
+    if not hits:
+        return {"n_targets": 0, "path": None}
+    rows = []
+    with open(hits[0], newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                rows.append({"target": row.get("target", ""),
+                              "n_guides": int(row.get("n_guides") or 0),
+                              "mu": float(row["mu"]),
+                              "mu_sd": float(row["mu_sd"]),
+                              "mu_z": float(row["mu_z"])})
+            except (KeyError, TypeError, ValueError):
+                continue
+    rows.sort(key=lambda r: -abs(r["mu_z"]))
+    return {"n_targets": len(rows), "path": str(hits[0]), "top": rows[:15]}
 
 
 # ─── Commands ───────────────────────────────────────────────────────────────
@@ -635,8 +737,20 @@ def cmd_discover(args: argparse.Namespace) -> int:
     print(f"\nReal `bean` on this host: "
           f"{'YES — ' + detail if ok else 'NO — ' + detail}")
     if ok:
-        print("  `bean analyze --run-bean` will hand the counts to it "
-              "(create-screen + run).")
+        # Whether `bean run` can model THIS screen is a property of its bins,
+        # not of the install, and it is knowable here -- before a counting
+        # run spends an hour to end in a decline. `bean run sorting` needs an
+        # unsorted sample as its --control-condition; a screen that sequenced
+        # only its tails never measured one.
+        ctl, why = control_condition(
+            [condition_label(b["side"], b["pct"]) for b in scr["bins"]])
+        if ctl:
+            print("  `bean analyze --run-bean` will hand the counts to it "
+                  f"(create-screen + run), with --control-condition {ctl}.")
+        else:
+            print("  `bean analyze --run-bean` will write BEAN's screen "
+                  "object but STOP before `bean run`:")
+            print(f"    {why}")
     print(f"\nFull BEAN pipeline for this screen:\n  "
           f"{_bean_command(args.accession, lib['file'], lib['editor'])}")
     return 0
@@ -846,6 +960,24 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"    - {n}")
     print(f"\n  For the full model, run BEAN itself:\n    "
           f"{summary['full_bean_pipeline']}")
+    withheld = sum(1 for r in rows if r["log2_per_edit"] is None)
+    if withheld:
+        print(f"\n  /edit withheld for {withheld:,} of {len(rows):,} guides: "
+              f"editing activity below {PER_EDIT_ACTIVITY_FLOOR:.0%}, where "
+              f"dividing by it reports the divisor's noise, not an effect.")
+    br = summary.get("bean_run") or {}
+    if br.get("ran"):
+        res = br.get("results") or {}
+        print(f"\n  BEAN's own model ran: {br['model']}"
+              f"{'' if br.get('activity_normalised') else ' (NOT activity-normalised)'}"
+              f", {res.get('n_targets', 0):,} targets")
+        if br.get("caveat"):
+            print(f"    why: {br['caveat']}")
+        for t in (res.get("top") or [])[:5]:
+            print(f"    {t['target'][:34]:34} mu {t['mu']:>7.3f} "
+                  f"z {t['mu_z']:>7.3f}  ({t['n_guides']} guides)")
+        if res.get("path"):
+            print(f"    full table: {res['path']}")
     print(f"\nTop 15 by significance:")
     print(f"  {'target':30} {'log2':>7} {'act':>6} {'/edit':>8} {'fdr':>9}")
     for r in rows[:15]:
