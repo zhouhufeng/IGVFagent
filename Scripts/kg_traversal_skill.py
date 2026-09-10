@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import hashlib
 import json
 import logging
 import os
@@ -771,6 +772,106 @@ def evidence_note(meta: dict) -> str:
     return "; ".join(parts)
 
 
+
+# --------------------------- Answer verification -----------------------------
+
+# The fields an answer is allowed to quote about a regulatory link. Each one
+# must come from the SAME source record: a row is a measurement, and taking
+# the biosample from one row, the score from another and the p-value from a
+# third produces a sentence that is false about every record it was built
+# from while every individual value is real.
+CITABLE_FIELDS = ("gene", "genomic_element", "biological_context", "method",
+                   "class", "source", "source_url", "score", "effect_size",
+                   "log2FC", "p_value", "p_value_adj", "significant",
+                   "crispr_modality", "files_filesets")
+
+
+def record_id(row: dict) -> str:
+    """Stable id for one source record, from its identifying fields."""
+    basis = json.dumps(
+        {k: row.get(k) for k in ("gene", "genomic_element", "source_url",
+                                  "biological_context", "method", "class",
+                                  "score", "p_value_adj")},
+        sort_keys=True, default=str)
+    return hashlib.sha256(basis.encode()).hexdigest()[:12]
+
+
+def evidence_records(rows: "list[dict]") -> "list[dict]":
+    """Citable, record-atomic view of retrieved rows, each with a record_id."""
+    out = []
+    for r in rows:
+        rec = {"record_id": record_id(r)}
+        for k in CITABLE_FIELDS:
+            rec[k] = r.get(k)
+        out.append(rec)
+    return out
+
+
+def _same(a: Any, b: Any) -> bool:
+    """Field comparison that tolerates presentation, not substance.
+
+    Numbers are compared with a relative tolerance because an answer rounds
+    (0.7911 for 0.79107...); strings are compared case-insensitively after
+    stripping any "genes/" style prefix. None matches only None -- a null
+    adjusted p-value quoted as a number is exactly the confusion between
+    prediction scores and significance that this is here to catch.
+    """
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, bool) or isinstance(b, bool):
+        return bool(a) == bool(b)
+    try:
+        fa, fb = float(a), float(b)
+        if fa == fb:
+            return True
+        scale = max(abs(fa), abs(fb), 1e-12)
+        return abs(fa - fb) / scale < 1e-3
+    except (TypeError, ValueError):
+        pass
+    sa = str(a).strip().lower().split("/")[-1]
+    sb = str(b).strip().lower().split("/")[-1]
+    return sa == sb
+
+
+def verify_claim(claim: "dict", records: "list[dict]") -> dict:
+    """Does one claimed row correspond to a single retrieved record?
+
+    Returns {ok, record_id, reason, fields_found_elsewhere}. When no single
+    record carries every claimed field but each value does occur somewhere,
+    the verdict is CROSS_RECORD -- the assembly failure the evaluation asked
+    us to reject, and the one that is invisible to spot-checking because
+    every value in the sentence is genuine.
+    """
+    fields = {k: v for k, v in (claim or {}).items()
+              if k in CITABLE_FIELDS and v is not None}
+    if not fields:
+        return {"ok": False, "record_id": None, "reason": "NO_CITABLE_FIELDS",
+                 "fields_found_elsewhere": []}
+    for rec in records:
+        if all(_same(rec.get(k), v) for k, v in fields.items()):
+            return {"ok": True, "record_id": rec["record_id"], "reason": "",
+                     "fields_found_elsewhere": []}
+    elsewhere = [k for k, v in fields.items()
+                 if any(_same(rec.get(k), v) for rec in records)]
+    if len(elsewhere) == len(fields):
+        return {"ok": False, "record_id": None, "reason": "CROSS_RECORD",
+                 "fields_found_elsewhere": elsewhere}
+    missing = [k for k in fields if k not in elsewhere]
+    return {"ok": False, "record_id": None, "reason": "NOT_IN_SOURCE",
+             "fields_found_elsewhere": elsewhere, "unmatched_fields": missing}
+
+
+def verify_table(claims: "list[dict]", records: "list[dict]") -> dict:
+    """Verify every claimed row. Returns a verdict plus per-row detail."""
+    rows = [dict(verify_claim(c, records), claim_index=i)
+            for i, c in enumerate(claims or [])]
+    bad = [r for r in rows if not r["ok"]]
+    return {"n_claims": len(rows), "n_verified": len(rows) - len(bad),
+             "n_rejected": len(bad),
+             "cross_record": sum(1 for r in bad if r["reason"] == "CROSS_RECORD"),
+             "not_in_source": sum(1 for r in bad if r["reason"] == "NOT_IN_SOURCE"),
+             "ok": not bad, "rows": rows}
+
 # --------------------------- Literature side-call ----------------------------
 
 def call_literature_validate(symbol: str, context: list[str], top: int = 10) -> list[dict]:
@@ -1034,6 +1135,15 @@ def cmd_gene(args: argparse.Namespace) -> Path:
                 p = manifests_dir / f"linkage_{k}.csv"
                 write_csv(p, linkage[k])
                 manifest_paths[f"linkage_{k}"] = p
+        # Record-atomic view: one row per source record, each with a
+        # record_id. An answer should quote a row of THIS table, so every
+        # field it states came from one measurement and can be checked back
+        # against it with verify_claim().
+        if linkage.get("region_predictions"):
+            recs = evidence_records(linkage["region_predictions"])
+            p = manifests_dir / "linkage_evidence_records.csv"
+            write_csv(p, recs)
+            manifest_paths["linkage_evidence_records"] = p
 
     singlecell_hits: list[dict] = []
     if args.call_singlecell:

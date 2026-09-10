@@ -213,5 +213,101 @@ check("predictions and observations are counted apart",
       (m["observed_count"], m["prediction_count"]) == (1, 1),
       f"obs={m['observed_count']} pred={m['prediction_count']}")
 
-print(f"\n{28} cases, {len(FAILURES)} failure(s)")
+
+# ── record-level answer verification ──────────────────────────────────────
+#
+# The report's remaining P0: "Each reported gene, element, biosample, score,
+# effect, adjusted P value, significance status, and source URL should map to
+# the same source record. The verifier should reject cross-record field
+# assembly." That failure is invisible to spot-checking, because every value
+# in the sentence is genuine -- only the combination is not.
+
+SRC = [
+    {"gene": "genes/ENSG00000184937", "genomic_element": "genomic_elements/E1",
+     "biological_context": "left kidney from ENCDO633IHH", "method": "ENCODE-rE2G",
+     "class": "prediction", "source_url": "https://x/ENCFF899XZX",
+     "score": 0.7911, "p_value_adj": None, "significant": None},
+    {"gene": "genes/ENSG00000184937", "genomic_element": "genomic_elements/E2",
+     "biological_context": "liver", "method": "ENCODE-rE2G",
+     "class": "prediction", "source_url": "https://x/ENCFF000AAA",
+     "score": 0.2200, "p_value_adj": None, "significant": None},
+    {"gene": "genes/ENSG00000184937", "genomic_element": "genomic_elements/E3",
+     "biological_context": "CD8-positive T cell", "method": "CRISPR screen",
+     "class": "observed data", "source_url": "https://x/IGVFFI1",
+     "score": None, "p_value_adj": 0.938, "significant": False},
+]
+RECS = kg.evidence_records(SRC)
+
+check("every record gets an id", len({r["record_id"] for r in RECS}) == 3)
+check("record ids are stable across calls",
+      [r["record_id"] for r in kg.evidence_records(SRC)]
+      == [r["record_id"] for r in RECS])
+
+v = kg.verify_claim({"gene": "ENSG00000184937",
+                     "biological_context": "left kidney from ENCDO633IHH",
+                     "score": 0.7911, "source_url": "https://x/ENCFF899XZX"}, RECS)
+check("a faithful row verifies", v["ok"] and v["record_id"] == RECS[0]["record_id"])
+check("rounding is tolerated",
+      kg.verify_claim({"gene": "ENSG00000184937", "score": 0.791}, RECS)["ok"])
+check("the genes/ prefix is tolerated",
+      kg.verify_claim({"gene": "genes/ENSG00000184937",
+                       "score": 0.7911}, RECS)["ok"])
+
+# The headline case: kidney from record 1, score from record 2.
+v = kg.verify_claim({"gene": "ENSG00000184937",
+                     "biological_context": "left kidney from ENCDO633IHH",
+                     "score": 0.2200}, RECS)
+check("CROSS-RECORD assembly is rejected", not v["ok"], v["reason"])
+check("and is named as such, not 'not found'", v["reason"] == "CROSS_RECORD",
+      v["reason"])
+check("it reports that each value did occur somewhere",
+      set(v["fields_found_elsewhere"]) ==
+      {"gene", "biological_context", "score"}, str(v["fields_found_elsewhere"]))
+
+# Source URL borrowed from another record is the same failure.
+v = kg.verify_claim({"biological_context": "left kidney from ENCDO633IHH",
+                     "source_url": "https://x/ENCFF000AAA"}, RECS)
+check("a borrowed source URL is rejected", v["reason"] == "CROSS_RECORD",
+      v["reason"])
+
+v = kg.verify_claim({"gene": "ENSG00000184937",
+                     "biological_context": "renal cortex", "score": 0.99}, RECS)
+check("invented values are NOT_IN_SOURCE", v["reason"] == "NOT_IN_SOURCE",
+      v["reason"])
+check("and the unmatched fields are named",
+      set(v.get("unmatched_fields", [])) == {"biological_context", "score"},
+      str(v.get("unmatched_fields")))
+
+# A null adjusted p-value quoted as a number: the significance confusion.
+check("a null p_value_adj quoted as a number is rejected",
+      not kg.verify_claim({"gene": "ENSG00000184937", "score": 0.7911,
+                           "p_value_adj": 0.01}, RECS)["ok"])
+check("null matches null",
+      kg.verify_claim({"gene": "ENSG00000184937", "score": 0.7911,
+                       "p_value_adj": None, "significant": None},
+                      RECS)["ok"])
+check("significant=False is not treated as absent",
+      kg.verify_claim({"genomic_element": "E3", "significant": False},
+                      RECS)["ok"])
+check("significant=True on a False record is rejected",
+      not kg.verify_claim({"genomic_element": "E3", "significant": True},
+                          RECS)["ok"])
+check("a claim with no citable field is rejected",
+      kg.verify_claim({"notes": "looks good"}, RECS)["reason"]
+      == "NO_CITABLE_FIELDS")
+
+t = kg.verify_table([
+    {"gene": "ENSG00000184937", "score": 0.7911},
+    {"gene": "ENSG00000184937", "biological_context": "left kidney from ENCDO633IHH",
+     "score": 0.2200},
+    {"gene": "ENSG00000184937", "biological_context": "renal cortex"},
+], RECS)
+check("verify_table counts verified and rejected",
+      (t["n_claims"], t["n_verified"], t["n_rejected"]) == (3, 1, 2), str(t)[:80])
+check("verify_table separates the two failure kinds",
+      (t["cross_record"], t["not_in_source"]) == (1, 1),
+      f"cross={t['cross_record']} missing={t['not_in_source']}")
+check("verify_table is not ok when any row fails", t["ok"] is False)
+
+print(f"\n{28 + 18} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
