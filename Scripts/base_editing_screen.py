@@ -483,7 +483,39 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
                                 for b in bins])
     return {"gRNA_info": info_path, "sample_info": samples_path,
              "gRNA_counts": counts_path, "edit_counts": edits_path,
-             "n_guides": len(guides), "n_samples": len(sample_ids)}
+             "n_guides": len(guides), "n_samples": len(sample_ids),
+             "conditions": sorted({r["condition"] for r in samples})}
+
+
+def control_condition(conditions) -> "tuple[str | None, str]":
+    """Pick the sample condition `bean run sorting` should normalise against.
+
+    BEAN defaults --control-condition to "bulk" and raises
+
+        ValueError: No sample has control label `bulk`
+        (set by `--control-condition`) in ReporterScreen.samples[condition]
+
+    when none is present. That reads like a misconfiguration, but on a real
+    screen it is usually a property of the data: the sorting model needs an
+    unsorted sample to anchor each guide's baseline abundance, and a screen
+    that only sequenced its tails never measured one. Of the two base-editing
+    screens reachable here, 18loci_uptake (IGVFDS6464SOVZ) sorts
+    bottom20/bottom40/top20/top40 and has no unsorted bin, while
+    0426_LDLR137-219 (IGVFDS5542IBUS) does have one -- so this is a per-screen
+    fact to report, not a default to paper over. Naming a bin "bulk" that is
+    not one would make BEAN produce numbers whose baseline is a tail.
+    """
+    conds = sorted(set(conditions or []))
+    control = next((c for c in conds if c.lower().startswith("bulk")), None)
+    if control:
+        return control, ""
+    return None, (
+        "this screen has no unsorted/bulk bin, and BEAN's sorting model needs "
+        "one as --control-condition to anchor baseline guide abundance. "
+        f"Conditions present: {conds or 'none'}. The counts and the BEAN "
+        "screen object were still written, so `bean run` can be pointed at "
+        "them once a reference sample is available; naming a tail bin as the "
+        "control would give BEAN a baseline that is itself selected.")
 
 
 def run_bean(out: Path, tables: dict, mode: str = "variant",
@@ -524,8 +556,19 @@ def run_bean(out: Path, tables: dict, mode: str = "variant",
     # --guide-activity-col is the point of the whole exercise: it is where
     # BEAN takes a per-guide editing rate for its activity normalisation, and
     # the self-edit rate measured during counting goes straight into it.
+    # BEAN defaults --control-condition to "bulk" and raises
+    # "No sample has control label `bulk`" when none exists. That is a real
+    # property of some screens, not a misconfiguration: the 18loci_uptake
+    # screen has bottom20/bottom40/top20/top40 and no unsorted bin at all,
+    # so its sorting model has nothing to anchor baseline abundance to. Say
+    # that plainly instead of passing the ValueError through.
+    control, why = control_condition(tables.get("conditions"))
+    if not control:
+        return {"ran": False, "steps": steps,
+                 "screen_h5ad": str(h5), "why": why}
     run_dir = out / "bean_run"
     cmd = [exe, "run", screen_type, mode, str(h5),
+            "--control-condition", control,
             "--replicate-col", "replicate",
             "--condition-col", "condition",
             "--target-col", "target",
@@ -750,7 +793,23 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                   f"(or rebuild with IGVF_INSTALL_CRISPR_BEAN=1)")
             summary["bean_run"] = {"ran": False, "why": detail}
         else:
-            tables = write_bean_tables(out, bins, per_bin, act, lib, editor)
+            # BEAN's sorting model needs an unsorted reference to anchor
+            # baseline guide abundance, so the bulk bins go in even though
+            # the tail comparison does not use them. They have to be COUNTED
+            # for that, which the tail-only pass skipped.
+            bulk = [b for b in scr["bins"] if b["side"] == "bulk"]
+            for b in bulk:
+                if b["accession"] in per_bin:
+                    continue
+                d = count_library(b["accession"], masked, plain, args.max_reads)
+                per_bin[b["accession"]] = d
+                dp = d["disposition"]; n = max(dp.get("reads", 1), 1)
+                print(f"  Rep{b['rep']} bulk (for BEAN)  "
+                      f"{dp.get('reads',0):>8,} reads: exact "
+                      f"{dp.get('exact',0)/n:>5.1%}, self-edited "
+                      f"{dp.get('self_edited',0)/n:>5.1%}")
+            tables = write_bean_tables(out, bins + bulk, per_bin, act, lib,
+                                        editor)
             print(f"\n  Wrote BEAN inputs: {tables['n_guides']:,} guides x "
                   f"{tables['n_samples']} samples")
             bean_result = run_bean(out, tables, mode=args.bean_mode,

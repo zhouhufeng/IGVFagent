@@ -157,5 +157,51 @@ check("a plain knockout library does NOT refuse",
 check("an empty library does NOT refuse",
       rp.base_editing_refusal([]) is None)
 
-print(f"\n{21 + 10} cases, {len(FAILURES)} failure(s)")
+
+# ─── BEAN's control condition ──────────────────────────────────────────────
+# `bean run sorting` normalises each sorted bin against an unsorted sample and
+# defaults --control-condition to "bulk". Handed a screen without one it dies
+# with ValueError: No sample has control label `bulk`, which reads like a
+# misconfiguration but is a real property of the screen: 18loci_uptake
+# (IGVFDS6464SOVZ) sorts bottom20/bottom40/top20/top40 and has no unsorted
+# bin at all, while 0426_LDLR137-219 (IGVFDS5542IBUS) does have one. So the
+# bulk bins must be COUNTED and included even when --tail selects only the
+# 20% pair, and their absence must be reported as a property of the data.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Scripts"))
+import base_editing_screen as bes  # noqa: E402
+
+# The decision is a pure function so it is testable on a host without BEAN
+# installed -- run_bean reaches it only after create-screen has succeeded,
+# because the BEAN screen object is worth writing even when `run` must be
+# declined.
+ctl, why = bes.control_condition(["bottom20", "top20"])
+check("no bulk condition -> no control condition", ctl is None)
+check("the reason names the missing bin", "bulk" in why and "unsorted" in why)
+check("the reason lists what the screen does have",
+      "bottom20" in why and "top20" in why)
+check("it does not blame configuration",
+      "invalid" not in why.lower() and "error" not in why.lower())
+check("it says the artefacts were still written",
+      "were still written" in why)
+check("it explains why a tail is not a substitute",
+      "itself selected" in why)
+# The refusal must not fire on a screen that HAS a bulk bin, or `bean run`
+# never gets a chance on the one design it can actually model.
+check("a bulk bin is chosen as the control",
+      bes.control_condition(["bottom20", "bulk", "top20"])[0] == "bulk")
+check("the portal's 'bulk (unsorted)' spelling is recognised",
+      bes.control_condition(["top20", "bulk (unsorted)"])[0]
+      == "bulk (unsorted)")
+check("case is not load-bearing",
+      bes.control_condition(["Bulk", "top20"])[0] == "Bulk")
+check("an empty condition list has no control",
+      bes.control_condition([])[0] is None)
+check("None instead of a list does not crash",
+      bes.control_condition(None)[0] is None)
+# A bin merely CONTAINING "bulk" late in the name is not an unsorted sample;
+# only a leading "bulk" is, which is how the portal spells it.
+check("'nonbulk20' is not mistaken for a control",
+      bes.control_condition(["nonbulk20", "top20"])[0] is None)
+
+print(f"\n{21 + 10 + 12} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
