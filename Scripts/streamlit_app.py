@@ -1339,6 +1339,94 @@ def deployed_build_id() -> str:
     return f"code {code}" + (f" · build {sha}" if sha else "")
 
 
+# Run directories are stamped <YYYYmmdd>_<HHMMSS>_<label>. Recognising them
+# is what stops a parent directory from being expanded into every past run.
+_RUN_DIR_RE = re.compile(r"^\d{8}[_-]\d{6}[_-]")
+
+
+def _looks_like_run_dir(name: str) -> bool:
+    return bool(_RUN_DIR_RE.match(name))
+
+
+def _norm_path(p: str) -> "Optional[Path]":
+    """Absolute, symlink-resolved path, or None if it cannot be resolved.
+
+    Paths reach the UI in several spellings of the same file --
+    "Docs/x/y.png", "/workspace/Docs/x/y.png", and the absolute host path --
+    so deduplicating the raw strings left the same figure listed three times.
+    """
+    try:
+        q = Path(p)
+        if not q.is_absolute():
+            q = _PROJECT_ROOT / p
+        return q.resolve()
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _run_scope(reported: "list[str]") -> "set[Path]":
+    """The directories THIS run wrote into, from what its tools reported.
+
+    A run owns the files its own tools announced, and whatever sits inside
+    the directories those files are in. It does not own the parent of those
+    directories: Docs/KGTraversal holds 15 run directories from previous
+    questions, so expanding the parent listed APOE, TP53, BRCA1 and rs7412
+    reports as artefacts of a query about six kidney genes.
+    """
+    scope: "set[Path]" = set()
+    for r in reported:
+        q = _norm_path(r)
+        if q is None:
+            continue
+        scope.add(q if q.is_dir() else q.parent)
+    return scope
+
+
+def _in_run_scope(path: "Optional[Path]", scope: "set[Path]") -> bool:
+    if path is None or not scope:
+        return False
+    for d in scope:
+        try:
+            path.relative_to(d)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _collect_run_artefacts(reported: "list[str]", answer: str) -> "list[str]":
+    """Artefacts of THIS run: what its tools produced, plus what the answer
+    cites from inside that run's own output directories.
+
+    Paths named in the answer are still honoured -- an answer that cites a
+    figure should render it -- but only when they fall inside a directory
+    this run wrote to. Anything else is another run's file that the model
+    happened to mention, and attributing it to this run is wrong twice over:
+    it misrepresents provenance, and on a shared deployment it advertises
+    files this questioner never asked for.
+    """
+    scope = _run_scope(reported)
+    out: "list[str]" = []
+    seen: "set[Path]" = set()
+
+    def add(raw: str) -> None:
+        q = _norm_path(raw)
+        if q is None or q in seen:
+            return
+        seen.add(q)
+        try:
+            out.append(str(q.relative_to(_PROJECT_ROOT)))
+        except ValueError:
+            out.append(str(q))
+
+    for r in reported:
+        add(r)
+    for m in _extract_paths_from_text(answer or ""):
+        if _in_run_scope(_norm_path(m), scope):
+            add(m)
+    return out
+
+
 def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
     """Replace directory artefacts with the renderable files inside them.
 
@@ -1369,13 +1457,19 @@ def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
                 cand = _PROJECT_ROOT / p
             if cand.is_dir():
                 found: "list[str]" = []
+                # One sublevel deep, and ONLY into a subdirectory that looks
+                # like part of this run's output (Plots/, Manifests/, ...) --
+                # never into a sibling that is itself a run directory. A run
+                # directory is named <timestamp>_<label>, so descending into
+                # those turned "the folder my results are in" into "every
+                # result anyone has ever produced here".
                 for c in sorted(cand.iterdir()):
                     if len(found) >= 40:
                         break
                     if (c.is_file() and c.suffix.lower() in renderable
                             and _pathguard.is_safe_artifact(c)):
                         found.append(str(c))
-                    elif c.is_dir():
+                    elif c.is_dir() and not _looks_like_run_dir(c.name):
                         for g in sorted(c.iterdir()):
                             if len(found) >= 40:
                                 break
@@ -2395,11 +2489,12 @@ def main() -> None:
         # artefacts with any file paths mentioned in the final answer
         # itself, so the user does not have to copy paths into a terminal
         # to view a referenced CSV / JSONL / PDF / PNG.
-        artefacts = list(result.artefacts or [])
-        extra = _extract_paths_from_text(result.final_answer or "")
-        for p in extra:
-            if p not in artefacts:
-                artefacts.append(p)
+        # Only this run's own output. Previously every path mentioned in the
+        # answer was added, so an answer that cited an earlier report listed
+        # it as an artefact of this run; an external evaluation saw ~70
+        # entries for a six-gene query, including APOE, TP53 and BRCA1.
+        artefacts = _collect_run_artefacts(list(result.artefacts or []),
+                                            result.final_answer or "")
         if artefacts:
             with st.expander(f"📁 Artefacts ({len(artefacts)})",
                              expanded=True):
