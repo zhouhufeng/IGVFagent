@@ -401,6 +401,62 @@ def score_screen(per_bin: "dict[str, dict]", bins: "list[dict]",
 
 # ─── Handing counts to the real BEAN ───────────────────────────────────────
 
+def bean_gap(lib: dict, scr: dict) -> "list[str]":
+    """What BEAN's model adds that is NOT available here, and why.
+
+    This was a hard-coded list, and it went stale the moment `--run-bean`
+    started working: it still claimed variant-level aggregation and posterior
+    intervals were missing when BEAN was by then producing both. A list of
+    absences has to be derived from what the run actually found, or it becomes
+    a confident description of an older version of the tool.
+
+    The distinction that matters to anyone reading it is not
+    implemented-vs-not. It is:
+
+      * available here, via --run-bean
+      * not available to ANYONE on IGVF-published data, because the input
+        BEAN needs was never published -- running BEAN yourself does not
+        recover these
+      * not available for THIS screen, because of how it was designed
+
+    Collapsing the last two into "the full model would add" implies a
+    download away, which for three of the five is not true.
+    """
+    cols = {c["column"] for c in lib["index"]["candidates"]}
+    gaps = []
+    if "reporter" not in cols:
+        gaps.append("reporter-allele analysis -- NOT OBTAINABLE from IGVF: "
+                     f"the library ({lib['file']}) publishes no reporter "
+                     "column, so there are no alleles to count")
+        gaps.append("bystander edit deconvolution -- NOT OBTAINABLE: it reads "
+                     "the reporter allele above, and needs CRISPResso2 "
+                     "alignment of it")
+    if "barcode" not in cols:
+        gaps.append("bcmatch/semimatch split -- NOT OBTAINABLE: no guide "
+                     "barcode is published, so masked-sequence collisions "
+                     "stay ambiguous rather than being resolved")
+    # The X_bcmatch layer is built from that same barcode, and BEAN's
+    # accessibility and activity-normalised models both read it
+    # unconditionally (data_class.py:309). So they are blocked by the same
+    # missing field, not by anything this tool declines to do.
+    if "barcode" not in cols:
+        gaps.append("accessibility-covariate model (`--scale-by-acc`) and "
+                     "BEAN's own activity normalisation -- NOT OBTAINABLE: "
+                     "both run through MixtureNormal, whose data class reads "
+                     "screen.layers['X_bcmatch'] (counts assigned by guide "
+                     "barcode). Verified: KeyError: 'X_bcmatch'. The two "
+                     "models that avoid it (--uniform-edit, --const-pi) "
+                     "reject --guide-activity-col outright, so this tool's "
+                     "log2_per_edit is the only activity-aware estimate "
+                     "available on this data")
+    if not control_condition([condition_label(b["side"], b["pct"])
+                               for b in scr["bins"]])[0]:
+        gaps.append("BEAN's `run` model at all, for THIS screen -- it has no "
+                     "unsorted/bulk bin to use as --control-condition; a "
+                     "screen with one (e.g. IGVFDS5542IBUS) does run")
+    return gaps
+
+
 def bean_available() -> "tuple[bool, str]":
     """Is the real `bean` runnable, and which build?
 
@@ -693,67 +749,55 @@ def read_bean_results(run_dir: Path) -> dict:
 
 # ─── Commands ───────────────────────────────────────────────────────────────
 
-def _bean_command(accession: str, lib_file: str, editor: "Optional[str]") -> str:
-    """The real BEAN invocation for this screen, for anyone who wants it.
+def _bean_command(accession: str, lib_file: str, editor: "Optional[str]",
+                   scr: "Optional[dict]" = None,
+                   have_barcode: bool = False) -> str:
+    """The real BEAN invocation for this screen -- one that actually runs.
 
-    This tool does not reimplement `bean run`'s Bayesian model, so it should
-    say how to get it rather than leave the impression it has been applied.
+    This used to print the README's example verbatim:
+
+        bean run variant <h5ad> --scale-by-acc
+
+    Every part of that is wrong for an IGVF screen. `bean run` takes two
+    positionals ({sorting,survival} then {variant,tiling}), so "variant"
+    alone exits 2 with "invalid choice". --scale-by-acc selects the
+    MixtureNormal+Acc model, which reads screen.layers['X_bcmatch'] and
+    raises KeyError without a published guide barcode. And a screen with no
+    unsorted bin cannot satisfy --control-condition at all. So the tool was
+    printing an unrunnable command directly beneath its own explanation of
+    why it could not run -- worse than printing nothing, because it reads as
+    a way forward.
     """
-    e = {"ABE": "A,G", "CBE": "C,T"}.get(editor or "", "A,G")
-    return (f"bean count-samples --input sample_list.csv "
-            f"-b {e.split(',')[0]} -f -r "
-            f"--guide-info {lib_file}.csv --output-prefix {accession}\n"
-            f"  bean qc {accession}.h5ad -o {accession}.masked.h5ad\n"
-            f"  bean run variant {accession}.masked.h5ad --scale-by-acc")
-
-
-def cmd_discover(args: argparse.Namespace) -> int:
-    scr = cs.discover_screen(args.accession)
-    if "error" in scr:
-        print(scr["error"])
-        return 2
-    lib = load_library(args.accession)
-    print(f"Screen:     {scr['series']}  ({len(scr['bins'])} libraries, "
-          f"replicates {scr['replicates']})")
-    print(f"Bins:       {', '.join(cs._bin_label(b) for b in scr['bin_kinds'])}")
-    if not lib["resolved"]:
-        print(f"Library:    UNRESOLVED — {lib['why']}")
-        return 2
-    print(f"Library:    {lib['file']}  ({lib['n_guides']:,} guides)")
-    print(f"Editor:     {lib['editor'] or 'not stated in guide names'}"
-          f"  (from the library's own guide names)")
-    types = Counter(v for v in lib["type_of"].values() if v)
-    print(f"Classes:    {dict(types)}")
-    idx = lib["index"]
-    cols = {c["column"] for c in idx["candidates"]}
-    print(f"Sequence columns present: {', '.join(sorted(cols))}")
-    for need, why in (("barcode", "BEAN resolves masked-sequence collisions "
-                                   "with a guide barcode read from R2"),
-                       ("reporter", "BEAN counts reporter alleles for "
-                                     "bystander/tiling analysis")):
-        have = need in cols
-        print(f"  {need:9} {'present' if have else 'NOT PUBLISHED'} — {why}")
-    ok, detail = bean_available()
-    print(f"\nReal `bean` on this host: "
-          f"{'YES — ' + detail if ok else 'NO — ' + detail}")
-    if ok:
-        # Whether `bean run` can model THIS screen is a property of its bins,
-        # not of the install, and it is knowable here -- before a counting
-        # run spends an hour to end in a decline. `bean run sorting` needs an
-        # unsorted sample as its --control-condition; a screen that sequenced
-        # only its tails never measured one.
-        ctl, why = control_condition(
-            [condition_label(b["side"], b["pct"]) for b in scr["bins"]])
-        if ctl:
-            print("  `bean analyze --run-bean` will hand the counts to it "
-                  f"(create-screen + run), with --control-condition {ctl}.")
-        else:
-            print("  `bean analyze --run-bean` will write BEAN's screen "
-                  "object but STOP before `bean run`:")
-            print(f"    {why}")
-    print(f"\nFull BEAN pipeline for this screen:\n  "
-          f"{_bean_command(args.accession, lib['file'], lib['editor'])}")
-    return 0
+    e = {"ABE": "A", "CBE": "C"}.get(editor or "", "A")
+    # -r asks count-samples for reporter counts. Without a reporter column
+    # there is nothing to count, so it is only offered when one exists.
+    count = (f"bean count-samples --input sample_list.csv -b {e} -f"
+              f"{' -r' if have_barcode else ''} "
+              f"--guide-info {lib_file}.csv --output-prefix {accession}")
+    qc = f"bean qc {accession}.h5ad -o {accession}.masked.h5ad"
+    control = None
+    if scr is not None:
+        control = control_condition(
+            [condition_label(b["side"], b["pct"]) for b in scr["bins"]])[0]
+    if scr is not None and not control:
+        return (f"{count}\n  {qc}\n"
+                 f"  # `bean run` needs --control-condition, and this screen "
+                 f"published no unsorted bin, so there is no command that "
+                 f"completes here.")
+    run = (f"bean run sorting variant {accession}.masked.h5ad"
+            f" --control-condition {control or 'bulk'}")
+    if have_barcode:
+        run += " --scale-by-acc --guide-activity-col editing_activity"
+    else:
+        # Without a barcode the only fittable models forbid the activity
+        # column, so say which one this is rather than leaving the reader to
+        # discover it from a KeyError.
+        run += ("  --uniform-edit --ignore-bcmatch"
+                 "\n  # --uniform-edit because no guide barcode is published:"
+                 " MixtureNormal (and --scale-by-acc) read X_bcmatch."
+                 " This fits BEAN's Normal model, WITHOUT activity"
+                 " normalisation.")
+    return f"{count}\n  {qc}\n  {run}"
 
 
 def cmd_count(args: argparse.Namespace) -> int:
@@ -884,15 +928,10 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "positive_controls_significant": sum(1 for r in ctrl if r["fdr"] < 0.05),
         "significant_fdr_0.05": sum(1 for r in rows if r["fdr"] < 0.05),
         "test": mod["test_basis"],
-        "not_implemented": [
-            "BEAN `run` Bayesian variant/tiling model with accessibility "
-            "covariates -- this scores tail enrichment instead",
-            "reporter-allele / bystander analysis -- the library's reporter "
-            "column is empty for all guides",
-            "bcmatch/semimatch split -- the library publishes no guide barcode, "
-            "so masked-sequence collisions stay ambiguous",
-        ],
-        "full_bean_pipeline": _bean_command(args.accession, lib["file"], editor),
+        "not_implemented": bean_gap(lib, scr),
+        "full_bean_pipeline": _bean_command(
+            args.accession, lib["file"], editor, scr,
+            "barcode" in {c["column"] for c in lib["index"]["candidates"]}),
     }
     # Hand the base-edit-aware counts to the real BEAN, when asked for and
     # available. This is the point of the split: our mapping, BEAN's model.
@@ -955,9 +994,18 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         vr = asum["variants"]["median"]
         print(f"  -> median editing activity {pc:.1%} at positive controls vs "
               f"{vr:.1%} at variants")
-    print("\n  NOT reimplemented here:")
+    print("\n  NOT available here (and why):")
     for n in summary["not_implemented"]:
         print(f"    - {n}")
+    if (summary.get("bean_run") or {}).get("ran"):
+        print("\n  Available via --run-bean, from BEAN itself:")
+        print("    - variant/element-level aggregation: multiple guides -> "
+              "one target score (mu, with n_guides)")
+        print("    - posterior uncertainty: mu_sd and mu_z per target, so "
+              "credible intervals follow")
+    elif summary.get("real_bean_available") and not args.run_bean:
+        print("\n  Not requested: --run-bean would add BEAN's own "
+              "variant-level aggregation and posterior intervals.")
     print(f"\n  For the full model, run BEAN itself:\n    "
           f"{summary['full_bean_pipeline']}")
     withheld = sum(1 for r in rows if r["log2_per_edit"] is None)

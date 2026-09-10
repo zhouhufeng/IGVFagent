@@ -263,5 +263,104 @@ with tempfile.TemporaryDirectory() as td:
 check("a run directory with no result reads as zero targets, not a crash",
       bes.read_bean_results(Path("/nonexistent"))["n_targets"] == 0)
 
-print(f"\n{21 + 10 + 17 + 11} cases, {len(FAILURES)} failure(s)")
+# ─── The gap list must track the run, not a past version of the tool ──────
+# This was hard-coded, and went stale the moment --run-bean began working:
+# it still listed variant-level aggregation and posterior intervals as
+# missing while BEAN was producing both (mu, mu_sd, mu_z, n_guides).
+def _lib(cols, name="IGVFFI4591THXG"):
+    return {"file": name,
+            "index": {"candidates": [{"column": c} for c in cols]}}
+
+def _scr(sides):
+    return {"bins": [{"side": s, "pct": p} for s, p in sides]}
+
+tails = [("bottom", 20), ("top", 20)]
+withbulk = tails + [("bulk", None)]
+
+g = bes.bean_gap(_lib({"spacer"}), _scr(tails))
+joined = " | ".join(g)
+check("a spacer-only library reports the reporter gap",
+      any("reporter-allele" in x for x in g))
+check("bystander is named separately from reporter",
+      any("bystander" in x for x in g))
+check("the accessibility gap is attributed to X_bcmatch",
+      "X_bcmatch" in joined)
+check("the accessibility gap says it is not obtainable, not unimplemented",
+      all("NOT OBTAINABLE" in x for x in g if "scale-by-acc" in x))
+check("a tail-only screen is told BEAN cannot run on it at all",
+      any("no unsorted/bulk bin" in x for x in g))
+# The claims the stale list got wrong must NOT reappear as absences.
+for wrong in ("variant-level aggregation", "credible interval",
+              "posterior interval", "Bayesian variant/tiling model with "
+              "accessibility covariates -- this scores tail enrichment"):
+    check(f"the gap list no longer claims {wrong[:34]!r} is missing",
+          wrong not in joined)
+
+# A screen with a bulk bin loses only the bin-related gap.
+g2 = bes.bean_gap(_lib({"spacer"}), _scr(withbulk))
+check("a screen with a bulk bin is not told BEAN cannot run",
+      not any("no unsorted/bulk bin" in x for x in g2))
+check("but it still loses the barcode-dependent models",
+      any("X_bcmatch" in x for x in g2))
+
+# A library that DID publish reporter and barcode should lose those gaps --
+# the list must respond to the library, not restate a fixed paragraph.
+g3 = bes.bean_gap(_lib({"spacer", "reporter", "barcode"}), _scr(withbulk))
+check("a fully-published library reports no gaps at all", g3 == [])
+check("publishing a barcode alone removes the bcmatch gap",
+      not any("bcmatch/semimatch" in x
+              for x in bes.bean_gap(_lib({"spacer", "barcode"}), _scr(withbulk))))
+check("publishing a reporter alone does not remove the barcode gap",
+      any("X_bcmatch" in x
+          for x in bes.bean_gap(_lib({"spacer", "reporter"}), _scr(withbulk))))
+
+# ─── The printed BEAN command has to be runnable ──────────────────────────
+# It used to print the README's example verbatim -- `bean run variant <h5ad>
+# --scale-by-acc` -- directly beneath the tool's own explanation of why that
+# cannot run. `bean run` takes TWO positionals, --scale-by-acc needs
+# X_bcmatch, and a screen with no unsorted bin cannot satisfy
+# --control-condition. An unrunnable command reads as a way forward.
+cmd_nobulk = bes._bean_command("IGVFDS6464SOVZ", "IGVFFI4591THXG", "ABE",
+                                _scr(tails), have_barcode=False)
+cmd_bulk = bes._bean_command("IGVFDS5542IBUS", "IGVFFI7314VFLZ", "ABE",
+                              _scr(withbulk), have_barcode=False)
+cmd_full = bes._bean_command("IGVFDSFAKE", "IGVFFIFAKE", "CBE",
+                             _scr(withbulk), have_barcode=True)
+
+check("`bean run` gets both positionals, not just 'variant'",
+      "run sorting variant" in cmd_bulk)
+check("the old single-positional form is gone",
+      "bean run variant " not in cmd_bulk + cmd_nobulk + cmd_full)
+check("a screen with no unsorted bin is told no command completes",
+      "no command that completes" in cmd_nobulk)
+# The explanations mention `bean run` and --scale-by-acc as prose, which is
+# the point of them -- so assert on the executable lines, not the whole blob.
+def _runnable(cmd):
+    return [l.strip() for l in cmd.splitlines()
+            if l.strip().startswith("bean ")]
+
+check("and is not handed a `bean run` line anyway",
+      not any(l.startswith("bean run") for l in _runnable(cmd_nobulk)))
+check("a screen with a bulk bin gets --control-condition bulk",
+      "--control-condition bulk" in cmd_bulk)
+check("without a barcode the command avoids --scale-by-acc",
+      not any("--scale-by-acc" in l for l in _runnable(cmd_bulk)))
+check("without a barcode it selects --uniform-edit --ignore-bcmatch",
+      "--uniform-edit" in cmd_bulk and "--ignore-bcmatch" in cmd_bulk)
+check("and says the result is not activity-normalised",
+      "WITHOUT activity" in cmd_bulk)
+check("without a reporter, count-samples is not asked for reporter counts",
+      " -r " not in cmd_bulk)
+check("with a barcode --scale-by-acc IS offered",
+      "--scale-by-acc" in cmd_full and "--guide-activity-col" in cmd_full)
+check("with a barcode the uniform-edit downgrade is not applied",
+      not any("--uniform-edit" in l for l in _runnable(cmd_full)))
+check("every emitted line is either a bean command or a # comment",
+      all(l.strip().startswith(("bean ", "#")) or not l.strip()
+          for c in (cmd_nobulk, cmd_bulk, cmd_full)
+          for l in c.splitlines()))
+check("the editor picks the base for -b (CBE -> C)", "-b C" in cmd_full)
+check("ABE picks A", "-b A" in cmd_bulk)
+
+print(f"\n{21 + 10 + 17 + 11 + 13 + 14} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
