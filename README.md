@@ -585,6 +585,24 @@ IGVF_INSTALL_CRISPR_BEAN=1 bash Deploy/redeploy.sh
 Off by default: it pulls in torch + pyro and roughly doubles the image, and
 most deployments do not analyse base-editing screens.
 
+**If a rebuild is not available yet** (a long mirror or analysis in
+flight), `bash Deploy/install-bean.sh` installs BEAN into the running
+container. It works, and every step in it is a workaround for a different
+layer of the container's hardening, each found the hard way:
+
+| blocker | fix |
+|---|---|
+| apt's http method drops privileges; `cap_drop: ALL` forbids `setgroups` | `-o APT::Sandbox::User=root` |
+| apt cannot write `/var/cache/apt/archives/partial` (`_apt`-owned, `CapEff=0`) | redirect `Dir::Cache::archives` to `/tmp` |
+| pip as **root** fails: the venv is `igvf`-owned and root has no `CAP_DAC_OVERRIDE` | run pip as the owner, never root |
+| no prebuilt wheel exists, and `CRISPResso2Align.pyx` breaks under Cython 3 | `cython<3` **and** `--no-build-isolation` |
+| BEAN uses `np.int_t` / `np.Inf`, removed in NumPy 2 (the app runs 2.x) | its own venv with `numpy<2`, re-pinned last because a dependency overrides it |
+
+BEAN goes in `/workspace/opt/bean-venv`, on the data volume, so it survives
+container recreation; the gcc install and the `/usr/local/bin/bean` symlink
+do not, so re-run the script after a recreate — or build the image with the
+flag above and stop needing it.
+
 **It cannot be added afterwards.** The runtime layer has no compiler, and
 BEAN's `bean/mapping/CRISPResso2Align.pyx` needs Cython, so
 `pip install crispr-bean` inside a running container fails with
