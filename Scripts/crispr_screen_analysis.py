@@ -438,6 +438,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     meta = {"target": idx["target"], "type": idx["type"]}
     print(f"Guide table: {gf['accession']}  ({idx['n_rows']:,} constructs)")
 
+    # A base-editing library must not be counted by exact match. The signal
+    # is in the library, not the MeasurementSet metadata, so this is the
+    # place that can catch it.
+    be = rp.base_editing_refusal(idx["target"].keys(), gf["accession"])
+    if be and not getattr(args, "force_exact", False):
+        print(f"\nREFUSING: {be}")
+        return 3
+    if be:
+        print(f"\nWARNING (--force-exact given): {be}")
+
     cal = rp.calibrate_key(idx, (args.key_from or counted_probe(scr, args.tail)),
                         args.calibrate_reads)
     if cal["why"]:
@@ -616,6 +626,9 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--all-bins", action="store_true",
                     help="Count every library, including bins the tail "
                          "comparison does not use (slower; for QC).")
+    a.add_argument("--force-exact", action="store_true",
+                    help="Count a base-editing library by exact match "
+                         "anyway, losing the self-edited reads.")
     a.add_argument("--label")
     return p
 

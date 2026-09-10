@@ -128,5 +128,34 @@ check("an unambiguous read is still assigned",
 check("no match returns (None, 0, False)",
       rp.match_read_masked("TTTTTTTTTTTTTTTTTTTTTTTT", M) == (None, 0, False))
 
-print(f"\n{21} cases, {len(FAILURES)} failure(s)")
+
+# ── the wrong tool must refuse, not undercount ────────────────────────────
+#
+# The base-editor signal is in the GUIDE LIBRARY, not the MeasurementSet
+# metadata: IGVFDS6464SOVZ's readout is "gRNA sequencing" and its assay is
+# "CRISPR FACS screen", identical to an ordinary knockout screen. Routing
+# alone therefore cannot catch it, so the tool that would undercount has to.
+
+msg = rp.base_editing_refusal(["gRNA__ABCA1_1__ABE_neg", "gRNA__LDLR__ABE_pos"],
+                               "IGVFFI4591THXG")
+check("an ABE library produces a refusal", msg is not None)
+check("the refusal names the editor and substitution",
+      "ABE" in msg and "A>G" in msg)
+check("it names the tool to use instead", "bean analyze" in msg)
+check("it quantifies the cost", "36.7%" in msg and "62.5%" in msg)
+check("it names the library", "IGVFFI4591THXG" in msg)
+check("it offers the override", "--force-exact" in msg)
+
+check("a CBE library also refuses",
+      "C>T" in (rp.base_editing_refusal(["g__CBE_1", "g__CBE_2"]) or ""))
+# The false-positive direction matters as much: prime-editing and ordinary
+# libraries must not be blocked.
+check("a non-base-editing library does NOT refuse",
+      rp.base_editing_refusal(["G137K", "G137N", "G140A"]) is None)
+check("a plain knockout library does NOT refuse",
+      rp.base_editing_refusal(["sg_TP53_1", "sg_TP53_2"]) is None)
+check("an empty library does NOT refuse",
+      rp.base_editing_refusal([]) is None)
+
+print(f"\n{21 + 10} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

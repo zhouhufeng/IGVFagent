@@ -408,6 +408,42 @@ def detect_base_editor(guide_ids: "Iterable[str]") -> "Optional[str]":
     return top if n >= 0.5 * total else None
 
 
+def base_editing_refusal(guide_ids: "Iterable[str]",
+                          library: str = "") -> "Optional[str]":
+    """Text explaining why exact matching is wrong here, or None.
+
+    The base-editor signal lives in the GUIDE LIBRARY -- every guide of the
+    IGVFDS6464SOVZ library is named ...__ABE_... -- and not in the
+    MeasurementSet metadata that _assays.classify() sees. So routing alone
+    cannot catch this: the readout is "gRNA sequencing" and the assay is
+    "CRISPR FACS screen", which is exactly what an ordinary knockout screen
+    looks like.
+
+    The reliable place to catch it is therefore the wrong tool itself. A
+    tool that exact-matches a base-editing library should refuse and name
+    the right one, rather than returning a number that is quietly missing a
+    quarter of the reads.
+    """
+    editor = detect_base_editor(guide_ids)
+    if not editor:
+        return None
+    frm, to = BASE_EDITS[editor]
+    return (
+        f"This library is for a base editor ({editor}: {frm}>{to}) -- its own "
+        f"guide names say so{f' ({library})' if library else ''}.\n"
+        f"  A base editor edits the guide's locus as well as its target, so "
+        f"the protospacer sequenced back carries {frm}>{to} changes of its "
+        f"own and EXACT matching discards those reads. Measured on "
+        f"IGVFDS6464SOVZ: exact 36.7% of reads assigned, base-edit-aware "
+        f"62.5%.\n"
+        f"  Use the base-editing path, which follows crispr-bean's masked "
+        f"matching and also reports per-guide editing activity:\n"
+        f"      igvfagent bean analyze <accession>\n"
+        f"  Re-run this tool with --force-exact only if you specifically want "
+        f"exact-match counts and accept losing the self-edited reads."
+    )
+
+
 def build_masked_matcher(seq_to_guide: "dict[str, str]",
                           editor: str) -> dict:
     """Prefix index over MASKED construct sequences, for a base editor.

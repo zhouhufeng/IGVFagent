@@ -640,6 +640,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         return 2
     print(f"Library:    {gf['accession']}  ({idx['n_rows']:,} constructs)")
 
+    # A base-editing library must not be counted by exact match. The signal
+    # is in the library, not the MeasurementSet metadata, so this is the
+    # place that can catch it.
+    be = rp.base_editing_refusal(idx["target"].keys(), gf["accession"])
+    if be and not getattr(args, "force_exact", False):
+        print(f"\nREFUSING: {be}")
+        return 3
+    if be:
+        print(f"\nWARNING (--force-exact given): {be}")
+
     cal = rp.calibrate_key(idx, args.accession, args.calibrate_reads)
     if cal["tested"]:
         print(f"Key calibration on {cal['n_reads']:,} reads "
@@ -852,6 +862,9 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--calibrate-reads", type=int, default=20000)
     a.add_argument("--recount", action="store_true",
                     help="Ignore cached counts and rescan the FASTQs.")
+    a.add_argument("--force-exact", action="store_true",
+                    help="Count a base-editing library by exact match "
+                         "anyway, losing the self-edited reads.")
     a.add_argument("--label")
     return p
 

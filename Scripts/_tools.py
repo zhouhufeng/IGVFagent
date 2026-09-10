@@ -4672,7 +4672,12 @@ _TOOLS: "list[Tool]" = [
     ),
     _T(
         "crispr_screen_analyze",
-        "★ REPROCESS A WHOLE CRISPR FACS SCREEN FROM RAW READS ★ — give it "
+        "★ REPROCESS A WHOLE CRISPR FACS SCREEN FROM RAW READS ★ — NOT for "
+        "a BASE-EDITING screen: if the library's guide names carry ABE or "
+        "CBE, use base_editing_screen_analyze instead, because exact guide "
+        "matching discards the self-edited reads (36.7% vs 62.5% assigned on "
+        "IGVFDS6464SOVZ). This tool detects that and refuses rather than "
+        "undercounting. Otherwise: give it "
         "ANY sorted-bin accession and it finds the screen's other bins and "
         "replicates, counts constructs in the libraries the comparison "
         "needs, compares the low tail against the high tail per replicate, "

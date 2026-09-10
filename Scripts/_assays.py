@@ -56,9 +56,16 @@ ROUTE_GUIDANCE = {
     GUIDE: ("per-guide counts, then enrichment between the sorted "
             "populations of the SAME screen -- one bin alone measures "
             "library composition, not biology",
-            "supported: crispr_screen_analyze for a bottom/top tail sort, "
-            "gradient_screen_analyze when the bins are lettered (BinA..BinF, "
-            "156 of these gRNA-sequencing sets are), "
+            "supported: FIRST check whether the guide library is for a BASE "
+            "EDITOR (its guide names carry ABE or CBE) -- if so use "
+            "base_editing_screen_analyze, because exact guide matching "
+            "discards the self-edited reads and assigns 36.7% instead of "
+            "62.5%; the readout and assay title look identical to an "
+            "ordinary knockout screen, so this cannot be told from the "
+            "MeasurementSet metadata alone. Otherwise: crispr_screen_analyze "
+            "for a bottom/top tail sort, gradient_screen_analyze when the "
+            "bins are lettered (BinA..BinF, 156 of these gRNA-sequencing "
+            "sets are), "
             "raw_pipeline_guide_count for a single library"),
     VARIANT: ("per-variant functional scores from amplicon variant calling",
               "supported for SGE: sge_analyze"),
