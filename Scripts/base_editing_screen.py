@@ -716,7 +716,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                   f"(or rebuild with IGVF_INSTALL_CRISPR_BEAN=1)")
             summary["bean_run"] = {"ran": False, "why": detail}
         else:
-            tables = write_bean_tables(out, counted, per_bin, act, lib, editor)
+            tables = write_bean_tables(out, bins, per_bin, act, lib, editor)
             print(f"\n  Wrote BEAN inputs: {tables['n_guides']:,} guides x "
                   f"{tables['n_samples']} samples")
             bean_result = run_bean(out, tables, mode=args.bean_mode)
