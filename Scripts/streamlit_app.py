@@ -2535,7 +2535,13 @@ def main() -> None:
         # the message is impossible to miss; otherwise render markdown
         # with image-aware chunking so any `![alt](path)` refs the LLM
         # included end up as real widgets, not broken-image icons.
-        if result.stop_reason != "complete" and result.final_answer:
+        if result.stop_reason == "complete_with_failures":
+            n = getattr(result, "tool_calls_failed", 0)
+            st.error(f"{n} tool call(s) did not succeed — this answer is "
+                      f"incomplete. The failures are listed at the top of it.")
+            _render_markdown_with_images(result.final_answer,
+                                          base_dir=_PROJECT_ROOT)
+        elif result.stop_reason != "complete" and result.final_answer:
             st.error("Agent run ended before completion. See details below.")
             _render_markdown_with_images(result.final_answer,
                                           base_dir=_PROJECT_ROOT)
@@ -2561,7 +2567,9 @@ def main() -> None:
                 _render_artefacts(artefacts)
 
         meta_caption = (
-            f"build `{deployed_build_id()}`  ·  "
+            (f"**{getattr(result, 'tool_calls_failed', 0)} failed**  ·  "
+             if getattr(result, "tool_calls_failed", 0) else "")
+            + f"build `{deployed_build_id()}`  ·  "
             f"backend `{result.backend}`  ·  model `{result.model}`  ·  "
             f"{result.iterations} iter · {result.tool_calls_made} tool calls "
             f"· stop `{result.stop_reason}`"

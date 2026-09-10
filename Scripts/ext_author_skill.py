@@ -36,10 +36,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import math
 import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Optional
 
 try:
     from igvfagent import _userext
@@ -394,6 +396,148 @@ def remove(name: str, kind: str) -> "list[str]":
 # CLI
 # --------------------------------------------------------------------------
 
+# ─── Duplication guard ──────────────────────────────────────────────────────
+#
+# Authoring exists for capabilities IGVFagent does not have. It is not a
+# substitute for finding the one it does.
+#
+# Observed on the hosted deployment: asked to analyse a base-editing screen,
+# the agent could not see `base_editing_screen_analyze` -- built-in tools are
+# frozen at process start, so a newly added one is invisible until the
+# container is recreated -- and it responded by authoring
+# `crispr_bean_sorting` and `crispr_bean_prepare_and_run`. Reasonable in the
+# circumstances, and both failed anyway, but the result is a shared workspace
+# accumulating parallel implementations of tools that already exist, each one
+# a thing a later reader has to evaluate. Several `.broken` manifests from
+# earlier sessions are already there.
+#
+# So before writing anything, look for a core tool that covers it and say so.
+# --force is available for the case where the overlap is genuinely
+# superficial, because this is a heuristic on names and descriptions and it
+# will sometimes be wrong.
+
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "for", "from", "with", "into", "onto",
+    "run", "runs", "using", "use", "uses", "via", "then", "that", "this",
+    "data", "analysis", "analyse", "analyze", "tool", "skill", "igvfagent",
+    "of", "on", "in", "to", "by", "is", "are", "be", "it", "its", "as",
+    "new", "write", "get", "set", "all", "any", "one", "per", "out",
+}
+
+
+def _terms(text: str) -> "set[str]":
+    words = re.findall(r"[a-z0-9]+", (text or "").lower())
+    return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
+
+
+def find_similar_core_tools(name: str, description: str,
+                             limit: int = 5,
+                             min_score: float = 4.0) -> "list[dict]":
+    """Core tools that plausibly already do what the proposal describes.
+
+    Scoring is on the PROPOSAL'S NAME TOKENS, weighted by how rare each token
+    is across the whole registry, because that is the signal that actually
+    separated the real case from the false ones.
+
+    A flat count does not work. "crispr" appears in many tool descriptions, so
+    one shared token was enough to block `tar_extract`, `gz_head`,
+    `write_text_file` and even `fetch_ukbb_gwas` (matched to
+    `mavedb_map_scoreset` on some incidental description word) -- a guard that
+    refuses everything is worse than no guard, because it just gets forced.
+
+    Weighting by inverse document frequency fixes it: "bean" occurs in almost
+    no core description and is decisive; "crispr" occurs in many and is weak;
+    "extract", "write", "head" occur everywhere and count for nothing.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import _tools as tools_mod                      # type: ignore
+    except Exception:
+        return []
+
+    core = [t for t in tools_mod.list_tools() if not getattr(t, "command", None)]
+    if not core:
+        return []
+
+    # Document frequency of every term over core tool name + description.
+    docs = [(t, _terms(t.name) | _terms(t.description)) for t in core]
+    df: "dict[str, int]" = {}
+    for _t, terms in docs:
+        for w in terms:
+            df[w] = df.get(w, 0) + 1
+    n_docs = len(docs)
+
+    def weight(term: str) -> float:
+        # Rare term -> high weight. A term in half the registry scores ~1.
+        return math.log(n_docs / (1 + df.get(term, 0))) if n_docs else 0.0
+
+    want_name = _terms(name)
+    want_desc = _terms(description)
+    hits = []
+    for t, terms in docs:
+        shared_name = want_name & terms
+        if not shared_name:
+            continue          # no name-token overlap at all -> not a duplicate
+        # TWO distinct shared name tokens, measured rather than guessed. On
+        # the real cases the separation is clean: the false positives each
+        # matched on exactly ONE incidental token -- tar_extract on
+        # "extract", gz_head on "head", fetch_ukbb_gwas on "gwas" -- while
+        # the genuine duplicates shared two subject tokens,
+        # crispr_bean_sorting on {bean, crispr} and gradient_bin_helper on
+        # {bin, gradient}. One token is a coincidence; two is a subject.
+        #
+        # There is no single-token exception. One was tried -- allow a match
+        # when the proposal's whole name is one rare word -- and it let
+        # "head" through as a subject, blocking a gz_head utility on a
+        # generic verb that happens to be rare in tool descriptions.
+        # Rarity is not the same as being a subject, and rather than add a
+        # second heuristic to repair the first, this accepts that a
+        # one-word duplicate (a skill named simply "bean") gets through.
+        # That is the cheaper error: a guard that blocks legitimate
+        # utilities is forced past and stops being read.
+        if len(shared_name) < 2:
+            continue
+        score = sum(weight(w) for w in shared_name)
+        # Description overlap can only corroborate, never carry the decision.
+        score += 0.25 * sum(weight(w) for w in (want_desc & terms))
+        if score >= min_score:
+            hits.append({"name": t.name, "score": round(score, 2),
+                          "shared": sorted(shared_name,
+                                            key=lambda w: -weight(w))[:6],
+                          "cli": " ".join(t.cli),
+                          "description": (t.description or "")[:200]})
+    hits.sort(key=lambda h: -h["score"])
+    return hits[:limit]
+
+
+def duplication_refusal(name: str, description: str,
+                         force: bool = False) -> "Optional[str]":
+    """Text to print instead of authoring, or None to go ahead."""
+    hits = find_similar_core_tools(name, description)
+    if not hits or force:
+        return None
+    lines = [
+        f"REFUSING to author {name!r}: IGVFagent already has "
+        f"{'a core tool' if len(hits) == 1 else 'core tools'} that appear to "
+        f"cover this.",
+        "",
+    ]
+    for h in hits:
+        lines.append(f"  {h['name']}   (igvfagent {h['cli']})")
+        lines.append(f"      shared terms: {', '.join(h['shared'])}")
+        lines.append(f"      {h['description']}")
+    lines += [
+        "",
+        "Call one of those instead. If the agent's tool list does not show it,",
+        "the built-in registry is stale -- built-ins are frozen when the",
+        "process starts -- and the fix is to recreate the container, not to",
+        "write a parallel implementation into a shared workspace.",
+        "",
+        "Re-run with --force if the overlap really is superficial.",
+    ]
+    return "\n".join(lines)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="igvfagent extauthor",
@@ -402,6 +546,8 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     t = sub.add_parser("write-tool", help="Write a tool manifest")
+    t.add_argument("--force", action="store_true",
+                    help="Author even when a core tool appears to cover it.")
     t.add_argument("--name", required=True)
     t.add_argument("--description", required=True)
     t.add_argument("--cli", help='igvfagent subcommand tail, e.g. "kg gene"')
@@ -410,6 +556,8 @@ def main(argv=None) -> int:
     t.add_argument("--positional", help="space-separated parameter names")
 
     s = sub.add_parser("write-skill", help="Write a Python skill module")
+    s.add_argument("--force", action="store_true",
+                    help="Author even when a core tool appears to cover it.")
     s.add_argument("--name", required=True)
     s.add_argument("--description", required=True)
     s.add_argument("--source", help="Full Python source (must define main())")
@@ -434,6 +582,13 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.cmd in ("write-tool", "write-skill"):
+            # Authoring is for gaps, not for shadowing a core tool.
+            refusal = duplication_refusal(args.name, args.description,
+                                           force=getattr(args, "force", False))
+            if refusal:
+                print(refusal)
+                return 3
         if args.cmd == "write-tool":
             p = write_tool(name=args.name, description=args.description,
                            cli=args.cli, command=args.command,

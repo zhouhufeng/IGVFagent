@@ -123,6 +123,10 @@ class AgentResult:
     report_path: str
     backend: str
     model: str
+    # Tool calls that exited nonzero (EX_TEMPFAIL 75 excluded). Carried on
+    # the result so a caller can render it without re-reading the transcript.
+    tool_calls_failed: int = 0
+    failed_calls: "list[dict]" = dataclasses.field(default_factory=list)
 
 
 # --------------------------- System prompt ---------------------------------
@@ -244,6 +248,31 @@ def _format_refusal(model: str, refused: bool = True) -> str:
         "- set `IGVF_LLM_MODEL=claude-sonnet-4-5`, pick Sonnet/Opus in the UI "
         "sidebar, or set `IGVF_LLM_FALLBACK_MODEL` to auto-retry on refusal.\n"
     )
+
+
+def _failure_preamble(failed: "list[dict]") -> str:
+    """A short, factual header naming the tool calls that did not succeed.
+
+    Deliberately terse and placed above the model's own text rather than
+    replacing it: the answer may still be worth reading, but the reader has
+    to know which steps did not run before deciding how much of it to trust.
+    A nonzero exit here includes the tools that refuse on purpose -- "this is
+    a base-editing library, use bean" is exit 3 -- and surfacing those is the
+    point, not a side effect.
+    """
+    n = len(failed)
+    lines = [f"**{n} tool call{'s' if n != 1 else ''} did not succeed, so this "
+              f"answer is incomplete.**", ""]
+    for f in failed[:6]:
+        d = f" — {f['detail']}" if f.get("detail") else ""
+        lines.append(f"- `{f['name']}` exited {f['exit_code']}{d}")
+    if n > 6:
+        lines.append(f"- … and {n - 6} more")
+    lines += ["",
+               "_Treat any conclusion below as resting on the steps that did "
+               "run. The tool output above says what failed and why._",
+               "", "---", ""]
+    return "\n".join(lines)
 
 
 def _format_runtime_error(err_msg: str, backend: str, model: str) -> str:
@@ -585,6 +614,14 @@ def run(
 
     transcript: "list[dict]" = [{"role": "user", "content": user_text}]
     artefacts: "list[str]" = []
+    # Run-level failure tally. iter_fail is per-iteration and feeds only the
+    # stuck detector, so a run where two of nine calls failed still reported
+    # stop_reason="complete" and the user was told the task was done. Every
+    # nonzero exit counts here, including the deliberate refusals (exit 3,
+    # "this is a base-editing library, use bean") -- those are precisely what
+    # must reach the reader rather than being buried. EX_TEMPFAIL (75) is the
+    # one exception: it means "busy, try again", which the loop handles.
+    failed_calls: "list[dict]" = []
     final_answer = ""
     stop_reason = "max_iterations"
     iters = 0
@@ -626,6 +663,14 @@ def run(
             except Exception as e:  # noqa
                 result = {"name": r["tool"], "exit_code": 1, "stdout": "",
                           "stderr": str(e), "artifacts": {}}
+            rc0 = int(result.get("exit_code") or 0)
+            if rc0 not in (0, 75):
+                failed_calls.append({
+                    "name": r["tool"], "exit_code": rc0,
+                    "detail": (str(result.get("stderr") or
+                                    result.get("stdout") or "")
+                               .strip().splitlines() or [""])[0][:200],
+                })
             for paths in (result.get("artifacts") or {}).values():
                 artefacts.extend(paths)
             _emit(callback, "tool_call_end", {
@@ -741,9 +786,20 @@ def run(
             # "complete" is how a run that made zero tool calls came back as
             # "Done - stop complete", carrying the model's own invented
             # explanation for why it had stopped.
-            stop_reason = ("protocol_violation"
-                           if msg.stop_reason == "protocol_violation"
-                           else "complete")
+            if msg.stop_reason == "protocol_violation":
+                stop_reason = "protocol_violation"
+            elif failed_calls:
+                # Tools ran and did not do what was asked. Whether the answer
+                # is still useful is the reader's call, but it must not be
+                # presented as an unqualified success: one run made nine tool
+                # calls, two of which failed (crispr-bean absent, and a tool
+                # invoked with missing required arguments), and reported
+                # "complete" with prose about authoring skills where an
+                # analysis had been requested.
+                stop_reason = "complete_with_failures"
+                final_answer = _failure_preamble(failed_calls) + final_answer
+            else:
+                stop_reason = "complete"
             break
 
         # Mirror assistant message into the conversation for the next LLM call.
@@ -824,8 +880,16 @@ def run(
                           {"where": "refresh_user_tools", "error": str(e)})
 
             iter_n += 1
-            if int(result.get("exit_code") or 0) != 0:
+            rc = int(result.get("exit_code") or 0)
+            if rc != 0:
                 iter_fail += 1
+                if rc != 75:
+                    failed_calls.append({
+                        "name": tc.name, "exit_code": rc,
+                        "detail": (str(result.get("stderr") or
+                                        result.get("stdout") or "")
+                                   .strip().splitlines() or [""])[0][:200],
+                    })
             for paths in (result.get("artifacts") or {}).values():
                 artefacts.extend(paths)
             _emit(callback, "tool_call_end", {
@@ -949,6 +1013,8 @@ def run(
                 "backend": chosen_backend, "model": chosen_model,
                 "iterations": iters, "tool_calls_made": tool_calls_made,
                 "stop_reason": stop_reason, "artefacts": artefacts,
+                "tool_calls_failed": len(failed_calls),
+                "failed_calls": failed_calls,
                 "consistency": consistency,
             },
         )
@@ -971,6 +1037,8 @@ def run(
         report_path=report_path,
         backend=chosen_backend,
         model=chosen_model,
+        tool_calls_failed=len(failed_calls),
+        failed_calls=failed_calls,
     )
 
 
