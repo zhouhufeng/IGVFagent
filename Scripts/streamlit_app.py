@@ -371,7 +371,7 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
     _CLAUDE_CLI_MODELS = (
         "claude-opus-5",
         "claude-sonnet-5",
-        "claude-fable-5",
+        "claude-fable-5-1",
     )
     options = ["(use Claude Code's configured default)"] + \
               list(_CLAUDE_CLI_MODELS) + ["(custom...)"]
@@ -721,7 +721,13 @@ _PUBLIC_MODEL_CATALOG = {
     "claude-sonnet-5":  ("Sonnet 5 — default, fast",      "$3 / $15 per Mtok · 1M context"),
     "claude-haiku-4-5": ("Haiku 4.5 — fastest, cheapest", "$1 / $5 per Mtok · 200K context"),
     "claude-opus-5":    ("Opus 5 — more capable",         "$5 / $25 per Mtok · 1M context · premium"),
-    "claude-fable-5":   ("Fable 5 — deepest reasoning",   "$10 / $50 per Mtok · 1M context · most expensive"),
+    # Fable 5.1, id confirmed against GET /v1/models. The per-token price is
+    # deliberately NOT copied over from Fable 5's $10/$50: the models endpoint
+    # does not publish pricing and a wrong number here is worse than none,
+    # because this line exists to make an expensive click deliberate. Fill it
+    # in from the console when known.
+    "claude-fable-5-1": ("Fable 5.1 — deepest reasoning",
+                          "1M context · most expensive tier"),
 }
 _PUBLIC_MODELS_DEFAULT = list(_PUBLIC_MODEL_CATALOG)
 

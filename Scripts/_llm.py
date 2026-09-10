@@ -1239,7 +1239,12 @@ OLLAMA_LIBRARY = [
 ANTHROPIC_MODELS = [
     "claude-opus-5",
     "claude-sonnet-5",
-    "claude-fable-5",
+    # Fable 5.1 replaces Fable 5 in the picker. The id was read from
+    # GET /v1/models rather than guessed -- it returns
+    # "claude-fable-5-1" / "Claude Fable 5.1", and inventing an id is how a
+    # picker offers a model that 404s. claude-fable-5 still works if pinned
+    # through "(custom...)"; it is simply not offered.
+    "claude-fable-5-1",
     "claude-haiku-4-5",
 ]
 
