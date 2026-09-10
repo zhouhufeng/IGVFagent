@@ -128,7 +128,6 @@ In short — **two ways to drive every skill, one shared contract**:
 - [Capabilities](#capabilities)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
-- [Methods, sources and attribution](#methods-sources-and-attribution)
 - [Recreating the hosted container (and why you must)](#recreating-the-hosted-container-and-why-you-must)
 - [Configuration](#configuration)
 - [Smoke test](#smoke-test)
@@ -525,62 +524,6 @@ the dropdown.
 
 The legacy `python3 Scripts/<skill>.py …` invocations documented later
 in this README continue to work unchanged.
-
-## Methods, sources and attribution
-
-Where IGVFagent implements a published method rather than inventing one, the
-source is named here and in the docstring of the module that implements it.
-Formal citations are given only where verified; otherwise the canonical
-repository or documentation URL is given, which is what a reader needs to
-check the method.
-
-### Reimplemented methods
-
-| Method | Source | What IGVFagent does with it |
-|---|---|---|
-| **BEAN** — base-editing-aware guide mapping and activity normalisation | `crispr-bean`, Pinello Lab · <https://github.com/pinellolab/crispr-bean> · docs <https://pinellolab.github.io/crispr-bean/> · **AGPL-3.0** | `Scripts/base_editing_screen.py` and `raw_data_pipeline.mask_sequence` / `build_masked_matcher` follow BEAN's `GuideEditCounter`: the edited base is normalised to its product on both sides before comparison, rather than allowing free mismatches. Per-guide self-edit rate is used as the editing-activity estimate. **BEAN's `run` Bayesian variant/tiling model is NOT reimplemented**; `igvfagent bean` prints the real `bean` command for it. |
-| **CRISPResso2** | used *inside* BEAN for allele alignment (`bean/mapping/CRISPResso2Align.pyx`) | Not used or reimplemented here — noted because BEAN's reporter-allele calling depends on it, and that is one of the steps IGVFagent does not provide. |
-| **Variance moderation** (empirical-Bayes shrinkage of per-feature variance) | the idea is limma's | `Scripts/_stats.py` floors each target's sd using the screen's own spread, so a target whose few replicates happen to agree cannot produce an arbitrarily large *t*. This is limma's *idea* at its simplest, not limma's estimator. |
-| **Benjamini–Hochberg FDR** | standard procedure | `_stats.benjamini_hochberg`, order-preserving and monotone. |
-| **Adjusted Rand index** | standard statistic (Hubert & Arabie) | `Scripts/mct_analysis.py`, comparing the RNA and methylation clusterings of the same nuclei. |
-
-### External software invoked (not reimplemented)
-
-| Tool | Source | Used for |
-|---|---|---|
-| **kallisto \| bustools** (`kb-python`) | <https://github.com/pachterlab/kb_python> | FASTQ → count matrix in `raw-pipeline`. The only aligner shipped, which is why genomic assays (ATAC-seq, Hi-C) are refused rather than mis-quantified. |
-| **scanpy** / **anndata** | <https://scanpy.readthedocs.io> | QC, HVG selection, PCA, Leiden, markers in `sc-analyze`. |
-| **seqspec** | <https://github.com/pachterlab/seqspec> | Read-structure parsing when a dataset publishes it. |
-
-### Data sources whose conventions are followed
-
-| Source | Note |
-|---|---|
-| **ENCODE-rE2G**, **scE2G** | Enhancer–gene predictions retrieved from the IGVF Catalog. These records are `class=prediction` with **null** `p_value_adj` and `significant`; IGVFagent reports them with their model score and refuses to describe them as statistically significant or non-significant. |
-| **IGVF Catalog / Portal** | <https://api.catalogkg.igvf.org>, <https://api.data.igvf.org>. `page=` is the only working pagination parameter — `skip=` and `offset=` are silently ignored, and the per-request cap is 500. |
-| **ALLCools** conventions for snmC data | Methylation ratios are **not** log-normalised in `mct`, which is the step that makes a methylome look like an expression matrix. |
-
-### Alternatives deliberately not implemented
-
-For pooled screens, count-based negative-binomial models (**MAGeCK**-style)
-have materially more power than the per-guide tail-enrichment tests used
-here, because they model counting noise across guides rather than testing
-each guide independently. This is measurable rather than theoretical: on
-`IGVFDS6464SOVZ`, none of 1,640 positive controls reaches FDR 0.05 under
-per-guide testing at four replicates, while the top-ranked controls are the
-biologically expected LDLR and HNF4A splice sites with the correct sign. Use
-BEAN or MAGeCK for effect sizes on such screens; IGVFagent's contribution
-there is correct guide assignment, QC, and the honest statement of what its
-own test can and cannot support.
-
-### Licensing
-
-IGVFagent is **Apache-2.0**. BEAN is **AGPL-3.0**. No BEAN source code is
-copied into this repository — the masked-matching *method* was read from
-BEAN's `GuideEditCounter` and implemented independently, and BEAN's
-identifiers appear here only in comments that credit and explain it. If you
-want BEAN's own model, invoke `bean` as a separate program rather than
-vendoring it, which would place its licence over this code.
 
 ## Recreating the hosted container (and why you must)
 
@@ -2718,6 +2661,8 @@ maintainers for releasing their code openly.
 | **SHARE-seq** joint scATAC + scRNA QC (`share`) | [broadinstitute/epi-SHARE-seq-pipeline](https://github.com/broadinstitute/epi-SHARE-seq-pipeline) | MIT (Broad Institute, 2021) | Round-1/2/3 24-mer barcode demultiplex (1-Hamming + ±1 bp shift), `bam_to_fragments` Tn5 +4/−4 shift, TSS enrichment (Ma 2020 formula with 0.2 floor), per-barcode FRIP, joint cell calling thresholds, Jaccard multiplet detection. |
 | **STARR-seq** allelic test (`starrseq`) | [gaochengwen/STARR-seq-Data-Analysis](https://github.com/gaochengwen/STARR-seq-Data-Analysis) | No LICENSE (treated as default copyright) — every line is a clean-room rewrite. | TPM-style counts QC, Spearman D-stat outlier flagging, per-(SNP, Allele) aggregation, log activity = log(RNA/DNA), and the `mpra::mpralm`-style allelic test (paraphrased from the underlying limma + voom + eBayes methods). |
 | **CRISPRi Flow-FISH** screen (`flowfish`) | [EngreitzLab/CRISPRi-FlowFISH-pipeline](https://github.com/EngreitzLab/CRISPRi-FlowFISH-pipeline) | MIT (Engreitz Lab, 2021) | Per-guide log-normal MLE on bin-multinomial counts with EM treatment of an "outside" overflow bin, real-space conversion + negative-control rescaling, Mann-Whitney U + Welch t-test per element, BH-FDR, `Significant` / `Regulated` output convention. |
+| **Base-editing screens** — base-edit-aware guide assignment + activity (`bean`) | [pinellolab/crispr-bean](https://github.com/pinellolab/crispr-bean) · docs [pinellolab.github.io/crispr-bean](https://pinellolab.github.io/crispr-bean/) | **AGPL-3.0 — no source copied.** IGVFagent is Apache-2.0, so the METHOD was read from `bean/mapping/GuideEditCounter.py` and reimplemented; vendoring would place AGPL over this code. To use BEAN's own model, invoke `bean` as a separate program. | BEAN's `mask_sequence` matching: the edited base is normalised to its product on BOTH sides before comparison (`edited_base=['A>G']` maps every A to G), rather than allowing free mismatches — so sequencing error and similar guides are not absorbed. A base editor self-edits the guide's own locus, so exact matching discards those reads: measured on IGVFDS6464SOVZ (8,192-guide ABE library) **36.7% of reads assigned vs 62.5%**, with C→T recovering only +0.1%, confirming an adenine editor. The editor is detected from the library's own guide names AND by measuring which masking recovers reads. Per-guide self-edit rate is used as the editing-activity estimate — what BEAN's activity normalisation rests on (BEAN = *Base Editing screens' Activity-Normalized variant effect size estimation*). **NOT absorbed:** `bean run`'s Bayesian variant/tiling model with accessibility covariates (`--scale-by-acc`); reporter-allele and bystander/tiling analysis, which needs CRISPResso2 alignment and a `reporter` column IGVF leaves empty for all 8,192 guides; and the bcmatch/semimatch split, which needs a guide barcode IGVF does not publish — so masked-sequence collisions stay ambiguous instead of being assigned. `igvfagent bean` prints the real `bean` command for the full model. |
+| **FASTQ → count matrix** (`raw-pipeline`, `sc-analyze`) | [pachterlab/kb_python](https://github.com/pachterlab/kb_python) (kallisto \| bustools) + [scverse/scanpy](https://github.com/scverse/scanpy) | BSD-2 (kallisto/bustools) · BSD-3 (scanpy) — **invoked, not reimplemented.** | `kb ref` / `kb count` for pseudoalignment and barcode/UMI counting, including the `kite` feature-barcode workflow for guide capture; scanpy for QC, HVG selection, PCA, Leiden and marker tests. This is the only aligner shipped, which is why genomic assays (ATAC-seq, Hi-C) are refused rather than mis-quantified — 40.5% of Portal MeasurementSets are not transcript assays. |
 | **MPRA** allelic activity + skew (`mpra`) | [tewhey-lab/MPRASuite](https://github.com/tewhey-lab/MPRASuite) | Apache-2.0 (Tewhey Lab) | DESeq2 NB GLM Wald test (via `pydeseq2`), summit-shift size-factor renormalization (MPRAmodel), allelic-skew paired t-test of per-replicate log2(RNA/DNA) with BH-FDR. |
 | **MPRA** QC + counts handling (`mpra`) | [WangLabTHU/esMPRA](https://github.com/WangLabTHU/esMPRA) | Ambiguous (no clean SPDX) — treated as clean-room. | Count-based replicate concordance Pearson r matrix, barcodes-per-oligo and counts-per-oligo histograms. |
 | **10x Multiome** analytics (`multiome qc-atac / joint-qc / lsi / wnn / peak2gene / showcase`) | [10XGenomics/analysis_guides](https://github.com/10XGenomics/analysis_guides) (10x Genomics, no LICENSE) + [stuart-lab/signac](https://github.com/stuart-lab/signac) (Stuart Lab, MIT) | Repo has no LICENSE → clean-room; Signac MIT is OK to cite. | Per-barcode TSS enrichment (Signac `TSSEnrichment` ±100 bp center / ±900-1000 bp flank formula), nucleosome signal (mono / NFR length ratio), FRIP from fragments TSV, Signac-convention joint QC thresholds (RNA UMI 1k-25k, ATAC frag 1.8k-100k, TSS>1, nuc<2, FRIP>0.15), TF-IDF + truncated SVD with depth-dim drop (Signac `RunSVD` + `DepthCor`), WNN joint embedding (Seurat 5 / Hao 2021, via `muon`), peak-to-gene correlation. |
@@ -2745,14 +2690,46 @@ maintainers for releasing their code openly.
 | **Claude Code prompt-skill suite** (`.claude/skills/igvf-portal-facet-filter`, `igvf-catalog-variant-report`, `igvf-catalog-gene-dossier`, `igvf-catalog-dissect-locus`, `igvf-catalog-regulatory-landscape`, `igvf-catalog-disease-genes`, `igvf-catalog-ld-compare`) | [IGVF-DACC/igvf-portal-mcp](https://github.com/IGVF-DACC/igvf-portal-mcp) + [IGVF-DACC/igvf-catalog-mcp](https://github.com/IGVF-DACC/igvf-catalog-mcp) (IGVF DACC, MIT) | clean-room paraphrase, retargeted at IGVFagent's `portal` + `catalog` CLI surface | Seven workflow prompt skills (1 portal + 6 catalog) auto-loaded by Claude Code when the user's prompt matches the description. Each is a structured multi-step procedure (resolve identifiers → fan-out per semantic relationship → cross-reference → compile a sectioned report) wired to IGVFagent's CLI commands rather than the upstream MCP tools. Cross-references between skills point downstream to IGVFagent-only follow-ups (`network steiner`, `enrich pathways`, `ccre`, `enhancer`). See `Docs/Skills/PROMPT_SKILLS_INDEX.md` for the suite-level index. |
 | **ChIP-Atlas (Ohta/Oki) reprocessed peak archive** (`chipatlas list-genomes / list-qvalues / list-experiment-types / list-antigens / list-cell-types / search / get-experiment / download-experiment / assemble-bed / download-all-peaks / target-genes / submit-enrichment / poll-enrichment / showcase`) | [inutano/chip-atlas](https://github.com/inutano/chip-atlas) (Tazro Inutano Ohta / Shinya Oki / DBCLS, MIT) | clean-room reimpl of the public HTTP surface; stdlib-only (no `httpx`/`mcp`/`pydantic`) | Anonymous polite-1-rps client over three indirected hosts (`chip-atlas.org` JSON browse/search/POST-download, `chip-atlas.dbcls.jp/data` bulk static archive, `dtn1.ddbj.nig.ac.jp/wabi/chipatlas` WABI Enrichment/Diff queue). 10 supported genomes; 4 -log10(q) thresholds (05/10/20/50); browse antigens × cell-class with experiment counts; pull per-experiment BigWig/BigBed/BED; POST a `(genome × ag × cellClass × qval)` tuple to get an assembled all-peaks BED URL; HEAD-probe or stream the bulk `allPeaks_light.{genome}.{qval}.bed.gz` archive; discover and fetch pre-computed Target-Genes tables (e.g. `H3K4me3.5000.tsv` at ±5 kb TSS-proximity); submit + poll WABI Enrichment Analysis jobs for gene-list / BED-region TF over-representation. Cites Zou/Ohta/Oki *Nucleic Acids Res.* 2024 (doi:10.1093/nar/gkae358) and Oki *EMBO Rep.* 2018 (doi:10.15252/embr.201846255). Code MIT-compatible; data NBDC/DBCLS-licensed — we only fetch / link, never redistribute. |
 | **Synapse / Sage Bionetworks retrieval** (`synapse entity / children / walk / search / download / write-playbook`) | [Sage-Bionetworks/synapsePythonClient](https://github.com/Sage-Bionetworks/synapsePythonClient) (Sage Bionetworks, Apache-2.0) | clean-room reimpl over the public REST API (`rest-docs.synapse.org`); pure `urllib` + `json`, no `synapseclient` runtime dep | Anonymous-read of entity metadata + annotations + child-listing for projects/folders; depth-capped recursive `walk`; full-text `search`; PAT-authenticated (`SYNAPSE_AUTH_TOKEN`) file download via the `fileHandle` → pre-signed-URL flow for controlled-access deposits (PsychENCODE, AMP-AD/PD, ROSMAP, BrainSpan). Data stays under upstream consortium DUAs — we only fetch with the user's own token, never redistribute. |
-| **Open4Gene** peak→gene linkage (`open4gene link`) | [hbliu/Open4Gene](https://github.com/hbliu/Open4Gene) (Liu et al. *Science* 2025, PMID 39913582; **no LICENSE**) | clean-room Python reimpl — no source copied; upstream is R/`pscl::hurdle` | Two-component hurdle model per peak-gene pair: logistic zero component `I(RNA>0) ~ ATAC + covariates` + zero-truncated negative-binomial count component `RNA|RNA>0 ~ ATAC + covariates`, via statsmodels `Logit` + `TruncatedLFNegativeBinomialP`; per-cell-type / All / Each modes; Spearman; AIC/BIC. **Validated vs the R `pscl::hurdle` reference: zero-component β correlation 1.0, max abs Δ 0.0.** |
+| **Open4Gene** peak→gene linkage (`open4gene link`) | [hbliu/Open4Gene](https://github.com/hbliu/Open4Gene) (Liu et al. *Science* 2025, PMID 39913582; **no LICENSE**) | clean-room Python reimpl — no source copied; upstream is R/`pscl::hurdle` | Two-component hurdle model per peak-gene pair: logistic zero component `I(RNA>0) ~ ATAC + covariates` + zero-truncated negative-binomial count component `RNA\|RNA>0 ~ ATAC + covariates`, via statsmodels `Logit` + `TruncatedLFNegativeBinomialP`; per-cell-type / All / Each modes; Spearman; AIC/BIC. **Validated vs the R `pscl::hurdle` reference: zero-component β correlation 1.0, max abs Δ 0.0.** |
 | **scEPS** GWAS × single-cell neighborhood d-statistic (`sceps estimate`) | [Genentech/sceps](https://github.com/Genentech/sceps) (Zou/Shi et al. medRxiv 2026; **no LICENSE**) | clean-room Python reimpl — no source copied | Random-walk NAM neighborhood diffusion, per-donor pseudobulk, method-of-moments variance-component model decomposing disease variance into GWAS-gene / mean-expression-matched-control / rest components; per-neighborhood d-statistic (OMEGA_GWAS − OMEGA_CONTROL) with bootstrap disattenuation + delta-method SEs. **Validated vs upstream `test/` fixtures: step size, GWAS-gene count, neighborhood sizes, num-donors, expression variances all match exactly.** |
 | **Functional-assay calibration → ACMG/AMP evidence** (`calibrate thresholds / prepare / run / assign / selftest`) | [rosstewart/exCALIBR](https://github.com/rosstewart/exCALIBR) (R. Stewart, Northeastern; MIT) — implements Zeiberg et al. *bioRxiv* 2025.04.29.651326 | clean-room Python reimpl — no source copied; stdlib + numpy/scipy (joblib and the SLURM job-array generator replaced by `concurrent.futures` + a resumable ledger) | Multi-sample skew-normal mixture (components shared across samples, per-sample mixing weights) fitted by EM in Azzalini's (loc, Δ, Γ) parameterisation with truncated-normal moments; monotone density-ratio constraint between adjacent components enforced by binary search on every parameter update; per-sample bootstrap with best-of-N fit selection on held-out likelihood; Saerens-style EM estimate of the population prior; LR⁺ envelope across bootstraps; Tavtigian C = O_PVSt search and C^(points/8) evidence thresholds; LR⁺ → per-strength score ranges with monotonicity repair; paired Wilcoxon / 5th-percentile 2c-vs-3c model selection; ClinVar-star + gnomAD + SpliceAI variant labelling of IGVF/Pillar-format scoresets. **Validated vs upstream: Tavtigian C identical over a 12-prior grid (plus `original` / `strict` variants); constrained-EM iterates bit-identical for 60 steps at K=2 and K=3; prior EM, point-range conversion and model-selection statistics identical to machine precision; scoreset labelling reproduces upstream's variant-ID sets exactly.** |
-| **Integrated pathway databases** (`pathwaydb pull / build / query / status / sources`) | [IntPath](https://link.springer.com/article/10.1186/1752-0509-6-S2-S2) (Zhou H, Jin J, Zhang H, Yi B, Wozniak M, Wong L. *BMC Syst Biol* 2012; **method, not code**) + [KEGG REST](https://rest.kegg.jp) + [Reactome downloads](https://reactome.org/download-data) + [WikiPathways GMT](https://data.wikipathways.org) | IntPath: method absorbed from the paper only — the published 2012 dataset is not redistributed. KEGG (academic use), Reactome (CC-BY), WikiPathways (CC0) fetched at runtime, never vendored. | IntPath's integration method applied to **current** releases: normalise every gene identifier into one namespace (here NCBI `gene_info`, Entrez → symbol with synonyms), map each database's own relation vocabulary onto one shared set (KEGG's PPrel / ECrel / GPrel / GErel), merge pathways that different databases describe under different names, and record **every** supporting database per fact so cross-database agreement stays queryable instead of collapsing into a duplicate. Reimplements IntPath's LCS name-unification rule (alignment ratio 2xLCS/(|a|+|b|), the two published acceptance conditions, error-prone word-pair filter, disjoint-set grouping, shortest name as the group name) with a bit-parallel LCS verified against the dynamic program. Extends it where the 2012 rule breaks on modern data: Reactome's own parent/child hierarchy (9,853 pairs) constrains unification so curated fact outranks string similarity, and candidates are corroborated by word overlap and gene membership before merging — measured at zero known-wrong merges vs 3.4% for the published rule alone (`pathwaydb evaluate`). Also adds typed relations parsed from current KEGG KGML maps, Reactome's curated interactor file, per-file release stamps + SHA-256, and a merge audit trail. The 2012 release covered 582 pathways; a current pull yields 4,016 pathways / 211k memberships / 74k typed relations, all loaded into the local knowledge graph. BioCyc (IntPath's third source) is not fetched — its download now requires a subscription — but a licensed local export integrates via `--extra-gmt`. |
+| **Integrated pathway databases** (`pathwaydb pull / build / query / status / sources`) | [IntPath](https://link.springer.com/article/10.1186/1752-0509-6-S2-S2) (Zhou H, Jin J, Zhang H, Yi B, Wozniak M, Wong L. *BMC Syst Biol* 2012; **method, not code**) + [KEGG REST](https://rest.kegg.jp) + [Reactome downloads](https://reactome.org/download-data) + [WikiPathways GMT](https://data.wikipathways.org) | IntPath: method absorbed from the paper only — the published 2012 dataset is not redistributed. KEGG (academic use), Reactome (CC-BY), WikiPathways (CC0) fetched at runtime, never vendored. | IntPath's integration method applied to **current** releases: normalise every gene identifier into one namespace (here NCBI `gene_info`, Entrez → symbol with synonyms), map each database's own relation vocabulary onto one shared set (KEGG's PPrel / ECrel / GPrel / GErel), merge pathways that different databases describe under different names, and record **every** supporting database per fact so cross-database agreement stays queryable instead of collapsing into a duplicate. Reimplements IntPath's LCS name-unification rule (alignment ratio 2xLCS/(\|a\|+\|b\|), the two published acceptance conditions, error-prone word-pair filter, disjoint-set grouping, shortest name as the group name) with a bit-parallel LCS verified against the dynamic program. Extends it where the 2012 rule breaks on modern data: Reactome's own parent/child hierarchy (9,853 pairs) constrains unification so curated fact outranks string similarity, and candidates are corroborated by word overlap and gene membership before merging — measured at zero known-wrong merges vs 3.4% for the published rule alone (`pathwaydb evaluate`). Also adds typed relations parsed from current KEGG KGML maps, Reactome's curated interactor file, per-file release stamps + SHA-256, and a merge audit trail. The 2012 release covered 582 pathways; a current pull yields 4,016 pathways / 211k memberships / 74k typed relations, all loaded into the local knowledge graph. BioCyc (IntPath's third source) is not fetched — its download now requires a subscription — but a licensed local export integrates via `--extra-gmt`. |
 | **figshare** data retrieval (`figshare article / files / download / search`) | [figshare API v2](https://docs.figshare.com) (Zenodo-style research-data deposit) | clean-room, urllib + json only | Resolve an article from numeric id, DOI, article URL, or private `/s/<token>` share link; list files (size + md5); md5-verified downloads (single file or whole article); public full-text article search. The general-purpose counterpart to the `synapse` skill for author-deposited supplementary data. |
+
+#### Conventions for this table
+
+**Licence hygiene.** IGVFagent is Apache-2.0. Where an upstream is GPL or
+AGPL — BEAN, CORNETO, pySCENIC, edgeR, runHiC, TrimGalore — **no source is
+copied**: the method is read and reimplemented, or the tool is invoked as a
+separate program, and the *License* column says which. Vendoring copyleft
+code would place its licence over this repository.
+
+**Citations only where verified.** Where a formal citation appears it was
+checked; otherwise the canonical repository or documentation URL is given,
+which is what a reader needs to check the method. No author-year or DOI
+string here was reconstructed from memory.
+
+**Standard methods invoked by name** — Benjamini–Hochberg FDR, the adjusted
+Rand index, limma's variance-moderation *idea* — are the standard procedure
+or the idea at its simplest, not the upstream estimator. The docstrings say
+so at each use, because "limma's variance moderation" unqualified would
+overstate what `Scripts/_stats.py` does.
+
+**Alternatives deliberately not implemented.** For pooled screens,
+count-based negative-binomial models (MAGeCK-style, and BEAN's own `run`)
+have materially more power than the per-guide tail-enrichment tests here,
+because they model counting noise across guides rather than testing each
+guide independently. That is measurable rather than theoretical: on
+`IGVFDS6464SOVZ` none of 1,640 positive controls reaches FDR 0.05 under
+per-guide testing at four replicates, while the top-ranked controls are the
+biologically expected LDLR and HNF4A splice sites with the correct sign and
+high editing activity. IGVFagent's contribution on such screens is correct
+guide assignment, QC, and an honest statement of what its own test can and
+cannot support — not a substitute for the upstream model.
 
 ### Methods papers cited in the skills
 
+- **crispr-bean (BEAN)** — "Base Editing screens' Activity-Normalized variant effect size estimation", Pinello Lab. Repository <https://github.com/pinellolab/crispr-bean> (AGPL-3.0), documentation <https://pinellolab.github.io/crispr-bean/>. The base-edit-aware mapping method was read from `bean/mapping/GuideEditCounter.py`; no source is copied. *No paper citation is given here because none was verified from the repository — cite the upstream publication if you use this in a manuscript.*
 - **Ma S et al. (2020)** "Chromatin potential identified by shared single-cell profiling of RNA and chromatin." *Cell* 183:1103–1116. doi:[10.1016/j.cell.2020.09.056](https://doi.org/10.1016/j.cell.2020.09.056) — SHARE-seq method.
 - **Fulco CP et al. (2019)** "Activity-by-contact model of enhancer-promoter regulation from thousands of CRISPR perturbations." *Nature Genetics* 51:1664–1669. doi:[10.1038/s41588-019-0538-0](https://doi.org/10.1038/s41588-019-0538-0) — Flow-FISH log-normal bin-MLE method.
 - **Nasser J et al. (2021)** "Genome-wide enhancer maps link risk variants to disease genes." *Nature* 593:238–243. doi:[10.1038/s41586-021-03446-x](https://doi.org/10.1038/s41586-021-03446-x) — Flow-FISH at scale + `Significant` / `Regulated` output convention.
