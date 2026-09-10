@@ -501,7 +501,11 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
     out.mkdir(parents=True, exist_ok=True)
     samples = []
     for b in bins:
-        sid = f"rep{b['rep']}_{b['side']}{b['pct']}"
+        # Same formula as the condition, so an unsorted bin is "rep1_bulk"
+        # and not "rep1_bulk0". sample_id is carried into BEAN's own output
+        # tables, so a stray percentage on a bin that has none shows up
+        # there too.
+        sid = f"rep{b['rep']}_{condition_label(b['side'], b['pct'])}"
         # BEAN's sorting model needs each bin's position on the sorted
         # phenotype axis as quantiles, not a label: a bottom-20% bin spans
         # [0.0, 0.2] and a top-20% bin spans [0.8, 1.0]. Without these it
@@ -1030,6 +1034,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     plots = make_plots(out, rows, act, lib["type_of"], scr["series"])
+    if (summary.get("bean_run") or {}).get("ran"):
+        plots += make_bean_plots(out, summary["bean_run"], rows)
 
     print()
     for k, v in summary.items():
@@ -1088,6 +1094,168 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(f"Plot: {pth}")
     print(f"Output: {out}")
     return 0
+
+
+def _auc_less(a: "list[float]", b: "list[float]") -> float:
+    """P(x < y) for x from `a`, y from `b` -- the rank-sum effect size.
+
+    0.5 means the two distributions are interchangeable. Exact by merge-rank
+    with ties at half weight, not sampled, so a figure caption quoting it is
+    reproducible.
+    """
+    if not a or not b:
+        return 0.5
+    import bisect
+    sb = sorted(b)
+    n = len(sb)
+    total = 0.0
+    for x in a:
+        lo = bisect.bisect_left(sb, x)
+        hi = bisect.bisect_right(sb, x)
+        total += (n - hi) + 0.5 * (hi - lo)
+    return total / (len(a) * n)
+
+
+def make_bean_plots(out: Path, bean: dict, rows: "list[dict]") -> "list[Path]":
+    """Visualise BEAN's posteriors, and what they add over the per-guide test.
+
+    The per-guide tail test on IGVFDS6464SOVZ returns nothing significant --
+    7,333 tests against four replicates. BEAN pools the guides that hit one
+    target, so the quantity to look at is the posterior per target, and the
+    thing worth SEEING is that the strongest negative posteriors are the
+    LDLR and HNF4A splice-site positive controls, in the direction that
+    disrupting an LDLR splice site should move LDL uptake. No single target's
+    credible interval excludes zero, so the panels are drawn to show a
+    distributional shift and a ranking, never to imply per-target
+    significance: intervals are plotted, the zero line is drawn, and the
+    control/variant comparison carries the claim.
+    """
+    res = bean.get("results") or {}
+    full = res.get("path")
+    if not full or not Path(full).exists():
+        return []
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return []
+
+    # Target -> is it a positive control? Taken from the guide table's own
+    # class column, by majority, rather than by pattern-matching the name.
+    votes: "dict[str, list[bool]]" = defaultdict(list)
+    log2_of: "dict[str, list[float]]" = defaultdict(list)
+    for r in rows:
+        ctrl = "positive control" in (r["guide_type"] or "").lower()
+        votes[r["target"]].append(ctrl)
+        log2_of[r["target"]].append(r["log2_raw"])
+    is_ctrl = {t: (sum(v) > len(v) / 2) for t, v in votes.items()}
+
+    recs = []
+    with open(full, newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                t = row["target"]
+                recs.append({"target": t, "mu": float(row["mu"]),
+                              "sd": float(row["mu_sd"]),
+                              "z": float(row["mu_z"]),
+                              "n": int(row.get("n_guides") or 0),
+                              "ctrl": is_ctrl.get(t, False)})
+            except (KeyError, TypeError, ValueError):
+                continue
+    if not recs:
+        return []
+
+    model = bean.get("model", "?")
+    norm = ("activity-normalised" if bean.get("activity_normalised")
+             else "NOT activity-normalised")
+    fig, ax = plt.subplots(1, 3, figsize=(16.5, 5.4))
+
+    # 1. Forest plot of the 20 strongest posteriors, with 95% intervals.
+    top = sorted(recs, key=lambda r: -abs(r["z"]))[:20][::-1]
+    ys = np.arange(len(top))
+    for i, r in enumerate(top):
+        c = "#C44E52" if r["ctrl"] else "#4C72B0"
+        ax[0].errorbar(r["mu"], i, xerr=1.96 * r["sd"], fmt="o", ms=4,
+                        lw=1.1, capsize=2, color=c)
+    ax[0].axvline(0, ls="--", lw=1, c="k")
+    ax[0].set_yticks(ys)
+    ax[0].set_yticklabels([f"{r['target'][:26]} (n={r['n']})" for r in top],
+                           fontsize=7)
+    ax[0].set_xlabel("BEAN posterior effect  mu  (bars = 95% credible)")
+    ax[0].set_title("Top 20 targets by |z|\nred = positive control; every "
+                     "interval spans 0", fontsize=9)
+
+    # 2. The distributional claim: controls shifted against variants.
+    mc = [r["mu"] for r in recs if r["ctrl"]]
+    mv = [r["mu"] for r in recs if not r["ctrl"]]
+    bins = np.linspace(min(r["mu"] for r in recs),
+                        max(r["mu"] for r in recs), 45)
+    if mv:
+        ax[1].hist(mv, bins=bins, color="#4C72B0", alpha=.8, density=True,
+                    label=f"variants (n={len(mv)})")
+    if mc:
+        ax[1].hist(mc, bins=bins, color="#C44E52", alpha=.75, density=True,
+                    label=f"positive controls (n={len(mc)})")
+    for vals, c in ((mv, "#4C72B0"), (mc, "#C44E52")):
+        if vals:
+            ax[1].axvline(_percentile(sorted(vals), 0.5), color=c, lw=2)
+    ax[1].axvline(0, ls="--", lw=1, c="k")
+    ax[1].set_xlabel("BEAN posterior effect  mu")
+    ax[1].set_ylabel("density")
+    # AUC = P(a random control's mu < a random variant's mu); 0.5 is no
+    # separation. Both numbers go in the title because they are both true and
+    # a reader can otherwise take one for the other: on IGVFDS6464SOVZ the
+    # histograms overlap almost completely (median -0.112 vs -0.097, AUC
+    # 0.548) while the extreme negative tail is 3.2x enriched for controls.
+    # A panel titled with a question invites seeing the separation that the
+    # overlap denies.
+    auc = _auc_less(mc, mv)
+    k = min(20, len(recs))
+    tail = sorted(recs, key=lambda r: r["mu"])[:k]
+    ftail = sum(1 for r in tail if r["ctrl"]) / k
+    base = sum(1 for r in recs if r["ctrl"]) / len(recs)
+    ax[1].set_title(
+        f"Distributions overlap: P(control<variant) = {auc:.3f}"
+        f"\n{k} most-negative are {ftail:.0%} controls vs "
+        f"{base:.0%} baseline ({ftail / base:.1f}x)", fontsize=9)
+    ax[1].legend(fontsize=8)
+
+    # 3. Does BEAN agree with the per-guide test it is meant to improve on?
+    # The two measures have OPPOSITE polarity: log2(bottom/top) rises as a
+    # guide's cells move to the low-uptake bin, while BEAN's mu rises with
+    # the phenotype. Plotted raw they anti-correlate by construction
+    # (r = -0.256 here), which reads as disagreement rather than as a sign
+    # convention. Negating x puts them on one polarity, so the number quoted
+    # is agreement.
+    xs, ys2, cs = [], [], []
+    for r in recs:
+        l2 = log2_of.get(r["target"])
+        if not l2:
+            continue
+        xs.append(-sum(l2) / len(l2))   # match BEAN's polarity
+        ys2.append(r["mu"])
+        cs.append("#C44E52" if r["ctrl"] else "#4C72B0")
+    if len(xs) > 2:
+        ax[2].scatter(xs, ys2, s=12, c=cs, alpha=.55)
+        rr = float(np.corrcoef(xs, ys2)[0, 1])
+        ax[2].set_title(f"BEAN vs the per-guide test, same polarity"
+                         f"\nPearson r = {rr:+.3f} on "
+                         f"{len(xs):,} shared targets"
+                         f" -- weak agreement", fontsize=9)
+    ax[2].axhline(0, ls="--", lw=.8, c="k")
+    ax[2].axvline(0, ls="--", lw=.8, c="k")
+    ax[2].set_xlabel("-mean log2( bottom / top )   (higher = more uptake)")
+    ax[2].set_ylabel("BEAN posterior mu   (higher = more uptake)")
+
+    fig.suptitle(f"crispr-bean `run sorting variant` -- {model} model, {norm} "
+                  f"-- {len(recs):,} targets", fontsize=10)
+    fig.tight_layout()
+    q = out / "bean_posteriors.png"
+    fig.savefig(q, dpi=140)
+    plt.close(fig)
+    return [q]
 
 
 def make_plots(out: Path, rows: "list[dict]", act: "dict[str, dict]",

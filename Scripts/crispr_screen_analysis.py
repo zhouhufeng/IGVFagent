@@ -77,7 +77,8 @@ LOG_DIR = ROOT / "Docs" / "Logs"
 # spellings, plus low/high, plus the unsorted Bulk bin that screen also has.
 _ALIAS = re.compile(
     r"(?P<series>[A-Za-z0-9_.\-]+?)_Rep(?P<rep>\d+)_"
-    r"(?:(?P<side>bottom|bot|low|top|high)(?P<pct>\d+)|(?P<bulk>bulk))",
+    r"(?:(?P<side>bottom|bot|low|top|high)(?P<pct>\d+)"
+    r"|(?P<bulk>bulk|unsorted|presort|input|plasmid))",
     re.I)
 
 # Normalise the spellings onto one internal vocabulary.
@@ -121,8 +122,43 @@ def parse_alias(alias: str) -> "Optional[dict]":
             "pct": int(m.group("pct"))}
 
 
+def _library_ids(fileset: dict) -> "set[str]":
+    """The construct library set accessions a MeasurementSet was made from.
+
+    The portal returns these either embedded or as @id strings depending on
+    the frame, so both shapes are reduced to a bare accession.
+    """
+    out = set()
+    for s in (fileset or {}).get("construct_library_sets") or []:
+        if isinstance(s, dict):
+            s = s.get("@id") or s.get("accession") or ""
+        acc = str(s).strip("/").split("/")[-1]
+        if acc:
+            out.add(acc)
+    return out
+
+
 def discover_screen(accession: str) -> dict:
-    """Every sorted bin belonging to the same screen as `accession`."""
+    """Every sorted bin belonging to the same screen as `accession`.
+
+    Membership is decided by the GUIDE LIBRARY, not by the alias prefix.
+    That distinction is the whole of this function's correctness, because
+    the depositor does not use one naming scheme for a screen's bins:
+
+        richard-sherwood:18loci_uptake_Rep1_bottom20_ms   <- the tails
+        richard-sherwood:B1.1_18loci_Rep1_bulk_ms         <- the unsorted bin
+
+    The regex anchors the series name before `_Rep`, so the second parses
+    as series "B1.1_18loci" and comparing series names split ONE screen
+    into two. The consequence was not a cosmetic mislabel: the four
+    unsorted libraries went missing, `bean run` had no --control-condition,
+    and this tool reported for weeks that the deposit had published only
+    tail bins and BEAN could therefore never model the screen. It had
+    published them. Grouping on construct_library_sets -- an accession,
+    not a name -- finds all 20 sets, and keeps the ABE screen
+    (IGVFDS5242VHWM) apart from the CRISPRi screen (IGVFDS2978DRWC) that
+    shares the "18loci" stem and the same assay title.
+    """
     st, own = rp.portal_json(
         f"/search/?type=FileSet&accession={accession}&format=json")
     rows = (own or {}).get("@graph") or []
@@ -142,15 +178,30 @@ def discover_screen(accession: str) -> dict:
     # would have been dropped with nothing to show it had been.
     st, d = rp.portal_json(
         f"/search/?type=MeasurementSet&limit=all&format=json"
-        f"&preferred_assay_titles={assay.replace(' ', '+')}")
-    bins = []
+        f"&preferred_assay_titles={assay.replace(' ', '+')}"
+        f"&field=accession&field=aliases&field=construct_library_sets")
+    own_libs = _library_ids(full or {})
+    bins, seen = [], set()
     for r in (d or {}).get("@graph") or []:
         m = parse_alias(_alias_of(r))
-        if m and m["series"] == meta["series"]:
-            bins.append({"accession": r.get("accession"),
-                          "alias": _alias_of(r), **m})
+        if not m:
+            continue
+        # Same alias series, or the same guide library. The second clause is
+        # what recovers a bin the depositor named under another stem; the
+        # first still carries screens whose library link is absent.
+        same_lib = bool(own_libs and (_library_ids(r) & own_libs))
+        if not (m["series"] == meta["series"] or same_lib):
+            continue
+        acc = r.get("accession")
+        if acc in seen:
+            continue
+        seen.add(acc)
+        bins.append({"accession": acc, "alias": _alias_of(r),
+                      "matched_by": "series" if m["series"] == meta["series"]
+                                     else "guide library", **m})
     bins.sort(key=lambda b: (b["rep"], b["side"], b["pct"]))
     return {"series": meta["series"], "lab": lab, "assay": assay,
+            "guide_libraries": sorted(own_libs),
             "query_set": accession, "bins": bins,
             "replicates": sorted({b["rep"] for b in bins}),
             "bin_kinds": sorted(

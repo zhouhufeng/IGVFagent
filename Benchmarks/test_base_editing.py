@@ -198,6 +198,8 @@ check("a bulk bin with a percentage is still 'bulk'",
       bes.condition_label("bulk", 100) == "bulk")
 check("a percentage-less tail does not become 'topNone'",
       bes.condition_label("top", None) == "top")
+check("a bulk sample_id carries no stray percentage",
+      f"rep1_{bes.condition_label('bulk', 0)}" == "rep1_bulk")
 check("discover's label is the control condition BEAN gets",
       bes.control_condition([bes.condition_label("bottom", 20),
                               bes.condition_label("bulk", None),
@@ -387,5 +389,43 @@ check("every parser subcommand has a handler",
 check("every handler is reachable from the parser",
       not (table_cmds - parser_cmds), f"unreachable: {table_cmds - parser_cmds}")
 
-print(f"\n{21 + 10 + 17 + 11 + 13 + 14 + 6} cases, {len(FAILURES)} failure(s)")
+
+
+# ─── The BEAN figure must not overstate what it shows ─────────────────────
+# On IGVFDS6464SOVZ the control and variant posteriors overlap almost
+# completely (median -0.112 vs -0.097, AUC 0.548) while the 20 most-negative
+# targets are 75% controls against a 23.4% baseline. Both are true; a panel
+# that reports only one lets a reader take it for the other.
+check("identical distributions give AUC 0.5",
+      bes._auc_less([1, 2, 3], [1, 2, 3]) == 0.5)
+check("strict separation gives AUC 1.0", bes._auc_less([1, 2], [3, 4]) == 1.0)
+check("the reverse gives AUC 0.0", bes._auc_less([3, 4], [1, 2]) == 0.0)
+check("half-overlap gives 0.75", bes._auc_less([1, 3], [2, 4]) == 0.75)
+check("an empty group is 0.5, not a crash", bes._auc_less([], [1]) == 0.5)
+check("ties count half", bes._auc_less([2], [1, 2, 3]) == 0.5)
+# AUC must not move with group size -- 389 controls against 1,270 variants
+# is a 3:1 imbalance, and a measure that drifted with it would make the
+# caption a function of the library design rather than of the effect.
+_a, _b = [1.0, 3.0], [2.0, 4.0]
+check("AUC is invariant to replicating either group",
+      bes._auc_less(_a * 7, _b * 13) == bes._auc_less(_a, _b) == 0.75)
+check("AUC is the complement of its reverse",
+      abs(bes._auc_less(_a, _b) + bes._auc_less(_b, _a) - 1.0) < 1e-12)
+
+# Polarity: log2(bottom/top) rises as cells move to the LOW-uptake bin,
+# BEAN's mu rises with the phenotype. Quoting r on the raw pair reports
+# -0.256 and reads as disagreement.
+src = inspect.getsource(bes.make_bean_plots)
+check("the correlation panel negates one axis",
+      "-sum(l2) / len(l2)" in src)
+check("both axis labels state the direction",
+      src.count("higher = more uptake") == 2)
+check("the panel says the polarity was matched", "same polarity" in src)
+check("the figure states which model produced the posteriors",
+      "activity_normalised" in src and "NOT activity-normalised" in src)
+check("credible intervals are drawn, not just points", "1.96 * r[\"sd\"]" in src)
+check("controls come from the guide table's class column, not the name",
+      "positive control" in src and "guide_type" in src)
+
+print(f"\n{21 + 10 + 17 + 11 + 13 + 14 + 6 + 15} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
