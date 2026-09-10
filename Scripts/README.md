@@ -317,6 +317,75 @@ library shares one spacer across every variant it installs, so keying on
 spacer collapses 1,741 pegRNAs onto 52. Counts are cached per library, so a
 re-analysis at a different `--tail` returns in seconds.
 
+## One knowledge graph from three stores
+
+Three graphs existed and nothing joined them: `local_kg.sqlite` (the "IGVF
+integrated KG" the UI shows, gene nodes keyed by **symbol**),
+`proteomics.sqlite` (1.29M BioGRID interactions, also symbols, its `id_map`
+crosswalk **empty**), and the parquet mirror of the Catalog's ArangoDB
+(11.5M `proteins_proteins` edges keyed by **Ensembl protein**).
+
+```bash
+igvfagent kg-integrate build-index               # alias -> gene symbol, from the mirror
+igvfagent kg-integrate merge ppi                 # BioGRID interactions
+igvfagent kg-integrate merge pathways            # Catalog gene -> pathway
+igvfagent kg-integrate merge complexes           # Catalog protein complexes
+igvfagent kg-integrate merge mirror-ppi --shards 50   # Catalog PPI, incrementally
+igvfagent kg-integrate status                    # coverage and what remains
+```
+
+Everything is written through `_localstore.upsert_node` / `upsert_edge`, so a
+merged edge is indistinguishable in shape from one the agent recorded itself,
+and lands on the **same vertices**.
+
+**The identity layer is the whole job.** 432,448 aliases built from the mirror
+as authority, over a route that is entirely Ensembl keys — `genes(ENSG)` →
+`genes_transcripts` → `transcripts_proteins(ENSP)`. No string matching:
+
+| alias type | rows | |
+|---|---|---|
+| `ensp` | 120,935 | what makes `proteins_proteins` mergeable at all |
+| `uniprot` | 95,377 | for a future UniProt-keyed source |
+| `ensg` | 68,881 | |
+| `symbol` | 62,646 | the canonical node name |
+| `entrez` | 43,492 | |
+| `hgnc` | 41,117 | |
+
+**Ambiguity is recorded, never resolved by picking a winner.** 2,493 of 62,646
+symbols map to more than one ENSG, so `kg_identity.ambiguous` is set and each
+merge counts the endpoints that landed on one.
+
+**Synonyms are opt-in, for a measured reason.** The mirror holds 289,002
+synonym entries over 238,599 distinct strings, and **7,167 of those strings are
+claimed by more than one gene**. Merging on them would fuse distinct entities
+on a string match, and the evidence they were ever separate would be gone.
+`--with-synonyms` exists for callers who know their input vocabulary.
+
+**Three properties of the primitives drive the design.** `upsert_edge`'s id is
+`_digest(from, to, type, SOURCE)` — source is part of edge *identity*, so
+BioGRID and Catalog evidence for one pair are two rows of evidence rather than
+one clobbering the other. That also means the source strings are frozen
+constants: changing one duplicates every edge it ever wrote. `_nid`
+upper-cases, so the merge adopts the case rule the existing nodes live under.
+`upsert_node` merges properties, so an entity seen by two sources accumulates.
+
+**It grows by shard.** `merge mirror-ppi`'s ledger key is the parquet
+filename, so the still-growing mirror contributes only its new files on each
+run — verified: two runs took shards 0–19 then 20–24, never redoing the first.
+
+Measured resolution:
+
+| merge | read | resolved | kept but unresolved |
+|---|---|---|---|
+| `ppi` (BioGRID) | 1,292,216 | 1,855,900 endpoints (**94.9%**) | 99,720, flagged `resolved:false` |
+| `mirror-ppi` (25 shards) | 122,626 | **97.8%** of endpoints | 4,331 |
+| `pathways` | 156,013 | **100%** — both sides Ensembl | 0 |
+| `complexes` | 19,263 | 1,677 of 1,687 complexes | 221 members |
+
+An unresolved endpoint is **kept**, not dropped: it is real evidence for a
+symbol the Catalog does not list, and losing it silently would be worse than
+carrying it with a flag.
+
 ## Submitting to the IGVF Portal
 
 The submission loop is monthly: submit, wait for DACC audits, learn at the

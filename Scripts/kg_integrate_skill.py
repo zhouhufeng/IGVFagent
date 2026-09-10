@@ -540,6 +540,63 @@ def merge_mirror_pathways(con, *, organism: str = "Homo sapiens") -> dict:
              "pathway_names_available": len(names)}
 
 
+def merge_mirror_complexes(con) -> dict:
+    """Protein complexes as a node type the integrated graph did not have.
+
+    complexes_proteins is 19,263 edges over 1,687 complexes -- small, and it
+    adds structure nothing else in the graph carries: which gene products
+    assemble together. Members are resolved through the same ENSP index the
+    PPI merge uses, so a complex attaches to the SAME gene vertices that
+    BioGRID and the Catalog interactions do, and a query can move from an
+    interaction to the complex both partners belong to.
+
+    A complex is kept even when only some members resolve, with the count
+    recorded: a partially-resolved complex is still evidence of assembly,
+    and dropping it would lose the members that did resolve.
+    """
+    duck = _duck()
+    if duck is None:
+        return {"error": "duckdb is not installed"}
+    if not _shards("complexes_proteins"):
+        return {"error": "complexes_proteins is not mirrored yet"}
+    res = resolver(con)
+    names = {}
+    if _shards("complexes"):
+        names = {_key(r[0]).upper(): r[1] for r in duck.execute(
+            f"SELECT _id, name FROM {_pq('complexes')}").fetchall()}
+    rows = duck.execute(
+        f"SELECT _from, _to FROM {_pq('complexes_proteins')}").fetchall()
+    before_e = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    added = unresolved = 0
+    complexes = set()
+    for fr, to in rows:
+        # The edge direction is complex -> protein in this collection.
+        cx, prot = _key(fr), _key(to).upper()
+        hit = res.get(prot)
+        if not hit:
+            unresolved += 1
+            continue
+        cid = ls.upsert_node(con, "complex", cx, source=SRC_MIRROR_COMPLEX,
+                              label=names.get(cx.upper()) or cx)
+        gid = ls.upsert_node(con, "gene", hit[0], source=SRC_MIRROR_COMPLEX)
+        ls.upsert_edge(con, gid, cid, "member_of_complex",
+                        source=SRC_MIRROR_COMPLEX,
+                        properties={"protein": prot})
+        complexes.add(cx)
+        added += 1
+    con.commit()
+    gained = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0] - before_e
+    _merge_log(con, SRC_MIRROR_COMPLEX, None, len(rows), gained, 0,
+                unresolved, 0)
+    con.commit()
+    return {"source": SRC_MIRROR_COMPLEX, "rows_read": len(rows),
+             "edges_asserted_by_source": added,
+             "edges_new_in_graph": gained,
+             "complexes_with_a_resolved_member": len(complexes),
+             "members_unresolved": unresolved,
+             "complex_names_available": len(names)}
+
+
 # ─── status ─────────────────────────────────────────────────────────────────
 
 def status(con) -> dict:
@@ -556,7 +613,8 @@ def status(con) -> dict:
         "FROM kg_merge_log GROUP BY 1").fetchall()
     avail = {c: len(_shards(c)) for c in
              ("proteins_proteins", "genes", "genes_pathways",
-              "complexes_proteins", "proteins", "transcripts_proteins")}
+              "complexes", "complexes_proteins", "proteins",
+              "transcripts_proteins")}
     done = con.execute("SELECT COUNT(*) FROM harvest_ledger WHERE key LIKE "
                         "'mirror_ppi:%'").fetchone()[0]
     return {"nodes": n_nodes, "edges": n_edges,
@@ -620,6 +678,8 @@ def cmd_merge(args) -> int:
                                       max_rows_per_shard=args.limit))
     if args.what in ("pathways", "all"):
         outs.append(merge_mirror_pathways(con))
+    if args.what in ("complexes", "all"):
+        outs.append(merge_mirror_complexes(con))
     rc = 0
     for out in outs:
         if "error" in out:
@@ -681,7 +741,8 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--organism", default="Homo sapiens")
 
     m = sub.add_parser("merge", help="Merge a source into the graph.")
-    m.add_argument("what", choices=["ppi", "mirror-ppi", "pathways", "all"])
+    m.add_argument("what", choices=["ppi", "mirror-ppi", "pathways",
+                                     "complexes", "all"])
     m.add_argument("--limit", type=int, default=0,
                    help="Cap rows read (per shard for mirror-ppi). 0 = all.")
     m.add_argument("--shards", type=int, default=0,
