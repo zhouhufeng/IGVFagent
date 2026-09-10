@@ -515,6 +515,7 @@ def merge_mirror_pathways(con, *, organism: str = "Homo sapiens") -> dict:
     rows = duck.execute(
         f"SELECT _from, _to FROM {_pq('genes_pathways')}").fetchall()
     added = unresolved = 0
+    before_e = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
     for fr, to in rows:
         hit = res.get(_key(fr).upper())
         if not hit:
@@ -528,10 +529,14 @@ def merge_mirror_pathways(con, *, organism: str = "Homo sapiens") -> dict:
                         source=SRC_MIRROR_PATHWAY)
         added += 1
     con.commit()
-    _merge_log(con, SRC_MIRROR_PATHWAY, None, len(rows), added, 0, unresolved, 0)
+    gained = con.execute("SELECT COUNT(*) FROM edges").fetchone()[0] - before_e
+    _merge_log(con, SRC_MIRROR_PATHWAY, None, len(rows), gained, 0,
+                unresolved, 0)
     con.commit()
     return {"source": SRC_MIRROR_PATHWAY, "rows_read": len(rows),
-             "edges_added": added, "unresolved_genes": unresolved,
+             "edges_asserted_by_source": added,
+             "edges_new_in_graph": gained,
+             "unresolved_genes": unresolved,
              "pathway_names_available": len(names)}
 
 
