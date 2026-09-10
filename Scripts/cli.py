@@ -40,6 +40,14 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "crispr-screen":    ("igvfagent.crispr_screen_analysis",
                           "CRISPR FACS screens: reprocess a whole screen "
                           "(all sorted bins) into per-variant effects"),
+    "submit":           ("igvfagent.igvf_submission_skill",
+                          "Submit to the IGVF Portal: preflight audit against "
+                          "the recurring DACC findings, revoked-input repair, "
+                          "local file validation, schema templates"),
+    "portal-qc":        ("igvfagent.igvf_portal_qc_skill",
+                          "Portal-wide QC: the Portal's own audit facets by "
+                          "lab and type, plus provenance integrity it does "
+                          "not surface"),
     "bean":             ("igvfagent.base_editing_screen",
                           "Base-editing screens: BEAN-style base-edit-aware "
                           "guide assignment and editing-activity reporting"),

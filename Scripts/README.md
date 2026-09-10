@@ -317,6 +317,50 @@ library shares one spacer across every variant it installs, so keying on
 spacer collapses 1,741 pegRNAs onto 52. Counts are cached per library, so a
 re-analysis at a different `--tail` returns in seconds.
 
+## Submitting to the IGVF Portal
+
+The submission loop is monthly: submit, wait for DACC audits, learn at the
+next meeting what was missing. The same properties are missing every time, so
+those findings are encoded as checks that run in seconds. Every rule cites
+the meeting that produced it.
+
+```bash
+igvfagent submit doctor                             # creds, connectivity, which lab
+igvfagent submit audit IGVFDS2581EDPS --recurse     # the recurring-findings checklist
+igvfagent submit inputs IGVFFI0856UJHP              # flag revoked/archived inputs
+igvfagent submit validate mydata.bed.gz --bed3      # gzip, ragged rows, 0-based half-open
+igvfagent submit template prediction_set            # required properties as a TSV header
+igvfagent submit fileset-files IGVFDS5361GWAK       # paste-ready JSON accession array
+igvfagent portal-qc audits --lab "Lin lab"          # what my lab still needs to fix
+igvfagent portal-qc provenance --dead-status revoked,archived
+```
+
+`audit` exits non-zero when release is blocked, so it drops into CI.
+
+**The revoked-input question.** When an input is corrected upstream, the only
+thing you need to know is whether the correction touched your data:
+
+```bash
+igvfagent submit crosscheck --old IGVFFI7160EKDK                             --new IGVFFI1678CDBR --mine IGVFFI0856UJHP
+```
+
+It keys on `(chrom, pos) -> {(ref, alt)}`, because a reference-allele mismatch
+is corrected **in place** — the coordinate does not move while ref/alt change,
+so comparing positions alone reports exactly this case as "no change". If none
+of the revised variants reach your file, repoint `derived_from` and release;
+otherwise the file needs regenerating. It refuses to give a verdict unless
+*unrevised* input variants also appear in your file, since otherwise the two
+files' conventions differ and a clean result would be false.
+
+**Rehearse on staging, not sandbox.** `api.sandbox.igvf.org` answers HTTP 410
+now; `-m sandbox` warns and redirects. Add `-m staging` to any command.
+
+**Schema requirements hide in disjunctions.** `prediction_set` has no
+top-level `required` at all — `lab`, `award` and `file_set_type` are always
+needed, then `samples` **or** `donors`, expressed as a `oneOf`. `template`
+reads the live schema and reports both parts, so it cannot drift from what the
+Portal accepts.
+
 ## Saturation genome editing (SGE)
 
 ```bash

@@ -4781,6 +4781,195 @@ _TOOLS: "list[Tool]" = [
                    "min_count": "--min-count", "max_reads": "--max-reads",
                    "label": "--label"},
     ),
+    # ── IGVF Portal submission ────────────────────────────────────────
+    # These exist because the submission loop is monthly: submit, wait for
+    # DACC audits, learn at the next meeting what was missing. The same
+    # properties are missing every time, so each rule cites the meeting that
+    # produced it and the checks run in seconds against the live Portal.
+    _T(
+        "igvf_submit_audit",
+        "★ WILL THIS SUBMISSION PASS THE DACC AUDITS? ★ — run the recurring-"
+        "findings checklist against an object ALREADY ON the IGVF Portal, "
+        "before the monthly submission meeting does it for you. Catches the "
+        "properties that are missing every month: `description` on a file "
+        "set, `input_file_sets` on a PredictionSet, `derived_from` on a "
+        "derived file, `reference_files`, `file_format_specifications`, "
+        "`analysis_step_version`, and inputs whose status has become "
+        "revoked/archived/replaced (which silently blocks release of "
+        "everything downstream, and the Portal names the replacement). Use "
+        "--recurse to include a file set's member files. Exits non-zero when "
+        "release is blocked. Call this whenever the user asks whether their "
+        "submission is ready, why an audit is failing, what the DACC "
+        "flagged, or what is missing from a prediction set / curated set / "
+        "tabular file.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                              "IGVF accession, e.g. IGVFDS2581EDPS or "
+                              "IGVFFI0856UJHP."},
+                "recurse": {**_S_BOOLEAN, "description":
+                            "Also audit the file set's member files."},
+                "mode": {**_S_STRING, "description":
+                         "prod (default) or staging."},
+            },
+            "required": ["accession"],
+        },
+        cli=["submit", "audit"],
+        positional=("accession",),
+        flag_map={"mode": "-m"},
+        bool_flags=("recurse",),
+    ),
+    _T(
+        "igvf_submit_inputs",
+        "★ ARE ANY OF MY INPUTS DEAD? ★ — lists every input linked to a "
+        "Portal object with its status, flagging revoked, archived, replaced "
+        "and deleted ones and naming the replacement the Portal points to. "
+        "This is the check for 'my file was fine last month and now release "
+        "is blocked': an input was corrected upstream. Use it before "
+        "igvf_submit_crosscheck, which decides whether the correction "
+        "actually touched your data.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING},
+                "mode": {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["submit", "inputs"],
+        positional=("accession",),
+        flag_map={"mode": "-m"},
+    ),
+    _T(
+        "igvf_submit_crosscheck",
+        "★ AN INPUT WAS REVOKED AND CORRECTED — DO I HAVE TO REUPLOAD? ★ — "
+        "compares the old and corrected input against YOUR derived file and "
+        "answers the only question that matters: did any of the revised "
+        "variants actually reach your file? If none did, repoint "
+        "`derived_from` and release; if some did, the file needs regenerating. "
+        "Keys on (chrom, pos) -> {(ref, alt)}, because a reference-allele "
+        "mismatch is corrected IN PLACE -- the coordinate does not move while "
+        "ref/alt change, so comparing positions alone reports exactly this "
+        "case as 'no change'. Refuses to give a verdict unless unrevised "
+        "input variants are also found in your file, since otherwise the two "
+        "files' conventions differ and a clean result would be false.",
+        {
+            "type": "object",
+            "properties": {
+                "old": {**_S_STRING, "description":
+                        "The revoked input accession, or a local path."},
+                "new": {**_S_STRING, "description":
+                        "The corrected input accession, or a local path."},
+                "mine": {**_S_STRING, "description":
+                         "Your derived file, accession or local path."},
+                "mode": {**_S_STRING},
+            },
+            "required": ["old", "new", "mine"],
+        },
+        cli=["submit", "crosscheck"],
+        flag_map={"old": "--old", "new": "--new", "mine": "--mine",
+                   "mode": "-m"},
+    ),
+    _T(
+        "igvf_submit_validate",
+        "★ CHECK A FILE BEFORE UPLOADING IT ★ — local, no Portal call: gzip "
+        "(the DACC asks for gzipped files every month), ragged rows, md5 and "
+        "content md5, emptiness, and with --bed3 that a BED file is 0-based "
+        "half-open rather than 1-based. Run this before upload, not after the "
+        "audit.",
+        {
+            "type": "object",
+            "properties": {
+                "path": {**_S_STRING, "description": "Local file to check."},
+                "bed3": {**_S_BOOLEAN, "description":
+                         "Also apply BED coordinate checks."},
+            },
+            "required": ["path"],
+        },
+        cli=["submit", "validate"],
+        positional=("path",),
+        bool_flags=("bed3",),
+    ),
+    _T(
+        "igvf_submit_fileset_files",
+        "Member file accessions of a file set, as a paste-ready JSON array — "
+        "the list the DACC repeatedly asks submitters to collect by hand and "
+        "paste into `derived_from` or `input_file_sets` in the Portal's JSON "
+        "editing view.",
+        {
+            "type": "object",
+            "properties": {"accession": {**_S_STRING},
+                            "mode": {**_S_STRING}},
+            "required": ["accession"],
+        },
+        cli=["submit", "fileset-files"],
+        positional=("accession",),
+        flag_map={"mode": "-m"},
+    ),
+    _T(
+        "igvf_submit_template",
+        "The required properties of a Portal profile as a TSV header, and "
+        "`enum` for a property's allowed values — both read from the LIVE "
+        "schema at api.data.igvf.org/profiles, so they cannot drift from what "
+        "the Portal will accept. Use when the user asks what fields a "
+        "prediction set / curated set / tabular file needs, or what values "
+        "`file_set_type` or `content_type` allows.",
+        {
+            "type": "object",
+            "properties": {
+                "profile": {**_S_STRING, "description":
+                            "e.g. prediction_set, curated_set, tabular_file."},
+                "mode": {**_S_STRING},
+            },
+            "required": ["profile"],
+        },
+        cli=["submit", "template"],
+        positional=("profile",),
+        flag_map={"mode": "-m"},
+    ),
+    _T(
+        "igvf_portal_qc_audits",
+        "★ WHAT IS WRONG ACROSS THE PORTAL, OR ACROSS MY LAB'S DATA? ★ — "
+        "reads the Portal's OWN audit facets (audit.ERROR.category, "
+        "NOT_COMPLIANT, WARNING, INTERNAL_ACTION) so a complete picture "
+        "arrives in one request instead of 150,000. Scope to a lab or an "
+        "item type. Use for 'what does my lab still need to fix', not for a "
+        "single object -- that is igvf_submit_audit.",
+        {
+            "type": "object",
+            "properties": {
+                "item_type": {**_S_STRING, "description":
+                              "e.g. TabularFile, PredictionSet, File."},
+                "lab": {**_S_STRING, "description": "Lab name to scope to."},
+                "mode": {**_S_STRING},
+            },
+        },
+        cli=["portal-qc", "audits"],
+        flag_map={"item_type": "--type", "lab": "--lab", "mode": "-m"},
+    ),
+    _T(
+        "igvf_portal_qc_provenance",
+        "Provenance integrity across the Portal: files deriving from inputs "
+        "that are revoked or archived, with the replacement named. The Portal "
+        "audits most of this at INTERNAL_ACTION severity, mixed in with "
+        "thousands of other status mismatches; and it has a measured blind "
+        "spot -- of 55 live files derived from an unusable file, 30 carried no "
+        "audit at all, every one of them status=released deriving from "
+        "status=archived. --dead-status picks the policy.",
+        {
+            "type": "object",
+            "properties": {
+                "lab": {**_S_STRING},
+                "dead_status": {**_S_STRING, "description":
+                                "Comma-separated, e.g. revoked,archived."},
+                "mode": {**_S_STRING},
+            },
+        },
+        cli=["portal-qc", "provenance"],
+        flag_map={"lab": "--lab", "dead_status": "--dead-status",
+                   "mode": "-m"},
+    ),
     _T(
         "base_editing_screen_discover",
         "★ IS THIS A BASE-EDITING SCREEN, AND WHAT DOES BEAN NEED THAT IGVF "
