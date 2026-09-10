@@ -430,9 +430,21 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
     samples = []
     for b in bins:
         sid = f"rep{b['rep']}_{b['side']}{b['pct']}"
+        # BEAN's sorting model needs each bin's position on the sorted
+        # phenotype axis as quantiles, not a label: a bottom-20% bin spans
+        # [0.0, 0.2] and a top-20% bin spans [0.8, 1.0]. Without these it
+        # cannot place the bins relative to each other.
+        frac = (b["pct"] or 0) / 100.0
+        if b["side"] == "bottom":
+            lo, hi = 0.0, frac
+        elif b["side"] == "top":
+            lo, hi = 1.0 - frac, 1.0
+        else:                       # bulk / unsorted spans everything
+            lo, hi = 0.0, 1.0
         samples.append({"sample_id": sid, "replicate": b["rep"],
                          "condition": f"{b['side']}{b['pct']}",
                          "sorting_bin": b["side"], "bin_pct": b["pct"],
+                         "lower_quantile": lo, "upper_quantile": hi,
                          "accession": b["accession"]})
     sample_ids = [r["sample_id"] for r in samples]
 
@@ -475,6 +487,7 @@ def write_bean_tables(out: Path, bins: "list[dict]", per_bin: "dict[str, dict]",
 
 
 def run_bean(out: Path, tables: dict, mode: str = "variant",
+              screen_type: str = "sorting", n_iter: int = 0,
               timeout: int = 7200) -> dict:
     """`bean create-screen` then `bean run`, reporting each step honestly."""
     exe = shutil.which("bean")
@@ -502,11 +515,32 @@ def run_bean(out: Path, tables: dict, mode: str = "variant",
     if not h5.exists():
         return {"ran": False, "why": f"{name} exited 0 but wrote no {h5.name}",
                  "steps": steps}
-    r = subprocess.run([exe, "run", mode, str(h5), "-o", str(out / "bean_run")],
-                        capture_output=True, text=True, timeout=timeout)
-    steps.append({"step": f"run {mode}", "exit_code": r.returncode,
+    # `bean run` takes TWO positionals -- {sorting,survival} then
+    # {variant,tiling} -- and the column names must be told to it, since our
+    # table is not BEAN's own count-samples output. The first attempt passed
+    # only "variant" (following the README's abbreviated example) and got
+    # "invalid choice: 'variant' (choose from 'sorting', 'survival')".
+    #
+    # --guide-activity-col is the point of the whole exercise: it is where
+    # BEAN takes a per-guide editing rate for its activity normalisation, and
+    # the self-edit rate measured during counting goes straight into it.
+    run_dir = out / "bean_run"
+    cmd = [exe, "run", screen_type, mode, str(h5),
+            "--replicate-col", "replicate",
+            "--condition-col", "condition",
+            "--target-col", "target",
+            "--guide-activity-col", "editing_activity",
+            "--sorting-bin-lower-quantile-col", "lower_quantile",
+            "--sorting-bin-upper-quantile-col", "upper_quantile",
+            "--outdir", str(run_dir)]
+    if n_iter:
+        cmd += ["--n-iter", str(n_iter)]
+    run_dir.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    steps.append({"step": f"run {screen_type} {mode}",
+                   "exit_code": r.returncode,
                    "stderr": (r.stderr or "").strip()[-600:],
-                   "cmd": f"bean run {mode} {h5.name}"})
+                   "cmd": " ".join(cmd)})
     return {"ran": r.returncode == 0, "screen_h5ad": str(h5),
              "why": "" if r.returncode == 0 else f"bean run exited {r.returncode}",
              "steps": steps}
@@ -719,7 +753,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             tables = write_bean_tables(out, bins, per_bin, act, lib, editor)
             print(f"\n  Wrote BEAN inputs: {tables['n_guides']:,} guides x "
                   f"{tables['n_samples']} samples")
-            bean_result = run_bean(out, tables, mode=args.bean_mode)
+            bean_result = run_bean(out, tables, mode=args.bean_mode,
+                                    screen_type=args.bean_screen_type,
+                                    n_iter=args.bean_iter)
             summary["bean_run"] = bean_result
             for st in bean_result.get("steps", []):
                 flag = "ok" if st["exit_code"] == 0 else f"FAILED({st['exit_code']})"
@@ -849,7 +885,13 @@ def build_parser() -> argparse.ArgumentParser:
                          "(create-screen + run) for its Bayesian model.")
     a.add_argument("--bean-mode", default="variant",
                     choices=["variant", "tiling"],
-                    help="Which BEAN model to fit with --run-bean.")
+                    help="BEAN library design: variant ignores bystander "
+                         "edits, tiling models them.")
+    a.add_argument("--bean-screen-type", default="sorting",
+                    choices=["sorting", "survival"],
+                    help="BEAN selection type. A FACS screen is 'sorting'.")
+    a.add_argument("--bean-iter", type=int, default=0,
+                    help="Override BEAN's --n-iter (0 = its default).")
     a.add_argument("--label")
     return p
 
