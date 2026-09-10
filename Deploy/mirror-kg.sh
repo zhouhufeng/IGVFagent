@@ -3,7 +3,9 @@
 #
 #   bash Deploy/mirror-kg.sh --check          # plan only, pull nothing
 #   bash Deploy/mirror-kg.sh                  # mirror what fits
-#   BUDGET_GB=500 bash Deploy/mirror-kg.sh    # allow more
+#   BUDGET_GB=500 bash Deploy/mirror-kg.sh    # allow more disk
+#   MAX_HOURS=24 bash Deploy/mirror-kg.sh     # skip any collection
+#                                             # estimated over 24 h
 #
 # WHY A BUDGET. The full graph is 1,928 GB across 62 collections and 11.6
 # billion documents. The data volume is 2.0 TB with ~1.74 TB free, and now
@@ -69,23 +71,44 @@ step "1. Inventory the graph"
 INV=/mnt/igvf-data/Data/Warehouse/KG/_inventory.csv
 [[ -f "$INV" ]] || die "inventory csv not written at $INV"
 python3 - "$INV" "$BUDGET_GB" <<'PY' > /tmp/kg_plan.txt
-import csv, sys
+import csv, os, sys
 inv, budget = sys.argv[1], float(sys.argv[2])
 rows = []
 for r in csv.DictReader(open(inv)):
     r["_gb"] = float(r["bytes"]) / 1e9
     r["_n"] = int(r["documents"])
     rows.append(r)
-# Smallest first: maximises how many collections land inside the budget, and
-# gets useful breadth on disk early in case the run is interrupted.
-rows.sort(key=lambda r: r["_gb"])
+# Order and skip by TIME, not by bytes. The two are almost uncorrelated
+# here because row width varies enormously:
+#
+#   genes_coding_variants_scores_grp   50.1 GB but     68,881 docs  ~1 minute
+#   variants_coding_variants           65.9 GB and 942,433,097 docs  ~228 hours
+#
+# The streaming cost is per DOCUMENT (one AQL cursor batch of 5,000 rows at a
+# time), so bytes predict disk use and doc count predicts wall-clock. Ordering
+# smallest-bytes-first therefore scheduled a 45-hour collection ahead of two
+# that finish in a minute, and a byte-based budget would have dropped exactly
+# the two nearly-free ones. MAX_HOURS skips a collection whose estimated time
+# exceeds a cap, which is the constraint that actually matters when a mirror
+# blocks a deploy window.
+rate = float(os.environ.get("ROWS_PER_SEC", "1150"))   # measured on this VM
+max_hours = float(os.environ.get("MAX_HOURS", "0") or 0)
+for r in rows:
+    r["_h"] = r["_n"] / rate / 3600.0
+rows.sort(key=lambda r: r["_h"])
 cum = 0.0
+cum_h = 0.0
 for r in rows:
     if cum + r["_gb"] > budget:
         continue
+    if max_hours and r["_h"] > max_hours:
+        print(f"#SKIP\t{r['collection']}\t{r['_gb']:.1f}\t{r['_n']}\t"
+              f"{r['_h']:.1f}h exceeds MAX_HOURS={max_hours}", file=sys.stderr)
+        continue
     cum += r["_gb"]
+    cum_h += r["_h"]
     print(f"{r['collection']}\t{r['_gb']:.3f}\t{r['_n']}")
-print(f"#TOTAL\t{cum:.1f}", file=sys.stderr)
+print(f"#TOTAL\t{cum:.1f}\t{cum_h:.1f}", file=sys.stderr)
 PY
 PLANNED=$(wc -l < /tmp/kg_plan.txt | tr -d ' ')
 PLAN_GB=$(awk -F'\t' '{s+=$2} END{printf "%.1f", s}' /tmp/kg_plan.txt)
@@ -98,6 +121,9 @@ EXCLUDED=$(comm -23 \
   <(awk -F',' 'NR>1{print $2}' "$INV" | sort) \
   <(cut -f1 /tmp/kg_plan.txt | sort) | tr '\n' ' ')
 echo "  excluded (too large for the budget): ${EXCLUDED:-none}"
+PLAN_H=$(awk -F'\t' -v r="${ROWS_PER_SEC:-1150}" '{s+=$3/r/3600} END{printf "%.1f", s}' /tmp/kg_plan.txt)
+echo "  estimated wall-clock for the plan: ~${PLAN_H} h at ${ROWS_PER_SEC:-1150} rows/s"
+echo "  (set MAX_HOURS=N to skip any single collection estimated over N hours)"
 df -h /mnt/igvf-data | awk 'NR>1{printf "  volume: %s used of %s (%s), %s free\n", $3,$2,$5,$4}'
 
 if [[ "$CHECK_ONLY" == 1 ]]; then
