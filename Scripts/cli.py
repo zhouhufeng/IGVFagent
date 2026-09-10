@@ -40,6 +40,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "crispr-screen":    ("igvfagent.crispr_screen_analysis",
                           "CRISPR FACS screens: reprocess a whole screen "
                           "(all sorted bins) into per-variant effects"),
+    "kg-integrate":     ("igvfagent.kg_integrate_skill",
+                          "Merge the PPI-KG and the ArangoDB mirror into the "
+                          "IGVF integrated KG, incrementally, on one "
+                          "identifier space"),
     "submit":           ("igvfagent.igvf_submission_skill",
                           "Submit to the IGVF Portal: preflight audit against "
                           "the recurring DACC findings, revoked-input repair, "
