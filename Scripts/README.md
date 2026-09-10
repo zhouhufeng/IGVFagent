@@ -145,6 +145,57 @@ python3 Scripts/crispri_data_skills.py analyze-local --input Data/Input/VariantL
 python3 Scripts/crispri_data_skills.py write-playbook
 ```
 
+## CRISPR screens from raw reads (three shapes, three tools)
+
+A sorted CRISPR screen is not analysable one bin at a time: the measurement
+IS the comparison between bins, so each tool finds the screen's siblings and
+analyses them together. Which tool applies depends on the screen's shape and
+on its guide library, and the wrong one refuses rather than undercounting.
+
+```bash
+# 1. TAIL SORT (bottom20% vs top20%). Handles both bin-naming conventions
+#    (bottom20/top20 and Bot20/Top20) and the unsorted Bulk bins some add.
+igvfagent crispr-screen discover IGVFDS5542IBUS
+igvfagent crispr-screen analyze  IGVFDS5542IBUS --tail 20 --label ldlr
+
+# 2. LETTERED-BIN GRADIENT (BinA..BinF, no tails). 554 Portal MeasurementSets
+#    have this shape. Scores each construct's frequency-weighted mean bin.
+igvfagent gradient-screen discover IGVFDS8710ZSOZ
+igvfagent gradient-screen analyze  IGVFDS8710ZSOZ --label kitlg
+
+# 3. BASE EDITING (ABE/CBE). Follows crispr-bean's masked matching, because
+#    a base editor edits the guide's own locus and exact matching discards
+#    those reads: 36.7% assigned vs 62.5% on IGVFDS6464SOVZ.
+igvfagent bean discover IGVFDS6464SOVZ        # editor, and which BEAN inputs IGVF publishes
+igvfagent bean count    IGVFDS6464SOVZ        # measure which masking recovers reads
+igvfagent bean analyze  IGVFDS6464SOVZ --label ldl_abe
+```
+
+The counting key is chosen by measurement in all three: a prime-editing
+library shares one spacer across every variant it installs, so keying on
+spacer collapses 1,741 pegRNAs onto 52. Counts are cached per library, so a
+re-analysis at a different `--tail` returns in seconds.
+
+## Saturation genome editing (SGE)
+
+```bash
+igvfagent sge design  IGVFDS4629JYPY
+igvfagent sge count   IGVFDS4629JYPY
+igvfagent sge score   IGVFDS4629JYPY --label palb2
+igvfagent sge analyze IGVFDS4629JYPY
+```
+
+## snMCT-seq (RNA + methylation from the same nuclei)
+
+```bash
+igvfagent mct discover IGVFDS4826YNLK
+igvfagent mct analyze  IGVFDS4826YNLK --label mct_run
+```
+
+Both halves are analysed and cross-compared. Methylation ratios are NOT
+log-normalised, which is what makes a methylome look like an expression
+matrix.
+
 ## Functional-assay calibration → ACMG/AMP evidence
 
 ```bash

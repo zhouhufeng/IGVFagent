@@ -96,7 +96,7 @@ shape.
 
 | # | Accession | Shape | Tool | Size |
 |---|---|---|---|---|
-| 10 | IGVFDS6464SOVZ | tail sort, 4 reps x 4 bins | `crispr-screen` | 0.02 GB |
+| 10 | IGVFDS6464SOVZ | **base editing (ABE)**, 4 reps x 4 bins | `bean` | 0.02 GB |
 | 11 | IGVFDS5997IVEM | tail sort, prime editing | `crispr-screen` | 0.32 GB |
 | 12 | IGVFDS8710ZSOZ | gradient, bins A-F | `gradient-screen` | 0.06 GB |
 | 13 | IGVFDS3899ANMJ | gradient, bins A-F | `gradient-screen` | 0.06 GB |
@@ -109,8 +109,23 @@ can you analyze IGVFDS6464SOVZ and visualize the analysis results? it needs to p
 ```
 - **Watch for:** one accession in, 16 libraries out — the agent finds the
   screen's other bins and replicates (`18loci_uptake`, 4 replicates x 4
-  bins) and scores 1,656 targets. The second phrasing makes the sibling
-  pulling explicit; the first should do it anyway.
+  bins). The second phrasing makes the sibling pulling explicit; the first
+  should do it anyway.
+- **This is a BASE-EDITING screen, and that is the point of the demo.** Its
+  library is an adenine base editor, stated only in the guide names. A base
+  editor edits the guide's own locus, so the protospacer read back carries
+  A>G changes and exact matching throws those reads away: **36.7% of reads
+  assigned versus 62.5%**. `crispr-screen` detects this and REFUSES, naming
+  `bean`; the agent should reach `base_editing_screen_analyze`. If you see a
+  refusal on stage, that is the system working.
+- Also worth saying: `bean` reports median editing activity of **34.3% at
+  positive controls vs 22.4% at variants**, and its top-ranked controls are
+  LDLR and HNF4A splice sites enriched in the low-uptake tail — right
+  biology, right sign. But **no guide reaches FDR 0.05**, including none of
+  the 1,640 positive controls, because per-guide testing across 6,878 guides
+  at 4 replicates has no power. That is the honest limit of tail enrichment
+  and precisely what BEAN's Bayesian model is for; the tool prints the real
+  BEAN command rather than implying it has been applied.
 
 ```
 can you perform QC and then in-depth data analysis of the raw data in IGVFDS5997IVEM and then visualize the QC and analysis results?

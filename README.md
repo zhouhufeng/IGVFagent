@@ -67,6 +67,12 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **Base-editing screens** | New `bean` skill, following [crispr-bean](https://github.com/pinellolab/crispr-bean)'s method: a base editor edits the guide's own locus, so the protospacer read back carries A>G (ABE) or C>T (CBE) changes and exact matching discards those reads — **36.7% of reads assigned vs 62.5%** on `IGVFDS6464SOVZ`. Masks the edited base on both sides as BEAN does rather than allowing free mismatches, detects the editor from the library's guide names *and* by measuring which masking recovers reads, and reports per-guide editing activity so a weakly-editing guide reads as underpowered rather than inactive. States what it does not reimplement. |
+| **Screen routing** | `crispr-screen` and `gradient-screen` now **refuse** a base-editing library and name `bean`. The editor is stated only in the guide library — the readout and assay title are identical to an ordinary knockout screen — so routing metadata alone cannot catch it and the tool that would undercount does. |
+| **Lettered-bin screens** | New `gradient-screen` skill for the **554** MeasurementSets sorted into bins A–F rather than two tails, scoring each construct's frequency-weighted mean bin. Its first real run called 27% of the library's 434 non-targeting controls significant; the null is now calibrated against control scatter with a depth-dependent variance model, giving a 0.46% control false-positive rate. |
+| **Regulatory evidence** | Gene-centric linkage was querying a region endpoint with one capped request and no target-gene check, so it reported "no kidney records" for WT1 (4,458 target-gene rows, 405 kidney) and attributed other genes' edges to the queried gene. Now paginated to exhaustion (`page=`, since `skip=` is silently ignored), filtered on the row's own `gene` field, with predictions separated from significance and a record-level verifier that rejects cross-record field assembly. |
+| **Shared-deployment safety** | The extension panel let **any visitor upload a `.py` that the server then executes**; now off unless the operator opts in. Uploads were pooled in one flat directory where a second `manifest.csv` silently overwrote the first — now per-session. Artefacts are scoped to the run that produced them instead of scanning a shared directory. |
+| **Provenance** | The UI shows the build actually serving the page (a content hash of the loaded modules, matching `redeploy.sh`'s), because a stale container was previously indistinguishable from a fixed one. |
 | **Enhancer annotation** | New `enhancer-annot` skill: annotate a list of regulatory **regions** (xlsx / BED / TSV / CSV) against the ENCODE SCREEN cCRE registry by interval overlap — element count, ranked class, union coverage, and nearest-element distance for non-overlapping regions. Registry V4 (2,348,854 elements) indexed locally for offline use. |
 | **MPRA toolchain** | Three clean-room ports of the kircherlab suite completing the assay lifecycle — `oligo` (library design), `mpraflow` (counts → activity), `mpralib` (barcode QC + IGVF format validation). Standard-library only; verified bit-identical against six upstream scripts. |
 | **Reproducibility** | New benchmark `rosen2025_mprasnakeflow` reproduces a **published IGVF artefact byte-for-byte** (210,660 / 210,660 values) and the source paper's stated complexity figures to the digit. Suite now 22 papers. |
@@ -136,6 +142,9 @@ In short — **two ways to drive every skill, one shared contract**:
   - [MPRA / STARR / BlueSTARR](#mpra--starr--bluestarr)
   - [MPRA library design → counts → barcode QC](#mpra-library-design--counts--barcode-qc)
   - [Enhancer / regulatory-region cCRE annotation](#enhancer--regulatory-region-ccre-annotation)
+  - [CRISPR screens from raw reads — three shapes, three tools](#crispr-screens-from-raw-reads--three-shapes-three-tools)
+  - [Saturation genome editing (SGE)](#saturation-genome-editing-sge)
+  - [snMCT-seq — RNA and methylation from the same nuclei](#snmct-seq--rna-and-methylation-from-the-same-nuclei)
   - [CRISPRi / CRISPR-FACS / Perturb-seq](#crispri--crispr-facs--perturb-seq)
   - [cCRE, FAVOR, IGV-style browser views](#ccre-favor-igv-style-browser-views)
   - [Data illustration and interpretation](#data-illustration-and-interpretation)
@@ -1088,6 +1097,93 @@ and `summary.json`.
 > `TF`) and V4 has more than twice as many elements, so annotations are not
 > comparable across versions. The registry version is recorded in every
 > `summary.json`.
+
+### CRISPR screens from raw reads — three shapes, three tools
+
+A sorted CRISPR screen is not analysable one bin at a time: the measurement
+**is** the comparison between bins, so each tool finds the screen's siblings
+from the Portal and analyses them together. Which tool applies depends on the
+screen's shape and on its guide **library** — and the wrong tool refuses
+rather than returning an undercount.
+
+```bash
+# 1. TAIL SORT — bottom20% vs top20%
+igvfagent crispr-screen discover IGVFDS5542IBUS      # every bin and replicate
+igvfagent crispr-screen analyze  IGVFDS5542IBUS --tail 20 --label ldlr
+
+# 2. LETTERED-BIN GRADIENT — BinA..BinF, no tails (554 Portal MeasurementSets)
+igvfagent gradient-screen discover IGVFDS8710ZSOZ
+igvfagent gradient-screen analyze  IGVFDS8710ZSOZ --label kitlg
+
+# 3. BASE EDITING — ABE/CBE, following crispr-bean's method
+igvfagent bean discover IGVFDS6464SOVZ    # editor + which BEAN inputs IGVF publishes
+igvfagent bean count    IGVFDS6464SOVZ    # measure which masking recovers reads
+igvfagent bean analyze  IGVFDS6464SOVZ --label ldl_abe
+```
+
+**Why three tools rather than one.** A tail sort asks whether a construct is
+enriched in the low or the high tail. A six-bin gradient asks what a
+construct's mean expression is, computed from all bins at once. And a
+base-editing screen cannot be counted by exact guide matching at all,
+because the editor edits the guide's own locus: on `IGVFDS6464SOVZ` exact
+matching assigns **36.7%** of reads and `bean`'s masked matching assigns
+**62.5%**. `crispr-screen` detects a base-editing library and refuses,
+naming `bean`, because the base editor is stated only in the library's guide
+names — the readout (`gRNA sequencing`) and assay title (`CRISPR FACS
+screen`) are identical to an ordinary knockout screen.
+
+**The counting key is chosen by measurement, never assumed.** A
+prime-editing library shares one spacer across every variant it installs, so
+keying on `spacer` collapses 1,741 pegRNAs onto 52 and credits each one's
+reads to an arbitrary sibling. Each tool scores every candidate sequence
+column against real reads and reports the table:
+
+| column | separates | found in reads | ambiguous |
+|---|---|---|---|
+| `rt_template_sequence` | 99.8% | **62.4%** | 0.0% ← chosen |
+| `spacer` | 3.0% | 7.3% | 1.7% |
+| `peg_sequence` | 99.8% | **0.0%** | 0.0% |
+
+`peg_sequence` separates that library perfectly and appears in nothing — its
+entries are longer than the read. Counts are cached per library, so
+re-analysing at a different `--tail` returns in seconds instead of minutes.
+
+**`bean` also reports editing activity.** Per-guide self-editing rate is the
+quantity BEAN's activity normalisation rests on. Effects come out as
+`log2_raw` and `log2_per_edit`, but the p-value stays on `log2_raw`: dividing
+by a rate estimated from finite counts is noisiest exactly where it changes
+the answer most, so low activity is surfaced as **low power** rather than
+divided out. `bean` states in its own output what it does *not* do — BEAN's
+Bayesian variant/tiling model, reporter-allele analysis (the IGVF library's
+`reporter` column is empty), and the bcmatch/semimatch split (no guide
+barcode is published) — and prints the real `bean` command for the full model.
+
+### Saturation genome editing (SGE)
+
+```bash
+igvfagent sge design  IGVFDS4629JYPY
+igvfagent sge count   IGVFDS4629JYPY
+igvfagent sge score   IGVFDS4629JYPY --label palb2
+igvfagent sge analyze IGVFDS4629JYPY
+```
+
+SGE reads are a fixed amplicon, so `raw-pipeline` refuses them for a stated
+reason: quantifying them against a transcriptome would restate the amplicon
+design, not measure anything.
+
+### snMCT-seq — RNA and methylation from the same nuclei
+
+```bash
+igvfagent mct discover IGVFDS4826YNLK
+igvfagent mct analyze  IGVFDS4826YNLK --label mct_run
+```
+
+Both halves are analysed and cross-compared (adjusted Rand index between the
+RNA and methylation clusterings, plus a biological-vs-technical covariate
+check). Routing this as a transcript assay analyses the RNA and silently
+drops the methylation — the half the assay exists for, across 933 Portal
+datasets. Methylation ratios are **not** log-normalised, which is the step
+that makes a methylome look like an expression matrix.
 
 ### CRISPRi / CRISPR-FACS / Perturb-seq
 
