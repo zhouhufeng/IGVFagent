@@ -129,5 +129,77 @@ check("Plots/ is traversed because it is not a run dir",
 import shutil  # noqa: E402
 shutil.rmtree(tmp, ignore_errors=True)
 
-print(f"\n{16} cases, {len(FAILURES)} failure(s)")
+
+# ── uploads must not be shared between sessions ───────────────────────────
+#
+# An external evaluation noted the hosted workspace is shared and limited
+# what it would upload because of it. Inspecting the live site found seven
+# files from five dates in one flat Data/Uploads/, including that
+# evaluation's own manifest, and every session listed all of them. Worse,
+# the destination was the bare basename, so two visitors uploading
+# "manifest.csv" would overwrite each other silently.
+
+class FakeState(dict):
+    pass
+
+
+sa.st = types.SimpleNamespace(session_state=FakeState())
+tmp2 = Path(tempfile.mkdtemp(prefix="upload_test_"))
+sa._PROJECT_ROOT = tmp2
+
+t1 = sa._session_token()
+check("a session token is minted", bool(t1))
+check("the token is stable within a session", sa._session_token() == t1)
+d1 = sa._upload_dir()
+check("the upload dir is under Data/Uploads/<token>",
+      d1.parent.name == "Uploads" and d1.name == t1, str(d1))
+check("the upload dir is created", d1.is_dir())
+
+# A second session gets a different directory.
+sa.st.session_state = FakeState()
+t2 = sa._session_token()
+d2 = sa._upload_dir()
+check("a second session gets a different token", t1 != t2)
+check("and a different directory", d1 != d2, f"{d1.name} vs {d2.name}")
+
+# The collision that silently substituted one visitor's data for another's.
+(d1 / "manifest.csv").write_text("session one data")
+(d2 / "manifest.csv").write_text("session two data")
+check("same filename in two sessions does not overwrite",
+      (d1 / "manifest.csv").read_text() == "session one data"
+      and (d2 / "manifest.csv").read_text() == "session two data")
+
+# Session two must not see session one's file.
+listed = [q.name for q in sorted(sa._upload_dir().iterdir()) if q.is_file()]
+check("a session lists only its own uploads", listed == ["manifest.csv"], str(listed))
+check("and cannot see the other session's directory contents",
+      (d2 / "manifest.csv").read_text() != "session one data")
+
+import shutil as _sh  # noqa: E402
+_sh.rmtree(tmp2, ignore_errors=True)
+
+
+# ── uploading executable extensions is off on a shared deployment ─────────
+
+import os  # noqa: E402
+
+
+def allowed(public, optin):
+    for k in ("IGVF_PUBLIC_MODE", "IGVF_ALLOW_UPLOAD_EXTENSIONS"):
+        os.environ.pop(k, None)
+    if public:
+        os.environ["IGVF_PUBLIC_MODE"] = "1"
+    if optin:
+        os.environ["IGVF_ALLOW_UPLOAD_EXTENSIONS"] = "1"
+    return sa._extension_upload_allowed()[0]
+
+
+check("local run may upload extensions", allowed(False, False))
+check("HOSTED run may NOT, by default", not allowed(True, False))
+check("hosted run may only with an explicit operator opt-in",
+      allowed(True, True))
+for k in ("IGVF_PUBLIC_MODE", "IGVF_ALLOW_UPLOAD_EXTENSIONS"):
+    os.environ.pop(k, None)
+
+print(f"\n{16 + 12} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

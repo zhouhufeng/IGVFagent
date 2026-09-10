@@ -535,8 +535,7 @@ def _sidebar_document_upload() -> None:
     )
     if ups and st.button("📥 Add to workspace", **fit(st.button),
                           key="_doc_add"):
-        dest_dir = _PROJECT_ROOT / "Data" / "Uploads"
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_dir = _upload_dir()
         saved = []
         for up in ups:
             # Basename only: an uploaded filename is untrusted input and must
@@ -546,11 +545,15 @@ def _sidebar_document_upload() -> None:
             saved.append(dest)
         st.session_state["_uploaded_docs"] = [
             str(p) for p in sorted(dest_dir.iterdir()) if p.is_file()]
-        st.success(f"Added {len(saved)} file(s) to `Data/Uploads/`.")
+        st.success(f"Added {len(saved)} file(s) to this session's "
+                    f"workspace (`{dest_dir.relative_to(_PROJECT_ROOT)}`).")
 
     docs = st.session_state.get("_uploaded_docs") or []
     if not docs:
-        d = _PROJECT_ROOT / "Data" / "Uploads"
+        # This session's own directory ONLY. Reading the shared parent is
+        # what showed every visitor everyone else's uploads before they had
+        # asked anything.
+        d = _upload_dir()
         if d.is_dir():
             docs = [str(p) for p in sorted(d.iterdir()) if p.is_file()]
             st.session_state["_uploaded_docs"] = docs
@@ -561,6 +564,60 @@ def _sidebar_document_upload() -> None:
             st.caption("Ask, for example: _\"Read the uploaded paper and "
                        "reproduce its analysis\"_ — the agent calls "
                        "`document plan` on it.")
+
+
+def _session_token() -> str:
+    """Stable id for this browser session, used to scope uploads.
+
+    Uploads all landed in one flat Data/Uploads/, with two consequences on a
+    shared deployment. Every session listed every file, so a visitor saw the
+    filenames of everyone else's uploads and the agent could read them. And
+    the destination was the bare basename, so a second visitor uploading
+    "manifest.csv" silently OVERWROTE the first -- after which the first
+    visitor's next question analysed somebody else's table with nothing to
+    indicate it. The second is a correctness failure, not only a privacy one.
+    """
+    tok = st.session_state.get("_session_token")
+    if not tok:
+        import secrets
+        tok = f"{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(4)}"
+        st.session_state["_session_token"] = tok
+    return tok
+
+
+def _upload_dir() -> Path:
+    d = _PROJECT_ROOT / "Data" / "Uploads" / _session_token()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _extension_upload_allowed() -> "tuple[bool, str]":
+    """May this deployment accept uploaded tool manifests and skill modules?
+
+    An uploaded .py lands in ~/.igvfagent/skills/ and refresh_user_tools()
+    registers it immediately, after which the agent runs it as a subprocess.
+    That is code execution inside the container -- which also holds the IGVF
+    Portal key -- granted to anyone who can reach the page.
+
+    The panel was rendered unconditionally, so on the hosted deployment
+    knowing the shared password was enough. IGVF_ALLOW_AGENT_AUTHORING was
+    not consulted here at all; it gates the agent authoring its own tools,
+    not a visitor uploading one.
+
+    On a shared deployment this now requires a SEPARATE, deliberate opt-in
+    (IGVF_ALLOW_UPLOAD_EXTENSIONS=1). Defaulting it off closes the hole
+    without a container rebuild, and a single-user local run is unaffected.
+    """
+    if not _public_mode():
+        return True, ""
+    if os.environ.get("IGVF_ALLOW_UPLOAD_EXTENSIONS", "0") == "1":
+        return True, ""
+    return False, (
+        "Uploading tool manifests or skill modules is disabled on this "
+        "shared deployment. An uploaded `.py` becomes code this server "
+        "executes, so it is enabled only where the operator has set "
+        "`IGVF_ALLOW_UPLOAD_EXTENSIONS=1`. Extensions can still be added "
+        "locally, or installed on the host by the operator.")
 
 
 def _sidebar_user_extensions() -> None:
@@ -603,6 +660,10 @@ def _sidebar_user_extensions() -> None:
             for p in problems:
                 st.warning(p, icon="⚠️")
 
+    allowed, why = _extension_upload_allowed()
+    if not allowed:
+        st.caption(why)
+        return
     uploads = st.file_uploader(
         "Add extension files",
         type=["yaml", "yml", "json", "py"],
@@ -2318,8 +2379,7 @@ def main() -> None:
 
     saved_paths: "list[str]" = []
     if attachments:
-        dest_dir = _PROJECT_ROOT / "Data" / "Uploads"
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_dir = _upload_dir()
         for up in attachments:
             # Basename only: an uploaded filename is untrusted input and must
             # not be able to escape the upload directory.
