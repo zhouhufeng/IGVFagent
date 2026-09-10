@@ -235,8 +235,8 @@ skill follows.
 
 | Steiner input | IGVFagent source |
 |---|---|
-| Per-gene prizes | Summed |abundance change| from `proteomics vampseq-analyze` outputs, GWAS catalog p-values, or DEG significance scores. |
-| Edge costs | Default 1; future variant uses |1 − confidence_score| from the interactions table. |
+| Per-gene prizes | Summed \|abundance change\| from `proteomics vampseq-analyze` outputs, GWAS catalog p-values, or DEG significance scores. |
+| Edge costs | Default 1; future variant uses \|1 − confidence_score\| from the interactions table. |
 | PPI graph | Same proteomics KG as CARNIVAL. |
 
 The **subnetwork outputs flow back into the central DuckDB warehouse**

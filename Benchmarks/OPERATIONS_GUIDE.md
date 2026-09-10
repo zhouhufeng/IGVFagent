@@ -11,7 +11,7 @@ spot-checks, troubleshooting), see each paper's `OPERATIONS.md`.
 | You are at the repo root | `pwd` returns `…/IGVFagent` |
 | The `.venv/` is built | `.venv/bin/igvfagent --version` returns a version string |
 | The console script is wired | `which .venv/bin/igvfagent` resolves |
-| Network access to public APIs | `curl -sI https://api.data.igvf.org/profiles/MeasurementSet.json | head -1` returns `HTTP/2 200` |
+| Network access to public APIs | `curl -sI https://api.data.igvf.org/profiles/MeasurementSet.json \| head -1` returns `HTTP/2 200` |
 | 1 GB free disk for outputs | `df -h .` shows ≥ 1 GB free |
 
 For benchmarks that exercise an LLM (UI / `igvfagent ask`), additionally:

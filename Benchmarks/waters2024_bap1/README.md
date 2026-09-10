@@ -35,7 +35,7 @@ Waters AJ, Brendler-Spaeth T, Smith D, Offord V, ..., Adams DJ. **Saturation gen
 | Capability | Approach | Result |
 |---|---|---|
 | Pull the full MaveDB scoreset | `mavedb map-scoreset --urn urn:mavedb:00000662-0-1` | ✓ 5.1 MB / 18,108 rows |
-| Classify LOF / GOF / Neutral | `processed_Z_D4_D21` threshold `|z| > 2.5` (inferred via sweep against published counts) | ✓ within 1.1–7.7 % of paper |
+| Classify LOF / GOF / Neutral | `processed_Z_D4_D21` threshold `\|z\| > 2.5` (inferred via sweep against published counts) | ✓ within 1.1–7.7 % of paper |
 | Map cDNA → chr/pos/ref/alt | **NEW** `map_sge_scoreset()` path uses Ensembl `/map/cdna/` with strand-aware nucleotide complementation | ✓ ATG start codon at `chr3:52,410,008 T>G` (reverse strand) |
 | UCH-domain spatial enrichment | bin LOF counts by cDNA position; overlay paper's published domain boundaries | ✓ 88 % of CDS LOFs in UCH-domain exon groups |
 
@@ -73,9 +73,9 @@ The Waters paper's Methods section describes z-score-based thresholding but does
 
 | Threshold | IGVFagent LOF | Paper LOF | Δ | IGVFagent GOF | Paper GOF | Δ |
 |---|---:|---:|---:|---:|---:|---:|
-| `|z| > 2.0` | 6,373 | 5,665 | +12.5 % | 1,083 | 531 | +104 % |
-| **`|z| > 2.5`** | **5,730** | **5,665** | **+1.1 %** | **572** | **531** | **+7.7 %** |
-| `|z| > 3.0` | 5,342 | 5,665 | −5.7 % | 312 | 531 | −41.2 % |
+| `\|z\| > 2.0` | 6,373 | 5,665 | +12.5 % | 1,083 | 531 | +104 % |
+| **`\|z\| > 2.5`** | **5,730** | **5,665** | **+1.1 %** | **572** | **531** | **+7.7 %** |
+| `\|z\| > 3.0` | 5,342 | 5,665 | −5.7 % | 312 | 531 | −41.2 % |
 
 The residual gap (+1.1 % LOF, +7.7 % GOF) reflects the paper likely combining signal across multiple time-points (D4-D7, D4-D10, D4-D14, D4-D21) via a meta-analytic test rather than using D4-D21 alone. The full multi-timepoint integration would close the gap further but is beyond the scope of a single-threshold demonstration.
 

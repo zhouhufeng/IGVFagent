@@ -85,7 +85,7 @@ igvfagent pathwaydb build --extra-gmt HumanCyc=~/humancyc.gmt
 | flag | meaning |
 |---|---|
 | `--relations` | also build typed gene–gene relations (KEGG KGML + Reactome interactors) |
-| `--merge` | unification criterion; see [Unification](#unification-which-pathways-are-the-same-pathway) |
+| `--merge` | unification criterion; see [Unification](#2-unification-which-pathways-are-the-same-pathway) |
 | `--extra-gmt LABEL=PATH` | integrate a local GMT as another source database (repeatable) |
 | `--min-sources N` | only ingest facts asserted by at least N databases |
 | `--within-db` | also unify names inside one database, as IntPath does (off by default) |
@@ -116,7 +116,7 @@ assert it. Runs against the cache — no network.
 igvfagent pathwaydb evaluate --agreement --out Docs/PathwayDB/method_evaluation.json
 ```
 
-See [Choosing a criterion by measurement](#choosing-a-criterion-by-measurement).
+See [Choosing a criterion by measurement](#3-choosing-a-criterion-by-measurement).
 
 ### `status` / `sources`
 

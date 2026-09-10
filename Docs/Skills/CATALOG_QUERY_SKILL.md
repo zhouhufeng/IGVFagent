@@ -67,7 +67,7 @@ igvfagent catalog list-sources --endpoint variants_genes
 |---|---|---|---|
 | `rs\d+` | variant | rsid | `rs429358` |
 | `NC_\d+:pos:ref:alt` | variant | SPDI | `NC_000019.10:44908683:T:C` |
-| `(NM|NP|ENST|ENSP):c.…` | variant | HGVS | `ENSP00000252934:p.Cys130Arg` |
+| `(NM\|NP\|ENST\|ENSP):c.…` | variant | HGVS | `ENSP00000252934:p.Cys130Arg` |
 | `CA\d+` | variant | ca_id | `CA388851` |
 | `ENSG\d+` | gene | ensembl | `ENSG00000130203` |
 | `HGNC:\d+` | gene | hgnc | `HGNC:613` |

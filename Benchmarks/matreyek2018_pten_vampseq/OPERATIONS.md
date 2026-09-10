@@ -118,7 +118,7 @@ UI sidebar: max iterations = 5 (this is a 1-tool-call benchmark).
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `FileNotFoundError: ... urn-mavedb-00000013-a-1.csv` | MaveDB download failed silently (404 or network) | Probe `curl -s https://api.mavedb.org/api/v1/score-sets/urn:mavedb:00000013-a-1/scores | head -1` — should return CSV header `accession,hgvs_nt,...` |
+| `FileNotFoundError: ... urn-mavedb-00000013-a-1.csv` | MaveDB download failed silently (404 or network) | Probe `curl -s https://api.mavedb.org/api/v1/score-sets/urn:mavedb:00000013-a-1/scores \| head -1` — should return CSV header `accession,hgvs_nt,...` |
 | `Mapping failed: No transcript found for PTEN` | Ensembl REST timeout | Wait 30s, rerun — Ensembl REST is sometimes overloaded |
 | Per-variant TSV has < 1,000 rows | Most variants hit `no_single_nt_change` (alt codons need ≥ 2 nt edits) | Look at `summary.json["type_counts"]["no_single_nt_change"]` — typically ~60% of rows for SGE-style scoresets |
 | `n_rows_in` reports 0 | The Ensembl cache contains a stale 404 response | `rm Data/Cache/Ensembl/*.json` then rerun |
