@@ -51,7 +51,7 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -337,6 +337,144 @@ _MIN_KEY_LEN = 10        # shorter than this matches by chance far too often
 # offset, ~120 per read, and returns identical counts because a full
 # startswith() still confirms every candidate.
 _PREFIX_K_MAX = 12
+
+
+# ─── Base-editing-aware matching (BEAN-style) ───────────────────────────────
+#
+# WHY EXACT MATCHING IS WRONG FOR A BASE-EDITING SCREEN. A base editor edits
+# the guide's own locus as well as its target, so the protospacer read back
+# from the cell carries A>G (for an adenine editor) substitutions of its own.
+# Exact matching then discards those reads. Measured on IGVFDS6464SOVZ, an
+# ABE screen with an 8,192-guide library:
+#
+#     exact match only        36.7% of reads assigned
+#     allowing A>G            62.5%          (+25.8 points)
+#     allowing C>T             36.8%          (+0.1  -- so it is not a CBE)
+#
+# and the recovered reads carry 1..6 edits with a decaying frequency, which
+# is what stochastic self-editing looks like. A collaborator flagged the low
+# rate before we measured it.
+#
+# THE METHOD IS BEAN'S, NOT AN INVENTION. crispr-bean's GuideEditCounter
+# compares `mask_sequence(seq) == guides.masked_sequence`: every edited base
+# is normalised to its product on BOTH sides before comparison, rather than
+# allowing free mismatches. That distinction matters -- free mismatches would
+# also absorb sequencing error and cross-map similar guides, while masking
+# only forgives the substitution the editor makes.
+#
+# WHAT WE CANNOT DO. BEAN disambiguates guides that collapse onto the same
+# masked sequence using a separate guide barcode read from R2, splitting
+# counts into bcmatch / semimatch / nomatch. The IGVF library table for this
+# screen publishes no barcode column and an empty reporter column, so that
+# disambiguation is unavailable here: 13.8% of reads become ambiguous under
+# A>G masking and are reported as ambiguous rather than assigned to a guess.
+
+BASE_EDITS = {
+    "ABE": ("A", "G"),      # adenine base editor: A>G
+    "CBE": ("C", "T"),      # cytosine base editor: C>T
+}
+
+
+def mask_sequence(seq: str, edit: "tuple[str, str]") -> str:
+    """BEAN's mask_sequence: normalise the edited base to its product."""
+    return seq.replace(edit[0], edit[1])
+
+
+def detect_base_editor(guide_ids: "Iterable[str]") -> "Optional[str]":
+    """Which editor a library is for, from its own guide names.
+
+    Every guide in the IGVFDS6464SOVZ library is named ...__ABE_..., and none
+    says CBE, so the library states this itself and it does not have to be
+    supplied or guessed. Returns None when the names say nothing, and the
+    caller should then measure both.
+    """
+    hits = Counter()
+    total = 0
+    for g in guide_ids:
+        total += 1
+        u = str(g).upper()
+        for name in BASE_EDITS:
+            if name in u:
+                hits[name] += 1
+    if not hits or not total:
+        return None
+    top, n = hits.most_common(1)[0]
+    # Against ALL guides, not just the ones that mention an editor. Comparing
+    # against the mentioning subset let a SINGLE "ABE" among twenty silent
+    # guide names decide the whole library -- and the editor determines which
+    # substitution is forgiven during matching, so a wrong call here silently
+    # discards a quarter of the reads. The real library states it on every
+    # one of its 8,192 guides, so requiring a majority costs nothing.
+    return top if n >= 0.5 * total else None
+
+
+def build_masked_matcher(seq_to_guide: "dict[str, str]",
+                          editor: str) -> dict:
+    """Prefix index over MASKED construct sequences, for a base editor.
+
+    Carries the unmasked sequences too, so a candidate can be checked to
+    differ from the read only by the editor's own substitution -- masking
+    finds the candidate, verification accepts or rejects it.
+    """
+    if editor not in BASE_EDITS:
+        raise ValueError(f"unknown base editor {editor!r}; "
+                          f"expected one of {sorted(BASE_EDITS)}")
+    edit = BASE_EDITS[editor]
+    k = min(_PREFIX_K_MAX, min((len(s) for s in seq_to_guide), default=1))
+    pref: "dict[str, list[tuple[str, str]]]" = defaultdict(list)
+    collisions = 0
+    by_masked: "dict[str, set]" = defaultdict(set)
+    for sq, gid in seq_to_guide.items():
+        m = mask_sequence(sq, edit)
+        pref[m[:k]].append((sq, gid))
+        by_masked[m].add(gid)
+    for v in pref.values():
+        v.sort(key=lambda t: -len(t[0]))
+    collisions = sum(1 for gs in by_masked.values() if len(gs) > 1)
+    return {"k": k, "pref": dict(pref), "edit": edit, "editor": editor,
+             "masked_collisions": collisions,
+             "n_constructs": len(seq_to_guide)}
+
+
+def _edit_distance_compatible(construct: str, observed: str,
+                               edit: "tuple[str, str]") -> "Optional[int]":
+    """Edits if `observed` is `construct` with only edit[0]->edit[1]; else None."""
+    n = 0
+    for a, b in zip(construct, observed):
+        if a == b:
+            continue
+        if a == edit[0] and b == edit[1]:
+            n += 1
+        else:
+            return None
+    return n
+
+
+def match_read_masked(seq: str, m: dict) -> "tuple[Optional[str], int, bool]":
+    """(guide_id, n_self_edits, ambiguous) for one read.
+
+    ambiguous is True when the read is compatible with more than one
+    construct: without a guide barcode those cannot be told apart, and
+    picking one would invent a count. The caller must not assign them.
+    """
+    k, pref, edit = m["k"], m["pref"], m["edit"]
+    masked = mask_sequence(seq, edit)
+    best_gid, best_len, best_edits = None, 0, 0
+    hits: set = set()
+    for off in range(0, len(seq) - k + 1):
+        for sq, gid in pref.get(masked[off:off + k], ()):
+            if len(sq) < best_len and gid in hits:
+                break
+            obs = seq[off:off + len(sq)]
+            if len(obs) < len(sq):
+                continue
+            d = _edit_distance_compatible(sq, obs, edit)
+            if d is None:
+                continue
+            hits.add(gid)
+            if len(sq) > best_len or (len(sq) == best_len and d < best_edits):
+                best_gid, best_len, best_edits = gid, len(sq), d
+    return best_gid, best_edits, len(hits) > 1
 
 
 def build_matcher(seq_to_guide: "dict[str, str]") -> dict:

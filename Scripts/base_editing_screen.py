@@ -1,0 +1,683 @@
+#!/usr/bin/env python3
+"""Base-editing screens, following crispr-bean's method where the data allows.
+
+    igvfagent bean discover IGVFDS6464SOVZ
+    igvfagent bean count    IGVFDS6464SOVZ
+    igvfagent bean analyze  IGVFDS6464SOVZ --label ldl_abe
+
+WHY A SEPARATE PATH FROM crispr-screen. A base editor edits the guide's own
+locus as well as its target, so the protospacer sequenced back from the cell
+carries substitutions of its own. Exact matching throws those reads away.
+Measured on IGVFDS6464SOVZ (ABE, 8,192 guides):
+
+    exact match only     36.7% of reads assigned
+    A>G aware            62.5%          (+25.8 points)
+    C>T aware            36.8%          (+0.1, so it is not a CBE)
+
+A collaborator from the lab that produced the data flagged the low rate
+before we measured it, and named the cause: "it is important to allow for
+self-editing in gRNA assignment (allow for A2G edits in the gRNA when
+aligning)".
+
+WHAT IS TAKEN FROM BEAN. The matching method: crispr-bean's GuideEditCounter
+compares mask_sequence(read) against the masked library, normalising the
+edited base to its product on both sides rather than allowing free
+mismatches. Free mismatches would also absorb sequencing error and cross-map
+similar guides; masking forgives only the substitution the editor makes. The
+self-edit count per read is then used as a per-guide editing-activity
+estimate, which is the quantity BEAN's activity normalisation rests on.
+
+WHAT IS NOT, AND CANNOT BE, TAKEN FROM BEAN. Two of BEAN's inputs are not in
+what IGVF publishes for this screen:
+
+  guide barcode -- BEAN reads a barcode from R2 and splits counts into
+    bcmatch / semimatch / nomatch, which is how it resolves guides that
+    collapse onto one masked sequence. The IGVF library table has no barcode
+    column, so 13.8% of reads here are compatible with more than one guide
+    and are counted as ambiguous rather than assigned to a guess.
+
+  reporter allele -- the `reporter` column is present but empty for all
+    8,192 guides, so reporter-allele counting and bystander/tiling analysis
+    are impossible from this table. Activity is therefore estimated from
+    self-editing of the protospacer, not from a reporter.
+
+And BEAN's `run` step fits a Bayesian variant/tiling model with accessibility
+covariates. That is NOT reimplemented here: this scores enrichment between
+sorted bins with an activity adjustment, and says so. For the full model,
+run BEAN itself on the FASTQs -- this tool prints the command.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import logging
+import math
+import sys
+import time
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import raw_data_pipeline as rp                                  # noqa: E402
+import crispr_screen_analysis as cs                             # noqa: E402
+from _stats import benjamini_hochberg, moderated_t, _percentile  # noqa: E402
+
+ROOT = rp.ROOT
+OUT_DIR = ROOT / "Docs" / "BaseEditingScreen"
+LOG_DIR = ROOT / "Docs" / "Logs"
+
+# A guide whose protospacer is never seen edited has not been shown to be
+# inactive -- it may simply be shallow. Below this many assigned reads the
+# activity estimate is not reported as a rate at all.
+MIN_READS_FOR_ACTIVITY = 50
+
+
+def setup_logging() -> Path:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    p = LOG_DIR / f"bean_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-6s %(message)s",
+        handlers=[logging.FileHandler(p), logging.StreamHandler(sys.stdout)])
+    return p
+
+
+# ─── Library ────────────────────────────────────────────────────────────────
+
+def load_library(accession: str) -> dict:
+    """Spacers, control classes and the base editor for a screen's library."""
+    lib = rp.find_guide_library(accession)
+    if not lib["resolved"]:
+        return {"resolved": False, "why": lib["why"]}
+    gf = lib["guide_files"][0]
+    idx = rp.load_guide_index(gf["id"] or gf["accession"])
+    if not idx["resolved"]:
+        return {"resolved": False, "why": idx["why"]}
+    spacer = next((c for c in idx["candidates"]
+                   if c["column"] in ("spacer", "protospacer")), None)
+    if not spacer:
+        return {"resolved": False,
+                "why": f"{gf['accession']} has no spacer column; a base-editing "
+                       f"screen is counted on the protospacer"}
+    editor = rp.detect_base_editor(spacer["seq_to_guide"].values())
+    return {"resolved": True, "file": gf["accession"], "index": idx,
+            "spacer": spacer, "editor": editor,
+            "n_guides": idx["n_rows"],
+            "type_of": idx["type"], "target_of": idx["target"]}
+
+
+def calibrate_editor(spacers: "dict[str, str]", accession: str,
+                      sample: int = 40000) -> dict:
+    """Measure which editor's masking actually recovers reads.
+
+    The library names usually say (every guide here is named ...__ABE_...),
+    but naming is a convention and the reads are evidence. Both are reported
+    so a disagreement is visible rather than resolved silently.
+    """
+    reads = []
+    comp = str.maketrans("ACGTN", "TGCAN")
+    for f in rp.biological_fastqs(accession):
+        dest = rp.FASTQ_CACHE / Path(str(f.get("href") or f.get("accession"))).name
+        if not dest.exists():
+            rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
+            rp.portal_download(f["href"], dest)
+        import gzip
+        op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
+        with op(dest, "rt", errors="replace") as fh:      # type: ignore[operator]
+            for i, line in enumerate(fh):
+                if i % 4 == 1:
+                    reads.append(line.strip().upper())
+                    if len(reads) >= sample:
+                        break
+        if reads:
+            break
+    if not reads:
+        return {"reads": 0, "tested": [], "chosen": None}
+
+    plain = rp.build_matcher(spacers)
+    exact = sum(1 for r in reads
+                if rp.match_read(r, plain)
+                or rp.match_read(r.translate(comp)[::-1], plain))
+    tested = []
+    for name in rp.BASE_EDITS:
+        mm = rp.build_masked_matcher(spacers, name)
+        rec = amb = 0
+        for r in reads:
+            if (rp.match_read(r, plain)
+                    or rp.match_read(r.translate(comp)[::-1], plain)):
+                continue
+            for s_ in (r, r.translate(comp)[::-1]):
+                g, _n, a = rp.match_read_masked(s_, mm)
+                if g and not a:
+                    rec += 1
+                    break
+                if a:
+                    amb += 1
+                    break
+        tested.append({"editor": name, "recovered": rec / len(reads),
+                        "ambiguous": amb / len(reads),
+                        "total": (exact + rec) / len(reads),
+                        "masked_collisions": mm["masked_collisions"]})
+    tested.sort(key=lambda t: -t["recovered"])
+    best = tested[0]
+    return {"reads": len(reads), "exact": exact / len(reads),
+             "tested": tested,
+             "chosen": best["editor"] if best["recovered"] > 0.01 else None}
+
+
+# ─── Counting with self-edit tracking ───────────────────────────────────────
+
+def count_library(accession: str, masked: dict, plain: dict,
+                   max_reads: "Optional[int]" = None) -> dict:
+    """Per-guide counts for one sorted bin, tracking self-editing.
+
+    Returns counts, edited_counts (reads whose protospacer carried at least
+    one edit), total self-edits per guide, and the read dispositions.
+    Ambiguous reads are counted as ambiguous and assigned to nobody: without
+    the guide barcode BEAN uses, choosing between the candidates would
+    fabricate the number.
+    """
+    import gzip
+    comp = str.maketrans("ACGTN", "TGCAN")
+    counts: "Counter[str]" = Counter()
+    edited: "Counter[str]" = Counter()
+    edit_sum: "Counter[str]" = Counter()
+    disp = Counter()
+    for f in rp.biological_fastqs(accession):
+        dest = rp.FASTQ_CACHE / Path(str(f.get("href") or f.get("accession"))).name
+        if not dest.exists():
+            rp.FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
+            rp.portal_download(f["href"], dest)
+        op = gzip.open if dest.read_bytes()[:2] == b"\x1f\x8b" else open
+        with op(dest, "rt", errors="replace") as fh:      # type: ignore[operator]
+            for i, line in enumerate(fh):
+                if i % 4 != 1:
+                    continue
+                if max_reads and disp["reads"] >= max_reads:
+                    break
+                disp["reads"] += 1
+                seq = line.strip().upper()
+                gid = (rp.match_read(seq, plain)
+                       or rp.match_read(seq.translate(comp)[::-1], plain))
+                if gid:
+                    counts[gid] += 1
+                    disp["exact"] += 1
+                    continue
+                hit = None
+                ambiguous = False
+                for s_ in (seq, seq.translate(comp)[::-1]):
+                    g, n, a = rp.match_read_masked(s_, masked)
+                    if g and not a:
+                        hit = (g, n)
+                        break
+                    if a:
+                        ambiguous = True
+                        break
+                if hit:
+                    gid, n = hit
+                    counts[gid] += 1
+                    edited[gid] += 1
+                    edit_sum[gid] += n
+                    disp["self_edited"] += 1
+                elif ambiguous:
+                    disp["ambiguous"] += 1
+                else:
+                    disp["unassigned"] += 1
+    return {"counts": counts, "edited": edited, "edit_sum": edit_sum,
+             "disposition": dict(disp)}
+
+
+def guide_activity(per_bin: "dict[str, dict]") -> "dict[str, dict]":
+    """Per-guide editing activity, pooled across a screen's bins.
+
+    activity = reads whose protospacer was edited / reads assigned to that
+    guide. It is a proxy for how efficiently the editor acts at that guide's
+    locus, and it is the quantity an activity normalisation needs.
+
+    Pooled across bins on purpose: activity is a property of the guide and
+    the editor, not of the sorted fraction a cell landed in, and per-bin
+    estimates are far noisier.
+    """
+    tot: "Counter[str]" = Counter()
+    ed: "Counter[str]" = Counter()
+    es: "Counter[str]" = Counter()
+    for d in per_bin.values():
+        tot.update(d["counts"])
+        ed.update(d["edited"])
+        es.update(d["edit_sum"])
+    out = {}
+    for g, n in tot.items():
+        enough = n >= MIN_READS_FOR_ACTIVITY
+        out[g] = {
+            "reads": n,
+            "edited_reads": ed.get(g, 0),
+            "activity": (ed.get(g, 0) / n) if enough else None,
+            "mean_edits_per_edited_read": (es.get(g, 0) / ed[g]) if ed.get(g) else 0.0,
+            "activity_estimable": enough,
+        }
+    return out
+
+
+def activity_summary(act: "dict[str, dict]", type_of: "dict[str, str]") -> dict:
+    """Distribution of activity, split by control class.
+
+    Positive controls are guides whose target is known to move the phenotype.
+    If activity were meaningless, controls and variants would look identical;
+    that they do not is what makes the normalisation worth applying.
+    """
+    def vals(pred):
+        return [a["activity"] for g, a in act.items()
+                if a["activity"] is not None and pred(type_of.get(g, ""))]
+    pos = vals(lambda t: "positive control" in (t or "").lower())
+    var = vals(lambda t: "positive control" not in (t or "").lower())
+    def stat(xs):
+        if not xs:
+            return None
+        xs = sorted(xs)
+        return {"n": len(xs), "median": round(_percentile(xs, 0.5), 4),
+                 "p10": round(_percentile(xs, 0.10), 4),
+                 "p90": round(_percentile(xs, 0.90), 4)}
+    return {"positive_controls": stat(pos), "variants": stat(var),
+             "n_estimable": sum(1 for a in act.values() if a["activity_estimable"]),
+             "n_total": len(act)}
+
+
+# ─── Activity-normalised scoring ────────────────────────────────────────────
+
+def score_screen(per_bin: "dict[str, dict]", bins: "list[dict]",
+                  act: "dict[str, dict]", target_of: "dict[str, str]",
+                  type_of: "dict[str, str]", low_pct: int,
+                  min_count: int) -> "tuple[list[dict], dict]":
+    """Per-guide enrichment between tails, reported raw AND activity-scaled.
+
+    An editing screen measures the phenotype of cells in which the edit was
+    MADE. A guide that edits 10% of the time dilutes its own effect roughly
+    tenfold, so a raw log-ratio understates the edited cells' phenotype and a
+    weakly-editing guide looks inactive when it is only underpowered. That
+    conflation is what activity normalisation exists to prevent.
+
+    Both numbers are reported, deliberately:
+
+      log2_raw       what the sorted bins actually show for this guide
+      log2_per_edit  log2_raw / activity, the implied effect in edited cells
+
+    log2_per_edit divides by a rate estimated from finite counts, so it is
+    noisy exactly where activity is low -- the place it changes the answer
+    most. It is therefore reported with the activity it used, is omitted
+    entirely when activity is not estimable, and never sets the p-value. The
+    test stays on log2_raw, where the sampling model is honest, and low
+    activity is surfaced as low power instead of being divided out.
+    """
+    reps = sorted({b["rep"] for b in bins})
+    usable = [r for r in reps
+              if any(b["rep"] == r and b["side"] == "bottom" and b["pct"] == low_pct
+                     for b in bins)
+              and any(b["rep"] == r and b["side"] == "top" and b["pct"] == low_pct
+                      for b in bins)]
+    ratios: "dict[str, list[float]]" = defaultdict(list)
+    pvars: "dict[str, list[float]]" = defaultdict(list)
+    ln2 = math.log(2.0)
+    for rep in usable:
+        lo = next(b for b in bins if b["rep"] == rep and b["side"] == "bottom"
+                  and b["pct"] == low_pct)
+        hi = next(b for b in bins if b["rep"] == rep and b["side"] == "top"
+                  and b["pct"] == low_pct)
+        clo = per_bin.get(lo["accession"], {}).get("counts")
+        chi = per_bin.get(hi["accession"], {}).get("counts")
+        if not clo or not chi:
+            continue
+        tlo, thi = max(sum(clo.values()), 1), max(sum(chi.values()), 1)
+        for g in set(clo) | set(chi):
+            a, b_ = clo.get(g, 0), chi.get(g, 0)
+            if a + b_ < min_count:
+                continue
+            ratios[g].append(math.log2(((a + 0.5) / tlo) / ((b_ + 0.5) / thi)))
+            pvars[g].append((1.0 / (a + 0.5) + 1.0 / (b_ + 0.5)) / (ln2 ** 2))
+
+    sds = []
+    for g, vals in ratios.items():
+        if len(vals) >= 3:
+            m = sum(vals) / len(vals)
+            sds.append(math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1)))
+    sd_floor = _percentile(sorted(x for x in sds if x > 0), 0.10) if sds else 0.0
+
+    rows = []
+    for g, vals in ratios.items():
+        k = len(vals)
+        sd_count = math.sqrt(sum(pvars[g]) / k) / math.sqrt(k)
+        st = moderated_t(vals, sd_floor, sd_count)
+        a = act.get(g, {})
+        activity = a.get("activity")
+        per_edit = (st["mean"] / activity) if (activity and activity > 0) else None
+        rows.append({
+            "guide": g, "target": target_of.get(g, g),
+            "guide_type": type_of.get(g, ""),
+            "n_reps": k, "reads": a.get("reads", 0),
+            "activity": None if activity is None else round(activity, 4),
+            "activity_estimable": a.get("activity_estimable", False),
+            "log2_raw": round(st["mean"], 4),
+            "log2_per_edit": None if per_edit is None else round(per_edit, 4),
+            "sd": None if st["sd"] is None else round(st["sd"], 4),
+            "sd_used": None if st["sd_used"] is None else round(st["sd_used"], 4),
+            "t": round(st["t"], 4), "df": st["df"], "p_value": st["p_value"],
+        })
+    for r, q in zip(rows, benjamini_hochberg([r["p_value"] for r in rows])):
+        r["fdr"] = q
+    rows.sort(key=lambda r: (r["p_value"], -abs(r["log2_raw"])))
+    lowact = [r for r in rows
+              if r["activity_estimable"] and (r["activity"] or 0) < 0.05]
+    return rows, {"replicates_used": usable, "sd_floor": round(sd_floor, 4),
+                   "n_low_activity": len(lowact),
+                   "test_basis": "log2_raw (activity is reported, not divided out)"}
+
+
+# ─── Commands ───────────────────────────────────────────────────────────────
+
+def _bean_command(accession: str, lib_file: str, editor: "Optional[str]") -> str:
+    """The real BEAN invocation for this screen, for anyone who wants it.
+
+    This tool does not reimplement `bean run`'s Bayesian model, so it should
+    say how to get it rather than leave the impression it has been applied.
+    """
+    e = {"ABE": "A,G", "CBE": "C,T"}.get(editor or "", "A,G")
+    return (f"bean count-samples --input sample_list.csv "
+            f"-b {e.split(',')[0]} -f -r "
+            f"--guide-info {lib_file}.csv --output-prefix {accession}\n"
+            f"  bean qc {accession}.h5ad -o {accession}.masked.h5ad\n"
+            f"  bean run variant {accession}.masked.h5ad --scale-by-acc")
+
+
+def cmd_discover(args: argparse.Namespace) -> int:
+    scr = cs.discover_screen(args.accession)
+    if "error" in scr:
+        print(scr["error"])
+        return 2
+    lib = load_library(args.accession)
+    print(f"Screen:     {scr['series']}  ({len(scr['bins'])} libraries, "
+          f"replicates {scr['replicates']})")
+    print(f"Bins:       {', '.join(cs._bin_label(b) for b in scr['bin_kinds'])}")
+    if not lib["resolved"]:
+        print(f"Library:    UNRESOLVED — {lib['why']}")
+        return 2
+    print(f"Library:    {lib['file']}  ({lib['n_guides']:,} guides)")
+    print(f"Editor:     {lib['editor'] or 'not stated in guide names'}"
+          f"  (from the library's own guide names)")
+    types = Counter(v for v in lib["type_of"].values() if v)
+    print(f"Classes:    {dict(types)}")
+    idx = lib["index"]
+    cols = {c["column"] for c in idx["candidates"]}
+    print(f"Sequence columns present: {', '.join(sorted(cols))}")
+    for need, why in (("barcode", "BEAN resolves masked-sequence collisions "
+                                   "with a guide barcode read from R2"),
+                       ("reporter", "BEAN counts reporter alleles for "
+                                     "bystander/tiling analysis")):
+        have = need in cols
+        print(f"  {need:9} {'present' if have else 'NOT PUBLISHED'} — {why}")
+    print(f"\nFull BEAN pipeline for this screen:\n  {_bean_command(args.accession, lib['file'], lib['editor'])}")
+    return 0
+
+
+def cmd_count(args: argparse.Namespace) -> int:
+    setup_logging()
+    lib = load_library(args.accession)
+    if not lib["resolved"]:
+        print(lib["why"])
+        return 2
+    spacers = lib["spacer"]["seq_to_guide"]
+    cal = calibrate_editor(spacers, args.accession, args.calibrate_reads)
+    print(f"Library:    {lib['file']}  ({lib['n_guides']:,} guides)")
+    print(f"Editor named in library: {lib['editor'] or 'none'}")
+    if cal["tested"]:
+        print(f"Measured on {cal['reads']:,} reads "
+              f"(exact match alone: {cal['exact']:.1%}):")
+        for t in cal["tested"]:
+            print(f"    {t['editor']}  recovers {t['recovered']:>6.1%} more "
+                  f"-> {t['total']:>6.1%} total, {t['ambiguous']:>5.1%} ambiguous, "
+                  f"{t['masked_collisions']} masked collisions")
+    editor = args.editor or cal["chosen"] or lib["editor"]
+    if not editor:
+        print("No base editor could be determined from the library names or "
+              "the reads. Pass --editor ABE or --editor CBE.")
+        return 3
+    if lib["editor"] and cal["chosen"] and lib["editor"] != cal["chosen"]:
+        print(f"  WARNING: the library names say {lib['editor']} but the reads "
+              f"favour {cal['chosen']}. Using {editor}; check the library.")
+    print(f"Using editor: {editor}")
+    return 0
+
+
+def cmd_analyze(args: argparse.Namespace) -> int:
+    setup_logging()
+    scr = cs.discover_screen(args.accession)
+    if "error" in scr:
+        print(scr["error"])
+        return 2
+    lib = load_library(args.accession)
+    if not lib["resolved"]:
+        print(lib["why"])
+        return 2
+    spacers = lib["spacer"]["seq_to_guide"]
+    cal = calibrate_editor(spacers, args.accession, args.calibrate_reads)
+    editor = args.editor or cal["chosen"] or lib["editor"]
+    if not editor:
+        print("No base editor determined; pass --editor ABE or --editor CBE.")
+        return 3
+
+    bins = [b for b in scr["bins"]
+            if b["side"] in ("bottom", "top") and b["pct"] == args.tail]
+    if not bins:
+        print(f"No bin matches --tail {args.tail}. Present: "
+              f"{', '.join(cs._bin_label(b) for b in scr['bin_kinds'])}")
+        return 3
+    print(f"Screen:     {scr['series']}  ({len(bins)} of {len(scr['bins'])} "
+          f"libraries used for bottom{args.tail}%/top{args.tail}%)")
+    print(f"Library:    {lib['file']}  ({lib['n_guides']:,} guides)   "
+          f"editor: {editor}")
+    if cal["tested"]:
+        print(f"Assignment measured on {cal['reads']:,} reads: exact "
+              f"{cal['exact']:.1%}, with {editor} masking "
+              f"{next(t['total'] for t in cal['tested'] if t['editor']==editor):.1%}")
+
+    plain = rp.build_matcher(spacers)
+    masked = rp.build_masked_matcher(spacers, editor)
+    per_bin: "dict[str, dict]" = {}
+    for b in bins:
+        d = count_library(b["accession"], masked, plain, args.max_reads)
+        per_bin[b["accession"]] = d
+        dp = d["disposition"]
+        n = max(dp.get("reads", 1), 1)
+        print(f"  Rep{b['rep']} {cs._bin_label(b):<12} {dp.get('reads',0):>8,} reads: "
+              f"exact {dp.get('exact',0)/n:>5.1%}, self-edited "
+              f"{dp.get('self_edited',0)/n:>5.1%}, ambiguous "
+              f"{dp.get('ambiguous',0)/n:>5.1%}, unassigned "
+              f"{dp.get('unassigned',0)/n:>5.1%}")
+
+    act = guide_activity(per_bin)
+    asum = activity_summary(act, lib["type_of"])
+    rows, mod = score_screen(per_bin, bins, act, lib["target_of"],
+                              lib["type_of"], args.tail, args.min_count)
+    if not rows:
+        print("\nNothing scored: no replicate had a complete tail pair with "
+              "enough reads.")
+        return 3
+
+    label = args.label or f"{time.strftime('%Y%m%d_%H%M%S')}_{scr['series'][:40]}"
+    out = OUT_DIR / label
+    out.mkdir(parents=True, exist_ok=True)
+    cols = ["guide", "target", "guide_type", "n_reps", "reads", "activity",
+            "activity_estimable", "log2_raw", "log2_per_edit", "sd",
+            "sd_used", "t", "df", "p_value", "fdr"]
+    with (out / "guide_effects.tsv").open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t",
+                            extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    with (out / "guide_activity.tsv").open("w", newline="") as fh:
+        w = csv.writer(fh, delimiter="\t")
+        w.writerow(["guide", "guide_type", "reads", "edited_reads", "activity",
+                     "mean_edits_per_edited_read", "activity_estimable"])
+        for g, a in sorted(act.items()):
+            w.writerow([g, lib["type_of"].get(g, ""), a["reads"],
+                         a["edited_reads"], a["activity"],
+                         round(a["mean_edits_per_edited_read"], 3),
+                         a["activity_estimable"]])
+
+    ctrl = [r for r in rows
+            if "positive control" in (r["guide_type"] or "").lower()]
+    summary = {
+        "screen": scr["series"], "query_set": args.accession,
+        "editor": editor,
+        "editor_from_library_names": lib["editor"],
+        "editor_from_reads": cal.get("chosen"),
+        "library": lib["file"], "guides": lib["n_guides"],
+        "libraries_counted": len(bins),
+        "tail_compared": f"bottom{args.tail}% vs top{args.tail}%",
+        "replicates_used": mod["replicates_used"],
+        "assignment_exact_only": round(cal.get("exact", 0.0), 4),
+        "assignment_with_masking": round(
+            next((t["total"] for t in cal["tested"] if t["editor"] == editor),
+                 0.0), 4),
+        "activity": asum,
+        "guides_scored": len(rows),
+        "guides_low_activity_under_5pct": mod["n_low_activity"],
+        "positive_controls_scored": len(ctrl),
+        "positive_controls_significant": sum(1 for r in ctrl if r["fdr"] < 0.05),
+        "significant_fdr_0.05": sum(1 for r in rows if r["fdr"] < 0.05),
+        "test": mod["test_basis"],
+        "not_implemented": [
+            "BEAN `run` Bayesian variant/tiling model with accessibility "
+            "covariates -- this scores tail enrichment instead",
+            "reporter-allele / bystander analysis -- the library's reporter "
+            "column is empty for all guides",
+            "bcmatch/semimatch split -- the library publishes no guide barcode, "
+            "so masked-sequence collisions stay ambiguous",
+        ],
+        "full_bean_pipeline": _bean_command(args.accession, lib["file"], editor),
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+    plots = make_plots(out, rows, act, lib["type_of"], scr["series"])
+
+    print()
+    for k, v in summary.items():
+        if k in ("activity", "not_implemented", "full_bean_pipeline"):
+            continue
+        print(f"  {k}: {v}")
+    print(f"  activity: controls {asum['positive_controls']}")
+    print(f"            variants {asum['variants']}")
+    if asum["positive_controls"] and asum["variants"]:
+        pc = asum["positive_controls"]["median"]
+        vr = asum["variants"]["median"]
+        print(f"  -> median editing activity {pc:.1%} at positive controls vs "
+              f"{vr:.1%} at variants")
+    print("\n  NOT reimplemented here:")
+    for n in summary["not_implemented"]:
+        print(f"    - {n}")
+    print(f"\n  For the full model, run BEAN itself:\n    "
+          f"{summary['full_bean_pipeline']}")
+    print(f"\nTop 15 by significance:")
+    print(f"  {'target':30} {'log2':>7} {'act':>6} {'/edit':>8} {'fdr':>9}")
+    for r in rows[:15]:
+        pe = "-" if r["log2_per_edit"] is None else f"{r['log2_per_edit']:.2f}"
+        ac = "-" if r["activity"] is None else f"{r['activity']:.2f}"
+        print(f"  {r['target'][:30]:30} {r['log2_raw']:>7.2f} {ac:>6} "
+              f"{pe:>8} {r['fdr']:>9.2e}")
+    print(f"\nEffects:  {out / 'guide_effects.tsv'}")
+    print(f"Activity: {out / 'guide_activity.tsv'}")
+    for pth in plots:
+        print(f"Plot: {pth}")
+    print(f"Output: {out}")
+    return 0
+
+
+def make_plots(out: Path, rows: "list[dict]", act: "dict[str, dict]",
+                type_of: "dict[str, str]", series: str) -> "list[Path]":
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return []
+    made = []
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4.2))
+    a_ctrl = [a["activity"] for g, a in act.items() if a["activity"] is not None
+              and "positive control" in (type_of.get(g, "") or "").lower()]
+    a_var = [a["activity"] for g, a in act.items() if a["activity"] is not None
+             and "positive control" not in (type_of.get(g, "") or "").lower()]
+    if a_var:
+        ax[0].hist(a_var, bins=50, color="#4C72B0", alpha=.85,
+                   label=f"variants (n={len(a_var)})")
+    if a_ctrl:
+        ax[0].hist(a_ctrl, bins=30, color="#C44E52", alpha=.85,
+                   label=f"positive controls (n={len(a_ctrl)})")
+    ax[0].set_xlabel("editing activity (edited reads / assigned reads)")
+    ax[0].set_ylabel("guides")
+    ax[0].set_title("Self-editing activity per guide")
+    ax[0].legend(fontsize=8)
+
+    xs = [r["activity"] for r in rows if r["activity"] is not None]
+    ys = [abs(r["log2_raw"]) for r in rows if r["activity"] is not None]
+    ax[1].scatter(xs, ys, s=8, alpha=.35, c="#55A868")
+    ax[1].set_xlabel("editing activity")
+    ax[1].set_ylabel("|log2 raw effect|")
+    ax[1].set_title("Effect against activity\n(low activity = low power, "
+                     "not evidence of no effect)")
+
+    eff = np.array([r["log2_raw"] for r in rows])
+    fdr = np.array([max(r["fdr"], 1e-12) for r in rows])
+    isc = np.array(["positive control" in (r["guide_type"] or "").lower()
+                    for r in rows])
+    ax[2].scatter(eff[~isc], -np.log10(fdr[~isc]), s=10, c="#4C72B0",
+                  alpha=.6, label="variants")
+    if isc.any():
+        ax[2].scatter(eff[isc], -np.log10(fdr[isc]), s=22, c="#C44E52",
+                      alpha=.9, label="positive controls")
+    ax[2].axhline(-math.log10(0.05), ls="--", lw=1, c="k")
+    ax[2].set_xlabel("log2( bottom / top )")
+    ax[2].set_ylabel("-log10 FDR")
+    ax[2].set_title("Enrichment")
+    ax[2].legend(fontsize=8)
+    fig.suptitle(f"Base-editing screen — {series}", fontsize=10)
+    fig.tight_layout()
+    p = out / "base_editing_qc.png"
+    fig.savefig(p, dpi=140)
+    plt.close(fig)
+    made.append(p)
+    return made
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="base_editing_screen",
+        description="Base-editing screens, BEAN-style guide assignment.")
+    sub = p.add_subparsers(dest="command", required=True)
+    d = sub.add_parser("discover", help="Screen, library, editor and what "
+                                        "BEAN inputs IGVF publishes.")
+    d.add_argument("accession")
+    c = sub.add_parser("count", help="Measure which editor's masking "
+                                      "recovers reads.")
+    c.add_argument("accession")
+    c.add_argument("--editor", choices=sorted(rp.BASE_EDITS))
+    c.add_argument("--calibrate-reads", type=int, default=40000)
+    a = sub.add_parser("analyze", help="Count all bins, estimate activity, "
+                                        "score with activity reported.")
+    a.add_argument("accession")
+    a.add_argument("--editor", choices=sorted(rp.BASE_EDITS))
+    a.add_argument("--tail", type=int, default=20)
+    a.add_argument("--min-count", type=int, default=10)
+    a.add_argument("--max-reads", type=int, default=None)
+    a.add_argument("--calibrate-reads", type=int, default=40000)
+    a.add_argument("--label")
+    return p
+
+
+def main(argv: "Optional[list[str]]" = None) -> int:
+    args = build_parser().parse_args(argv)
+    return {"discover": cmd_discover, "count": cmd_count,
+            "analyze": cmd_analyze}[args.command](args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

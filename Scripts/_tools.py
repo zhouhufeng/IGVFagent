@@ -4736,6 +4736,65 @@ _TOOLS: "list[Tool]" = [
         positional=("accession",),
     ),
     _T(
+        "base_editing_screen_analyze",
+        "★ ANALYSE A BASE-EDITING (ABE/CBE) SCREEN THE WAY BEAN DOES ★ — use "
+        "this INSTEAD OF crispr_screen_analyze whenever the library is a base "
+        "editor, because a base editor edits the guide's own locus too and the "
+        "protospacer sequenced back carries A>G (ABE) or C>T (CBE) changes of "
+        "its own. Exact matching throws those reads away: measured on "
+        "IGVFDS6464SOVZ, an 8,192-guide ABE screen, exact matching assigns "
+        "36.7% of reads and BEAN-style masked matching assigns 62.5%. It "
+        "follows crispr-bean's method (mask the edited base on both sides "
+        "before comparing, rather than allowing free mismatches), detects the "
+        "editor from the library's guide names AND by measuring which masking "
+        "actually recovers reads, and estimates per-guide EDITING ACTIVITY "
+        "from self-editing so a weakly-editing guide is reported as "
+        "underpowered rather than as having no effect. It reports what it "
+        "does NOT do: BEAN's Bayesian variant/tiling model, reporter-allele "
+        "and bystander analysis (the IGVF library's reporter column is "
+        "empty), and the bcmatch/semimatch split (no guide barcode is "
+        "published, so masked collisions stay ambiguous instead of being "
+        "assigned). It prints the real BEAN command for the full model.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "Any sorted-bin MeasurementSet of the screen."},
+                "editor":    {**_S_STRING, "description":
+                               "ABE or CBE. Omit to detect it from the "
+                               "library names and the reads."},
+                "tail":      {**_S_INTEGER, "default": 20},
+                "min_count": {**_S_INTEGER, "default": 10},
+                "max_reads": {**_S_INTEGER},
+                "label":     {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["bean", "analyze"],
+        positional=("accession",),
+        flag_map={"editor": "--editor", "tail": "--tail",
+                   "min_count": "--min-count", "max_reads": "--max-reads",
+                   "label": "--label"},
+    ),
+    _T(
+        "base_editing_screen_discover",
+        "★ IS THIS A BASE-EDITING SCREEN, AND WHAT DOES BEAN NEED THAT IGVF "
+        "PUBLISHES? ★ — names the screen and its bins, the guide library and "
+        "its control classes, which base editor the library's guide names "
+        "state, and which BEAN inputs are actually present in the IGVF "
+        "library table (guide barcode, reporter allele). Call it before "
+        "analysing a CRISPR screen whose guides mention ABE or CBE, to show "
+        "why exact guide matching would undercount, and it prints the real "
+        "BEAN pipeline command for the screen.",
+        {
+            "type": "object",
+            "properties": {"accession": {**_S_STRING}},
+            "required": ["accession"],
+        },
+        cli=["bean", "discover"],
+        positional=("accession",),
+    ),
+    _T(
         "gradient_screen_analyze",
         "★ ANALYSE A FACS SCREEN SORTED INTO LETTERED EXPRESSION BINS ★ — "
         "for a screen whose bins are BinA..BinF rather than a bottom/top "
