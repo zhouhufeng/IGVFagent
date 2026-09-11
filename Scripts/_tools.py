@@ -4759,7 +4759,16 @@ _TOOLS: "list[Tool]" = [
         "and bystander analysis (the IGVF library's reporter column is "
         "empty), and the bcmatch/semimatch split (no guide barcode is "
         "published, so masked collisions stay ambiguous instead of being "
-        "assigned). It prints the real BEAN command for the full model.",
+        "assigned). **To actually run crispr-bean, pass run_bean=true** -- the "
+        "real `bean` binary is installed and this tool drives it end to end "
+        "(create-screen + run sorting variant) and plots its posteriors. "
+        "Without run_bean it only does the frequentist per-guide scoring, so "
+        "a request for BEAN, a Bayesian model, posteriors or credible "
+        "intervals REQUIRES run_bean=true. Note BEAN's activity-normalised "
+        "MixtureNormal model is unavailable on IGVF data (it needs an "
+        "X_bcmatch layer built from a guide barcode IGVF does not publish), "
+        "so the posteriors come from BEAN's Normal model and the output "
+        "labels them as not activity-normalised.",
         {
             "type": "object",
             "properties": {
@@ -4772,6 +4781,21 @@ _TOOLS: "list[Tool]" = [
                 "min_count": {**_S_INTEGER, "default": 10},
                 "max_reads": {**_S_INTEGER},
                 "label":     {**_S_STRING},
+                "run_bean":  {**_S_BOOLEAN, "description":
+                               "★ SET THIS WHENEVER THE USER ASKS FOR "
+                               "CRISPR-BEAN ★ Hands the base-edit-aware counts "
+                               "to the REAL `bean` binary: writes BEAN's four "
+                               "input tables, runs `bean create-screen`, then "
+                               "`bean run sorting variant`, and reports its "
+                               "per-target Bayesian posteriors (mu, mu_sd, "
+                               "mu_z, n_guides) plus a bean_posteriors.png. "
+                               "Without this flag only the per-guide "
+                               "frequentist scoring runs and NO BEAN output "
+                               "is produced."},
+                "bean_iter": {**_S_INTEGER, "description":
+                               "Override BEAN's --n-iter. 0 = BEAN's default."},
+                "bean_mode": {**_S_STRING, "description":
+                               "variant (default) or tiling."},
             },
             "required": ["accession"],
         },
@@ -4779,7 +4803,9 @@ _TOOLS: "list[Tool]" = [
         positional=("accession",),
         flag_map={"editor": "--editor", "tail": "--tail",
                    "min_count": "--min-count", "max_reads": "--max-reads",
-                   "label": "--label"},
+                   "label": "--label", "bean_iter": "--bean-iter",
+                   "bean_mode": "--bean-mode"},
+        bool_flags=("run_bean",),
     ),
     # ── IGVF Portal submission ────────────────────────────────────────
     # These exist because the submission loop is monthly: submit, wait for
