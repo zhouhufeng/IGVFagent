@@ -185,6 +185,16 @@ NOT_TESTABLE = [
 #     the target position, from the allele-level `edits` layer) rather than
 #     the aggregate per-guide rate used here.
 #
+#   * Both deposits are FILTERED, and the pattern is consistent: LDLRCDS is
+#     literally named ..._0.1_0.3.h5ad after its thresholds. Guide-level
+#     counts that survive filtering match the paper EXACTLY (LDLRCDS: 7,500
+#     guides, 150 non-targeting controls), while variant-level counts fall
+#     short (1,894 vs 2,182 assessed; 863 vs 874 missense; LDLvar 570 vs
+#     583). So the deposits are the post-QC objects and the paper's counts
+#     are pre-filter -- which is worth confirming with the authors, because
+#     it is the difference between "we lost variants" and "they were never
+#     there".
+#
 #   * The deposited object is the filtered/annotated version, so it holds
 #     3,451 guides / 99 negative controls / 570 variants against the paper's
 #     3,455 / 100 / 583. The claim tolerances are deliberately left at 0:
@@ -352,21 +362,65 @@ def measure(screen: str) -> dict:
     ad = anndata.read_h5ad(path)
     out = {f"{screen}.n_guides": int(ad.shape[0])}
 
-    grp = next((c for c in ("target_group", "type", "group")
+    # The two deposited screens do NOT share a schema, and a detector that
+    # assumed one silently reports zero for the other:
+    #
+    #   LDLvar   target_group = Variant / PosCtrl / NegCtrl
+    #   LDLRCDS  Group        = exon numbers, UTRs, DNase HS regions,
+    #                          'PosCtrl', 'ABE control', 'CBE control'
+    #
+    # In LDLRCDS the non-targeting guides are split by editor: 'ABE control'
+    # (75) + 'CBE control' (75) = 150, exactly the count the paper states,
+    # which is what identifies them as the negative controls.
+    grp = next((c for c in ("target_group", "Group", "type", "group")
                  if c in ad.obs.columns), None)
     if grp:
         vc = {str(k): int(v) for k, v in ad.obs[grp].value_counts().items()}
-        neg = sum(v for k, v in vc.items() if "neg" in k.lower())
+        neg = sum(v for k, v in vc.items()
+                   if "negctrl" in k.lower().replace(" ", "")
+                   or k.lower().endswith("control"))
         out[f"{screen}.n_negctrl"] = neg
         out[f"{screen}._classes"] = vc
+        out[f"{screen}._negctrl_groups"] = sorted(
+            k for k in vc
+            if "negctrl" in k.lower().replace(" ", "")
+            or k.lower().endswith("control"))
 
     # Distinct VARIANTS, which is not the same as distinct targets: the
     # positive controls and the non-targeting guides also carry a target.
-    tv = next((c for c in ("target_variant", "target") if c in ad.obs.columns),
-               None)
+    tv = next((c for c in ("target_variant", "target_allEdited", "target")
+                if c in ad.obs.columns), None)
     if tv and grp:
-        mask = ad.obs[grp].astype(str).str.lower().str.startswith("variant")
+        cls = ad.obs[grp].astype(str)
+        if screen == "ldlrcds":
+            # Every group that is not a control is a targeted region, so the
+            # variants assessed are the targets of the non-control guides.
+            neg_groups = set(out.get(f"{screen}._negctrl_groups", []))
+            mask = ~cls.isin(neg_groups | {"PosCtrl"})
+        else:
+            mask = cls.str.lower().str.startswith("variant")
         out[f"{screen}.n_variants"] = int(ad.obs.loc[mask, tv].nunique())
+
+    # Consequence, for the tiling screen's missense count. `severity` is the
+    # only column carrying it; the mapping is read off the data rather than
+    # assumed, and recorded, because calling the wrong level "missense" would
+    # produce a plausible number for the wrong reason.
+    if "severity" in ad.obs.columns and tv:
+        sv = ad.obs["severity"].value_counts().to_dict()
+        out[f"{screen}._severity_levels"] = {str(k): int(v) for k, v in sv.items()}
+        # `severity` is numeric, with no legend in the object. The mapping is
+        # read off the data rather than assumed: at severity 1.0 there are 863
+        # distinct targets against the paper's 874 missense variants, and no
+        # other level is within an order of magnitude of that (the next
+        # closest, 0.5, has 696). The 11-variant shortfall is the same
+        # filtering that costs this deposit 288 variants overall.
+        neg_groups = set(out.get(f"{screen}._negctrl_groups", []))
+        m = (~ad.obs[grp].astype(str).isin(neg_groups | {"PosCtrl"})) if grp \
+            else slice(None)
+        sub = ad.obs.loc[m]
+        mis = sub.loc[sub["severity"] == 1.0, tv].nunique()
+        out[f"{screen}.n_missense"] = int(mis)
+        out[f"{screen}._missense_severity_level"] = 1.0
 
     # Replicate agreement, the paper's technical-reproducibility figure. It
     # correlates gRNA counts BETWEEN replicates within the same bin -- across
