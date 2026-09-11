@@ -81,6 +81,36 @@ def _sqlite_table_names(p: Path) -> "list[str]":
         return []
 
 
+def _ppi_is_merged(local: Path) -> "tuple[bool, int]":
+    """Has the proteomics PPI-KG been merged into the integrated graph?
+
+    Returns (merged, edge_count). The PPI store used to be offered in the
+    Explorer as a second graph to switch to, because nothing joined the two.
+    `kg-integrate merge ppi` now folds its interactions onto the SAME gene
+    vertices as everything else, so showing it separately after that presents
+    one body of evidence as two databases and invites a user to go looking in
+    the wrong one.
+
+    The check is on CONTENT, not on a flag: edges carrying the merge's source
+    string. A fresh checkout that has not merged yet still gets the separate
+    PPI graph, because hiding it there would hide data that really is only
+    reachable through it.
+    """
+    try:
+        con = sqlite3.connect(f"file:{local}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return False, 0
+    try:
+        n = con.execute(
+            "SELECT COUNT(*) FROM edges WHERE source = ?",
+            ("PPI-KG:BioGRID",)).fetchone()[0]
+        return bool(n), int(n)
+    except sqlite3.Error:
+        return False, 0
+    finally:
+        con.close()
+
+
 def discover_local_kgs(root: Optional[Path] = None) -> "list[KGDescriptor]":
     """Locate every local KG, PRIMARY FIRST.
 
@@ -107,31 +137,41 @@ def discover_local_kgs(root: Optional[Path] = None) -> "list[KGDescriptor]":
         path=local,
         kind="portal",
         description=(
-            "PRIMARY graph. Everything this session learns lands here: "
-            "annotated variants, genes, regulatory elements, diseases and "
-            "pathways, plus analysis provenance. Fed by "
-            "`variant-list annotate`, `portal-kg pull`, `sce2g`, and every "
-            "agent tool call."
+            "PRIMARY graph — and, once merged, the ONLY one you need. "
+            "Everything this session learns lands here: annotated variants, "
+            "genes, regulatory elements, diseases and pathways, plus "
+            "analysis provenance. Fed by `variant-list annotate`, "
+            "`portal-kg pull`, `sce2g`, every agent tool call, and "
+            "`kg-integrate`, which merges the proteomics PPI compendium and "
+            "the IGVF Catalog mirror onto these same vertices."
         ),
         enabled=bool(tables) and "nodes" in tables and "edges" in tables,
     ))
 
+    # The PPI compendium is listed ONLY while its content is still separate.
+    # Once `kg-integrate merge ppi` has folded those interactions onto the
+    # same gene vertices as everything else, offering it as a second graph
+    # would present one body of evidence as two databases.
     prot = root / "Data" / "Proteomics" / "KG" / "proteomics.sqlite"
-    tables = _sqlite_table_names(prot)
-    out.append(KGDescriptor(
-        key="proteomics",
-        label="Proteomics PPI-KG",
-        path=prot,
-        kind="proteomics",
-        description=(
-            "REFERENCE compendium, rebuilt wholesale by "
-            "`proteomics build-kg`. BioGRID / IntAct / HuRI / Reactome / "
-            "KEGG + IGVF protein evidence. Interaction- and pathway-centric, "
-            "so it answers 'what is known about this protein', not 'what did "
-            "I find'."
-        ),
-        enabled=bool(tables) and "interactions" in tables,
-    ))
+    merged, n_ppi = _ppi_is_merged(local)
+    if not merged:
+        tables = _sqlite_table_names(prot)
+        out.append(KGDescriptor(
+            key="proteomics",
+            label="Proteomics PPI-KG (not yet merged)",
+            path=prot,
+            kind="proteomics",
+            description=(
+                "REFERENCE compendium, rebuilt wholesale by "
+                "`proteomics build-kg`. BioGRID / IntAct / HuRI / Reactome / "
+                "KEGG + IGVF protein evidence. Shown separately because its "
+                "interactions are NOT yet in the integrated graph — run "
+                "`igvfagent kg-integrate merge ppi` to fold them in, after "
+                "which this entry disappears and the interactions are "
+                "reachable from the integrated KG on the same gene nodes."
+            ),
+            enabled=bool(tables) and "interactions" in tables,
+        ))
 
     # Legacy path, kept so an older checkout's data is still reachable.
     portal = root / "Data" / "KG" / "portal_kg.sqlite"
@@ -609,26 +649,37 @@ def render_streamlit_panel(st) -> None:
     user pick one, browse schema, search for a node, and renders an
     interactive subgraph figure plus a summary-stats column.
     """
-    st.markdown(
-        "### 🕸 Knowledge Graph Explorer\n"
-        "Browse the **local** SQLite KGs that IGVFagent builds. Pick a KG, "
-        "search for a node, and explore its neighborhood. The same KGs are "
-        "queryable from the CLI (`igvfagent proteomics kg-stats`, "
-        "`igvfagent kg gene <SYM>`)."
-    )
-
     descs = discover_local_kgs()
     enabled = [d for d in descs if d.enabled]
+    merged, n_ppi = _ppi_is_merged(
+        PROJECT_ROOT / "Data" / "KG" / "local_kg.sqlite")
+    blurb = (
+        "### 🕸 Knowledge Graph Explorer\n"
+        "The **IGVF integrated KG** — one graph, built from the IGVF Portal "
+        "and Catalog, the proteomics PPI compendium, and everything this "
+        "session analyses, all on the same vertices. Search for a node and "
+        "explore its neighborhood; also queryable from the CLI "
+        "(`igvfagent kg gene <SYM>`, `igvfagent kg-integrate status`)."
+    )
+    if merged:
+        blurb += (
+            f"\n\nProtein–protein interactions are **in this graph** "
+            f"({n_ppi:,} merged edges) — there is no separate PPI database to "
+            f"switch to.")
+    st.markdown(blurb)
 
     if not enabled:
         st.warning(
-            "No local KGs found yet. Build one with:\n\n"
+            "No knowledge graph yet. Build one with:\n\n"
             "```\n"
-            "igvfagent proteomics build-kg --sources all\n"
-            "# or\n"
             "igvfagent portal-kg pull --tissue macrophage --limit 100\n"
+            "igvfagent kg-integrate build-index\n"
+            "igvfagent kg-integrate merge all\n"
             "```\n"
-            "After the build completes, refresh this tab."
+            "The first command seeds the graph from the Portal; the other two "
+            "build the identifier index and fold in the proteomics PPI "
+            "compendium, the Catalog's own interactions, pathways and "
+            "complexes. Refresh this tab afterwards."
         )
         st.subheader("Expected locations")
         for d in descs:
@@ -670,24 +721,32 @@ def render_streamlit_panel(st) -> None:
     st.caption(desc.description + f"  ·  `{desc.path}`")
 
     if len(keys) > 1:
-        with st.expander("Why more than one knowledge graph?", expanded=False):
+        # This panel used to argue that the two graphs must stay apart:
+        # that merging would let a wholesale rebuild of the reference data
+        # destroy session findings, and that "what I measured" could no
+        # longer be told from "what the literature says". Both objections
+        # were real, and both are answered by how kg-integrate merges --
+        # additively through upsert, and with `source` as part of edge
+        # identity, so every edge says where it came from. Leaving the old
+        # text in place would argue against the thing the tool now does.
+        with st.expander("Why is a second graph still listed?", expanded=False):
             st.markdown(
-                "They answer different questions and are kept apart so one "
-                "cannot overwrite the other:\n\n"
-                "- **IGVF integrated KG** — *your* graph. Every annotation, "
-                "portal pull and agent tool call accumulates here, with "
-                "provenance. It grows as you work.\n"
-                "- **Proteomics PPI-KG** — a *reference* compendium of "
-                "published interactions and pathways, rebuilt wholesale from "
-                "BioGRID / IntAct / HuRI / Reactome / KEGG.\n\n"
-                "Merging them would mean rebuilding the reference data "
-                "destroys session findings, and 'what I measured' could no "
-                "longer be told apart from 'what the literature says'. To "
-                "bring reference edges into your graph for a specific gene "
-                "set, pull them in explicitly rather than merging the "
-                "stores:\n\n"
-                "```\nigvfagent pathway-viz --genes TP53,MDM2,CDKN1A\n"
-                "igvfagent proteomics kg-stats\n```"
+                "The **Proteomics PPI-KG** is still separate because its "
+                "interactions have **not been merged yet**. Fold them in:\n\n"
+                "```\nigvfagent kg-integrate build-index\n"
+                "igvfagent kg-integrate merge ppi\n```\n"
+                "After that this entry disappears and the interactions are "
+                "reachable from the integrated KG on the same gene nodes.\n\n"
+                "Merging does not lose the distinction between evidence and "
+                "findings: every edge carries its `source`, and the source is "
+                "part of the edge's identity, so literature interactions "
+                "(`PPI-KG:BioGRID`, `IGVF-Catalog:proteins_proteins`) and "
+                "this session's own results stay separable by query — and two "
+                "sources asserting the same pair are two edges of evidence "
+                "rather than one overwriting the other. Nor does a later "
+                "`proteomics build-kg` rebuild touch the integrated graph: it "
+                "rewrites its own store, and re-running the merge is "
+                "idempotent."
             )
 
     try:

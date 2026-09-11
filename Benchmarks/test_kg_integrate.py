@@ -18,6 +18,7 @@ matter are the ones whose failure is silent:
 
 Runs against a temporary SQLite graph, no mirror and no network.
 """
+import inspect
 import json
 import os
 import sqlite3
@@ -256,6 +257,63 @@ check("the key helper strips an Arango collection prefix",
       kgi._key("proteins/ENSP00000001") == "ENSP00000001")
 check("and tolerates a bare key", kgi._key("ENSP00000001") == "ENSP00000001")
 check("and None", kgi._key(None) == "")
+
+# ─── the Explorer shows ONE graph once the merge has happened ─────────────
+# The PPI compendium was offered as a second graph to switch to because
+# nothing joined the two. After `merge ppi` folds its interactions onto the
+# same gene vertices, listing it separately presents one body of evidence as
+# two databases and sends a user looking in the wrong one.
+import kg_visualizer as kv   # noqa: E402
+
+_vroot = Path(_tmp.name) / "viz"
+(_vroot / "Data" / "KG").mkdir(parents=True, exist_ok=True)
+(_vroot / "Data" / "Proteomics" / "KG").mkdir(parents=True, exist_ok=True)
+_vlocal = _vroot / "Data" / "KG" / "local_kg.sqlite"
+_vprot = _vroot / "Data" / "Proteomics" / "KG" / "proteomics.sqlite"
+_c = sqlite3.connect(str(_vprot))
+_c.execute("CREATE TABLE interactions(id_a TEXT)")
+_c.commit(); _c.close()
+
+
+def _viz_local(with_ppi):
+    if _vlocal.exists():
+        _vlocal.unlink()
+    c = sqlite3.connect(str(_vlocal))
+    c.execute("CREATE TABLE nodes(id TEXT PRIMARY KEY, node_type TEXT)")
+    c.execute("CREATE TABLE edges(id TEXT PRIMARY KEY, source TEXT)")
+    if with_ppi:
+        c.execute("INSERT INTO edges VALUES('e1', ?)", (kgi.SRC_PPI,))
+    c.commit(); c.close()
+
+
+_viz_local(False)
+keys = [d.key for d in kv.discover_local_kgs(_vroot) if d.enabled]
+check("before the merge, the PPI graph is still offered",
+      "proteomics" in keys, str(keys))
+check("and the integrated graph is offered too", "local" in keys)
+_viz_local(True)
+keys = [d.key for d in kv.discover_local_kgs(_vroot) if d.enabled]
+check("after the merge, ONLY the integrated graph is offered",
+      keys == ["local"], str(keys))
+check("the PPI entry is not merely disabled, it is absent",
+      not any(d.key == "proteomics" for d in kv.discover_local_kgs(_vroot)))
+# The detection is on content, so it cannot drift from reality.
+check("merge detection reports the edge count",
+      kv._ppi_is_merged(_vlocal) == (True, 1))
+check("a graph with no PPI edges is not considered merged",
+      kv._ppi_is_merged.__call__(_vroot / "absent.sqlite") == (False, 0))
+# The source string the Explorer looks for must be the one the merge writes,
+# or the entry never disappears.
+check("the Explorer looks for exactly the source the merge writes",
+      "PPI-KG:BioGRID" == kgi.SRC_PPI
+      and "PPI-KG:BioGRID" in inspect.getsource(kv._ppi_is_merged))
+# The panel must not still argue against merging.
+_panel = inspect.getsource(kv.render_streamlit_panel)
+check("the panel no longer argues that merging destroys findings",
+      "Merging them would mean" not in _panel)
+check("it explains that source keeps evidence separable",
+      "part of the edge's identity" in inspect.getsource(kv.render_streamlit_panel)
+      or "part of the edge" in _panel)
 
 print(f"\n{len(FAILURES)} failure(s)")
 _tmp.cleanup()
