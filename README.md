@@ -18,12 +18,12 @@ _End-to-end view: a knowledge graph and multi-omics data resources feed an orche
 
 ![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 73 skills / 235 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 74 skills / 235 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
 
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it locally, and shows its
-working.** 74 skills / 236 typed tools.
+working.** 74 skills / 235 typed tools.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
