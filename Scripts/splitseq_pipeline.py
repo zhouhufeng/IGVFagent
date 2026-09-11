@@ -819,7 +819,7 @@ def _load_splitseq_barcodes(rd: int) -> "dict[str, str]":
     """Load the vendored SPLiT-seq Rd{1,2,3} whitelist as {seq → well_id}.
 
     Source: Chipeyown SDAT toolkit (MIT) — see
-    ``Data/Reference/SPLiTseq/README.md`` for attribution.
+    ``Data/References/SPLiTseq/README.md`` for attribution.
     """
     path = _SPLITSEQ_BARCODE_DIR / f"barcodes_rd{rd}.tsv"
     if not path.exists():
@@ -1109,7 +1109,7 @@ def cmd_plot(args: argparse.Namespace) -> Path:
                   f"Rd1 well distribution unavailable\n"
                   f"({info.get('error', 'no cell-barcode prefix match')}).\n\n"
                   f"Vendor the Chipeyown SDAT 96×96×96 barcodes at\n"
-                  f"Data/Reference/SPLiTseq/barcodes_rd1.tsv to enable.",
+                  f"Data/References/SPLiTseq/barcodes_rd1.tsv to enable.",
                   ha="center", va="center", transform=ax.transAxes,
                   fontsize=8)
         ax.axis("off")

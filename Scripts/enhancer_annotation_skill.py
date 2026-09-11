@@ -721,8 +721,8 @@ The registry is served from the Weng lab for
 | `V4` (default) | `Registry-V4/GRCh38-cCREs.bed` — 2,348,854 elements |
 | `V3` | `Registry-V3/GRCh38-cCREs.bed` — 1,063,878 elements |
 
-Downloaded once into `Data/Reference/cCRE/` and indexed into
-`Data/Reference/cCRE/ccre.sqlite`, so annotation runs offline afterwards
+Downloaded once into `Data/References/cCRE/` and indexed into
+`Data/References/cCRE/ccre.sqlite`, so annotation runs offline afterwards
 and is reproducible against a pinned registry version. The endpoint is
 resolved at runtime like every other archive — no URL is embedded in
 source.

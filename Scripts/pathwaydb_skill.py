@@ -1850,7 +1850,7 @@ def main(argv=None) -> int:
             s.add_argument("--sources", default="kegg,reactome,wikipathways",
                            help="Comma-separated subset to use")
         s.add_argument("--cache", help="Download cache directory "
-                                       "(default Data/Reference/PathwayDB)")
+                                       "(default Data/References/PathwayDB)")
         return s
 
     pu = _common(sub.add_parser("pull", help="Download current releases"))

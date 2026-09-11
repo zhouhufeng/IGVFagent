@@ -863,7 +863,7 @@ _TOOLS: "list[Tool]" = [
         "--max-simple-repeat-fraction of the window, TSS overlap, and CTCF "
         "motif overlap. If a REF oligo fails its ALT partners are dropped "
         "too, since an ALT with no REF is not interpretable. Annotation BEDs "
-        "are looked up in Data/Reference/OligoDesign/; a missing one "
+        "are looked up in Data/References/OligoDesign/; a missing one "
         "disables just that filter with a warning.",
         {
             "type": "object",

@@ -1,0 +1,205 @@
+{
+  "paper": {
+    "authors": "Ryu J, Barkal S, Yu T, ... Cassa CA, Sherwood RI, Pinello L",
+    "title": "Joint genotypic and phenotypic outcome modeling improves base editing variant effect quantification",
+    "journal": "Nat Genet",
+    "year": 2024,
+    "volume": "56:925-937",
+    "doi": "10.1038/s41588-024-01726-6"
+  },
+  "data_source": {
+    "type": "zenodo",
+    "doi": "10.5281/zenodo.10139794",
+    "record": "10139794",
+    "files": [
+      "bean_count_LDLvar_annotated.h5ad",
+      "bean_count_LDLRCDS_annotated_0.1_0.3.h5ad"
+    ]
+  },
+  "skill": "bean-benchmark",
+  "skill_output_dir": "BEANbenchmark",
+  "label": "ryu2024_crispr_bean",
+  "primary_artefact": "benchmark_report.json",
+  "note": "The IGVF-deposited Sherwood screens are NOT this paper's screens (IGVFDS6464SOVZ has 8,192 guides and no labelled non-targeting controls; the paper's LDL-C GWAS library has 3,455 and 100). This benchmark therefore runs on the paper's own Zenodo deposit.",
+  "checks": [
+    {
+      "name": "gRNA species in the library",
+      "id": "ldlvar.n_guides",
+      "screen": "ldlvar",
+      "type": "exact",
+      "published": 3455,
+      "tol": 0,
+      "source": "p.926: 'totaling 3,455 gRNA species'"
+    },
+    {
+      "name": "LDL-C associated variants targeted",
+      "id": "ldlvar.n_variants",
+      "screen": "ldlvar",
+      "type": "exact",
+      "published": 583,
+      "tol": 0,
+      "source": "p.926: 'targets 583 variants associated with LDL-C levels'"
+    },
+    {
+      "name": "non-targeting negative control gRNAs",
+      "id": "ldlvar.n_negctrl",
+      "screen": "ldlvar",
+      "type": "exact",
+      "published": 100,
+      "tol": 0,
+      "source": "p.926: '100 nontargeting negative control gRNA species'"
+    },
+    {
+      "name": "median Spearman rho of gRNA counts across replicates",
+      "id": "ldlvar.replicate_rho",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.84,
+      "tol": 0.05,
+      "source": "p.928: 'median Spearman rho = 0.84 for the LDL-C GWAS library'"
+    },
+    {
+      "name": "variants with 95% CI excluding 0",
+      "id": "ldlvar.n_significant",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 54,
+      "tol": 8,
+      "source": "p.929: 'BEAN identified 54 variants that significantly alter LDL-C uptake'"
+    },
+    {
+      "name": "AUPRC, LDLR+MYLIP splice variants vs negative controls (BEAN)",
+      "id": "ldlvar.auprc_bean",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.9,
+      "tol": 0.05,
+      "source": "p.929, Fig.3b: 'mean AUPRC = 0.90 across 15 two-replicate subsamples'"
+    },
+    {
+      "name": "AUPRC, BEAN-Reporter (no accessibility)",
+      "id": "ldlvar.auprc_bean_reporter",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.87,
+      "tol": 0.05,
+      "source": "p.929: 'BEAN-Reporter (mean AUPRC = 0.87)'"
+    },
+    {
+      "name": "AUPRC, BEAN-Uniform (no reporter, uniform editing)",
+      "id": "ldlvar.auprc_bean_uniform",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.85,
+      "tol": 0.05,
+      "source": "p.929: 'BEAN-Uniform (mean AUPRC = 0.85)'"
+    },
+    {
+      "name": "average per-gRNA variant edit fraction",
+      "id": "ldlvar.mean_edit_fraction",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.34,
+      "tol": 0.05,
+      "source": "p.929: 'an average edit fraction of 34.0%'"
+    },
+    {
+      "name": "median maximal editing across the 5 gRNAs per variant",
+      "id": "ldlvar.median_max_edit",
+      "screen": "ldlvar",
+      "type": "tolerance",
+      "published": 0.604,
+      "tol": 0.05,
+      "source": "p.929: 'median maximal editing of 60.4%'"
+    },
+    {
+      "name": "gRNA species in the tiling library",
+      "id": "ldlrcds.n_guides",
+      "screen": "ldlrcds",
+      "type": "exact",
+      "published": 7500,
+      "tol": 0,
+      "source": "p.926: 'a total of 7,500 gRNA species'"
+    },
+    {
+      "name": "non-targeting negative control gRNAs",
+      "id": "ldlrcds.n_negctrl",
+      "screen": "ldlrcds",
+      "type": "exact",
+      "published": 150,
+      "tol": 0,
+      "source": "p.926: '150 nontargeting negative control gRNA species'"
+    },
+    {
+      "name": "median Spearman rho across replicates",
+      "id": "ldlrcds.replicate_rho",
+      "screen": "ldlrcds",
+      "type": "tolerance",
+      "published": 0.88,
+      "tol": 0.05,
+      "source": "p.928: 'rho = 0.88 for the LDLR tiling library'"
+    },
+    {
+      "name": "distinct variants assessed",
+      "id": "ldlrcds.n_variants",
+      "screen": "ldlrcds",
+      "type": "exact",
+      "published": 2182,
+      "tol": 0,
+      "source": "p.931: 'A total of 2,182 distinct variants were assessed'"
+    },
+    {
+      "name": "missense coding variants among them",
+      "id": "ldlrcds.n_missense",
+      "screen": "ldlrcds",
+      "type": "exact",
+      "published": 874,
+      "tol": 0,
+      "source": "p.931: 'including 874 missense coding variants'"
+    },
+    {
+      "name": "variants with z < -1.96",
+      "id": "ldlrcds.n_significant",
+      "screen": "ldlrcds",
+      "type": "tolerance",
+      "published": 145,
+      "tol": 15,
+      "source": "p.931: 'BEAN assigned significant z scores (<-1.96 ...) to 145 variants'"
+    },
+    {
+      "name": "of those, variants decreasing LDL-C uptake",
+      "id": "ldlrcds.n_decreasing",
+      "screen": "ldlrcds",
+      "type": "tolerance",
+      "published": 131,
+      "tol": 15,
+      "source": "p.931: '131 of which decreased LDL-C uptake'"
+    },
+    {
+      "name": "AUPRC, variant classification (BEAN)",
+      "id": "ldlrcds.auprc_bean",
+      "screen": "ldlrcds",
+      "type": "tolerance",
+      "published": 0.88,
+      "tol": 0.05,
+      "source": "p.931: 'a high AUPRC of 0.88'"
+    }
+  ],
+  "not_testable": [
+    {
+      "id": "ldlrcds.ukb_spearman",
+      "claim": "Spearman 0.40 / Pearson 0.45 vs UK Biobank patient LDL-C",
+      "why": "UKB is controlled access (application required)"
+    },
+    {
+      "id": "ldlrcds.fuse_ukb",
+      "claim": "BEAN-FUSE Spearman 0.50 / Pearson 0.51 vs UKB",
+      "why": "needs both UKB access and the FUSE model"
+    },
+    {
+      "id": "ldlvar.individual_grna",
+      "claim": "Spearman of BEAN effect vs individually tested gRNA LFC (26 gRNAs, 6 replicates)",
+      "why": "individual validation experiments are not in the deposit"
+    }
+  ]
+}

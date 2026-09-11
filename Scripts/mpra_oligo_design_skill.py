@@ -1295,7 +1295,7 @@ where `edge = 2*--variant-edge-exclusion` when `--include-variant-edge` is set.
 | TSS overlap | region-derived only | any overlap fails |
 | CTCF motif | region-derived only | any overlap fails |
 
-The last three need annotation BEDs under `Data/Reference/OligoDesign/`
+The last three need annotation BEDs under `Data/References/OligoDesign/`
 (`simpleRepeat.bed.gz`, `TSS_pos.bed.gz`,
 `CTCF-MA0139-1_intCTCF_fp25.hg38.bed.gz`) or explicit `--simple-repeats`
 / `--tss-positions` / `--ctcf-motifs` paths. A missing file disables that

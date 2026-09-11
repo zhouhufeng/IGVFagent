@@ -67,7 +67,7 @@ igvfagent pathwaydb pull --force           # ignore the 7-day cache freshness wi
 | `--sources` | comma list: `kegg`, `reactome`, `wikipathways` (default all) |
 | `--kgml` | also cache the 372 human KGML maps (~370 requests, paced at 3/s) |
 | `--force` | re-download even when the cache is fresh |
-| `--cache` | cache directory (default `Data/Reference/PathwayDB/`, gitignored) |
+| `--cache` | cache directory (default `Data/References/PathwayDB/`, gitignored) |
 
 Downloads are atomic — an interrupted pull never leaves a truncated file that
 would later parse as valid. A partial pull merges into the existing manifest
@@ -286,7 +286,7 @@ PCrel 730.
 | WikiPathways | `data.wikipathways.org/current/gmt` | CC0 | membership (GMT release) |
 
 Data is fetched at runtime and **never vendored** into the repository. The
-cache (`Data/Reference/PathwayDB/`, ~180 MB) and run outputs
+cache (`Data/References/PathwayDB/`, ~180 MB) and run outputs
 (`Docs/PathwayDB/`) are gitignored.
 
 WikiPathways publishes monthly, on the 10th; a refresh shortly after is the

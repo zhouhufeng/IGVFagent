@@ -23,7 +23,9 @@ _Detailed five-layer architecture: user entry points (terminal, NL agent, browse
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it locally, and shows its
-working.** 73 skills / 235 typed tools.
+working.** 74 skills / 236 typed tools.
+
+![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
 - **Find and explain IGVF data** — search the Portal and Catalog by assay,
   tissue, gene or accession; say what a dataset actually contains before you
@@ -63,6 +65,8 @@ what, and reports failed tool calls rather than smoothing them over.
 |---|---|
 | [![Demo 1](https://img.youtube.com/vi/EQVwIEa-gVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=EQVwIEa-gVg) | [![Demo 2](https://img.youtube.com/vi/c-CyIEArEK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=c-CyIEArEK8) |
 | ▶ <https://www.youtube.com/watch?v=EQVwIEa-gVg> | ▶ <https://www.youtube.com/watch?v=c-CyIEArEK8> |
+| [![Demo 3](https://img.youtube.com/vi/DXmzSbrZC7E/maxresdefault.jpg)](https://youtu.be/DXmzSbrZC7E) | |
+| ▶ <https://youtu.be/DXmzSbrZC7E> | |
 
 ## 🌐 Try it online — no install required
 
@@ -1122,7 +1126,7 @@ A pull on 2026-08-29 (KEGG 2026/08/27 · WikiPathways 20260810 · Reactome
 current) yielded **211,120 gene-pathway memberships over 4,016 pathways and
 14,870 genes**, plus **73,925 typed gene-gene relations** (PPrel 54,002 ·
 ECrel 15,996 · GErel 3,197 · PCrel 730) — against 582 pathways in the 2012
-IntPath release. Downloads are cached under `Data/Reference/PathwayDB/`
+IntPath release. Downloads are cached under `Data/References/PathwayDB/`
 (gitignored) with a per-file release stamp and SHA-256, so a figure can be
 traced back to the exact release behind it.
 
