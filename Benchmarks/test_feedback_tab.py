@@ -90,7 +90,17 @@ check("and says why, so nobody 'fixes' it into an embed",
 check("the URL is a module constant, not repeated inline",
       src.count('"https://discussion.genohub.org/"') == 1)
 check("the sidebar also points at the forum, not only this tab",
-      "Report it on the forum" in src)
+      "Discussion on the forum" in src)
+# The sidebar link is a heading, not a caption -- a caption is what people
+# skip, and this is the only route to reporting a wrong answer from Chat.
+check("the sidebar link is rendered at heading size",
+      "#### 💬 [Discussion on the forum]" in src)
+# The build hash left the sidebar at the operator's request. It must still
+# be somewhere a reporter can copy it, or bug reports lose their version.
+check("the build id survives in the report block, not just the sidebar",
+      "build:" in text and "deployed_build_id" in tab_src)
+check("the sidebar no longer prints the raw build hash",
+      "st.caption(deployed_build_id())" not in src)
 
 print(f"\n{len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

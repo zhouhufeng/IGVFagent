@@ -810,20 +810,20 @@ def _sidebar_orchestrator() -> str:
 def _sidebar() -> dict:
     public = _public_mode()
     with st.sidebar:
-        st.markdown(f"## 🧬 IGVFagent\n_v{__version__}_")
-        # Which build is actually serving this page. Without it, a
-        # stale container is indistinguishable from a fixed one.
-        st.caption(deployed_build_id())
-        st.caption(
-            "Natural-language interface to the IGVF / ENCODE single-cell, "
-            "variant, regulatory-element, and literature stack."
-        )
+        st.markdown("## 🧬 IGVFagent")
+        # The version, the build hash and the one-line description used to
+        # sit here. They are gone at the operator's request -- the build
+        # hash has NOT been lost, it is in the 🐛 Report a bug tab's
+        # copy-paste block, which is the only place it was ever acted on:
+        # nobody reads a hash off a sidebar, they paste it into a report.
+        #
         # Visible from every tab, not only from the one that explains it:
         # someone who hits a wrong answer is looking at Chat, and will not
-        # go hunting through tabs for where to say so.
-        st.caption(
-            f"Something wrong? [Report it on the forum]({DISCUSSION_URL}) "
-            f"· see the **🐛 Report a bug** tab for the details to include."
+        # go hunting through tabs for where to say so. Sized as a heading
+        # rather than a caption because a caption is what people skip.
+        st.markdown(
+            f"#### 💬 [Discussion on the forum]({DISCUSSION_URL})\n"
+            f"See the **🐛 Report a bug** tab for the details to include."
         )
         st.divider()
 
