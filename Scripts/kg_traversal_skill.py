@@ -1072,6 +1072,139 @@ def render_gene_report(symbol: str, meta: dict, rels: dict[str, list[dict]],
 
 # --------------------------- Subcommands -------------------------------------
 
+def cmd_genes(args: argparse.Namespace) -> Path:
+    """Several genes' regulatory evidence in ONE tool call.
+
+    WHY THIS EXISTS. The six-gene prompt took over 25 minutes and never
+    finished, where a single gene takes 86-350 seconds. Measurement showed
+    retrieval is not the cost: an exhaustive paged pull is 6-8 seconds per
+    gene (WT1 8,926 rows over 18 pages in 8.1s; GATA3 11,345 over 23 in
+    6.3s), so six genes is about 45 seconds of API time. The cost is the
+    AGENT LOOP -- 5-12 seconds per iteration of model latency, and two
+    single-gene runs hit the 25-iteration cap on their own. Six genes
+    multiplies the orchestration, not the fetching.
+
+    So this does the whole job in one call: for each gene, resolve the
+    target gene id, pull element-to-gene edges exhaustively, keep only rows
+    whose OWN target gene matches, split observations from predictions, and
+    apply the tissue filter -- then write one combined manifest and one
+    summary. The agent reads a single result instead of driving forty
+    iterations by hand.
+
+    Tissue matching takes a list and an exclusion list for the reason the
+    independent audit found: `kidney` alone misses "renal cortical epithelial
+    cell", and `renal` alone also matches "ADRENAL gland". The auditors hit
+    the second themselves and had to redo their first pass.
+    """
+    setup_logging(); mkdirs()
+    ts = timestamp()
+    symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+    label = safe_label(args.label or f"genes_{len(symbols)}")
+    out_dir = REPORT_DIR / f"{ts}_{label}"
+    (out_dir / "Manifests").mkdir(parents=True, exist_ok=True)
+
+    include = [t.strip().lower() for t in (args.tissue or "").split(",") if t.strip()]
+    exclude = [t.strip().lower() for t in (args.exclude_tissue or "").split(",") if t.strip()]
+
+    per_gene, combined = {}, []
+    for sym in symbols:
+        # The gene id and the region both come from the gene's own metadata.
+        # target_gene_id() takes a ROW and says which gene that row is
+        # evidence for -- it does not resolve a symbol, and using it that way
+        # raised AttributeError on a str.
+        gmeta = gene_metadata(sym) or {}
+        gid = gmeta.get("_id") or gmeta.get("gene_id") or gmeta.get("_key")
+        region = gene_region_string(gmeta)
+        entry = {"symbol": sym, "target_gene_id": gid, "region": region}
+        if not gid or not region:
+            entry["error"] = ("could not resolve this gene's id or region, so "
+                               "NO linkage was retrieved. That is not the same "
+                               "as the gene having no evidence.")
+            per_gene[sym] = entry
+            continue
+        link = fetch_linkage_for_region(region, gene_id=gid,
+                                         exhaustive=not args.no_exhaustive,
+                                         max_pages=args.max_pages)
+        meta = link.get("meta") or {}
+        obs = link.get("observed") or []
+        pred = link.get("predictions") or []
+        rows = link.get("region_predictions") or []
+
+        def tissue_ok(r):
+            hay = " ".join(str(v) for v in r.values()).lower()
+            if include and not any(t in hay for t in include):
+                return False
+            if exclude and any(t in hay for t in exclude):
+                return False
+            return True
+
+        t_obs = [r for r in obs if tissue_ok(r)]
+        t_pred = [r for r in pred if tissue_ok(r)]
+        entry.update({
+            "rows_retrieved": meta.get("rows_before_gene_filter", len(rows)),
+            "rows_on_target_gene": meta.get("rows_for_target_gene", len(rows)),
+            "rows_dropped_other_genes": meta.get("rows_dropped_other_genes", 0),
+            "observations": len(obs), "predictions": len(pred),
+            "tissue_filtered_observations": len(t_obs),
+            "tissue_filtered_predictions": len(t_pred),
+            # Two DIFFERENT statuses, kept apart on purpose: whether the
+            # Catalog traversal saw everything, and whether this report shows
+            # everything it saw. Conflating them produced an answer that
+            # called an exhaustive retrieval "TRUNCATED".
+            "catalog_retrieval": ("exhausted" if not meta.get("truncated")
+                                   else "truncated"),
+            "catalog_stopped_because": meta.get("stopped_because"),
+            "pages": meta.get("pages"),
+        })
+        per_gene[sym] = entry
+        for r in t_obs + t_pred:
+            combined.append({"query_gene": sym, **r})
+
+    man = out_dir / "Manifests" / "linkage_all_genes.csv"
+    if combined:
+        cols = sorted({k for r in combined for k in r})
+        with open(man, "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=cols)
+            w.writeheader()
+            for r in combined:
+                w.writerow(r)
+
+    report = {
+        "generated": ts, "symbols": symbols,
+        "tissue_include": include, "tissue_exclude": exclude,
+        "genes": per_gene,
+        "combined_manifest": str(man) if combined else None,
+        "combined_rows": len(combined),
+        "note": ("`catalog_retrieval` says whether the Catalog traversal was "
+                  "exhaustive. It is NOT a statement about how much of the "
+                  "manifest any later read covered -- rank the manifest with "
+                  "`igvfagent artifact top` rather than reading an excerpt "
+                  "if the question asks for the highest-scoring rows."),
+        # A hosted answer suggested a follow-up using `--filter` and
+        # `--export_full`, neither of which exists on this skill (the model
+        # appears to have borrowed `--filters` from catalog_query_skill).
+        # Printing the real commands removes the need to guess one.
+        "next_commands": [
+            (f"igvfagent artifact top --path {man} --column score --n 10 "
+              f"--where kidney,renal --exclude adrenal"),
+            (f"igvfagent kg genes {args.symbols} --tissue kidney,renal "
+              f"--exclude-tissue adrenal"),
+        ],
+    }
+    path = out_dir / "report.json"
+    path.write_text(json.dumps(report, indent=2, default=str))
+    print(json.dumps({k: v for k, v in report.items() if k != "genes"}, indent=2,
+                      default=str))
+    for sym, e in per_gene.items():
+        print(f"  {sym:8} on-target {e.get('rows_on_target_gene', 0):>6,}  "
+              f"obs {e.get('observations', 0):>4}  pred {e.get('predictions', 0):>6,}  "
+              f"tissue obs/pred {e.get('tissue_filtered_observations', 0)}/"
+              f"{e.get('tissue_filtered_predictions', 0)}  "
+              f"[{e.get('catalog_retrieval', e.get('error', '?'))}]")
+    print(f"\nReport: {path}")
+    return path
+
+
 def cmd_gene(args: argparse.Namespace) -> Path:
     setup_logging(); mkdirs()
     ts = timestamp()
@@ -1435,6 +1568,20 @@ def main() -> None:
                     "centric multi-hop evidence retrieval."
     )
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    g2 = sub.add_parser("genes", help="SEVERAL genes' regulatory evidence in "
+                                       "ONE call — use this for multi-gene "
+                                       "questions instead of looping `gene`.")
+    g2.add_argument("symbols", help="Comma-separated, e.g. PAX2,LHX1,WT1")
+    g2.add_argument("--tissue", help="Comma-separated include terms; a row "
+                                      "matching ANY is kept (kidney,renal).")
+    g2.add_argument("--exclude-tissue", default="adrenal",
+                    help="Comma-separated terms to drop (default: adrenal, "
+                         "which 'renal' otherwise matches).")
+    g2.add_argument("--max-pages", type=int, default=40)
+    g2.add_argument("--no-exhaustive", action="store_true")
+    g2.add_argument("--label", default="")
+    g2.set_defaults(func=cmd_genes)
 
     s = sub.add_parser("gene", help="Comprehensive gene-centric traversal.")
     s.add_argument("symbol")

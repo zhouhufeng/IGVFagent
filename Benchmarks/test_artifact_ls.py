@@ -148,6 +148,33 @@ check("and the error lists the columns that do exist",
 asc = ar.rank_artifact("Docs/links.csv", column="score", n=1, ascending=True)
 check("ascending ranks lowest-first", asc["values"][0] == 0.5)
 
+
+# ─── a view limit is not a retrieval limit ────────────────────────────────
+# The hosted answer said Catalog retrieval was "TRUNCATED" when the traversal
+# had been exhaustive and only its own read_artifact view was cut. The word
+# came straight from read_artifact's header, which said TRUNCATED without
+# saying what had been truncated.
+_big = root / "Docs" / "big.txt"
+_big.write_text("x" * 500_000)
+out = ar.read_artifact("Docs/big.txt", max_bytes=1000)
+check("a cut response is flagged", out["truncated"] is True)
+check("and carries an unambiguous alias", out["view_truncated"] is True)
+check("whose meaning says it is about the VIEW, not the retrieval",
+      "says nothing about whether the data in the file was completely "
+      "retrieved" in out["truncation_meaning"])
+full = ar.read_artifact("Docs/links.csv")
+check("an untruncated read says so", full["truncated"] is False)
+check("and its meaning field is unambiguous too",
+      full["truncation_meaning"] == "full file returned")
+# The rendered header is what the model actually copies into its answer.
+src = Path(ar.__file__).read_text()
+check("the printed header says VIEW TRUNCATED, not bare TRUNCATED",
+      "VIEW TRUNCATED" in src)
+check("and says it is a display limit",
+      "display limit of" in src and "NOT a limit on how much data was" in src)
+check("and points at the tool that reads the whole file",
+      "artifact top" in src)
+
 print(f"\n{len(FAILURES)} failure(s)")
 _tmp.cleanup()
 sys.exit(1 if FAILURES else 0)

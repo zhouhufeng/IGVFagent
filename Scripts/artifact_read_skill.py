@@ -103,6 +103,13 @@ def read_artifact(path: str, *, max_bytes: int = _DEFAULT_MAX_BYTES,
         "bytes": size,
         "binary": False,
         "truncated": truncated,
+        # Explicit alias: `truncated` alone has been read as a statement
+        # about the upstream retrieval. This one cannot be.
+        "view_truncated": truncated,
+        "truncation_meaning": ("this response shows part of the file; it says "
+                                "nothing about whether the data in the file "
+                                "was completely retrieved"
+                                if truncated else "full file returned"),
         "returned_lines": len(lines),
         "text": text,
     }
@@ -377,8 +384,19 @@ def main(argv=None) -> int:
             # Print the text plainly so it lands in the model's tool result
             # as readable content rather than a JSON-escaped blob.
             if out.get("text") is not None:
+                # "TRUNCATED" on its own does not say what was truncated,
+                # and a hosted answer copied it into a claim that the CATALOG
+                # RETRIEVAL was truncated when the traversal had been
+                # exhaustive and only this view was cut. The two are
+                # different statuses and the wording now says which one this
+                # is.
                 hdr = (f"# {out['path']}  ({out['bytes']:,} bytes"
-                       + (", TRUNCATED" if out.get("truncated") else "") + ")")
+                       + (f", VIEW TRUNCATED to {out.get('returned_lines', 0)}"
+                           f" lines — this is a display limit of "
+                           f"read_artifact, NOT a limit on how much data was "
+                           f"retrieved. Use `artifact top` to rank the whole "
+                           f"file."
+                           if out.get("truncated") else "") + ")")
                 print(hdr)
                 print(out["text"])
             else:

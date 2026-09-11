@@ -470,6 +470,49 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "kg_genes_batch",
+        "★ SEVERAL GENES' REGULATORY EVIDENCE IN ONE CALL — USE THIS FOR ANY "
+        "MULTI-GENE QUESTION ★ Do NOT loop kg_gene over a gene list. A "
+        "six-gene question driven gene-by-gene took over 25 minutes and did "
+        "not finish, because each gene costs many agent iterations at 5-12 "
+        "seconds each; this does all six in ONE call in about 37 seconds. "
+        "For every gene it resolves the target gene id, pulls "
+        "element-to-gene edges exhaustively, keeps only rows whose OWN "
+        "target gene matches (the endpoint returns edges for every gene near "
+        "the locus, and most are other genes), separates observed "
+        "measurements from predictions, applies the tissue filter, and "
+        "writes one combined manifest. Pass `tissue` as a comma-separated "
+        "list: 'kidney' alone misses 'renal cortical epithelial cell', and "
+        "'renal' alone also matches 'adrenal gland', so kidney questions "
+        "want tissue='kidney,renal' with exclude_tissue='adrenal'. The "
+        "result reports `catalog_retrieval` per gene, which says whether the "
+        "CATALOG traversal was exhaustive — it is NOT a statement about how "
+        "much of the manifest a later read covered. To report highest-scoring "
+        "rows, rank the combined manifest with rank_artifact; never quote a "
+        "ranking from an excerpt.",
+        {
+            "type": "object",
+            "properties": {
+                "symbols": {**_S_STRING, "description":
+                             "Comma-separated gene symbols, e.g. "
+                             "PAX2,LHX1,WT1,HNF4A,GATA3,SOX9"},
+                "tissue": {**_S_STRING, "description":
+                            "Comma-separated include terms; a row matching "
+                            "ANY is kept, e.g. kidney,renal"},
+                "exclude_tissue": {**_S_STRING, "description":
+                                    "Comma-separated terms to drop. Defaults "
+                                    "to adrenal."},
+                "max_pages": {**_S_INTEGER},
+                "label": {**_S_STRING},
+            },
+            "required": ["symbols"],
+        },
+        cli=["kg", "genes"],
+        positional=("symbols",),
+        flag_map={"tissue": "--tissue", "exclude_tissue": "--exclude-tissue",
+                   "max_pages": "--max-pages", "label": "--label"},
+    ),
+    _T(
         "kg_gene",
         "Comprehensive gene context from the IGVF Catalog KG: variants, "
         "transcripts, proteins, regulatory elements, diseases, pathways. "
