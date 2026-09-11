@@ -128,10 +128,20 @@ check("a genuine duplicate scores above the floor",
       (ext.find_similar_core_tools(
           "crispr_bean_sorting", "run crispr-bean on a sorting screen")
        or [{"score": 0}])[0]["score"] >= 4.0)
-check("user extensions are not matched against, only core tools",
-      all("crispr_bean" not in h["name"]
-          for h in ext.find_similar_core_tools(
-              "crispr_bean_sorting", "run bean")))
+# This used to assert that nothing named crispr_bean* came back, using the
+# name as a proxy for "is a user extension" -- true only while every
+# crispr_bean* tool WAS one. `crispr_bean_analyze` is now a core tool, so the
+# proxy inverted: the guard correctly returns it, which is the whole point of
+# the guard. Assert the real property instead -- every match is a CORE tool.
+import _tools as _core_tools  # noqa: E402
+_core_names = {t.name for t in _core_tools._TOOLS}
+_hits = ext.find_similar_core_tools("crispr_bean_sorting", "run bean")
+check("only core tools are matched against, never user extensions",
+      all(h["name"] in _core_names for h in _hits),
+      str([h["name"] for h in _hits if h["name"] not in _core_names][:2]))
+check("and the core BEAN tool IS offered as the existing one",
+      any(h["name"] == "crispr_bean_analyze" for h in _hits),
+      str([h["name"] for h in _hits][:3]))
 
-print(f"\n{29} cases, {len(FAILURES)} failure(s)")
+print(f"\n{30} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
