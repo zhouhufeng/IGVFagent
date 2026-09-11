@@ -814,12 +814,57 @@ results.
 
 _PROTOCOL_VIOLATION_NOTE = (
     "**This run did not complete.** The model did not use the tool protocol: "
-    "it returned neither a tool call nor a final answer, twice. Nothing below "
+    "it returned no usable tool call twice, or claimed that tools which are "
+    "registered and callable were unavailable. Nothing below "
     "is the result of analysis, and any claim in it about tools being "
     "unavailable is the model's own inference, not a real backend fault. "
     "Re-run the query, or select a different model in the sidebar.\n\n"
     "---\n\n"
 )
+
+# Phrases a model uses when it has decided, wrongly, that the backend is
+# broken. The harness's own wording for an unregistered tool is "No such tool
+# available", so a model reproducing that phrase is quoting an error it never
+# received -- there is no code path that hands it one.
+_FABRICATED_OUTAGE_RE = __import__("re").compile(
+    r"no such tool available"
+    r"|no such tool\b"
+    r"|tool[- ]availability (problem|issue)"
+    r"|tools?\s+(?:are|is|were|was)?\s*(?:not|n't)\s+(?:available|responding)"
+    r"|every subsequent tool call .{0,40}failed"
+    r"|(?:session|registry) issue on my end",
+    __import__("re").IGNORECASE)
+
+
+def _fabricated_outage(text: str, tools) -> "list[str]":
+    """Tool names a final answer calls unavailable that are in fact registered.
+
+    The protocol retry below only fired when a response had NEITHER a
+    <tool_call> NOR a <final_answer>. That misses the failure that actually
+    reaches a user: the model emits a perfectly well-formed <final_answer>
+    whose content is "every tool call returned No such tool available", and
+    the loop delivers it as a finished result. On IGVFDS6464SOVZ that answer
+    named base_editing_screen_discover, base_editing_screen_analyze,
+    crispr_screen_discover and portal_get -- all four present in the running
+    registry, all four callable from the CLI at that moment.
+
+    Returning the offending names rather than a bool keeps the retry note
+    specific: telling a model that `portal_get` exists is far more corrective
+    than telling it its protocol was wrong.
+    """
+    if not text or not _FABRICATED_OUTAGE_RE.search(text):
+        return []
+    known = set()
+    for t in tools or []:
+        name = getattr(t, "name", None) or (
+            t.get("name") if isinstance(t, dict) else None)
+        if name:
+            known.add(name)
+    # Only names the text actually mentions, so a generic grumble about some
+    # other system does not trigger a retry.
+    return sorted(n for n in known
+                  if __import__("re").search(r"\b" + n + r"\b", text))
+
 
 _CLAUDE_CLI_TOOL_CALL_RE = __import__("re").compile(
     r"<tool_call>\s*"
@@ -1016,11 +1061,27 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
     # work at all was reported as "stop complete" with the model's own
     # invented explanation as the result. Retry once, saying plainly what
     # was missing, before letting that through.
-    if not tool_calls and not _CLAUDE_CLI_FINAL_RE.search(text):
-        logger.warning("claude_cli: response had no <tool_call> and no "
-                       "<final_answer>; retrying once with a corrective note")
+    fabricated = _fabricated_outage(content, tools) if not tool_calls else []
+    if fabricated:
+        logger.warning("claude_cli: final answer claims %d registered tool(s) "
+                       "are unavailable (%s); retrying once",
+                       len(fabricated), ", ".join(fabricated[:4]))
+    if (not tool_calls
+            and (fabricated or not _CLAUDE_CLI_FINAL_RE.search(text))):
+        if not fabricated:
+            logger.warning("claude_cli: response had no <tool_call> and no "
+                           "<final_answer>; retrying once with a corrective note")
         retry_prompt = (
             prompt
+            + ("\n\n# These tools exist\n\n"
+                "Your previous response stated that tools were unavailable "
+                "and named: " + ", ".join(fabricated) + ". Every one of those "
+                "is registered and callable in this session. No tool result "
+                "saying 'No such tool available' was ever sent to you -- "
+                "there is no code path that produces one, so that text was "
+                "invented. Call the tool by emitting the <tool_call> XML "
+                "block. Do not report a backend outage.\n"
+                if fabricated else "")
             + "\n\n# Protocol reminder\n\n"
               "Your previous response contained neither a <tool_call> nor a "
               "<final_answer> block, so it could not be used. You do not "
@@ -1040,7 +1101,8 @@ def _chat_claude_cli(messages, *, model, tools, max_tokens, temperature,
             if retry.returncode == 0:
                 rtext = retry.stdout or ""
                 rcontent, rcalls = _xml_cli_parse_response(rtext, prefix="cc")
-                if rcalls or _CLAUDE_CLI_FINAL_RE.search(rtext):
+                if rcalls or (_CLAUDE_CLI_FINAL_RE.search(rtext)
+                               and not _fabricated_outage(rcontent, tools)):
                     text, content, tool_calls = rtext, rcontent, rcalls
                 else:
                     # Say so rather than passing prose off as an answer.

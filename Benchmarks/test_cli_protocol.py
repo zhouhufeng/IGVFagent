@@ -110,5 +110,82 @@ check("the model's outage claim is contradicted",
       "not a real backend fault" in msg.content.lower())
 check("the prose is still shown for context", "No such tool" in msg.content)
 
-print(f"\n13 cases, {len(FAILURES)} failure(s)")
+
+# ─── a final answer that invents a backend outage ──────────────────────────
+# The protocol retry fired only when a response had NEITHER a <tool_call> NOR
+# a <final_answer>. That misses the failure that actually reaches a user: a
+# well-formed <final_answer> whose content is "every tool call returned No
+# such tool available". Reported live on IGVFDS6464SOVZ, naming four tools
+# that were all registered and callable at that moment.
+class _FakeTool:
+    def __init__(self, name):
+        self.name = name
+
+
+_TOOLS = [_FakeTool(n) for n in (
+    "base_editing_screen_discover", "base_editing_screen_analyze",
+    "crispr_screen_discover", "portal_get", "explain_dataset",
+    "raw_pipeline_plan")]
+
+_REAL_REPORT = (
+    "I hit a tool-availability problem partway through this - after the "
+    "initial explain_dataset / raw_pipeline_plan calls succeeded, every "
+    "subsequent tool call in this turn (including base_editing_screen_discover, "
+    "base_editing_screen_analyze, crispr_screen_discover, and even basic ones "
+    "like portal_get) returned \"No such tool available.\" That's a "
+    "session/registry issue on my end, not a result about your data.")
+
+hits = _llm._fabricated_outage(_REAL_REPORT, _TOOLS)
+check("the real fabricated report is detected", bool(hits))
+check("it names the tools the answer wrongly called missing",
+      "portal_get" in hits and "base_editing_screen_discover" in hits)
+check("only registered names are returned",
+      all(h in {t.name for t in _TOOLS} for h in hits))
+
+# The dangerous direction is a false positive: a run that legitimately
+# reports a tool could not do something must not be retried into oblivion.
+for legit in (
+    "crispr-bean could not run the activity-normalised model because the "
+    "X_bcmatch layer is absent from the screen object.",
+    "bean run sorting variant exited 1; this screen publishes no unsorted bin.",
+    "portal_get returned HTTP 404 for that accession, so the set does not exist.",
+    "The analysis completed: 1,659 target posteriors were written.",
+):
+    check(f"legitimate answer not flagged: {legit[:44]!r}...",
+          _llm._fabricated_outage(legit, _TOOLS) == [])
+
+check("an outage claim naming no registered tool is ignored",
+      _llm._fabricated_outage("No such tool available: frobnicate", _TOOLS) == [])
+check("empty text is not an outage claim",
+      _llm._fabricated_outage("", _TOOLS) == [])
+check("no tools registered yields no false claim",
+      _llm._fabricated_outage(_REAL_REPORT, []) == [])
+check("dict-shaped tools are understood too",
+      "portal_get" in _llm._fabricated_outage(
+          _REAL_REPORT, [{"name": "portal_get"}]))
+# Phrasings that are unambiguously ABOUT THE BACKEND. The detector
+# deliberately does not match a bare "<name> is not available": that is how a
+# correct answer reads -- "BEAN's activity normalisation is not available on
+# this data" is a true statement this system relies on, and it can mention a
+# registered tool in the same breath. A false positive here silently discards
+# a right answer and retries, which is worse than missing a phrasing, so the
+# patterns are limited to claims no legitimate answer makes.
+for phrasing in (
+    "No such tool: portal_get",
+    "the tools aren't responding - portal_get failed",
+    "a tool-availability problem hit portal_get",
+    "that's a registry issue on my end; portal_get never ran",
+):
+    check(f"backend claim detected: {phrasing[:38]!r}",
+          bool(_llm._fabricated_outage(phrasing, _TOOLS)))
+# The mirror image: capability language must survive even beside a tool name.
+for capability in (
+    "base_editing_screen_analyze ran, but BEAN's activity normalisation is "
+    "not available on IGVF data because X_bcmatch is unpublished.",
+    "portal_get succeeded; the unsorted bin is not available in this screen.",
+):
+    check(f"capability language not flagged: {capability[:40]!r}...",
+          _llm._fabricated_outage(capability, _TOOLS) == [])
+
+print(f"\n32 cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
