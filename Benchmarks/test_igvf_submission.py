@@ -197,5 +197,48 @@ bad = [l.strip() for l in skill_src.splitlines()
 check("nothing recommends rehearsing on sandbox", not bad, str(bad[:1]))
 check("staging is what gets recommended", "-m staging" in skill_src)
 
+# ── the dependency-ordered planner (Submit-Skill.md §2.1) ─────────────────
+# The meetings kept surfacing the same failure: an object posted before the
+# thing it references, which the Portal rejects by naming the missing target
+# rather than the ordering mistake.
+_draft = [
+    {"type": "tabular_file", "lab": "/l/", "award": "/a/",
+      "content_type": "element references", "file_format": "tsv"},
+    {"type": "software", "lab": "/l/", "award": "/a/"},
+    {"type": "prediction_set", "lab": "/l/", "award": "/a/",
+      "file_set_type": "functional effect", "description": "x",
+      "samples": ["IGVFSM0002XTWQ"]},
+    {"type": "nonsense_type"},
+]
+_plan = sub.plan_submission(_draft)
+_types = [st["type"] for st in _plan["steps"]]
+check("software is ordered before the file set that uses it",
+      _types.index("software") < _types.index("prediction_set"))
+check("the file set is ordered before the file that belongs to it",
+      _types.index("prediction_set") < _types.index("tabular_file"))
+check("an unknown type is reported, not silently dropped",
+      _plan["unrecognised_types"] == ["nonsense_type"])
+check("it never claims to have sent anything",
+      "Nothing was sent" in _plan["note"])
+_by = {st["type"]: st for st in _plan["steps"]}
+check("a prediction set missing input_file_sets is blocked",
+      "input_file_sets" in _by["prediction_set"]["missing_required"])
+check("a tabular file missing derived_from is blocked",
+      "derived_from" in _by["tabular_file"]["missing_required"])
+check("and missing its format-spec link",
+      "file_format_specifications" in _by["tabular_file"]["missing_required"])
+check("a complete object is marked ready", _by["software"]["ready"] is True)
+check("blocked and ready are counted",
+      _plan["n_blocked"] == 2 and _plan["n_ready"] == 1,
+      f"ready={_plan['n_ready']} blocked={_plan['n_blocked']}")
+check("the encoded order matches the spec's first five steps",
+      [t for t, _ in sub.SUBMISSION_ORDER][:5] ==
+      ["software", "software_version", "workflow", "analysis_step",
+       "analysis_step_version"])
+check("software_version records the tagged-release requirement",
+      "TAGGED" in dict(sub.SUBMISSION_ORDER)["software_version"])
+check("the document step records the file_format_specifications trap",
+      "NOT documents" in dict(sub.SUBMISSION_ORDER)["document"])
+
 print(f"\n{len(rules)} rules encoded; {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

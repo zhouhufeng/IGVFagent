@@ -32,6 +32,7 @@ import gzip
 import hashlib
 import json
 import os
+from pathlib import Path
 import sys
 import urllib.error
 import urllib.parse
@@ -64,6 +65,85 @@ DEAD_STATUSES = {"revoked", "deleted", "replaced", "archived"}
 # The generic GRCh38 reference the DACC repeatedly told submitters to use.
 # NOTE: as of 2026-09 this is status=archived on prod -- see RULE ref-archived.
 LEGACY_GRCH38_REF = "IGVFFI8743BGYR"
+
+
+# ── submission dependency order (spec §2.1) ────────────────────────────────
+# The DACC meetings kept surfacing the same failure: an object posted before
+# the thing it points at, which the Portal rejects with a reference error that
+# names the missing target rather than the ordering mistake. This encodes the
+# order once so a plan can be checked before anything is sent.
+SUBMISSION_ORDER = [
+    ("software", "the tool itself"),
+    ("software_version", "MUST point at a TAGGED GitHub release, linked by "
+                          "alias (lab-name:tool)"),
+    ("workflow", "ties the software versions together"),
+    ("analysis_step", "a step within the workflow"),
+    ("analysis_step_version", "what a FILE links to, via its "
+                               "analysis_step_version property"),
+    ("prediction_set", "or curated_set / analysis_set — the file set"),
+    ("tabular_file", "the data itself; gzipped, with derived_from and "
+                      "reference_files"),
+    ("document", "the file format specification, linked from the file's "
+                  "file_format_specifications (NOT documents)"),
+    ("curated_set_external", "external-source tabular file under a curated "
+                              "set: Name | URL | description"),
+]
+
+# Properties the Portal will not accept an object without, beyond whatever the
+# live schema says. These come from the meeting record rather than the schema,
+# because several are schema-optional and audit-required -- which is exactly
+# the combination that gets a submission bounced a month later.
+REQUIRED_BY_TYPE = {
+    "prediction_set": ["lab", "award", "file_set_type", "description",
+                        "samples", "input_file_sets"],
+    "curated_set": ["lab", "award", "file_set_type", "description"],
+    "analysis_set": ["lab", "award", "file_set_type", "description"],
+    "tabular_file": ["lab", "award", "content_type", "file_format",
+                      "derived_from", "reference_files",
+                      "file_format_specifications", "analysis_step_version"],
+    "document": ["lab", "award", "document_type"],
+    "software_version": ["lab", "award", "version", "downloaded_url"],
+    "analysis_step_version": ["lab", "award", "analysis_step"],
+}
+
+
+def plan_submission(objects: "list[dict]") -> dict:
+    """Order a set of draft objects for submission, and say what is missing.
+
+    `objects` is a list of dicts each carrying at least `type`, plus whatever
+    properties are drafted so far. Nothing is sent; this is the step that is
+    supposed to happen before anything is.
+    """
+    order = {t: i for i, (t, _) in enumerate(SUBMISSION_ORDER)}
+    known, unknown = [], []
+    for o in objects:
+        t = str(o.get("type") or o.get("@type") or "").strip()
+        (known if t in order else unknown).append(o)
+    known.sort(key=lambda o: order[str(o.get("type"))])
+
+    steps = []
+    for i, o in enumerate(known, 1):
+        t = str(o.get("type"))
+        need = REQUIRED_BY_TYPE.get(t, ["lab", "award"])
+        missing = [k for k in need if not o.get(k)]
+        steps.append({
+            "position": i, "type": t,
+            "alias": o.get("aliases") or o.get("alias"),
+            "missing_required": missing,
+            "ready": not missing,
+            "why_here": dict(SUBMISSION_ORDER)[t],
+        })
+    return {
+        "steps": steps,
+        "n_ready": sum(1 for s in steps if s["ready"]),
+        "n_blocked": sum(1 for s in steps if not s["ready"]),
+        "unrecognised_types": [o.get("type") for o in unknown],
+        "order_reference": [t for t, _ in SUBMISSION_ORDER],
+        "note": ("Nothing was sent. Post in the order above: the Portal "
+                  "rejects an object whose reference does not exist yet, and "
+                  "reports it as a missing target rather than as an ordering "
+                  "mistake."),
+    }
 
 
 def _portal_key_pair():
@@ -1174,6 +1254,122 @@ Rehearse against staging before touching prod:  igvf-sub -m staging ...
 """
 
 
+def cmd_plan(portal: Portal, args) -> int:
+    """Dependency-ordered submission plan from a draft JSON/YAML object list."""
+    raw = Path(args.objects).read_text()
+    try:
+        objects = json.loads(raw)
+    except json.JSONDecodeError:
+        try:
+            import yaml
+            objects = yaml.safe_load(raw)
+        except ImportError:
+            die(f"{args.objects} is not JSON and PyYAML is not installed")
+        except Exception as e:
+            die(f"could not parse {args.objects}: {e}")
+    if isinstance(objects, dict):
+        objects = objects.get("objects") or [objects]
+    out = plan_submission(objects)
+    print(f"Submission plan — {len(out['steps'])} object(s), "
+          f"{out['n_ready']} ready, {out['n_blocked']} blocked\n")
+    for st in out["steps"]:
+        mark = ok("ready") if st["ready"] else fail("BLOCKED")
+        print(f"  {st['position']}. {st['type']:24} {mark}")
+        if st.get("alias"):
+            print(f"       alias: {st['alias']}")
+        print(f"       {st['why_here']}")
+        if st["missing_required"]:
+            print(f"       missing: {', '.join(st['missing_required'])}")
+    if out["unrecognised_types"]:
+        print(warn(f"\n  not in the known submission order: "
+                    f"{out['unrecognised_types']}"))
+    print(f"\n{out['note']}")
+    return 0 if out["n_blocked"] == 0 else 1
+
+
+def cmd_check_revoked(portal: Portal, args) -> int:
+    """Walk derived_from, flag dead inputs, and say which branch applies.
+
+    The worked case this implements: a tabular file whose input was revoked
+    for "ref allele mismatch to GRCh38, corrected in IGVFFI1678CDBR", with the
+    offending alleles published as a .jsonl. Whether that needs a reupload or
+    only a repoint depends on whether any of those alleles actually reached
+    the derived file -- which is a question about data, not about metadata,
+    and is why `crosscheck` exists.
+    """
+    obj = portal.get(args.accession)
+    derived = obj.get("derived_from") or []
+    print(f"=== {args.accession}  ({type_of(obj)})")
+    print(f"  derived_from: {len(derived)} input(s)")
+    dead = []
+    for ref in derived:
+        acc = acc_of(ref)
+        try:
+            up = portal.get(acc)
+        except PortalError as e:
+            print(warn(f"  {acc}: unreadable ({e})"))
+            continue
+        st = (up.get("status") or "").lower()
+        if st in DEAD_STATUSES:
+            note = (up.get("revoke_detail") or up.get("revoked_detail")
+                     or up.get("description") or "")
+            repl = None
+            import re as _re
+            m = _re.search(r"\b(IGVF[A-Z]{2}[0-9A-Z]{6,})\b", note or "")
+            if m and m.group(1) != acc:
+                repl = m.group(1)
+            dead.append({"accession": acc, "status": st, "note": note,
+                          "replacement": repl})
+            print(fail(f"  {acc}: status={st}"))
+            if note:
+                print(f"       portal says: {note[:160]}")
+            if repl:
+                print(f"       replacement named in the notice: {repl}")
+        else:
+            print(ok(f"  {acc}: status={st}"))
+    if not dead:
+        print(ok("\n  no revoked or archived inputs — nothing to repair."))
+        return 0
+    print(f"\n  {len(dead)} dead input(s). Next step for each:")
+    for d in dead:
+        if d["replacement"]:
+            print(f"    {d['accession']} -> {d['replacement']}")
+            print(f"      Decide reupload vs repoint by checking whether the "
+                  f"corrected records reached your file:")
+            print(f"        igvfagent submit crosscheck --old {d['accession']} "
+                  f"--new {d['replacement']} --mine {args.accession}")
+            print(f"      If none did, repoint only:")
+            print(f"        igvfagent submit patch {args.accession} "
+                  f"--repoint derived_from={d['accession']}:{d['replacement']}")
+        else:
+            print(f"    {d['accession']}: the notice names no replacement; "
+                  f"ask the DACC which accession supersedes it.")
+    return 2
+
+
+def cmd_status(portal: Portal, args) -> int:
+    """A lab's file sets with release state and open audit counts."""
+    lab = args.lab or os.environ.get("IGVF_LAB") or ""
+    if not lab:
+        die("no lab given and IGVF_LAB is unset")
+    # Portal.search(item_type, limit=..., **filters) returns @graph already;
+    # it does not take a params dict.
+    rows = portal.search(args.item_type, limit=args.limit,
+                          **{"lab.title": lab})
+    print(f"=== {lab} — {len(rows)} {args.item_type}(s)")
+    by_status = {}
+    for r in rows:
+        st = r.get("status", "?")
+        by_status[st] = by_status.get(st, 0) + 1
+        audits = r.get("audit") or {}
+        n_audit = sum(len(v) for v in audits.values()) if isinstance(audits, dict) else 0
+        flag = fail(f"{n_audit} audit") if n_audit else ok("clean")
+        print(f"  {r.get('accession', '?'):16} {st:14} {flag}")
+    print("\n  by status: " + ", ".join(f"{k}={v}" for k, v in
+                                          sorted(by_status.items())))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="igvfagent submit",
@@ -1187,6 +1383,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("doctor", help="check credentials and portal connectivity")
     p.set_defaults(fn=cmd_doctor)
+
+    p = sub.add_parser("plan", help="dependency-ordered submission plan from a "
+                                     "draft object list; sends nothing")
+    p.add_argument("--objects", required=True,
+                    help="JSON (or YAML) list of draft objects, each with a `type`")
+    p.set_defaults(fn=cmd_plan)
+
+    p = sub.add_parser("check-revoked",
+                        help="walk derived_from and flag revoked/archived inputs")
+    p.add_argument("accession")
+    p.set_defaults(fn=cmd_check_revoked)
+
+    p = sub.add_parser("status", help="a lab's file sets with release state and "
+                                       "open audit counts")
+    p.add_argument("--lab", default="", help="lab title; falls back to IGVF_LAB")
+    p.add_argument("--type", dest="item_type", default="FileSet")
+    p.add_argument("--limit", default="50")
+    p.set_defaults(fn=cmd_status)
 
     p = sub.add_parser("get", help="fetch an object as JSON")
     p.add_argument("accession")
