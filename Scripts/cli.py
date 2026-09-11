@@ -40,6 +40,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "crispr-screen":    ("igvfagent.crispr_screen_analysis",
                           "CRISPR FACS screens: reprocess a whole screen "
                           "(all sorted bins) into per-variant effects"),
+    "bean-benchmark":   ("igvfagent.bean_benchmark_skill",
+                          "Reproduce the crispr-bean paper (Ryu et al. 2024) "
+                          "on its own deposited data, claim by claim"),
     "kg-integrate":     ("igvfagent.kg_integrate_skill",
                           "Merge the PPI-KG and the ArangoDB mirror into the "
                           "IGVF integrated KG, incrementally, on one "
