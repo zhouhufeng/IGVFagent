@@ -117,5 +117,45 @@ check("the report lists what it cannot test",
 check("untestable claims say WHY",
       all(len(why) > 10 for _, _, why in bb.NOT_TESTABLE))
 
+# ── the models, and the agent's ability to reach them ────────────────────
+# A hosted run reported that the reporter, the guide barcode, X_bcmatch and
+# the accessibility model were all untestable, and recommended pulling raw
+# SRA data. Every one of those IS in the paper's deposit. The agent said
+# otherwise because no tool for this skill was declared, so it reasoned from
+# the IGVF screens instead -- the same class of gap as an unexposed flag.
+check("all three of the paper's model variants are defined",
+      set(bb.MODELS) == {"bean", "reporter", "uniform"})
+check("the full model asks for accessibility scaling",
+      "--scale-by-acc" in bb.MODELS["bean"]["flags"])
+check("the uniform fallback is the one that drops the reporter",
+      set(bb.MODELS["uniform"]["flags"]) == {"--uniform-edit", "--ignore-bcmatch"})
+check("BEAN-Reporter sits between them, with neither flag",
+      bb.MODELS["reporter"]["flags"] == [])
+check("each model maps to the published claim it should be compared with",
+      {m["claim"] for m in bb.MODELS.values()} ==
+      {"auprc_bean", "auprc_bean_reporter", "auprc_bean_uniform"})
+for m in bb.MODELS.values():
+    cid = "ldlvar." + m["claim"]
+    check(f"{m['claim']} is a claim that actually exists",
+          any(c["id"] == cid for c in bb.PAPER_CLAIMS))
+
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Scripts"))
+import _tools as _T  # noqa: E402
+_bt = [t for t in _T._TOOLS if t.name == "bean_paper_benchmark"]
+check("the benchmark is reachable as an agent tool at all", bool(_bt))
+if _bt:
+    d = _bt[0].description
+    check("its description says the IGVF screens are NOT the paper's",
+          "NOT the paper's screens" in d)
+    check("and that the deposit HAS the barcode/reporter layers",
+          "X_bcmatch" in d and "DOES carry" in d)
+    check("and pre-empts the wrong 'need raw SRA' conclusion",
+          "PRJNA1042659" in d and "NOT needed" in d)
+    argv = _T._build_argv(_bt[0], {"subcommand": "run", "screen": "ldlvar",
+                                    "model": "all"})
+    check("it builds a runnable command",
+          argv[-3:] == ["ldlvar", "--model", "all"], " ".join(argv))
+
 print(f"\n{len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

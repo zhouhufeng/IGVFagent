@@ -345,6 +345,121 @@ def describe(screen: str) -> dict:
     return out
 
 
+# The three model variants the paper compares. Everything IGVF's own screens
+# cannot support -- the reporter, the guide barcode, accessibility -- IS in
+# this deposit (layers X_bcmatch, edit_rate, edits; obs column Reporter), so
+# all three run here. A report that says otherwise is reasoning from the IGVF
+# data, not from this.
+MODELS = {
+    "bean": {
+        "label": "BEAN (MixtureNormal + accessibility)",
+        "flags": ["--scale-by-acc"],
+        "claim": "auprc_bean",
+    },
+    "reporter": {
+        "label": "BEAN-Reporter (reporter editing, no accessibility)",
+        "flags": [],
+        "claim": "auprc_bean_reporter",
+    },
+    "uniform": {
+        "label": "BEAN-Uniform (no reporter, uniform editing)",
+        "flags": ["--uniform-edit", "--ignore-bcmatch"],
+        "claim": "auprc_bean_uniform",
+    },
+}
+
+
+def bean_exe() -> "Optional[str]":
+    ok, detail = bes.bean_available()
+    return detail.split()[0] if ok else None
+
+
+def run_model(screen: str, model: str, *, n_iter: int = 0,
+               timeout: int = 7200) -> dict:
+    """Fit one of the paper's three model variants on the deposited object.
+
+    The column names come from the deposit itself rather than from BEAN's
+    defaults: replicate is `rep`, condition is `bin`, and the unsorted
+    reference bin is `bulk`. BEAN defaults --control-condition to "bulk",
+    which happens to be right here, but it is passed explicitly so a deposit
+    that spelled it differently would fail loudly instead of silently
+    normalising against a sorted bin.
+    """
+    spec = SCREENS[screen]
+    path = DATA_DIR / spec["file"]
+    if not path.exists():
+        return {"error": f"{path} not present — run `fetch {screen}` first"}
+    exe = bean_exe()
+    if not exe:
+        return {"error": "the real `bean` binary is not installed here; "
+                          "see Deploy/install-bean.sh"}
+    m = MODELS[model]
+    outdir = OUT_DIR / f"{screen}_{model}"
+    outdir.mkdir(parents=True, exist_ok=True)
+    cmd = [exe, "run", "sorting", "variant", str(path),
+            "--replicate-col", "rep",
+            "--condition-col", "bin",
+            "--target-col", "target",
+            "--control-condition", "bulk",
+            "--sorting-bin-lower-quantile-col", "lower_quantile",
+            "--sorting-bin-upper-quantile-col", "upper_quantile",
+            "--outdir", str(outdir)] + m["flags"]
+    if n_iter:
+        cmd += ["--n-iter", str(n_iter)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    out = {"screen": screen, "model": model, "label": m["label"],
+            "exit_code": r.returncode, "cmd": " ".join(cmd),
+            "outdir": str(outdir),
+            "stderr": (r.stderr or "").strip()[-800:]}
+    if r.returncode == 0:
+        hits = sorted(outdir.glob("**/bean_element_result.*.csv"))
+        out["result_csv"] = str(hits[0]) if hits else None
+    return out
+
+
+def score_auprc(screen: str, result_csv: str) -> dict:
+    """The paper's metric: positive-control splice variants vs non-targeting.
+
+    Fig.3b classifies LDLR and MYLIP splicing variants against the negative
+    controls. The score is -z, because a splice-disrupting variant REDUCES
+    LDL uptake: ranking on raw z would put the true positives last and score
+    the metric upside down.
+    """
+    import csv as _csv
+    import anndata
+    path = DATA_DIR / SCREENS[screen]["file"]
+    ad = anndata.read_h5ad(path)
+    grp = "target_group" if "target_group" in ad.obs.columns else "Group"
+    tcol = "target" if "target" in ad.obs.columns else ad.obs.columns[0]
+    # target -> class, taken from the object rather than from the name.
+    cls = {}
+    for t, g in zip(ad.obs[tcol].astype(str), ad.obs[grp].astype(str)):
+        cls.setdefault(t, g)
+    rows = []
+    with open(result_csv, newline="") as fh:
+        for row in _csv.DictReader(fh):
+            t = row.get("target") or row.get("")
+            z = row.get("mu_z") or row.get("z")
+            if t is None or z in (None, ""):
+                continue
+            try:
+                rows.append((t, float(z)))
+            except ValueError:
+                continue
+    scores, labels, pos_genes = [], [], ("LDLR", "MYLIP")
+    for t, z in rows:
+        c = cls.get(t, "")
+        is_pos = c.lower().startswith("pos") and any(
+            t.upper().startswith(g) for g in pos_genes)
+        is_neg = "neg" in c.lower() or c.lower().endswith("control")
+        if not (is_pos or is_neg):
+            continue
+        scores.append(-z)          # splice disruption lowers uptake
+        labels.append(1 if is_pos else 0)
+    return {"auprc": auprc(scores, labels), "n_positive": sum(labels),
+             "n_negative": len(labels) - sum(labels), "n_scored": len(rows)}
+
+
 def measure(screen: str) -> dict:
     """Everything computable from the deposited object alone, no model fit.
 
@@ -552,6 +667,38 @@ def cmd_measure(args) -> int:
     return 0
 
 
+def cmd_run(args) -> int:
+    setup_logging()
+    models = list(MODELS) if args.model == "all" else [args.model]
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    mp = OUT_DIR / "measured.json"
+    measured = json.loads(mp.read_text()) if mp.exists() else {}
+    rc = 0
+    for m in models:
+        print(f"  {MODELS[m]['label']} …")
+        out = run_model(args.screen, m, n_iter=args.iter)
+        if out.get("error"):
+            print(f"    {out['error']}")
+            rc = 2
+            continue
+        if out["exit_code"] != 0:
+            print(f"    FAILED ({out['exit_code']}): "
+                  f"{out['stderr'].splitlines()[-1] if out['stderr'] else ''}")
+            rc = 2
+            continue
+        print(f"    ok -> {out.get('result_csv')}")
+        if out.get("result_csv"):
+            sc = score_auprc(args.screen, out["result_csv"])
+            key = f"{args.screen}.{MODELS[m]['claim']}"
+            measured[key] = round(sc["auprc"], 4)
+            measured[f"{key}._n_pos"] = sc["n_positive"]
+            measured[f"{key}._n_neg"] = sc["n_negative"]
+            print(f"    AUPRC {sc['auprc']:.3f}  "
+                  f"({sc['n_positive']} positives vs {sc['n_negative']} negatives)")
+    mp.write_text(json.dumps(measured, indent=2))
+    return rc
+
+
 def cmd_report(args) -> int:
     setup_logging()
     measured = {}
@@ -588,6 +735,13 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("screen", choices=list(SCREENS) + ["all"], default="all",
                     nargs="?")
 
+    r = sub.add_parser("run", help="Fit the paper's model variants on the "
+                                    "deposit and score the AUPRC.")
+    r.add_argument("screen", choices=list(SCREENS))
+    r.add_argument("--model", choices=list(MODELS) + ["all"], default="all")
+    r.add_argument("--iter", type=int, default=0,
+                    help="Override BEAN --n-iter. 0 = BEAN's default.")
+
     sub.add_parser("report", help="Measured vs published, claim by claim.")
     return p
 
@@ -595,7 +749,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     return {"fetch": cmd_fetch, "describe": cmd_describe,
-            "measure": cmd_measure,
+            "measure": cmd_measure, "run": cmd_run,
             "report": cmd_report}[args.command](args)
 
 

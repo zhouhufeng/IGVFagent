@@ -4849,6 +4849,45 @@ _TOOLS: "list[Tool]" = [
                    "max_reads": "--max-reads", "bean_iter": "--bean-iter",
                    "bean_mode": "--bean-mode", "label": "--label"},
     ),
+    _T(
+        "bean_paper_benchmark",
+        "★ BENCHMARK IGVFAGENT AGAINST THE CRISPR-BEAN PAPER ★ — Ryu et al., "
+        "Nat Genet 56:925-937 (2024). Runs on the AUTHORS' OWN deposited "
+        "screen objects (Zenodo 10.5281/zenodo.10139794), which are already "
+        "downloaded, and compares 18 published claims to what we measure. "
+        "**Use this, not an IGVF screen, for any question about reproducing "
+        "or benchmarking against that paper.** The IGVF-deposited Sherwood "
+        "screens are NOT the paper's screens: IGVFDS6464SOVZ has 8,192 "
+        "guides and no labelled non-targeting controls, the paper's LDL-C "
+        "GWAS library has 3,455 and 100, and only LDLR and HNF4A overlap. "
+        "CRITICALLY: the paper's deposit DOES carry the reporter, the guide "
+        "barcode (layer X_bcmatch) and per-guide edit rates that IGVF does "
+        "not publish — so BEAN's full activity-normalised MixtureNormal and "
+        "accessibility models CAN be fitted here. Any statement that those "
+        "are untestable applies to IGVF data only, and is wrong about this "
+        "benchmark. Raw SRA data (PRJNA1042659) is NOT needed. Subcommands: "
+        "`describe` (what the deposit holds — run first), `measure` "
+        "(library composition, replicate agreement, editing rates), `run` "
+        "(fit BEAN / BEAN-Reporter / BEAN-Uniform and score AUPRC), "
+        "`report` (measured vs published, claim by claim).",
+        {
+            "type": "object",
+            "properties": {
+                "subcommand": {**_S_STRING, "description":
+                                "describe | measure | run | report | fetch"},
+                "screen": {**_S_STRING, "description":
+                            "ldlvar (LDL-C GWAS library) or ldlrcds (LDLR CDS "
+                            "tiling library). Required for describe/run."},
+                "model": {**_S_STRING, "description":
+                           "For `run`: bean (MixtureNormal + accessibility), "
+                           "reporter, uniform, or all."},
+            },
+            "required": ["subcommand"],
+        },
+        cli=["bean-benchmark"],
+        positional=("subcommand", "screen"),
+        flag_map={"model": "--model"},
+    ),
     # ── IGVF Portal submission ────────────────────────────────────────
     # These exist because the submission loop is monthly: submit, wait for
     # DACC audits, learn at the next meeting what was missing. The same
