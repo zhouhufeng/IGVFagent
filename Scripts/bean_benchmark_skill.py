@@ -161,6 +161,37 @@ NOT_TESTABLE = [
 ]
 
 
+# Findings from the first run against the deposited LDLvar object, recorded
+# here so they are not re-derived. These are questions for the authors, not
+# defects in either side:
+#
+#   * The deposit carries EIGHT replicate labels (rep5, rep9-rep15) while the
+#     paper says five. Fig.3b's "15 two-replicate subsamples among the five
+#     replicates" is also arithmetically odd: C(5,2) = 10, and 15 = C(6,2).
+#     Which replicates were used changes every metric below, so this matters
+#     before any AUPRC comparison is called a match or a miss.
+#
+#   * Bins are top/high/low/bot plus bulk. That is CONSISTENT with the
+#     paper's "four populations per replicate" -- four sorted, plus an
+#     unsorted reference -- and is not a discrepancy.
+#
+#   * Mean per-gRNA edit fraction reproduces (0.361 overall; 0.339 in the top
+#     bin, 0.345 in bot, vs the paper's 34.0%). The MEDIAN MAXIMAL editing
+#     per variant does not: 0.496 measured vs 0.604 published. Tested and
+#     ruled out: the choice between obs['edit_rate'] and the per-sample
+#     layers['edit_rate'], and which bin the layer is averaged over -- all
+#     give 0.496-0.513. The remaining hypothesis is that the paper's
+#     "maximal editing" uses a VARIANT-SPECIFIC rate (the intended edit at
+#     the target position, from the allele-level `edits` layer) rather than
+#     the aggregate per-guide rate used here.
+#
+#   * The deposited object is the filtered/annotated version, so it holds
+#     3,451 guides / 99 negative controls / 570 variants against the paper's
+#     3,455 / 100 / 583. The claim tolerances are deliberately left at 0:
+#     widening them to absorb filtering would hide exactly the kind of drift
+#     this benchmark exists to detect.
+
+
 def setup_logging():
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s",
@@ -304,6 +335,78 @@ def describe(screen: str) -> dict:
     return out
 
 
+def measure(screen: str) -> dict:
+    """Everything computable from the deposited object alone, no model fit.
+
+    Kept separate from the BEAN run because these are properties of the DATA
+    -- library composition, replicate agreement, editing rates -- and a
+    disagreement here means the deposit differs from the paper's description,
+    which is a different finding from the model disagreeing.
+    """
+    spec = SCREENS[screen]
+    path = DATA_DIR / spec["file"]
+    if not path.exists():
+        return {"error": f"{path} not present — run `fetch {screen}` first"}
+    import anndata
+    import numpy as np
+    ad = anndata.read_h5ad(path)
+    out = {f"{screen}.n_guides": int(ad.shape[0])}
+
+    grp = next((c for c in ("target_group", "type", "group")
+                 if c in ad.obs.columns), None)
+    if grp:
+        vc = {str(k): int(v) for k, v in ad.obs[grp].value_counts().items()}
+        neg = sum(v for k, v in vc.items() if "neg" in k.lower())
+        out[f"{screen}.n_negctrl"] = neg
+        out[f"{screen}._classes"] = vc
+
+    # Distinct VARIANTS, which is not the same as distinct targets: the
+    # positive controls and the non-targeting guides also carry a target.
+    tv = next((c for c in ("target_variant", "target") if c in ad.obs.columns),
+               None)
+    if tv and grp:
+        mask = ad.obs[grp].astype(str).str.lower().str.startswith("variant")
+        out[f"{screen}.n_variants"] = int(ad.obs.loc[mask, tv].nunique())
+
+    # Replicate agreement, the paper's technical-reproducibility figure. It
+    # correlates gRNA counts BETWEEN replicates within the same bin -- across
+    # bins would measure the sort, not the reproducibility.
+    if {"rep", "bin"} <= set(ad.var.columns):
+        X = ad.X if not hasattr(ad.X, "toarray") else ad.X.toarray()
+        reps = list(dict.fromkeys(ad.var["rep"].astype(str)))
+        bins = list(dict.fromkeys(ad.var["bin"].astype(str)))
+        rhos = []
+        for b in bins:
+            cols = [i for i, (r, bb_) in enumerate(
+                zip(ad.var["rep"].astype(str), ad.var["bin"].astype(str)))
+                if bb_ == b]
+            for i in range(len(cols)):
+                for j in range(i + 1, len(cols)):
+                    rhos.append(spearman(list(map(float, X[:, cols[i]])),
+                                          list(map(float, X[:, cols[j]]))))
+        rhos = [r for r in rhos if r == r]
+        if rhos:
+            out[f"{screen}.replicate_rho"] = round(_percentile(sorted(rhos), 0.5), 4)
+            out[f"{screen}._n_replicate_pairs"] = len(rhos)
+            out[f"{screen}._replicates"] = reps
+            out[f"{screen}._bins"] = bins
+
+    # Editing rates, from the reporter the paper's deposit carries and IGVF
+    # does not publish.
+    if "edit_rate" in ad.obs.columns:
+        er = np.asarray(ad.obs["edit_rate"], dtype=float)
+        er = er[~np.isnan(er)]
+        if er.size:
+            out[f"{screen}.mean_edit_fraction"] = round(float(er.mean()), 4)
+        if tv and grp:
+            mask = ad.obs[grp].astype(str).str.lower().str.startswith("variant")
+            sub = ad.obs.loc[mask, [tv, "edit_rate"]].dropna()
+            if len(sub):
+                mx = sub.groupby(tv)["edit_rate"].max()
+                out[f"{screen}.median_max_edit"] = round(float(mx.median()), 4)
+    return out
+
+
 def compare(measured: dict) -> "list[dict]":
     """Line the measured values up against PAPER_CLAIMS."""
     rows = []
@@ -376,6 +479,25 @@ def cmd_describe(args) -> int:
     return 0
 
 
+def cmd_measure(args) -> int:
+    setup_logging()
+    names = list(SCREENS) if args.screen == "all" else [args.screen]
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    p = OUT_DIR / "measured.json"
+    measured = json.loads(p.read_text()) if p.exists() else {}
+    for n in names:
+        out = measure(n)
+        if "error" in out:
+            print(f"  {n}: {out['error']}")
+            continue
+        measured.update(out)
+        for k, v in sorted(out.items()):
+            print(f"  {k:34} {v}")
+    p.write_text(json.dumps(measured, indent=2))
+    print(f"\n  -> {p}")
+    return 0
+
+
 def cmd_report(args) -> int:
     setup_logging()
     measured = {}
@@ -407,6 +529,11 @@ def build_parser() -> argparse.ArgumentParser:
                                          "contains — run this first.")
     d.add_argument("screen", choices=list(SCREENS))
 
+    m = sub.add_parser("measure", help="Compute what the deposited object "
+                                        "alone supports — no model fit.")
+    m.add_argument("screen", choices=list(SCREENS) + ["all"], default="all",
+                    nargs="?")
+
     sub.add_parser("report", help="Measured vs published, claim by claim.")
     return p
 
@@ -414,6 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     return {"fetch": cmd_fetch, "describe": cmd_describe,
+            "measure": cmd_measure,
             "report": cmd_report}[args.command](args)
 
 
