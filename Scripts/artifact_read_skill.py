@@ -140,7 +140,62 @@ def grep_artifacts(pattern: str, *, path: str = "Docs",
             "hits": hits, "truncated": len(hits) >= max_hits}
 
 
+def _nearest_existing(p: Path) -> "tuple[Path, list[str]]":
+    """Walk up to the first directory that exists, and list what is in it.
+
+    A listing of a path that does not exist is a dead end for an agent: it
+    has no way to learn the right name, so it either gives up or guesses
+    again. This happened on a real run -- the model asked for
+    `Docs/BaseEditingScreen/18loci_uptake` when the run had written
+    `Docs/BaseEditingScreen/20260911_033012_18loci_uptake`, got exit 2, and
+    reported the whole answer as incomplete. The directory it wanted was one
+    `ls` of the parent away.
+    """
+    cur = p
+    for _ in range(4):
+        cur = cur.parent
+        if cur.is_dir():
+            try:
+                return cur, sorted(q.name for q in cur.iterdir())[:60]
+            except OSError:
+                return cur, []
+    return p, []
+
+
+def _did_you_mean(name: str, candidates: "list[str]") -> "list[str]":
+    """Candidates that contain, or are contained by, the requested name.
+
+    Substring rather than edit distance because the miss is nearly always a
+    missing timestamp prefix or a truncated suffix, not a typo.
+    """
+    n = name.lower()
+    return [c for c in candidates
+            if n and (n in c.lower() or c.lower() in n)][:8]
+
+
 def list_artifacts(path: str = "Docs", *, limit: int = 200) -> dict:
+    # Resolve WITHOUT requiring existence first, so a path that is merely
+    # absent can be answered helpfully instead of raising. Containment is
+    # still enforced below by _resolve.
+    want = Path(path).expanduser()
+    if not want.is_absolute():
+        want = _root() / want
+    if path and not want.exists():
+        parent, siblings = _nearest_existing(want)
+        guesses = _did_you_mean(want.name, siblings)
+        try:
+            rel_parent = str(parent.relative_to(_root()))
+        except ValueError:
+            rel_parent = str(parent)
+        return {"path": path, "exists": False,
+                 "note": (f"{path!r} does not exist. Nearest existing "
+                           f"directory is {rel_parent!r}; its contents are "
+                           f"listed under 'available'."
+                           + (f" Closest matches: {guesses}." if guesses else "")),
+                 "nearest_existing": rel_parent,
+                 "did_you_mean": guesses,
+                 "available": siblings,
+                 "entries": []}
     base = _resolve(path, allow_dir=True) if path else _root()
     if base.is_file():
         return {"path": str(base.relative_to(_root())), "entries": [
@@ -152,7 +207,8 @@ def list_artifacts(path: str = "Docs", *, limit: int = 200) -> dict:
                              "bytes": (q.stat().st_size if q.is_file() else None)})
         except OSError:
             continue
-    return {"path": str(base.relative_to(_root())), "entries": entries}
+    return {"path": str(base.relative_to(_root())), "exists": True,
+             "entries": entries}
 
 
 def main(argv=None) -> int:
