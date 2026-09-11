@@ -26,6 +26,7 @@ Pure standard library.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -211,6 +212,128 @@ def list_artifacts(path: str = "Docs", *, limit: int = 200) -> dict:
              "entries": entries}
 
 
+def _open_maybe_gz(path):
+    """Text handle for a plain or gzipped artefact.
+
+    Local rather than imported from igvf_submission_skill: artifact reading is
+    a core capability and should not acquire a dependency on a submission
+    skill to open a file.
+    """
+    import gzip
+    with open(path, "rb") as probe:
+        gz = probe.read(2) == b"\x1f\x8b"
+    return (gzip.open(path, "rt", encoding="utf-8", errors="replace") if gz
+            else open(path, "r", encoding="utf-8", errors="replace"))
+
+
+def _sniff_delim(sample: str) -> str:
+    """Tab or comma, whichever is more frequent in the header line.
+
+    csv.Sniffer guesses from the whole sample and gets confused by quoted
+    free-text fields, which these manifests have (biosample names contain
+    commas). The header is the reliable signal.
+    """
+    head = (sample.splitlines() or [""])[0]
+    return "\t" if head.count("\t") >= head.count(",") else ","
+
+
+def rank_artifact(path: str, *, column: str, n: int = 10,
+                   ascending: bool = False,
+                   where: "str | None" = None,
+                   where_column: "str | None" = None,
+                   exclude: "str | None" = None) -> dict:
+    """Top-N rows of a delimited artefact by one column, over the WHOLE file.
+
+    This exists because its absence produced false claims. Asked for "the
+    highest-scoring kidney records", the agent had only grep_artifacts
+    (bounded hits) and read_artifact (truncated view), so it returned
+    whatever those surfaced and described it as a ranking. Independently
+    audited against the Catalog, the rows were genuine and correctly
+    attributed -- but for GATA3 it reported 0.9909405 as the top score when
+    0.9999999981 was present in the same file, and the same happened for SOX9
+    and WT1.
+
+    So the ranking is done here, deterministically, rather than inferred from
+    a sample:
+
+      * the entire file is read, not a head or a grep window;
+      * rows whose ranking column does not parse as a number are counted and
+        excluded, never silently treated as zero;
+      * `n_scanned` and `n_ranked` are returned so a caller can see the
+        ranking covered everything;
+      * ties are broken by first appearance, so repeated runs agree.
+
+    `where` filters BEFORE ranking, which is what "highest-scoring kidney
+    record" actually asks for -- filter, then rank. It takes a COMMA-SEPARATED
+    list and keeps a row matching ANY term, with `exclude` removing rows
+    matching any of its own terms, because one substring cannot express the
+    question these manifests are actually asked:
+
+        kidney                 misses "renal cortical epithelial cell"
+        renal                  also matches "ADRENAL gland"
+
+    The independent audit of this data required "an explicit kidney or renal
+    cortex context, excluding adrenal records", which is
+    `where="kidney,renal" exclude="adrenal"` -- and the auditors noted that
+    their own first pass used bare `renal` and had to be corrected for exactly
+    the adrenal collision. Exclusion is applied after inclusion, so a term
+    appearing in both loses.
+    """
+    p = _resolve(path)
+    delim = None
+    rows: "list[dict]" = []
+    with _open_maybe_gz(p) as fh:
+        sample = fh.read(64_000)
+        fh.seek(0)
+        delim = _sniff_delim(sample)
+        reader = csv.DictReader(fh, delimiter=delim)
+        fieldnames = reader.fieldnames or []
+        if column not in fieldnames:
+            return {"error": (f"no column {column!r} in {path}; columns are "
+                               f"{fieldnames[:25]}"),
+                     "columns": fieldnames}
+        if where_column and where_column not in fieldnames:
+            return {"error": (f"no column {where_column!r} in {path}; columns "
+                               f"are {fieldnames[:25]}")}
+        n_scanned = n_unparseable = n_filtered_out = 0
+        for row in reader:
+            n_scanned += 1
+            if where or exclude:
+                hay = ((row.get(where_column) or "") if where_column
+                        else " ".join(str(v) for v in row.values())).lower()
+                keep = True
+                if where:
+                    keep = any(t.strip().lower() in hay
+                                for t in where.split(",") if t.strip())
+                if keep and exclude:
+                    keep = not any(t.strip().lower() in hay
+                                    for t in exclude.split(",") if t.strip())
+                if not keep:
+                    n_filtered_out += 1
+                    continue
+            raw = row.get(column)
+            try:
+                val = float(raw)
+            except (TypeError, ValueError):
+                n_unparseable += 1
+                continue
+            rows.append({"_value": val, **row})
+    # Stable: sort only on the value, so equal values keep file order.
+    rows.sort(key=lambda r: r["_value"], reverse=not ascending)
+    top = rows[:max(1, int(n))]
+    return {"path": str(p.relative_to(_root())), "column": column,
+             "ascending": ascending, "where": where,
+             "where_column": where_column, "exclude": exclude,
+             "n_scanned": n_scanned,
+             "n_ranked": len(rows),
+             "n_excluded_unparseable": n_unparseable,
+             "n_excluded_by_filter": n_filtered_out,
+             "ranking_is_complete": True,
+             "rows": [{k: v for k, v in r.items() if k != "_value"}
+                       for r in top],
+             "values": [r["_value"] for r in top]}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="igvfagent artifact",
@@ -223,6 +346,19 @@ def main(argv=None) -> int:
     r.add_argument("--max-bytes", type=int, default=_DEFAULT_MAX_BYTES)
     r.add_argument("--head", type=int)
     r.add_argument("--tail", type=int)
+
+    t = sub.add_parser("top", help="Top-N rows by a column, ranked over the "
+                                    "WHOLE file (use this for any 'highest' "
+                                    "or 'top' claim, never grep)")
+    t.add_argument("--path", required=True)
+    t.add_argument("--column", required=True)
+    t.add_argument("--n", type=int, default=10)
+    t.add_argument("--ascending", action="store_true")
+    t.add_argument("--where", help="Keep only rows containing this substring "
+                                    "before ranking.")
+    t.add_argument("--where-column", help="Restrict --where to one column.")
+    t.add_argument("--exclude", help="Comma-separated terms; drop rows "
+                                      "matching any (e.g. adrenal).")
 
     g = sub.add_parser("grep", help="Search inside workspace artefacts")
     g.add_argument("--pattern", required=True)
@@ -250,6 +386,12 @@ def main(argv=None) -> int:
         elif args.cmd == "grep":
             print(json.dumps(grep_artifacts(args.pattern, path=args.path,
                                              max_hits=args.max_hits), indent=2))
+        elif args.cmd == "top":
+            print(json.dumps(rank_artifact(
+                args.path, column=args.column, n=args.n,
+                ascending=args.ascending, where=args.where,
+                where_column=args.where_column,
+                exclude=args.exclude), indent=2))
         elif args.cmd == "ls":
             print(json.dumps(list_artifacts(args.path, limit=args.limit),
                               indent=2))

@@ -1,0 +1,73 @@
+# The crispr-bean paper's environment, for replicating Ryu et al. 2024.
+#
+#   docker build -f Deploy/Dockerfile.bean029 -t igvfagent-bean029 .
+#
+# WHY A SEPARATE IMAGE. The app image runs Python 3.11, and the paper's stack
+# cannot: crispr-bean 0.2.9 pins pyro-ppl 1.8.1, whose torch_patch.py opens
+# with
+#
+#     assert torch.__version__.startswith("1.")
+#
+# and torch 1.x publishes no cp311 wheels. Installing a newer pyro to get
+# around that is what the first attempt did, and it did not help --
+# BEAN's MixtureNormal model then fails identically under 0.2.9 and 1.2.2
+# with
+#
+#     RuntimeError: Function 'LgammaBackward0' returned nan values
+#
+# which is what points at torch 2 rather than at BEAN. This image exists to
+# test that, by reconstructing the stack the paper actually ran on. If
+# MixtureNormal fits here, torch was the cause; if it still NaNs, it was not,
+# and the next suspect is the data.
+#
+# CPU-only torch on purpose: the CUDA wheels are several GB, the screens are
+# small (3,451 x 40), and the VM has no GPU.
+FROM python:3.10-slim
+
+# BEAN compiles bean/mapping/CRISPResso2Align.pyx at install time, so the
+# build toolchain has to be present -- the app image's runtime stage
+# deliberately lacks it, which is one reason this cannot be a stage there.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+# Order matters and is load-bearing:
+#   1. numpy<2 first -- the .pyx uses np.int_t/np.uint_t and the code uses
+#      np.Inf, all removed in NumPy 2.0.
+#   2. cython<3 -- CRISPResso2Align.pyx does not compile under Cython 3
+#      ("'uint_t' is not a type identifier").
+#   3. torch 1.13.1 from the CPU index BEFORE pyro, so pyro's own resolver
+#      does not pull a 2.x wheel and trip its assertion.
+RUN pip install --no-cache-dir "numpy<2" "cython<3"
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        "torch==1.13.1"
+RUN pip install --no-cache-dir "pyro-ppl==1.8.1"
+
+# The paper cites v0.2.9, which is a GitHub tag and a Zenodo archive
+# (10.5281/zenodo.10191493) -- it was never published to PyPI, whose 0.x line
+# stops at 0.2.7. Installed from the tag tarball rather than by git, because
+# pinning to a tag is reproducible and this image has no git.
+#
+# --no-build-isolation so the cython<3 pin above is the one actually used:
+# with isolation on, pip builds in a fresh environment with its own Cython 3
+# and the pin is silently ignored.
+RUN pip install --no-cache-dir --no-build-isolation \
+        "https://github.com/pinellolab/crispr-bean/archive/refs/tags/v0.2.9.tar.gz"
+
+# BEAN's dependency tree pulls numpy 2.x back in, so the pin is re-applied
+# last. Same for torch: anndata/scanpy can drag a 2.x wheel in behind it.
+RUN pip install --no-cache-dir "numpy<2" \
+ && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        "torch==1.13.1"
+
+# Fail the BUILD rather than a benchmark run three hours later if the stack
+# did not come out as intended. Every one of these has gone wrong at least
+# once while assembling this image.
+RUN python -c "import torch, pyro, numpy, bean; \
+assert torch.__version__.startswith('1.'), f'torch {torch.__version__} is not 1.x'; \
+assert numpy.__version__.startswith('1.'), f'numpy {numpy.__version__} is not 1.x'; \
+print('torch', torch.__version__, '| pyro', pyro.__version__, \
+      '| numpy', numpy.__version__)"
+
+WORKDIR /workspace
+ENTRYPOINT ["bean-run"]

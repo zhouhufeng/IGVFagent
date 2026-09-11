@@ -293,6 +293,50 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "rank_artifact",
+        "★ USE THIS FOR ANY 'TOP', 'HIGHEST', 'BEST' OR 'RANKED' CLAIM ★ — "
+        "sorts a CSV/TSV artefact by a numeric column across the ENTIRE file "
+        "and returns the true top N. **Never use grep_artifacts or "
+        "read_artifact to answer a ranking question**: both return a bounded "
+        "sample, and rows drawn from a sample are NOT the highest-scoring "
+        "rows. Doing so has produced answers that named a 'top 3' whose "
+        "scores were 0.99 when records at 0.9999999981 existed in the same "
+        "file — the rows were real and correctly attributed, but the ranking "
+        "claim was false. This tool reports n_scanned and n_ranked so the "
+        "answer can state how many records the ranking actually covered. Use "
+        "`where` (comma-separated, keeps a row matching ANY term) and "
+        "`exclude` to filter BEFORE ranking: 'highest-scoring kidney record' "
+        "is where='kidney,renal' exclude='adrenal', because 'kidney' alone "
+        "misses 'renal cortical epithelial cell' and 'renal' alone also "
+        "matches 'adrenal gland'.",
+        {
+            "type": "object",
+            "properties": {
+                "path": {**_S_STRING, "description":
+                          "Workspace-relative path to the CSV/TSV artefact."},
+                "column": {**_S_STRING, "description":
+                            "Numeric column to rank by, e.g. score."},
+                "n": {**_S_INTEGER, "description": "How many rows. Default 10."},
+                "where": {**_S_STRING, "description":
+                           "Comma-separated include terms; a row matching ANY "
+                           "is kept."},
+                "where_column": {**_S_STRING, "description":
+                                  "Restrict the include/exclude match to one "
+                                  "column, e.g. biosample."},
+                "exclude": {**_S_STRING, "description":
+                             "Comma-separated terms; drop rows matching any."},
+                "ascending": {**_S_BOOLEAN, "description":
+                               "Rank lowest-first instead."},
+            },
+            "required": ["path", "column"],
+        },
+        cli=["artifact", "top"],
+        flag_map={"path": "--path", "column": "--column", "n": "--n",
+                   "where": "--where", "where_column": "--where-column",
+                   "exclude": "--exclude"},
+        bool_flags=("ascending",),
+    ),
+    _T(
         "grep_artifacts",
         "★ SEARCH INSIDE produced artefacts ★ for a regex — find which report "
         "mentions a gene, disease, or accession without reading each one. "

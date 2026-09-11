@@ -88,6 +88,66 @@ except PermissionError:
     outside = True
 check("a path outside the workspace is still refused", outside)
 
+
+# ─── ranking must be over the whole file, never a sample ──────────────────
+# From the 10 Sep retest: the hosted agent reported a "top 3 by score" for
+# GATA3, SOX9 and WT1 that it had obtained from bounded grep hits and file
+# excerpts. The rows were genuine and correctly attributed; the RANKING was
+# false. For GATA3 it named 0.9909405 as the top score while 0.9999999981 sat
+# in the same file. There was no tool that sorted an artefact, so the model
+# used what existed and described the result as a ranking.
+import csv as _csv  # noqa: E402
+
+_f = root / "Docs" / "links.csv"
+with open(_f, "w", newline="") as fh:
+    w = _csv.writer(fh)
+    w.writerow(["target", "biosample", "score", "source"])
+    w.writerow(["GATA3", "kidney glomerular epithelial cell", "0.9999999981", "TOP1"])
+    w.writerow(["GATA3", "renal cortical epithelial cell", "0.9999999974", "TOP2"])
+    w.writerow(["GATA3", "kidney", "0.9999988818", "TOP3"])
+    w.writerow(["GATA3", "adrenal gland", "0.9999999999", "ADRENAL"])
+    w.writerow(["GATA3", "kidney", "0.9909405", "SAMPLED1"])
+    w.writerow(["GATA3", "kidney", "not_a_number", "BADROW"])
+    for i in range(500):
+        w.writerow(["GATA3", "liver", "0.5", f"L{i}"])
+
+r = ar.rank_artifact("Docs/links.csv", column="score", n=3,
+                      where="kidney,renal", exclude="adrenal",
+                      where_column="biosample")
+check("ranking finds the true top record, not a sampled one",
+      r["rows"][0]["source"] == "TOP1", str(r["values"][:1]))
+check("and the true 2nd and 3rd",
+      [x["source"] for x in r["rows"]] == ["TOP1", "TOP2", "TOP3"],
+      str([x["source"] for x in r["rows"]]))
+# 'kidney' alone misses 'renal cortical epithelial cell'; 'renal' alone also
+# matches 'adrenal gland'. The audit needed both terms and an exclusion.
+one_term = ar.rank_artifact("Docs/links.csv", column="score", n=3,
+                             where="kidney", where_column="biosample")
+check("a single 'kidney' term misses the renal-cortex record",
+      "TOP2" not in [x["source"] for x in one_term["rows"]])
+naive = ar.rank_artifact("Docs/links.csv", column="score", n=1,
+                          where="renal", where_column="biosample")
+check("a bare 'renal' term would wrongly admit adrenal",
+      naive["rows"][0]["source"] == "ADRENAL")
+check("which is why exclude exists and beats it",
+      r["rows"][0]["source"] != "ADRENAL")
+# Unparseable scores must be counted, never silently ranked as zero.
+check("rows whose score does not parse are excluded and counted",
+      r["n_excluded_unparseable"] == 1, str(r["n_excluded_unparseable"]))
+check("the ranking reports how much it scanned",
+      r["n_scanned"] == 506, str(r["n_scanned"]))
+check("and how many it actually ranked", r["n_ranked"] == 4, str(r["n_ranked"]))
+check("it asserts the ranking was complete", r["ranking_is_complete"] is True)
+# A missing column must be an error, not an empty ranking that reads as
+# "there is nothing here".
+bad = ar.rank_artifact("Docs/links.csv", column="nosuchcol", n=3)
+check("a missing ranking column is an error, not an empty result",
+      "error" in bad and "nosuchcol" in bad["error"])
+check("and the error lists the columns that do exist",
+      "score" in str(bad.get("columns", [])))
+asc = ar.rank_artifact("Docs/links.csv", column="score", n=1, ascending=True)
+check("ascending ranks lowest-first", asc["values"][0] == 0.5)
+
 print(f"\n{len(FAILURES)} failure(s)")
 _tmp.cleanup()
 sys.exit(1 if FAILURES else 0)
