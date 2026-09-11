@@ -4807,6 +4807,48 @@ _TOOLS: "list[Tool]" = [
                    "bean_mode": "--bean-mode"},
         bool_flags=("run_bean",),
     ),
+    _T(
+        "crispr_bean_analyze",
+        "★ RUN THE REAL CRISPR-BEAN BAYESIAN MODEL ★ — THIS is the tool for "
+        "any request naming crispr-bean, BEAN, a Bayesian variant-effect "
+        "model, posterior distributions or credible intervals on a "
+        "base-editing screen. It does the base-edit-aware guide assignment, "
+        "writes BEAN's four input tables, then invokes the real `bean` "
+        "binary: `bean create-screen` followed by `bean run sorting "
+        "variant`. It returns BEAN's per-target posteriors (mu, mu_sd, "
+        "mu_z, n_guides), the bean_element_result CSV, the bean_screen.h5ad, "
+        "and a bean_posteriors.png. Do NOT use base_editing_screen_analyze "
+        "for a BEAN request -- that runs only the frequentist per-guide "
+        "scoring and produces no BEAN output. Expect the output to say "
+        "'Normal model, NOT activity-normalised': BEAN's activity-normalised "
+        "MixtureNormal needs an X_bcmatch layer built from a guide barcode "
+        "IGVF does not publish, so the tool falls back to BEAN's Normal "
+        "model and labels it. That is correct behaviour, not a failure.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "Any sorted-bin MeasurementSet of the screen, "
+                               "e.g. IGVFDS6464SOVZ."},
+                "editor":    {**_S_STRING, "description":
+                               "ABE or CBE. Omit to detect it."},
+                "tail":      {**_S_INTEGER, "default": 20},
+                "max_reads": {**_S_INTEGER, "description":
+                               "Reads per library. 400000 is a good default; "
+                               "counts are cached per library."},
+                "bean_iter": {**_S_INTEGER},
+                "bean_mode": {**_S_STRING, "description":
+                               "variant (default) or tiling."},
+                "label":     {**_S_STRING},
+            },
+            "required": ["accession"],
+        },
+        cli=["bean", "bayesian"],
+        positional=("accession",),
+        flag_map={"editor": "--editor", "tail": "--tail",
+                   "max_reads": "--max-reads", "bean_iter": "--bean-iter",
+                   "bean_mode": "--bean-mode", "label": "--label"},
+    ),
     # ── IGVF Portal submission ────────────────────────────────────────
     # These exist because the submission loop is monthly: submit, wait for
     # DACC audits, learn at the next meeting what was missing. The same

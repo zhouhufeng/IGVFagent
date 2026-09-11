@@ -12,6 +12,7 @@ The general failure is worth guarding: a flag that exists in the CLI and
 matters to a user request must be reachable from the tool schema, and a bool
 flag must actually reach argv.
 """
+import inspect
 import subprocess
 import sys
 from pathlib import Path
@@ -113,6 +114,42 @@ for tt in _tools._TOOLS:
     if orphan and tt.flag_map and len(orphan) > len(declared) / 2:
         bad.append((tt.name, sorted(orphan)))
 check("no tool declares mostly-unpassable parameters", not bad, str(bad[:2]))
+
+# ── a capability needs a NAME, not just a flag ───────────────────────────
+# Exposing run_bean was not enough. Asked for crispr-bean, the agent still
+# called base_editing_screen_analyze without it and reported "no
+# crispr_bean_sorting or similar tool appears to be available" -- it was
+# searching for a tool NAMED after BEAN. A flag on a differently-named tool
+# is not discoverable by a model that searches the registry by name, which
+# is how anyone would look.
+bt = tool("crispr_bean_analyze")
+check("a tool named after BEAN exists", bt is not None)
+check("its name contains 'bean' so a name search finds it",
+      "bean" in (bt.name if bt else ""))
+bargv = _tools._build_argv(bt, {"accession": "IGVFDS6464SOVZ"})
+check("it routes to the bayesian subcommand",
+      bargv[1:3] == ["bean", "bayesian"], " ".join(bargv))
+check("the caller does not have to remember a flag",
+      "--run-bean" not in bargv and "run_bean" not in bt.parameters["properties"])
+d2 = bt.description
+for phrase in ("crispr-bean", "posterior", "credible interval"):
+    check(f"the description names {phrase!r}", phrase in d2.lower())
+check("it steers away from the frequentist tool",
+      "Do NOT use base_editing_screen_analyze" in d2)
+check("it pre-empts the NOT activity-normalised surprise",
+      "NOT activity-normalised" in d2)
+# The subcommand must exist and force the flag on, or the tool is a no-op.
+import base_editing_screen as _bes  # noqa: E402
+_a = _bes.build_parser().parse_args(["bayesian", "IGVFDS6464SOVZ"])
+check("`bean bayesian` forces run_bean on", _a.run_bean is True)
+check("`bean analyze` still does not", 
+      _bes.build_parser().parse_args(["analyze", "X"]).run_bean is False)
+check("both dispatch to the same implementation",
+      "bayesian" in inspect.getsource(_bes.main))
+_opts = cli_options("base_editing_screen", "bayesian")
+if _opts:
+    for _p, _f in bt.flag_map.items():
+        check(f"{_f} exists on the bayesian subcommand", _f in _opts)
 
 print(f"\n{len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

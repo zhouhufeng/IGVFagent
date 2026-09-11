@@ -1320,6 +1320,29 @@ def build_parser() -> argparse.ArgumentParser:
         prog="base_editing_screen",
         description="Base-editing screens, BEAN-style guide assignment.")
     sub = p.add_subparsers(dest="command", required=True)
+    # `bean bayesian` is `analyze --run-bean` with the flag forced on. It
+    # exists because a flag is not discoverable. Asked for crispr-bean, the
+    # agent called `analyze` WITHOUT --run-bean and then reported that "no
+    # crispr_bean_sorting or similar tool appears to be available" -- it was
+    # searching for a tool NAMED after BEAN, which is how anyone would look.
+    # Exposing that name removes the need for a model to know that one
+    # boolean turns an innocuously-named tool into the thing asked for.
+    b2 = sub.add_parser("bayesian", help="Run the REAL crispr-bean Bayesian "
+                                          "model (= analyze --run-bean).")
+    b2.add_argument("accession")
+    b2.add_argument("--editor", choices=sorted(rp.BASE_EDITS))
+    b2.add_argument("--tail", type=int, default=20)
+    b2.add_argument("--min-count", type=int, default=10)
+    b2.add_argument("--max-reads", type=int, default=0)
+    b2.add_argument("--calibrate-reads", type=int, default=40000)
+    b2.add_argument("--bean-mode", choices=["variant", "tiling"],
+                     default="variant")
+    b2.add_argument("--bean-screen-type", choices=["sorting", "survival"],
+                     default="sorting")
+    b2.add_argument("--bean-iter", type=int, default=0)
+    b2.add_argument("--label", default="")
+    b2.set_defaults(run_bean=True)
+
     d = sub.add_parser("discover", help="Screen, library, editor and what "
                                         "BEAN inputs IGVF publishes.")
     d.add_argument("accession")
@@ -1355,7 +1378,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: "Optional[list[str]]" = None) -> int:
     args = build_parser().parse_args(argv)
     return {"discover": cmd_discover, "count": cmd_count,
-            "analyze": cmd_analyze}[args.command](args)
+            "analyze": cmd_analyze,
+            # `bayesian` is analyze with run_bean already true.
+            "bayesian": cmd_analyze}[args.command](args)
 
 
 if __name__ == "__main__":
