@@ -68,7 +68,37 @@ can you perform QC and then in-depth data analysis of the raw data in IGVFDS5498
 - **Route:** `matrix_derived` — it reuses the published matrix from
   AnalysisSet IGVFDS3959LESA instead of re-aligning 21.9 GB.
 
+
+
+
 ```
+
+Example scientific queries used to evaluate IGVF Agent
+Dataset interpretation & analysis
+1. IGVFDS9875NBZW — What assay, biosample, and experimental design does this dataset represent, and what biological conclusions can be derived from the available data?
+2. IGVFDS3532MONX — What data types are available for this dataset, what preprocessing is required, and what analyses are most appropriate for its experimental design?
+3. IGVFDS9875NBZW — Starting from the available raw or minimally processed files, can you perform the appropriate analysis and generate publication-ready visualizations of the major biological signals?
+4. IGVFDS7013XXYV — What is the biological and experimental context of this dataset, and what do analyses of the available raw data reveal?
+5. IGVFDS9875NBZW — Can the raw data be independently processed to reproduce and extend the biological patterns represented in the dataset?
+6. IGVFDS4629JYPY — What are the major biological features and sample-level patterns in this dataset, and how can they be visualized?
+Single-cell / multiome characterization
+7. IGVFDS6179NVYH — After appropriate quality control and dimensionality reduction, what cellular populations and marker-gene programs are present in this single-cell or multiome dataset?
+8. IGVFDS2149HIIR — What cellular heterogeneity is captured by this dataset, and which genes or regulatory programs distinguish the major cell populations?
+9. IGVFDS6464SOVZ — What cell states, clusters, and molecular signatures can be identified from this dataset?
+10. IGVFDS6464SOVZ — Can this dataset be integrated with its related IGVF experiments and metadata to obtain a more complete interpretation of the underlying biological system?
+QC → in-depth biological analysis
+11. IGVFDS5414UFNC — Do the raw data pass assay-appropriate quality-control criteria, and what biological structure emerges after filtering, normalization, and downstream analysis?
+12. IGVFDS5997IVEM — What are the major technical and biological sources of variation in this dataset after quality control?
+13. IGVFDS2597SSBK — After QC, what cell populations, molecular programs, or regulatory features can be identified?
+14. IGVFDS5498IKCV — Does the dataset meet quality thresholds for downstream analysis, and what are its major biological signals?
+15. IGVFDS5674PNNL — What does an end-to-end QC and analysis workflow reveal about the biological composition and heterogeneity of this dataset?
+16. IGVFDS4826YNLK — Which samples or cells pass QC, and what biological states or regulatory programs are supported by the retained data?
+17. IGVFDS3899ANMJ — Following assay-specific QC, what are the principal biological patterns and statistically supported features in the dataset?
+18. IGVFDS8710ZSOZ — Can the raw data be processed into an analysis-ready representation, and what biological conclusions are supported by the resulting data?
+19. IGVFDS0865HLQG — After comprehensive QC and downstream analysis, what biological populations, signatures, or regulatory relationships can be identified?
+For the actual one-slide appendix, I would shorten each entry even further and use the accession in bold with a one-line scientific question beneath it. The slide should visually emphasize that these are not canned commands but increasingly sophisticated research tasks:
+Interpret dataset → QC & process → identify biological structure → integrate related IGVF evidence → generate testable conclusions
+
 can you analyze this dataset? IGVFDS9875NBZW
 can you help me understand analyze and process this data? IGVFDS3532MONX
 can you analyze the raw data of IGVFDS9875NBZW and visualize the analysis results?
