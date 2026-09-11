@@ -818,6 +818,13 @@ def _sidebar() -> dict:
             "Natural-language interface to the IGVF / ENCODE single-cell, "
             "variant, regulatory-element, and literature stack."
         )
+        # Visible from every tab, not only from the one that explains it:
+        # someone who hits a wrong answer is looking at Chat, and will not
+        # go hunting through tabs for where to say so.
+        st.caption(
+            f"Something wrong? [Report it on the forum]({DISCUSSION_URL}) "
+            f"· see the **🐛 Report a bug** tab for the details to include."
+        )
         st.divider()
 
         st.subheader("Model")
@@ -1375,6 +1382,83 @@ def _render_one(path: str, *, depth: int = 0) -> None:
     st.code(path)
     if Path(path).is_file():
         _download_button(path, key_hint="misc")
+
+
+DISCUSSION_URL = "https://discussion.genohub.org/"
+
+
+def _render_feedback_tab(st) -> None:
+    """Where to report a bug, and a report worth receiving.
+
+    The forum sets `frame-ancestors \'self\'` and X-Frame-Options
+    SAMEORIGIN, so it cannot be embedded -- an iframe here would render a
+    blank panel and look broken. This tab links out instead.
+
+    The substance of the tab is the pre-filled template. A report that says
+    "the analysis failed" cannot be acted on; the same report with the build
+    id, the model and the accession usually can, because it says which code
+    was running. Users do not know those exist, so the tab assembles them and
+    the user copies one block.
+    """
+    st.markdown(
+        f"### 🐛 Found a bug, or something that looks wrong?\n\n"
+        f"Please tell us at **[discussion.genohub.org]({DISCUSSION_URL})** — "
+        f"bug reports, questions about a result, and requests for datasets or "
+        f"assays IGVFagent does not handle yet all belong there."
+    )
+    st.link_button("Open the discussion forum →", DISCUSSION_URL,
+                    type="primary")
+
+    st.markdown("---")
+    st.markdown(
+        "#### Paste this with your report\n"
+        "It identifies the exact code that produced your result. Without it a "
+        "report often cannot be reproduced, because the site is updated "
+        "frequently and the answer may already have changed."
+    )
+    try:
+        build = deployed_build_id()
+    except Exception:
+        build = "unknown"
+    model = st.session_state.get("model") or st.session_state.get(
+        "selected_model") or "(default)"
+    backend = st.session_state.get("backend") or "(default)"
+    try:
+        session = _session_token()[:8]
+    except Exception:
+        session = "n/a"
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z")
+    st.code(
+        f"build:    {build}\n"
+        f"backend:  {backend}\n"
+        f"model:    {model}\n"
+        f"session:  {session}\n"
+        f"when:     {stamp}\n"
+        f"\n"
+        f"What I asked:\n"
+        f"  <paste your question here>\n"
+        f"\n"
+        f"What I expected:\n"
+        f"\n"
+        f"What happened instead:\n",
+        language="text")
+    st.caption(
+        "The session id is a short random handle for your browser session, "
+        "not an account — it lets us line your report up with server logs. "
+        "No data you uploaded is included here; attach files to the forum "
+        "post yourself only if you are willing to share them."
+    )
+
+    st.markdown("---")
+    st.markdown(
+        "#### Things worth reporting\n"
+        "- an answer that states something you know to be false about your data\n"
+        "- a tool that reports success but produced no output file\n"
+        "- an analysis that picks the wrong method for your assay\n"
+        "- a dataset accession IGVFagent cannot read\n"
+        "- anything that claims a tool or backend is unavailable — that is "
+        "usually wrong and we want to see it"
+    )
 
 
 def deployed_build_id() -> str:
@@ -2249,10 +2333,13 @@ def main() -> None:
     #                       suite dashboard, and the latest concordance run
     # Every tab except Chat is independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab, sc_tab, nw_tab, sp_tab, bm_tab = st.tabs(
+    chat_tab, kg_tab, sc_tab, nw_tab, sp_tab, bm_tab, fb_tab = st.tabs(
         ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell",
-         "🔗 Network", "🧬 Spatial", "📊 Benchmarks"]
+         "🔗 Network", "🧬 Spatial", "📊 Benchmarks", "🐛 Report a bug"]
     )
+
+    with fb_tab:
+        _render_feedback_tab(st)
 
     with kg_tab:
         if _kgviz is None:
