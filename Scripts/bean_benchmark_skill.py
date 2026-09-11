@@ -350,23 +350,79 @@ def describe(screen: str) -> dict:
 # this deposit (layers X_bcmatch, edit_rate, edits; obs column Reporter), so
 # all three run here. A report that says otherwise is reasoning from the IGVF
 # data, not from this.
+# The three model variants the paper compares, with the flags taken from the
+# authors' own Snakemake pipeline (pinellolab/bean_manuscript,
+# workflow/rules/run_models.smk) rather than inferred from the text:
+#
+#   bean-run variant {h5ad} --uniform-edit -o ... --ignore-bcmatch
+#   bean-run variant {h5ad}                -o ... --ignore-bcmatch
+#   bean-run variant {h5ad} --scale-by-acc --acc-bw-path ENCFF262URW.hg19.bw \
+#                                          -o ... --ignore-bcmatch
+#
+# Two things that are only knowable from those lines. FIRST, --ignore-bcmatch
+# is passed to ALL THREE, including the full model -- so the paper does not
+# use the X_bcmatch layer for this screen even though the deposit carries it.
+# Running BEAN-Reporter without it here died with
+#     RuntimeError: Function 'LgammaBackward0' returned nan values
+# which reads as a numerical problem and is really a wrong invocation.
+# SECOND, --scale-by-acc is not self-contained: it needs an external ENCODE
+# accessibility bigwig, on hg19, which is not part of the Zenodo deposit.
+ACC_BIGWIG = "ENCFF262URW.hg19.bw"      # HepG2 DNase, hg19, from ENCODE
+ACC_URL = "https://www.encodeproject.org/files/ENCFF262URW/@@download/ENCFF262URW.bigWig"
+
 MODELS = {
     "bean": {
         "label": "BEAN (MixtureNormal + accessibility)",
-        "flags": ["--scale-by-acc"],
+        "flags": ["--scale-by-acc", "--ignore-bcmatch"],
+        "needs_accessibility": True,
         "claim": "auprc_bean",
     },
     "reporter": {
         "label": "BEAN-Reporter (reporter editing, no accessibility)",
-        "flags": [],
+        "flags": ["--ignore-bcmatch"],
+        "needs_accessibility": False,
         "claim": "auprc_bean_reporter",
     },
     "uniform": {
         "label": "BEAN-Uniform (no reporter, uniform editing)",
         "flags": ["--uniform-edit", "--ignore-bcmatch"],
+        "needs_accessibility": False,
         "claim": "auprc_bean_uniform",
     },
 }
+
+
+# The paper states its version explicitly: "The version (0.2.9) of 'bean'
+# used for the analyses presented in this paper". Anything else is a
+# different program for benchmarking purposes, and the gap is not cosmetic --
+# the CLI itself changed generation (`bean-run variant` in the paper's
+# pipeline versus `bean run sorting variant` today), which means the model
+# code around it moved too.
+PAPER_BEAN_VERSION = "0.2.9"
+
+
+def installed_bean_version() -> "Optional[str]":
+    """Version of the `bean` actually on this machine, or None."""
+    exe = bean_exe()
+    if not exe:
+        return None
+    for args in (["--version"], ["-V"]):
+        try:
+            r = subprocess.run([exe] + args, capture_output=True, text=True,
+                                timeout=60)
+            out = (r.stdout or "") + (r.stderr or "")
+            import re as _re
+            m = _re.search(r"(\d+\.\d+\.\d+)", out)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+    # bean has no --version flag; ask the package metadata instead.
+    try:
+        import importlib.metadata as md
+        return md.version("crispr-bean")
+    except Exception:
+        return None
 
 
 def bean_exe() -> "Optional[str]":
@@ -404,10 +460,22 @@ def run_model(screen: str, model: str, *, n_iter: int = 0,
             "--sorting-bin-lower-quantile-col", "lower_quantile",
             "--sorting-bin-upper-quantile-col", "upper_quantile",
             "--outdir", str(outdir)] + m["flags"]
+    if m.get("needs_accessibility"):
+        bw = DATA_DIR / ACC_BIGWIG
+        if not bw.exists():
+            return {"error": (
+                f"{m['label']} needs the accessibility track {ACC_BIGWIG}, "
+                f"which is NOT in the Zenodo deposit -- the paper pulls it "
+                f"separately from ENCODE ({ACC_URL}). Fetch it to "
+                f"{bw} and re-run. Note it is hg19, while the screen's "
+                f"coordinates should be checked against it.")}
+        cmd += ["--acc-bw-path", str(bw)]
     if n_iter:
         cmd += ["--n-iter", str(n_iter)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     out = {"screen": screen, "model": model, "label": m["label"],
+            "bean_version": installed_bean_version(),
+            "paper_bean_version": PAPER_BEAN_VERSION,
             "exit_code": r.returncode, "cmd": " ".join(cmd),
             "outdir": str(outdir),
             "stderr": (r.stderr or "").strip()[-800:]}
@@ -593,7 +661,15 @@ def compare(measured: dict) -> "list[dict]":
 
 def render(rows: "list[dict]", measured: dict) -> str:
     w = max((len(r["what"]) for r in rows), default = 20)
-    out = [f"Benchmark against {PAPER}", f"  data: {ZENODO_DOI}", ""]
+    out = [f"Benchmark against {PAPER}", f"  data: {ZENODO_DOI}"]
+    got = measured.get("_bean_version")
+    if got and got != PAPER_BEAN_VERSION:
+        out.append(f"  !! bean version MISMATCH: this machine has {got}, the "
+                    f"paper used {PAPER_BEAN_VERSION}. Model-fit rows below "
+                    f"are a different program's output, not a replication.")
+    elif got:
+        out.append(f"  bean {got} (matches the paper)")
+    out.append("")
     for r in rows:
         got = r["measured"]
         gs = "—" if got is None else (f"{got:,}" if r["kind"] == "count"
@@ -695,7 +771,13 @@ def cmd_run(args) -> int:
             measured[f"{key}._n_neg"] = sc["n_negative"]
             print(f"    AUPRC {sc['auprc']:.3f}  "
                   f"({sc['n_positive']} positives vs {sc['n_negative']} negatives)")
+    measured["_bean_version"] = installed_bean_version()
     mp.write_text(json.dumps(measured, indent=2))
+    if measured["_bean_version"] != PAPER_BEAN_VERSION:
+        print(f"\n  NOTE: bean {measured['_bean_version']} is installed; the "
+              f"paper used {PAPER_BEAN_VERSION}. Treat the AUPRCs above as "
+              f"this version's, not as a reproduction of the published "
+              f"figures.")
     return rc
 
 

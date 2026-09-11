@@ -111,6 +111,18 @@ check("the delta is reported so the direction is visible",
       abs(byid["ldlvar.auprc_bean"]["delta"] + 0.29) < 1e-9)
 text = bb.render(rows, {})
 check("the report names the paper", "Ryu" in text and "2024" in text)
+# The paper states its version outright. A model-fit number produced by a
+# different major version is that version's output, not a replication, and
+# the report has to say so where a reader will see it.
+check("the paper's bean version is recorded", bb.PAPER_BEAN_VERSION == "0.2.9")
+warned = bb.render(bb.compare({}), {"_bean_version": "1.2.2"})
+check("a version mismatch is flagged in the report",
+      "MISMATCH" in warned and "1.2.2" in warned and "0.2.9" in warned)
+check("and says the rows are not a replication",
+      "not a replication" in warned)
+matched = bb.render(bb.compare({}), {"_bean_version": "0.2.9"})
+check("a matching version says so instead of warning",
+      "matches the paper" in matched and "MISMATCH" not in matched)
 check("the report names the data DOI", bb.ZENODO_DOI in text)
 check("the report lists what it cannot test",
       "cannot test" in text and "UK Biobank" in text)
@@ -129,8 +141,19 @@ check("the full model asks for accessibility scaling",
       "--scale-by-acc" in bb.MODELS["bean"]["flags"])
 check("the uniform fallback is the one that drops the reporter",
       set(bb.MODELS["uniform"]["flags"]) == {"--uniform-edit", "--ignore-bcmatch"})
-check("BEAN-Reporter sits between them, with neither flag",
-      bb.MODELS["reporter"]["flags"] == [])
+# From the authors' Snakemake pipeline, not from the paper's prose:
+# --ignore-bcmatch is passed to ALL THREE variants. Omitting it from
+# BEAN-Reporter produced a NaN in an lgamma backward pass, which looks like a
+# numerical problem and is really a wrong invocation.
+check("every variant passes --ignore-bcmatch, as the paper's pipeline does",
+      all("--ignore-bcmatch" in m["flags"] for m in bb.MODELS.values()))
+check("BEAN-Reporter is distinguished by having no OTHER flag",
+      bb.MODELS["reporter"]["flags"] == ["--ignore-bcmatch"])
+check("only the full model needs the external accessibility track",
+      [k for k, m in bb.MODELS.items() if m.get("needs_accessibility")]
+      == ["bean"])
+check("the accessibility track is named and sourced",
+      bb.ACC_BIGWIG.endswith(".bw") and "encodeproject.org" in bb.ACC_URL)
 check("each model maps to the published claim it should be compared with",
       {m["claim"] for m in bb.MODELS.values()} ==
       {"auprc_bean", "auprc_bean_reporter", "auprc_bean_uniform"})
