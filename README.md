@@ -18,7 +18,44 @@ _End-to-end view: a knowledge graph and multi-omics data resources feed an orche
 
 ![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 61 skills / 179 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 73 skills / 235 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+
+## What IGVF Agent can do
+
+**Ask in plain language; it picks the method, runs it locally, and shows its
+working.** 73 skills / 235 typed tools.
+
+- **Find and explain IGVF data** — search the Portal and Catalog by assay,
+  tissue, gene or accession; say what a dataset actually contains before you
+  download it; pull ENCODE, GEO, FAVOR, ChIP-Atlas, Synapse and Figshare too.
+- **Analyse raw sequencing end to end** — FASTQ → counts → result, with the
+  aligner and reference chosen from the dataset's own metadata rather than
+  assumed.
+- **CRISPR screens, routed by design not by title** — two-tail FACS screens,
+  lettered-bin (A–F) screens, saturation genome editing, CRISPRi, FlowFISH,
+  and **base-editing screens** via [crispr-bean](https://github.com/pinellolab/crispr-bean)'s
+  masked matching (which recovers **62.5%** of reads where exact matching gets
+  36.7%), handing off to the real `bean` binary for its Bayesian model.
+- **Variants → function** — annotate lists, reach FAVOR and MaveDB, run
+  MPRA/STARR-seq pipelines, link variants to genes through eQTL and enhancer
+  evidence, and verify every claim against the record it came from.
+- **Single-cell and multiome** — QC, clustering, cell typing, perturb-seq,
+  SPLiT-seq, multiome, scE2G enhancer–gene links, spatial ATAC + Hi-C.
+- **Regulatory networks** — GRN inference and a clean-room MILP
+  reimplementation of CORNETO over the local warehouses.
+- **One growing knowledge graph** — the IGVF Catalog mirror, a
+  BioGRID/IntAct protein-interaction compendium and everything a session
+  learns, merged onto the **same** vertices with per-edge provenance:
+  **1.27M edges** and counting.
+- **Help you submit to the Portal** — preflight your prediction sets and
+  curated sets against the checks the monthly DACC meetings keep raising,
+  before the meeting does.
+- **Say when it cannot** — an unsupported assay, a revoked input, a model
+  that needs a field IGVF does not publish. Refusing with a reason is treated
+  as a result, not a failure.
+
+Every run writes its files to your project folder, records which tool produced
+what, and reports failed tool calls rather than smoothing them over.
 
 ### 🎬 Video demos
 
