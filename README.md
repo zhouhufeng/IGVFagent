@@ -18,12 +18,12 @@ _End-to-end view: a knowledge graph and multi-omics data resources feed an orche
 
 ![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 74 skills / 235 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 74 skills / 242 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
 
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it locally, and shows its
-working.** 74 skills / 235 typed tools.
+working.** 74 skills / 242 typed tools.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
@@ -2327,7 +2327,12 @@ igvfagent spatial-hic gas --fragments fragments.tsv.gz \
     --barcode-a barcodes_A.txt --barcode-b barcodes_B.txt
 igvfagent spatial-hic gad --pairs-dir <run>/pixels --gene-model gencode.gtf.gz
 
-# 4) Structure: imputation, compartments, copy number.
+# 4) Structure: contact matrix, imputation, compartments, copy number.
+#    A single pixel holds only tens of thousands of contacts, so impute
+#    before reading structure off one. Paper resolutions: 100 kb for
+#    compartments, 25 kb to draw, 10 kb for fine structure.
+igvfagent spatial-hic matrix --pairs-dir <run>/pixels --chrom chr2 \
+    --resolution 25000 --start 106000000 --end 118000000
 igvfagent spatial-hic impute --pairs-dir <run>/pixels --chrom chr2 \
     --resolution 100000 --per-pixel
 igvfagent spatial-hic compartment --pairs-dir <run>/pixels \
@@ -2343,6 +2348,29 @@ igvfagent spatial-hic loops --pairs-dir <run>/pixels --bedpe loops.bedpe \
 igvfagent spatial-hic viz --table <run>/gene_activity_score.tsv \
     --column Satb2 --positions tissue_positions.csv
 ```
+
+Every one of these eleven subcommands is also registered as an agent
+tool (`spatial_hic_*`), so the orchestrator can select them from a plain
+request — "impute a 25 kb map for chr2", "find the tumour clones in this
+section" — rather than needing the CLI spelled out.
+
+**Against the authors' own pipeline**
+([wangjuan001/Spatial-ATAC-Hi-C](https://github.com/wangjuan001/Spatial-ATAC-Hi-C)):
+
+| Upstream script | IGVFagent |
+|---|---|
+| `00.filter-linker.sh` | *not reimplemented* — raw-FASTQ stage |
+| `01.bcsplit.sh` / `bcsplit.py` | `pixel-demux` (barcode-B+A offsets follow it) |
+| `03.atac_alignment.sh` | *not reimplemented* — runHiC / Trim Galore are GPL-3.0, see above |
+| `snapatac2_genecount_matrix.py` | `gas` |
+| `Higashi_compartment.sh` | `compartment` |
+| `schicluster_impute.sh` | `impute` |
+| — | `qc`, `gad`, `matrix`, `cnv`, `loops`, `viz` (from the paper, not in the repo) |
+
+So the boundary is alignment: everything the authors publish downstream
+of it has an equivalent here, and the per-pixel QC, GAD scores, CNV,
+loop ANOVA and tissue-space rendering that the paper describes but the
+repo does not ship are implemented too.
 
 Two things this deliberately does *not* do: it does not call loops de
 novo (Peakachu is a trained model — bring its BEDPE), and its CNV bias

@@ -3808,6 +3808,87 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "spatial_hic_matrix",
+        "Build a Hi-C contact matrix from Spatial-ATAC-Hi-C pairs, for one "
+        "chromosome or a region. This is what the paper's Hi-C MAP FIGURES "
+        "are drawn from (Fig. 1b,c; Fig. 3c-h; Fig. 5d-g). Point `pairs_dir` "
+        "at a whole pairs file for pseudobulk, or at a per-pixel directory "
+        "from `spatial_hic_pixel_demux`. Pair it with spatial_hic_impute when "
+        "a single pixel is too sparse to show structure.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":   {**_S_STRING, "description":
+                                 "A contact file, or a directory of per-pixel "
+                                 "ones (4DN .pairs or GEO contact TSVs)."},
+                "chrom_sizes": {**_S_STRING},
+                "pairs_glob":  {**_S_STRING},
+                "chrom":       {**_S_STRING, "description": "e.g. chr2"},
+                "resolution":  {**_S_INTEGER, "description":
+                                 "Bin size in bp. The paper renders at 25000."},
+                "start":       {**_S_INTEGER},
+                "end":         {**_S_INTEGER},
+                "label":       {**_S_STRING},
+            },
+            "required": ["pairs_dir"],
+        },
+        cli=["spatial-hic", "matrix"],
+        flag_map={"pairs_dir": "--pairs-dir", "chrom_sizes": "--chrom-sizes",
+                   "pairs_glob": "--pairs-glob", "chrom": "--chrom",
+                   "resolution": "--resolution", "start": "--start",
+                   "end": "--end", "label": "--label"},
+    ),
+
+    _T(
+        "spatial_hic_impute",
+        "★ IMPUTE SPARSE SINGLE-PIXEL Hi-C CONTACT MAPS ★ (scHiCluster-style "
+        "linear convolution + random walk with restart). A single 50x50 "
+        "tissue pixel holds only tens of thousands of contacts, far too few "
+        "to read structure off directly, so the paper imputes before "
+        "compartment calling and before drawing single-pixel maps "
+        "(Methods, 'Imputation of Spatial-ATAC-Hi-C data'; Fig. 1b). Its "
+        "resolutions: 100000 for compartments, 25000 for visualisation, "
+        "10000 for fine structure. Use `per_pixel` to impute every pixel "
+        "rather than the pseudobulk.",
+        {
+            "type": "object",
+            "properties": {
+                "pairs_dir":    {**_S_STRING, "description":
+                                  "A contact file, or a directory of per-pixel "
+                                  "ones from spatial_hic_pixel_demux."},
+                "chrom_sizes":  {**_S_STRING},
+                "pairs_glob":   {**_S_STRING},
+                "chrom":        {**_S_STRING, "description": "e.g. chr2"},
+                "resolution":   {**_S_INTEGER, "description":
+                                  "100000 compartments / 25000 visualisation "
+                                  "/ 10000 fine structure, as in the paper."},
+                "start":        {**_S_INTEGER},
+                "end":          {**_S_INTEGER},
+                "pad":          {**_S_INTEGER, "description":
+                                  "Convolution half-width (scHiCluster pad)."},
+                "restart":      {**_S_NUMBER, "description":
+                                  "Random-walk restart probability."},
+                "tol":          {**_S_NUMBER},
+                "per_pixel":    {**_S_BOOLEAN, "description":
+                                  "Impute each pixel separately."},
+                "zero_diagonal": {**_S_BOOLEAN},
+                "min_contacts": {**_S_INTEGER, "description":
+                                  "Skip pixels below this contact count."},
+                "label":        {**_S_STRING},
+            },
+            "required": ["pairs_dir"],
+        },
+        cli=["spatial-hic", "impute"],
+        flag_map={"pairs_dir": "--pairs-dir", "chrom_sizes": "--chrom-sizes",
+                   "pairs_glob": "--pairs-glob", "chrom": "--chrom",
+                   "resolution": "--resolution", "start": "--start",
+                   "end": "--end", "pad": "--pad", "restart": "--restart",
+                   "tol": "--tol", "min_contacts": "--min-contacts",
+                   "label": "--label"},
+        bool_flags={"per_pixel", "zero_diagonal"},
+    ),
+
+    _T(
         "spatial_hic_compartment",
         "A/B compartment PC1 from Spatial-ATAC-Hi-C contacts, at 100 kb "
         "by default. Observed/expected, Pearson correlation, leading "
