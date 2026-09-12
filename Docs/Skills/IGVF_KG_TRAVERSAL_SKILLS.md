@@ -12,7 +12,7 @@ Designed as the orchestrator-friendly **comprehensive context** tool: one CLI ca
 python3 Scripts/kg_traversal_skill.py gene APOE \
     --depth 2 --limit 50 \
     --max-variants 25 --subvariant-limit 10 \
-    --call-favor --call-linkage --call-singlecell --call-literature \
+    --call-linkage --call-singlecell --call-literature \
     --literature-context Alzheimer cardiovascular \
     --label apoe_full
 ```
@@ -29,9 +29,9 @@ Default direct relations (each saved to its own manifest CSV):
 
 At `--depth 2`, each variant additionally fans out into its own summary, QTL genes, phenotypes, biosamples (CRISPRi / MPRA), genomic-element overlaps, and prediction sets.
 
-Optional side-calls:
+Side-calls:
 
-- `--call-favor` — pulls FAVOR functional annotations for the gene region.
+- FAVOR runs BY DEFAULT, after the Catalog: the Catalog decides which variants are in the gene region, FAVOR then supplements each with CADD / GERP / conservation / ClinVar. `--no-call-favor` opts out; `--favor-max` caps how many variants are looked up.
 - `--call-linkage` — adds enhancer-gene linkage predictions for the gene region (rE2G / catalog regulatory-region links).
 - `--call-singlecell` — searches the IGVF Portal for single-cell AnalysisSets that mention the gene; surfaces candidate datasets for downstream expression analysis with `Scripts/single_cell_data_skills.py` or `Scripts/splitseq_pipeline.py`.
 - `--call-literature` — runs `Scripts/reference_skill.py validate` on the gene + your context terms.
@@ -40,7 +40,7 @@ Optional side-calls:
 
 ```bash
 python3 Scripts/kg_traversal_skill.py variant rs429358 \
-    --call-favor --call-literature --label apoe_e4_variant
+    --call-literature --label apoe_e4_variant
 ```
 
 Variant ID accepted as rsID, SPDI, HGVS, or chr:pos:ref:alt where the Catalog API understands it.
@@ -49,10 +49,10 @@ Variant ID accepted as rsID, SPDI, HGVS, or chr:pos:ref:alt where the Catalog AP
 
 ```bash
 python3 Scripts/kg_traversal_skill.py region chr19:44903000-44912000 \
-    --call-favor --label apoe_locus
+    --label apoe_locus
 ```
 
-Returns: genes overlapping the region, regulatory elements (cCREs) in the region, region-predictor enhancer-gene linkage rows, and (optional) FAVOR variant annotations.
+Returns: genes overlapping the region, regulatory elements (cCREs) in the region, region-predictor enhancer-gene linkage rows, and FAVOR annotations for the Catalog's variants in that window.
 
 ### 4. `aql` — direct ArangoDB AQL pass-through
 

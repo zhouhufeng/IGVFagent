@@ -32,6 +32,7 @@ Subcommands
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import csv
 import io
 import hashlib
@@ -570,23 +571,176 @@ def gene_region_string(gene: dict) -> str | None:
 
 
 # --------------------------- FAVOR side-call ---------------------------------
+#
+# Order of operations is the contract for `gene`, `variant` and `region`: the
+# IGVF Catalog is queried FIRST and decides which variants are in scope, then
+# FAVOR is asked to *supplement* exactly those. FAVOR never widens or narrows
+# the variant set, so a FAVOR outage degrades a report instead of emptying it.
+#
+# The previous implementation guessed at `/region` and `/api/range`. Both
+# answer 404 (measured 2026-09-12 against api.genohub.org), so every
+# `--call-favor` run returned zero rows while looking like it had asked.
+# FAVOR's real surface is per-variant and has no batch endpoint:
+#     /v1/rsids/<rsid>                 e.g. /v1/rsids/rs429358
+#     /v1/variants/<chr-pos-ref-alt>   1-BASED, e.g. /v1/variants/19-44908684-T-C
+
+# RefSeq chromosome accessions NC_000001..NC_000024 -> UCSC-style names.
+_NC_TO_CHROM = {**{i: str(i) for i in range(1, 23)}, 23: "X", 24: "Y"}
+
+_RE_SPDI = re.compile(r"^NC_0*(\d+)\.\d+:(\d+):([ACGTN]*):([ACGTN]*)$",
+                       re.IGNORECASE)
+
+
+def spdi_to_favor_variant(spdi: str) -> str:
+    """Catalog SPDI -> FAVOR's 1-based ``chr-pos-ref-alt`` token.
+
+    SPDI positions are 0-based and FAVOR's are 1-based, so the position is
+    incremented. Verified against the Catalog's own record
+    ``NC_000019.10:44908001:T:C`` — its HGVS is ``g.44908002T>C`` and FAVOR
+    serves it as ``19-44908002-T-C`` (rs12982192). Querying FAVOR with the
+    un-incremented Catalog position returns an empty body, which is how this
+    goes wrong silently rather than loudly.
+    """
+    m = _RE_SPDI.match((spdi or "").strip())
+    if not m:
+        return ""
+    num, pos = int(m.group(1)), int(m.group(2))
+    ref, alt = m.group(3).upper(), m.group(4).upper()
+    chrom = _NC_TO_CHROM.get(num)
+    if not chrom or not ref or not alt:
+        return ""
+    return f"{chrom}-{pos + 1}-{ref}-{alt}"
+
+
+def _favor_lookup_one(rec: dict) -> dict:
+    """FAVOR's row for one Catalog variant record, or ``{}``.
+
+    Coordinates are tried FIRST and the rsID is only a fallback, because an
+    rsID is multi-allelic and FAVOR's /v1/rsids returns one arbitrary allele
+    for it. The Catalog carries NC_000019.10:44908003:C:A and
+    NC_000019.10:44908003:C:T as separate variants that share rs1415167819;
+    FAVOR scores them 2.057 and 2.628 CADD respectively, so resolving by rsID
+    silently attaches one allele's scores to the other.
+    """
+    paths: list[str] = []
+    token = spdi_to_favor_variant(rec.get("spdi") or rec.get("_id") or "")
+    if not token and rec.get("chr") and rec.get("pos") is not None \
+            and rec.get("ref") and rec.get("alt"):
+        # `pos` on a Catalog variant record is the 0-based SPDI position, so
+        # it needs the same +1 as the SPDI branch above.
+        try:
+            token = (f"{str(rec['chr']).replace('chr', '')}"
+                     f"-{int(rec['pos']) + 1}-{rec['ref']}-{rec['alt']}")
+        except (TypeError, ValueError):
+            token = ""
+    if token:
+        paths.append(f"/v1/variants/{urllib.parse.quote(token)}")
+    rsid = rec.get("rsid")
+    if isinstance(rsid, (list, tuple)):
+        rsid = rsid[0] if rsid else None
+    if isinstance(rsid, str) and rsid.lower().startswith("rs"):
+        paths.append(f"/v1/rsids/{urllib.parse.quote(rsid.strip())}")
+    for path in paths:
+        try:
+            status, data = favor_get(path)
+        except Exception:                                   # noqa: BLE001
+            continue
+        if status == 200:
+            rows = listify(data)
+            if rows:
+                return rows[0]
+    return {}
+
+
+def favor_annotate_variants(records: Iterable[dict], max_variants: int = 50,
+                             workers: int = 8,
+                             budget: float | None = None) -> list[dict]:
+    """Supplement Catalog variant records with live FAVOR annotations.
+
+    One HTTP round trip per variant — FAVOR has no batch endpoint — so the
+    lookups run in a small thread pool under a wall-clock budget
+    (``IGVF_FAVOR_BUDGET_SECONDS``, default 20). Whatever has returned when
+    the budget expires is what the caller gets. Never raises: this is a
+    supplement, and the Catalog answer above it must survive FAVOR being slow
+    or down.
+    """
+    recs = [r for r in (records or []) if isinstance(r, dict)]
+    recs = recs[:max(0, int(max_variants or 0))]
+    if not recs:
+        return []
+    if budget is None:
+        try:
+            budget = float(os.environ.get("IGVF_FAVOR_BUDGET_SECONDS", "20"))
+        except ValueError:
+            budget = 20.0
+    started = time.time()
+    out: list[dict] = []
+    pool = cf.ThreadPoolExecutor(max_workers=max(1, min(workers, len(recs))))
+    futures = {pool.submit(_favor_lookup_one, r): r for r in recs}
+    try:
+        for fut in cf.as_completed(futures,
+                                    timeout=max(0.1, budget)):
+            try:
+                row = fut.result()
+            except Exception:                               # noqa: BLE001
+                continue
+            if row:
+                src = futures[fut]
+                row.setdefault("catalog_variant_id",
+                                src.get("_id") or src.get("spdi") or "")
+                out.append(row)
+    except Exception:                                       # noqa: BLE001
+        logging.warning(
+            "FAVOR supplement stopped at its %.0fs budget with %d/%d rows; "
+            "the Catalog results are unaffected", budget, len(out), len(recs))
+    finally:
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+        except TypeError:                       # Python < 3.9 has no kwarg
+            pool.shutdown(wait=False)
+    logging.info("FAVOR supplement: %d/%d variants annotated in %.1fs",
+                 len(out), len(recs), time.time() - started)
+    return out
+
+
+def catalog_variants_for(vid: str, limit: int = 1) -> list[dict]:
+    """Catalog record(s) for one variant id (rsID or SPDI). Catalog first."""
+    vid = (vid or "").strip()
+    if not vid:
+        return []
+    if vid.lower().startswith("rs"):
+        status, data = catalog_get("/api/variants", rsid=vid.lower(),
+                                    limit=limit)
+        return listify(data) if status == 200 else []
+    m = _RE_SPDI.match(vid)
+    if m:
+        # `?variant_id=` and `?spdi=` both answer 200 with an empty list
+        # (measured), so a single-base region is the lookup that works.
+        chrom = _NC_TO_CHROM.get(int(m.group(1)))
+        pos = int(m.group(2))
+        if chrom:
+            status, data = catalog_get("/api/variants",
+                                        region=f"chr{chrom}:{pos}-{pos + 1}",
+                                        limit=max(limit, 5))
+            rows = listify(data) if status == 200 else []
+            exact = [r for r in rows if (r.get("_id") or "") == vid]
+            return exact or rows[:limit]
+    return []
+
 
 def favor_query_region(region: str, max_variants: int = 50) -> list[dict]:
-    """Tries a small set of known FAVOR endpoints. Returns a list of variant
-    annotation rows; empty if FAVOR is unreachable from this network."""
-    chrom, start, end = parse_region(region)
-    chrom_short = chrom.replace("chr", "")
-    candidates = [
-        ("/region", {"chr": chrom_short, "start": start, "end": end,
-                      "limit": max_variants}),
-        ("/api/range", {"chr": chrom, "start": start, "end": end,
-                          "limit": max_variants}),
-    ]
-    for path, params in candidates:
-        status, data = favor_get(path, **params)
-        if status == 200:
-            return listify(data)
-    return []
+    """FAVOR annotations for the variants the Catalog reports in ``region``.
+
+    Catalog first (it owns which variants exist), FAVOR second (it adds CADD,
+    GERP, conservation, ClinVar and the APC scores the Catalog snapshot does
+    not carry). Empty if the Catalog has no variants there.
+    """
+    status, data = catalog_get("/api/variants", region=region,
+                                limit=max_variants)
+    variants = listify(data) if status == 200 else []
+    if not variants:
+        return []
+    return favor_annotate_variants(variants, max_variants=max_variants)
 
 
 # --------------------------- Single-cell side-call ---------------------------
@@ -901,6 +1055,38 @@ def call_literature_validate(symbol: str, context: list[str], top: int = 10) -> 
 
 # --------------------------- Reporting ---------------------------------------
 
+def summarize_favor(rows: list[dict], limit: int = 25) -> str:
+    """Render the FAVOR supplement as a table of the scores it exists to add.
+
+    The generic `_row_oneline` renderer stops at the first identifier field,
+    so a FAVOR section came out as a bare list of rsIDs — every annotation the
+    supplement was called for was written to the CSV and then hidden from the
+    report the model actually reads. These columns are the ones an answer
+    cites: deleteriousness (CADD), conservation (GERP), coding consequence,
+    and the ClinVar significance FAVOR carries.
+    """
+    if not rows:
+        return "_no FAVOR annotations returned_"
+    cols = [("rsid", "rsID"), ("variant_vcf", "variant"),
+            ("cadd_phred", "CADD"), ("gerp_s", "GERP"),
+            ("genecode_comprehensive_category", "region"),
+            ("genecode_comprehensive_exonic_category", "consequence"),
+            ("genecode_comprehensive_info", "gene"),
+            ("clnsig", "ClinVar")]
+    out = ["| " + " | ".join(label for _, label in cols) + " |",
+           "|" + "|".join("---" for _ in cols) + "|"]
+    for r in rows[:limit]:
+        cells = []
+        for key, _ in cols:
+            v = r.get(key)
+            v = "" if v is None else str(v).replace("_", " ").replace("|", "/")
+            cells.append(v[:48] or "-")
+        out.append("| " + " | ".join(cells) + " |")
+    if len(rows) > limit:
+        out.append(f"\n_… and {len(rows) - limit} more in the FAVOR manifest._")
+    return "\n".join(out)
+
+
 def summarize_relation(rows: list[dict]) -> str:
     if not rows:
         return "_no records returned_"
@@ -1040,7 +1226,7 @@ def render_gene_report(symbol: str, meta: dict, rels: dict[str, list[dict]],
     if favor_rows:
         lines += ["## FAVOR functional annotation (region)",
                    "",
-                   summarize_relation(favor_rows), ""]
+                   summarize_favor(favor_rows), ""]
     if singlecell_hits:
         lines += ["## IGVF single-cell datasets mentioning this gene", "",
                    "| Accession | Assay | Lab | Description |",
@@ -1338,13 +1524,16 @@ def cmd_variant(args: argparse.Namespace) -> Path:
 
     favor_rows: list[dict] = []
     if args.call_favor:
-        # Best-effort: parse SPDI -> region
-        m = re.match(r"NC_(\d+)\.\d+:(\d+):", vid)
-        if m:
-            chrom = f"chr{int(m.group(1))}"
-            pos = int(m.group(2))
-            favor_rows = favor_query_region(f"{chrom}:{pos-1}-{pos+1}",
-                                             max_variants=10)
+        # Catalog first: resolve the variant to its Catalog record (rsID or
+        # SPDI), then ask FAVOR about that one variant. The previous version
+        # rebuilt a +/-1bp window and swept it, which returned the neighbours
+        # as well and rendered "chr23" for NC_000023 (X).
+        vrecs = catalog_variants_for(vid, limit=1)
+        if not vrecs:
+            # Not in the Catalog: still address FAVOR directly, so an answer
+            # about a known variant is not lost to a Catalog gap.
+            vrecs = [{"_id": vid, "spdi": vid, "rsid": vid}]
+        favor_rows = favor_annotate_variants(vrecs, max_variants=1)
     literature: list[dict] = []
     if args.call_literature:
         literature = call_literature_validate(vid, args.literature_context or [],
@@ -1363,7 +1552,7 @@ def cmd_variant(args: argparse.Namespace) -> Path:
     for k, rows in rels.items():
         lines += [f"\n### {k} (sample)\n", summarize_relation(rows)]
     if favor_rows:
-        lines += ["\n## FAVOR\n", summarize_relation(favor_rows)]
+        lines += ["\n## FAVOR\n", summarize_favor(favor_rows)]
     if literature:
         lines += ["\n## Literature\n"]
         for r in literature[:10]:
@@ -1423,7 +1612,7 @@ def cmd_region(args: argparse.Namespace) -> Path:
     lines += ["\n## Linkage region predictions\n",
                summarize_relation(linkage.get("region_predictions", []))]
     if favor_rows:
-        lines += ["\n## FAVOR\n", summarize_relation(favor_rows)]
+        lines += ["\n## FAVOR\n", summarize_favor(favor_rows)]
     report = out_dir / f"region_{safe_label(region)}_report.md"
     report.write_text("\n".join(lines))
     print(f"Report: {report}")
@@ -1467,7 +1656,7 @@ def cmd_write_playbook(_args) -> Path:
         "python3 Scripts/kg_traversal_skill.py gene APOE \\",
         "    --depth 2 --limit 50 \\",
         "    --max-variants 25 --subvariant-limit 10 \\",
-        "    --call-favor --call-linkage --call-singlecell --call-literature \\",
+        "    --call-linkage --call-singlecell --call-literature \\",
         "    --literature-context Alzheimer cardiovascular \\",
         "    --label apoe_full",
         "```",
@@ -1486,10 +1675,12 @@ def cmd_write_playbook(_args) -> Path:
         "summary, QTL genes, phenotypes, biosamples (CRISPRi / MPRA), "
         "genomic-element overlaps, and prediction sets.",
         "",
-        "Optional side-calls:",
+        "Side-calls:",
         "",
-        "- `--call-favor` — pulls FAVOR functional annotations for the "
-        "gene region.",
+        "- FAVOR runs BY DEFAULT, after the Catalog: the Catalog decides which "
+        "variants are in the gene region, FAVOR then supplements each with "
+        "CADD / GERP / conservation / ClinVar. `--no-call-favor` opts out; "
+        "`--favor-max` caps how many variants are looked up.",
         "- `--call-linkage` — adds enhancer-gene linkage predictions for "
         "the gene region (rE2G / catalog regulatory-region links).",
         "- `--call-singlecell` — searches the IGVF Portal for single-cell "
@@ -1504,7 +1695,7 @@ def cmd_write_playbook(_args) -> Path:
         "",
         "```bash",
         "python3 Scripts/kg_traversal_skill.py variant rs429358 \\",
-        "    --call-favor --call-literature --label apoe_e4_variant",
+        "    --call-literature --label apoe_e4_variant",
         "```",
         "",
         "Variant ID accepted as rsID, SPDI, HGVS, or chr:pos:ref:alt where "
@@ -1514,12 +1705,12 @@ def cmd_write_playbook(_args) -> Path:
         "",
         "```bash",
         "python3 Scripts/kg_traversal_skill.py region chr19:44903000-44912000 \\",
-        "    --call-favor --label apoe_locus",
+        "    --label apoe_locus",
         "```",
         "",
         "Returns: genes overlapping the region, regulatory elements (cCREs) "
         "in the region, region-predictor enhancer-gene linkage rows, and "
-        "(optional) FAVOR variant annotations.",
+        "FAVOR annotations for the Catalog's variants in that window.",
         "",
         "### 4. `aql` — direct ArangoDB AQL pass-through",
         "",
@@ -1591,7 +1782,13 @@ def main() -> None:
     s.add_argument("--max-variants", type=int, default=25,
                     help="Cap on per-variant fan-out at depth>=2.")
     s.add_argument("--subvariant-limit", type=int, default=10)
-    s.add_argument("--call-favor", action="store_true")
+    # FAVOR is ON by default and runs AFTER the Catalog: the Catalog owns
+    # which variants are in scope, FAVOR supplements them with CADD /
+    # GERP / conservation / ClinVar. `--no-call-favor` opts out.
+    s.add_argument("--call-favor", dest="call_favor",
+                    action="store_true", default=True)
+    s.add_argument("--no-call-favor", dest="call_favor",
+                    action="store_false")
     s.add_argument("--favor-max", type=int, default=50)
     s.add_argument("--call-linkage", action="store_true")
     s.add_argument("--no-exhaustive-linkage", action="store_true",
@@ -1608,7 +1805,13 @@ def main() -> None:
     s = sub.add_parser("variant", help="Variant-centric traversal.")
     s.add_argument("variant")
     s.add_argument("--limit", type=int, default=25)
-    s.add_argument("--call-favor", action="store_true")
+    # FAVOR is ON by default and runs AFTER the Catalog: the Catalog owns
+    # which variants are in scope, FAVOR supplements them with CADD /
+    # GERP / conservation / ClinVar. `--no-call-favor` opts out.
+    s.add_argument("--call-favor", dest="call_favor",
+                    action="store_true", default=True)
+    s.add_argument("--no-call-favor", dest="call_favor",
+                    action="store_false")
     s.add_argument("--call-literature", action="store_true")
     s.add_argument("--literature-context", nargs="*", default=None)
     s.add_argument("--literature-top", type=int, default=10)
@@ -1618,7 +1821,13 @@ def main() -> None:
     s = sub.add_parser("region", help="Region-centric traversal.")
     s.add_argument("region", help="chr19:44903000-44912000")
     s.add_argument("--limit", type=int, default=50)
-    s.add_argument("--call-favor", action="store_true")
+    # FAVOR is ON by default and runs AFTER the Catalog: the Catalog owns
+    # which variants are in scope, FAVOR supplements them with CADD /
+    # GERP / conservation / ClinVar. `--no-call-favor` opts out.
+    s.add_argument("--call-favor", dest="call_favor",
+                    action="store_true", default=True)
+    s.add_argument("--no-call-favor", dest="call_favor",
+                    action="store_false")
     s.add_argument("--favor-max", type=int, default=100)
     s.add_argument("--label", default="")
     s.set_defaults(func=cmd_region)

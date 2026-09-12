@@ -561,8 +561,10 @@ _TOOLS: "list[Tool]" = [
         "kg_gene",
         "Comprehensive gene context from the IGVF Catalog KG: variants, "
         "transcripts, proteins, regulatory elements, diseases, pathways. "
-        "Default 'tell me about gene X' tool. Optional flags pull FAVOR, "
-        "enhancer-gene linkage, single-cell datasets, prior literature.",
+        "Default 'tell me about gene X' tool. The Catalog is queried first "
+        "and FAVOR then supplements its variants with CADD / GERP / "
+        "conservation / ClinVar; optional flags add enhancer-gene linkage, "
+        "single-cell datasets, prior literature.",
         {
             "type": "object",
             "properties": {
@@ -570,7 +572,11 @@ _TOOLS: "list[Tool]" = [
                 "depth":    {**_S_INTEGER, "default": 1,
                               "description": "1 = direct relations only; 2 = also fan out per variant."},
                 "limit":    {**_S_INTEGER, "default": 25},
-                "call_favor":      {**_S_BOOLEAN, "default": False},
+                "no_favor":        {**_S_BOOLEAN, "default": False,
+                    "description": "Skip the FAVOR supplement. FAVOR runs by "
+                        "default AFTER the IGVF Catalog and adds CADD / GERP / "
+                        "conservation / ClinVar to the variants the Catalog "
+                        "returned; set true to use Catalog data only."},
                 "call_linkage":    {**_S_BOOLEAN, "default": False},
                 "call_singlecell": {**_S_BOOLEAN, "default": False},
                 "call_literature": {**_S_BOOLEAN, "default": False},
@@ -584,18 +590,21 @@ _TOOLS: "list[Tool]" = [
         positional=["symbol"],
         flag_map={
             "depth": "--depth", "limit": "--limit",
+            "no_favor": "--no-call-favor",
             "literature_context": "--literature-context",
             "label": "--label",
         },
         flag_repeat={"literature_context"},
-        bool_flags={"call_favor", "call_linkage",
+        bool_flags={"no_favor", "call_linkage",
                      "call_singlecell", "call_literature"},
     ),
 
     _T(
         "kg_variant",
         "Variant-centric KG: linked genes, regulatory elements, "
-        "phenotypes, biosamples, predictions. Accepts rsID/SPDI/HGVS. "
+        "phenotypes, biosamples, predictions, plus a FAVOR supplement "
+        "(CADD / GERP / conservation / ClinVar) layered on the Catalog "
+        "record. Accepts rsID/SPDI/HGVS. "
         "Spans several Catalog collections, each with its own IGVF "
         "'method' vocabulary: variant->gene effects are 'Variant-EFFECTS', "
         "variant->phenotype functional calls are 'cV2F', and "
@@ -609,7 +618,11 @@ _TOOLS: "list[Tool]" = [
                 "variant": {**_S_STRING,
                     "description": "rsID (rs429358), SPDI (NC_000019.10:44908821:C:T), or HGVS"},
                 "limit":   {**_S_INTEGER, "default": 25},
-                "call_favor":      {**_S_BOOLEAN, "default": False},
+                "no_favor":        {**_S_BOOLEAN, "default": False,
+                    "description": "Skip the FAVOR supplement. FAVOR runs by "
+                        "default AFTER the IGVF Catalog and adds CADD / GERP / "
+                        "conservation / ClinVar to the variants the Catalog "
+                        "returned; set true to use Catalog data only."},
                 "call_literature": {**_S_BOOLEAN, "default": False},
                 "literature_context": {**_S_ARRAY_S},
                 "label": {**_S_STRING},
@@ -618,31 +631,37 @@ _TOOLS: "list[Tool]" = [
         },
         cli=["kg", "variant"],
         positional=["variant"],
-        flag_map={"limit": "--limit",
+        flag_map={"limit": "--limit", "no_favor": "--no-call-favor",
                    "literature_context": "--literature-context",
                    "label": "--label"},
         flag_repeat={"literature_context"},
-        bool_flags={"call_favor", "call_literature"},
+        bool_flags={"no_favor", "call_literature"},
     ),
 
     _T(
         "kg_region",
         "Region-centric KG: genes + cCREs + enhancer-gene linkage in "
-        "window. Format chr19:44903000-44912000.",
+        "window, plus FAVOR annotations for the Catalog's variants in "
+        "that window. Format chr19:44903000-44912000.",
         {
             "type": "object",
             "properties": {
                 "region": {**_S_STRING},
                 "limit":  {**_S_INTEGER, "default": 50},
-                "call_favor": {**_S_BOOLEAN, "default": False},
+                "no_favor":        {**_S_BOOLEAN, "default": False,
+                    "description": "Skip the FAVOR supplement. FAVOR runs by "
+                        "default AFTER the IGVF Catalog and adds CADD / GERP / "
+                        "conservation / ClinVar to the variants the Catalog "
+                        "returned; set true to use Catalog data only."},
                 "label":  {**_S_STRING},
             },
             "required": ["region"],
         },
         cli=["kg", "region"],
         positional=["region"],
-        flag_map={"limit": "--limit", "label": "--label"},
-        bool_flags={"call_favor"},
+        flag_map={"limit": "--limit", "label": "--label",
+                   "no_favor": "--no-call-favor"},
+        bool_flags={"no_favor"},
     ),
 
     _T(
@@ -4029,7 +4048,8 @@ _TOOLS: "list[Tool]" = [
             "label": {**_S_STRING},
         }},
         cli=["starrseq", "pull-portal"],
-        flag_map={"limit": "--limit", "label": "--label"},
+        flag_map={"limit": "--limit", "label": "--label",
+                   "no_favor": "--no-call-favor"},
     ),
     _T(
         "starr_qc",
@@ -4097,7 +4117,8 @@ _TOOLS: "list[Tool]" = [
             "label": {**_S_STRING},
         }},
         cli=["share", "pull-portal"],
-        flag_map={"limit": "--limit", "label": "--label"},
+        flag_map={"limit": "--limit", "label": "--label",
+                   "no_favor": "--no-call-favor"},
     ),
     _T(
         "share_demultiplex_bcs",
@@ -4211,7 +4232,8 @@ _TOOLS: "list[Tool]" = [
             "label": {**_S_STRING},
         }},
         cli=["flowfish", "pull-portal"],
-        flag_map={"limit": "--limit", "label": "--label"},
+        flag_map={"limit": "--limit", "label": "--label",
+                   "no_favor": "--no-call-favor"},
     ),
     _T(
         "flowfish_estimate_effects",
