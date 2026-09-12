@@ -449,12 +449,74 @@ def bean_gap(lib: dict, scr: dict) -> "list[str]":
                      "reject --guide-activity-col outright, so this tool's "
                      "log2_per_edit is the only activity-aware estimate "
                      "available on this data")
+    # Negative controls, separately from the columns above. BEAN calibrates
+    # its null on non-targeting guides, so a library without them yields
+    # posteriors with nothing to be posterior *to*. Measured on IGVF's
+    # 8,192-guide library (IGVFFI4591THXG): 6,371 `variant` + 1,821
+    # `positive control`, and ZERO non-targeting. This was not reported at
+    # all before, so a reader who solved the barcode problem would still have
+    # got uncalibrated numbers with no warning that they were uncalibrated.
+    # Guarded on types being KNOWN. An empty type map means the library was
+    # not typed, which is not evidence that controls are absent -- claiming a
+    # gap from missing metadata would be the same error this function exists
+    # to avoid.
+    types = {str(t).strip().lower() for t in (lib["index"].get("type") or {}).values()}
+    types = {t for t in types if t}
+    if types and not any(("negative" in t) or ("non-targeting" in t)
+                or ("nontargeting" in t) or t in ("neg", "ntc", "safe")
+                for t in types):
+        gaps.append("calibrated posteriors -- NOT OBTAINABLE from IGVF: the "
+                     "library labels no non-targeting/negative-control guides "
+                     f"(types present: {', '.join(sorted(types))}), "
+                     "and BEAN estimates its null from them. Effect sizes are "
+                     "still comparable between guides; their significance is "
+                     "not calibrated against anything")
     if not control_condition([condition_label(b["side"], b["pct"])
                                for b in scr["bins"]])[0]:
         gaps.append("BEAN's `run` model at all, for THIS screen -- it has no "
                      "unsorted/bulk bin to use as --control-condition; a "
                      "screen with one (e.g. IGVFDS5542IBUS) does run")
     return gaps
+
+
+def bean_route(lib: dict, scr: dict) -> "list[str]":
+    """Where the models blocked by `bean_gap` CAN be run, and how.
+
+    A list of absences gets summarised as a row of red crosses -- "needs
+    X_bcmatch" reads like a setting someone forgot, and the reader goes
+    looking for the flag that turns it on. There is no such flag: the guide
+    barcode was never deposited. What a reader actually needs is the route
+    that does work, stated next to the one that does not.
+    """
+    out = []
+    ok, detail = bean_available()
+    if not ok:
+        out.append(f"INSTALL FIRST: the `bean` binary is not runnable here "
+                    f"({detail}). Until it is, NO BEAN model runs on any data. "
+                    f"Fix: `IGVF_INSTALL_CRISPR_BEAN=1 bash Deploy/redeploy.sh` "
+                    f"(durable), or `bash Deploy/install-bean.sh` (this "
+                    f"container only, lost on the next redeploy)")
+    cols = {c["column"] for c in lib["index"]["candidates"]}
+    if "barcode" not in cols or "reporter" not in cols:
+        out.append("FOR THE FULL MODELS, use the paper's own deposit, not "
+                    "IGVF: Ryu et al. 2024 published Zenodo "
+                    "10.5281/zenodo.10139794, whose h5ad carries layers "
+                    "X_bcmatch/edit_rate/edits and obs columns "
+                    "Reporter/barcode -- exactly the fields IGVF omits. Run "
+                    "`bean_paper_benchmark` (subcommand `describe` first). "
+                    "Those files are already on this deployment under "
+                    "Data/Benchmarks/BEANpaper/")
+    n_bins = len(scr.get("bins") or [])
+    if n_bins > 1:
+        reps = sorted({str(b.get("rep")) for b in scr["bins"]})
+        sides = sorted({str(b.get("side")) for b in scr["bins"]})
+        out.append(f"THIS SCREEN IS NOT ONE ACCESSION: {n_bins} bins were "
+                    f"found (replicates {', '.join(reps)}; bins "
+                    f"{', '.join(sides)}). The sorting model reads all of "
+                    f"them together -- analysing a single accession measures "
+                    f"one tail of one replicate and cannot fit a sorting "
+                    f"distribution at all")
+    return out
 
 
 def bean_available() -> "tuple[bool, str]":
@@ -982,6 +1044,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "significant_fdr_0.05": sum(1 for r in rows if r["fdr"] < 0.05),
         "test": mod["test_basis"],
         "not_implemented": bean_gap(lib, scr),
+        # Emitted alongside the gaps, never instead of them. A reader who
+        # only sees absences concludes the analysis is impossible; these say
+        # which of it is, which is merely uninstalled, and where the rest of
+        # it does run.
+        "how_to_obtain": bean_route(lib, scr),
         "full_bean_pipeline": _bean_command(
             args.accession, lib["file"], editor, scr,
             "barcode" in {c["column"] for c in lib["index"]["candidates"]}),
@@ -1039,7 +1106,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     print()
     for k, v in summary.items():
-        if k in ("activity", "not_implemented", "full_bean_pipeline"):
+        if k in ("activity", "not_implemented", "how_to_obtain",
+                  "full_bean_pipeline"):
             continue
         print(f"  {k}: {v}")
     print(f"  activity: controls {asum['positive_controls']}")
@@ -1052,6 +1120,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     print("\n  NOT available here (and why):")
     for n in summary["not_implemented"]:
         print(f"    - {n}")
+    # Printed immediately after the absences, deliberately. Separated, the
+    # gap list gets quoted on its own and reads as "this analysis is
+    # impossible" -- which is true of two models on this data and false of
+    # the rest.
+    if summary.get("how_to_obtain"):
+        print("\n  HOW TO GET THE BLOCKED MODELS:")
+        for n in summary["how_to_obtain"]:
+            print(f"    - {n}")
     if (summary.get("bean_run") or {}).get("ran"):
         print("\n  Available via --run-bean, from BEAN itself:")
         print("    - variant/element-level aggregation: multiple guides -> "

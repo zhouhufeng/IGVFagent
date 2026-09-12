@@ -27,10 +27,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Scripts"))
 import raw_data_pipeline as rp  # noqa: E402
 
 FAILURES = []
+# Counted, not hand-summed. The footer used to print a literal
+# (21 + 10 + 17 + ...) maintained by hand, so nine checks added here left it
+# reading 107 unchanged -- a suite that under-reports its own size cannot be
+# used to tell whether new cases actually ran.
+RUN = []
 
 
 def check(name, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {name:56} {detail}")
+    RUN.append(name)
     if not ok:
         FAILURES.append(name)
 
@@ -310,6 +316,44 @@ check("but it still loses the barcode-dependent models",
 # the list must respond to the library, not restate a fixed paragraph.
 g3 = bes.bean_gap(_lib({"spacer", "reporter", "barcode"}), _scr(withbulk))
 check("a fully-published library reports no gaps at all", g3 == [])
+
+# Negative controls. BEAN estimates its null from non-targeting guides, so a
+# library without them yields posteriors with nothing to be posterior to.
+# IGVF's 8,192-guide library is 6,371 `variant` + 1,821 `positive control`
+# and zero non-targeting -- measured, not assumed.
+def _typed(cols, types):
+    d = _lib(cols)
+    d["index"]["type"] = {f"g{i}": t for i, t in enumerate(types)}
+    return d
+
+g4 = bes.bean_gap(_typed({"spacer", "reporter", "barcode"},
+                          ["variant"] * 3 + ["positive control"]), _scr(withbulk))
+check("a library with no non-targeting guides is told posteriors are uncalibrated",
+      any("calibrated posteriors" in x for x in g4))
+check("that gap says NOT OBTAINABLE, like the others",
+      all("NOT OBTAINABLE" in x for x in g4 if "calibrated posteriors" in x))
+g5 = bes.bean_gap(_typed({"spacer", "reporter", "barcode"},
+                          ["variant", "negative control"]), _scr(withbulk))
+check("a library that DOES label negative controls loses that gap", g5 == [])
+# An untyped library must not be accused of missing controls: absent metadata
+# is not evidence of absent guides, which is the error this list exists to
+# avoid making.
+check("an untyped library is not accused of missing controls",
+      not any("calibrated posteriors" in x for x in g3))
+
+# The route out must be reported next to the absences, or the gap list gets
+# quoted alone and reads as "this analysis is impossible".
+r = bes.bean_route(_lib({"spacer"}), _scr(withbulk))
+joined_r = " | ".join(r)
+check("the route names the paper deposit when the barcode is unpublished",
+      "zenodo" in joined_r.lower())
+check("the route points at bean_paper_benchmark",
+      "bean_paper_benchmark" in joined_r)
+check("a multi-bin screen is told it is not one accession",
+      any("NOT ONE ACCESSION" in x for x in r))
+r2 = bes.bean_route(_lib({"spacer", "reporter", "barcode"}), _scr(withbulk))
+check("a fully-published library is not sent to the paper deposit",
+      not any("zenodo" in x.lower() for x in r2))
 check("publishing a barcode alone removes the bcmatch gap",
       not any("bcmatch/semimatch" in x
               for x in bes.bean_gap(_lib({"spacer", "barcode"}), _scr(withbulk))))
@@ -427,5 +471,5 @@ check("credible intervals are drawn, not just points", "1.96 * r[\"sd\"]" in src
 check("controls come from the guide table's class column, not the name",
       "positive control" in src and "guide_type" in src)
 
-print(f"\n{21 + 10 + 17 + 11 + 13 + 14 + 6 + 15} cases, {len(FAILURES)} failure(s)")
+print(f"\n{len(RUN)} cases, {len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
