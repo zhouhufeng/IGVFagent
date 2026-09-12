@@ -33,7 +33,7 @@ import dataclasses
 import json
 import logging
 import os
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -291,8 +291,85 @@ def _sdk_has_sampling_kwargs() -> bool:
     return _SDK_SAMPLING_KWARGS
 
 
+# One Anthropic client per API key, not one per call. Building it inside
+# _chat_anthropic meant a fresh httpx pool — and so a fresh TLS handshake to
+# api.anthropic.com — on every iteration of the agent loop.
+_ANTHROPIC_CLIENTS: dict = {}
+
+
+def _anthropic_client(api_key: str):
+    import anthropic
+    client = _ANTHROPIC_CLIENTS.get(api_key)
+    if client is None:
+        client = anthropic.Anthropic(api_key=api_key)
+        _ANTHROPIC_CLIENTS[api_key] = client
+    return client
+
+
+# --------------------------- Anthropic prompt caching ------------------------
+#
+# The agent re-sends an identical prefix on every iteration of every turn: the
+# full tool catalogue (239 tools, ~45k tokens serialized) plus the system
+# prompt. Uncached, that prefix is re-read from cold on each of the 2-4 LLM
+# calls a single question costs, which is most of the wait before any text
+# appears and most of the bill.
+#
+# `canonical_tools` already guarantees the tool array is byte-identical across
+# calls, users and backends, which is exactly the stability a cache prefix
+# needs. Breakpoints, in the order Anthropic assembles the prompt
+# (tools -> system -> messages):
+#
+#   1. last tool      — the catalogue alone stays cached even if the system
+#                       prompt is overridden per run.
+#   2. system         — covers tools + system together.
+#   3. last message   — rolling, so the conversation built up over the loop's
+#                       iterations is reused too instead of re-read each time.
+#
+# Set IGVF_LLM_PROMPT_CACHE=0 to send the prefix uncached.
+_CACHE_CONTROL = {"type": "ephemeral"}
+
+
+def _prompt_cache_enabled() -> bool:
+    return os.environ.get("IGVF_LLM_PROMPT_CACHE",
+                           "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _mark_cache_breakpoint(blocks: "list[dict]") -> None:
+    """Put a cache breakpoint on the last block of ``blocks``, in place."""
+    if blocks and isinstance(blocks[-1], dict):
+        blocks[-1]["cache_control"] = dict(_CACHE_CONTROL)
+
+
+def _cacheable_system(system: Optional[str]) -> Any:
+    """System prompt as a cache-marked block list (it must be blocks, not a
+    bare string, to carry ``cache_control``)."""
+    if not system:
+        return system
+    return [{"type": "text", "text": system, "cache_control": dict(_CACHE_CONTROL)}]
+
+
+def _mark_last_message_cacheable(msgs: "list[dict]") -> None:
+    """Rolling breakpoint at the end of the conversation, in place.
+
+    Only string content is promoted to a block list here; content that is
+    already a block list gets the marker on its final block. A message whose
+    content is empty is left alone — an empty text block is a 400.
+    """
+    if not msgs:
+        return
+    last = msgs[-1]
+    content = last.get("content")
+    if isinstance(content, str):
+        if not content.strip():
+            return
+        last["content"] = [{"type": "text", "text": content,
+                             "cache_control": dict(_CACHE_CONTROL)}]
+    elif isinstance(content, list) and content:
+        _mark_cache_breakpoint(content)
+
+
 def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
-                     stop, **kwargs) -> Message:
+                     stop, on_text=None, **kwargs) -> Message:
     try:
         import anthropic
     except ImportError as e:
@@ -305,12 +382,15 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         raise RuntimeError(
             "ANTHROPIC_API_KEY not set in the environment."
         )
-    client = anthropic.Anthropic(api_key=api_key)
+    client = _anthropic_client(api_key)
     # Anthropic's Messages API has no `seed` param — strip it so the generic
     # kwargs passthrough below doesn't 400. (Determinism on Anthropic comes
     # from temperature 0 on models that still accept it.)
     kwargs.pop("seed", None)
     system, msgs = _to_anthropic_messages(messages)
+    cacheable = _prompt_cache_enabled()
+    if cacheable:
+        _mark_last_message_cacheable(msgs)
     payload: dict = {
         "model":       model,
         "messages":    msgs,
@@ -325,9 +405,12 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         for _p in ("top_p", "top_k"):
             kwargs.pop(_p, None)
     if system:
-        payload["system"] = system
+        payload["system"] = _cacheable_system(system) if cacheable else system
     if tools:
-        payload["tools"] = to_anthropic_tools(tools)
+        anth_tools = to_anthropic_tools(tools)
+        if cacheable:
+            _mark_cache_breakpoint(anth_tools)
+        payload["tools"] = anth_tools
     if stop:
         payload["stop_sequences"] = stop
     payload.update({k: v for k, v in kwargs.items() if v is not None})
@@ -347,8 +430,30 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         return [p for p in ("temperature", "top_p", "top_k")
                 if p in payload or p in eb]
 
+    def _create(pl: dict):
+        """Issue the request, streaming when the caller wants deltas.
+
+        Streaming is what puts text on the page while it is still being
+        generated. With max_tokens at 16384 the blocking form left the browser
+        on a spinner for the whole generation, which is most of what "the demo
+        is slow" actually was. `.stream()` accumulates into the same final
+        Message object, so nothing downstream changes shape.
+        """
+        if on_text is None:
+            return client.messages.create(**pl)
+        with client.messages.stream(**pl) as stream:
+            for chunk in stream.text_stream:
+                if chunk:
+                    try:
+                        on_text(chunk)
+                    except Exception:                       # noqa: BLE001
+                        # A rendering failure in the caller must not lose an
+                        # answer that is already half-generated.
+                        pass
+            return stream.get_final_message()
+
     try:
-        resp = client.messages.create(**payload)
+        resp = _create(payload)
     except anthropic.BadRequestError as e:
         # Self-heal for models newer than _NO_SAMPLING_PARAM_MODELS: the API
         # rejects removed sampling params with 400 ("<param> is deprecated
@@ -361,7 +466,7 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         for p in present:
             payload.pop(p, None)
             (payload.get("extra_body") or {}).pop(p, None)
-        resp = client.messages.create(**payload)
+        resp = _create(payload)
     text_parts: "list[str]" = []
     tool_calls: "list[ToolCall]" = []
     for block in (resp.content or []):
@@ -393,6 +498,13 @@ def _chat_anthropic(messages, *, model, tools, max_tokens, temperature,
         usage=getattr(resp, "usage", None) and {
             "input_tokens":  getattr(resp.usage, "input_tokens", 0),
             "output_tokens": getattr(resp.usage, "output_tokens", 0),
+            # Without these two a cache that silently stopped working looks
+            # exactly like one that works: same answer, same input_tokens
+            # field, 10x the bill.
+            "cache_write_tokens":
+                getattr(resp.usage, "cache_creation_input_tokens", 0) or 0,
+            "cache_read_tokens":
+                getattr(resp.usage, "cache_read_input_tokens", 0) or 0,
         },
     )
 
@@ -666,9 +778,13 @@ def chat(
     temperature: float = 0.0,
     stop: Optional["list[str]"] = None,
     seed: Optional[int] = None,
+    on_text: Optional[Callable[[str], None]] = None,
     **kwargs,
 ) -> Message:
     """Backend-neutral chat completion.
+
+    ``on_text`` receives text deltas as they are generated (Anthropic only for
+    now; other backends ignore it and return the finished message as before).
 
     Returns a :class:`Message` with normalized ``content``, ``tool_calls``,
     and ``stop_reason``. Raises ``RuntimeError`` if the resolved backend's
@@ -719,7 +835,8 @@ def chat(
     if bk == "anthropic":
         return _chat_anthropic(messages, model=chosen_model, tools=tools,
                                 max_tokens=max_tokens,
-                                temperature=temperature, stop=stop, **kwargs)
+                                temperature=temperature, stop=stop,
+                                on_text=on_text, **kwargs)
     if bk == "claude_cli":
         return _chat_claude_cli(messages, model=chosen_model, tools=tools,
                                   max_tokens=max_tokens,

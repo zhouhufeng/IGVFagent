@@ -99,6 +99,8 @@ class AgentEvent:
     ``kind`` is one of:
       * ``run_start``        — before the first LLM call
       * ``llm_call_start``   — about to call the LLM
+      * ``llm_text``         — one text delta, while the LLM is still
+                                generating (streaming backends only)
       * ``llm_call_end``     — LLM responded (text + any tool_calls)
       * ``tool_call_start``  — about to invoke a tool
       * ``tool_call_end``    — tool returned (exit code + artefact paths)
@@ -177,8 +179,12 @@ def _print_callback(event: AgentEvent) -> None:
             print(f"    -> text: {text_preview_str}")
         if p.get("usage"):
             u = p["usage"]
+            cache = ""
+            if u.get("cache_read_tokens") or u.get("cache_write_tokens"):
+                cache = (f" cache_read={u.get('cache_read_tokens',0)}"
+                         f" cache_write={u.get('cache_write_tokens',0)}")
             print(f"    [usage] in={u.get('input_tokens',0)} "
-                  f"out={u.get('output_tokens',0)}")
+                  f"out={u.get('output_tokens',0)}{cache}")
     elif k == "route":
         print(f"  ⇒ route[{p.get('shape')}] -> {p['tool']}"
               f"({_short_args(p.get('arguments'))})  [deterministic]")
@@ -711,6 +717,11 @@ def run(
                 messages=[{"role": "system", "content": sys_prompt}, *messages],
                 backend=backend, model=model, tools=tool_dicts,
                 max_tokens=max_tokens, temperature=temperature, seed=seed,
+                # Text deltas as they are generated. The UI paints these into
+                # the turn so the reader watches the answer arrive instead of
+                # a spinner that hides the whole generation.
+                on_text=lambda delta: _emit(callback, "llm_text",
+                                             {"delta": delta}),
             )
         except Exception as e:
             err_msg = str(e)
@@ -957,6 +968,10 @@ def run(
                           {"role": "user", "content": wrap_prompt}],
                 backend=backend, model=model, tools=None,
                 max_tokens=max_tokens, temperature=temperature, seed=seed,
+                # This call writes the answer the reader ends up with when the
+                # loop ran out of iterations, so it streams like the others.
+                on_text=lambda delta: _emit(callback, "llm_text",
+                                             {"delta": delta}),
             )
         except Exception as e:  # noqa: BLE001 — best-effort rescue
             _emit(callback, "error",

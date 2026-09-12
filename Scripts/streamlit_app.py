@@ -2146,6 +2146,10 @@ def _format_event_md(event: _agent.AgentEvent) -> str:
                 f"Results → Evaluation loop · backend `{p.get('backend')}`, "
                 f"model `{p.get('model')}`, {p.get('n_tools')} tools, "
                 f"max {p.get('max_iterations')} iters")
+    if k == "llm_text":
+        # Rendered live into its own placeholder, not as a status line — one
+        # line per token would swamp the event log.
+        return ""
     if k == "llm_call_start":
         return (f"🧠 **Plan step** (orchestrator) — iter {p['iteration']}/"
                 f"{p['max_iterations']}, {p['n_messages']} messages sent "
@@ -2607,8 +2611,22 @@ def main() -> None:
             st.warning(w)
         # Live event stream container
         status = st.status("Planning…", expanded=True)
+        # Where the model's own words land while it is still writing them.
+        live = st.empty()
+        live_buf: "list[str]" = []
 
         def cb(event: _agent.AgentEvent) -> None:
+            if event.kind == "llm_text":
+                live_buf.append(event.payload.get("delta") or "")
+                # Streamlit repaints the whole placeholder each call, so the
+                # cost is per delta, not per character accumulated.
+                live.markdown("".join(live_buf))
+                return
+            if event.kind in ("llm_call_start", "wrap_up_start"):
+                # A new plan step (or the wrap-up) supersedes the previous
+                # step's prose.
+                live_buf.clear()
+                live.empty()
             line = _format_event_md(event)
             if line:
                 status.write(line)
@@ -2679,6 +2697,11 @@ def main() -> None:
         # included end up as real widgets, not broken-image icons.
         # Whatever the stop reason, capture what was drawn inline so the
         # artefact panel below does not draw the same figures again.
+        # The streamed prose has served its purpose; the final answer is
+        # re-rendered below with image handling, so drop the live copy or the
+        # reader sees the same text twice.
+        live.empty()
+
         inline_rendered: "set" = set()
         if result.stop_reason == "complete_with_failures":
             n = getattr(result, "tool_calls_failed", 0)
