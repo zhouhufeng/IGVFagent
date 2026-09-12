@@ -959,6 +959,9 @@ def _sidebar() -> dict:
             st.caption("Ask something first — exports appear here.")
 
         st.divider()
+        _render_resource_panel(st)
+
+        st.divider()
         if st.button("🗑 Clear conversation", **fit(st.button)):
             st.session_state.messages = []
             st.rerun()
@@ -974,6 +977,74 @@ def _sidebar() -> dict:
         "kind":         kind,
         "loaded_ok":    bool(st.session_state.get("_loaded_status", {}).get("ok")),
     }
+
+
+
+def _render_resource_panel(st) -> None:
+    """Compute + token usage for this session.
+
+    Both halves answer the same question -- "what is this run costing?" -- so
+    they sit together. The compute half reads cgroup limits, not host stats:
+    in a container psutil reports the HOST's cores and memory, which would
+    show this app using a third of "available" RAM when against its own 22 GB
+    cap it is using half. The token half is accumulated from the usage each
+    LLM call reports, which is the only place cache hits are visible.
+    """
+    with st.expander("⚙️ Compute & usage", expanded=False):
+        # A diagnostics panel must never be able to take the sidebar down
+        # with it: every reading here is best-effort, and the app is still
+        # usable with none of them.
+        try:
+            import _resources as _res
+            snap = _res.snapshot(str(_PROJECT_ROOT / "Data"))
+        except Exception as e:                              # noqa: BLE001
+            st.caption(f"Resource readings unavailable ({type(e).__name__}).")
+            snap = {}
+
+        cpu = snap.get("cpu_percent")
+        lim = snap.get("cpu_limit")
+        if cpu is not None:
+            st.progress(min(cpu / 100.0, 1.0),
+                        text=f"CPU {cpu:.0f}% of {lim:g} cores")
+        elif lim:
+            # First reading has no interval to difference against.
+            st.caption(f"CPU — {lim:g} cores allocated (sampling…)")
+
+        mu, ml, mp = (snap.get("mem_used_gb"), snap.get("mem_limit_gb"),
+                      snap.get("mem_percent"))
+        if mu is not None and ml:
+            st.progress(min(mp / 100.0, 1.0),
+                        text=f"RAM {mu:.1f} / {ml:.0f} GB ({mp:.0f}%)")
+
+        df, dt = snap.get("disk_free_gb"), snap.get("disk_total_gb")
+        if df is not None and dt:
+            st.progress(min(snap["disk_percent"] / 100.0, 1.0),
+                        text=f"Disk {df:,.0f} GB free of {dt:,.0f} GB")
+            st.caption(f"Largest download that fits: ~{df * 0.85:,.0f} GB")
+
+        tok = st.session_state.get("_token_usage") or {}
+        if tok.get("calls"):
+            inp = tok.get("input", 0)
+            out = tok.get("output", 0)
+            cr = tok.get("cache_read", 0)
+            cw = tok.get("cache_write", 0)
+            billed = inp + cw
+            st.markdown(
+                f"**Tokens this session** ({tok['calls']} LLM calls)  \n"
+                f"in {inp:,} · out {out:,}  \n"
+                f"cache read {cr:,} · written {cw:,}"
+            )
+            # Cache reads are the tokens NOT re-read at full price. Without
+            # this line a working cache and a silently broken one look
+            # identical from the UI.
+            if cr + billed:
+                st.caption(f"{100.0 * cr / (cr + billed):.0f}% of input served "
+                            f"from cache")
+        else:
+            st.caption("Tokens — ask something to start counting.")
+
+        if snap.get("source") == "psutil":
+            st.caption("_Host figures (no container limits detected)._")
 
 
 # --------------------------- Artefact rendering ----------------------------
@@ -2623,6 +2694,21 @@ def main() -> None:
                 # cost is per delta, not per character accumulated.
                 live.markdown("".join(live_buf))
                 return
+            # Token accounting. usage arrives on llm_call_end / wrap_up_end;
+            # nothing else in the UI sees it, and without the cache fields a
+            # cache that silently stopped working is indistinguishable from
+            # one that works apart from the bill.
+            if event.kind in ("llm_call_end", "wrap_up_end"):
+                u = event.payload.get("usage") or {}
+                if u:
+                    acc = st.session_state.setdefault(
+                        "_token_usage", {"calls": 0, "input": 0, "output": 0,
+                                          "cache_read": 0, "cache_write": 0})
+                    acc["calls"] += 1
+                    acc["input"] += u.get("input_tokens", 0) or 0
+                    acc["output"] += u.get("output_tokens", 0) or 0
+                    acc["cache_read"] += u.get("cache_read_tokens", 0) or 0
+                    acc["cache_write"] += u.get("cache_write_tokens", 0) or 0
             if event.kind in ("llm_call_start", "wrap_up_start"):
                 # A new plan step (or the wrap-up) supersedes the previous
                 # step's prose.
