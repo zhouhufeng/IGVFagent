@@ -852,9 +852,10 @@ def _sidebar() -> dict:
             if blurb:
                 st.caption(blurb)
             st.caption(
-                "Running on the IGVF team's API key — no key needed. Install "
-                "IGVFagent locally to use another backend, including free "
-                "local models via Ollama."
+                "**Hosted IGVF Agent** — online service; API costs covered "
+                "by the Lin Lab  \n"
+                "**Local IGVF Agent** — install and run with your own API "
+                "keys, or entirely free with local open-weight models"
             )
             # Downstream (the active-model banner in main()) branches on this;
             # the public path never runs the radio that would otherwise set it.
