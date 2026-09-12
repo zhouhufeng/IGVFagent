@@ -46,6 +46,10 @@ from typing import Any, Iterable
 # Resolve service endpoints via the shared helper (kept out of source).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint  # type: ignore  # noqa: E402
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 
 # ---------------------------------------------------------------------------
 # Paths and endpoints
@@ -1462,7 +1466,7 @@ def main(argv: list[str] | None = None) -> int:
                       help="Comma-separated kinds (matrix_rna,matrix_atac,fragments,annotations,…)")
     s_dl.add_argument("--pattern", default=None,
                       help="Case-insensitive regex applied to filename + URL.")
-    s_dl.add_argument("--max-download-gb", type=float, default=5.0)
+    s_dl.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB)
     s_dl.add_argument("--dry-run", action="store_true")
 
     sub.add_parser("inventory", help="Scan Data/MultiomeSurvey and emit inventory CSV.")

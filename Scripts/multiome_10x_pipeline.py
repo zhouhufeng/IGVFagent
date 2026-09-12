@@ -42,6 +42,10 @@ DOWNLOAD_DIR = DATA_DIR / "IGVF" / "10xMultiome" / "Downloads"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 
 PORTAL_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
 PORTAL_PUBLIC_BASE = _resolve_endpoint("portal", "IGVF_PORTAL_PUBLIC_BASE")
@@ -881,7 +885,7 @@ def main(argv: list[str] | None = None) -> int:
         default="none",
         help="Optional file payload download policy.",
     )
-    retrieve.add_argument("--max-download-gb", type=float, default=2.0, help="Maximum total payload download size.")
+    retrieve.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB, help="Maximum total payload download size.")
 
     process = subparsers.add_parser("process-local", help="Process downloaded 10x multiome payload manifests.")
     process.add_argument("--file-manifest", required=True, type=Path)

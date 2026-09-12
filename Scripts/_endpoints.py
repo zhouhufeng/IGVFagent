@@ -24,6 +24,51 @@ try:
 except Exception:  # pragma: no cover
     pass
 
+# --------------------------- Download budget --------------------------------
+#
+# One default, in one place, because it was previously a literal repeated
+# across ten skills at 0.3, 1, 2, 2, 2, 5, 5, 20, 20 and 100 GB. A 2 GB cap is
+# below the size of a single ordinary FASTQ -- one read pair of a modern run
+# is routinely 10-50 GB -- so the pipelines that matter refused real data by
+# default and the number a caller hit depended on which skill it happened to
+# enter through.
+#
+# This is a GUARD, not a sampling limit: every caller that reaches it either
+# refuses before transferring or deletes the partial file and raises. Nothing
+# silently keeps a truncated FASTQ, which would be far worse than refusing.
+#
+# Override per-run with --max-download-gb, or globally with
+# IGVF_MAX_DOWNLOAD_GB. The real constraint is free disk, which
+# `free_disk_gb` reports so callers can check the actual limit rather than an
+# arbitrary constant.
+_DEFAULT_MAX_DOWNLOAD_GB = 200.0
+
+
+def max_download_gb(default: Optional[float] = None) -> float:
+    """Default transfer ceiling in GB (IGVF_MAX_DOWNLOAD_GB, else 200)."""
+    raw = os.environ.get("IGVF_MAX_DOWNLOAD_GB", "").strip()
+    if raw:
+        try:
+            v = float(raw)
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+    return float(default) if default is not None else _DEFAULT_MAX_DOWNLOAD_GB
+
+
+def free_disk_gb(path: "str | Path") -> float:
+    """Free space in GB at ``path`` (nearest existing parent)."""
+    import shutil
+    p = Path(path)
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        return shutil.disk_usage(str(p)).free / 1e9
+    except OSError:
+        return float("inf")
+
+
 _DEFAULTS = {
     "portal":       "68747470733a2f2f646174612e696776662e6f7267",
     "portal_api":   "68747470733a2f2f6170692e646174612e696776662e6f7267",

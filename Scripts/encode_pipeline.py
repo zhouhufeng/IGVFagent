@@ -67,6 +67,10 @@ from typing import Any, Iterable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint, host as _resolve_host
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 
 ROOT = Path(
     os.environ.get("IGVF_PROJECT_ROOT")
@@ -2731,7 +2735,7 @@ def main() -> None:
     s = sub.add_parser("download",
                         help="Download files referenced by a manifest.")
     s.add_argument("--manifest", required=True)
-    s.add_argument("--max-download-gb", type=float, default=2.0)
+    s.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB)
     s.add_argument("--only", nargs="*", default=None,
                     help="Filter by output_type substrings.")
     s.add_argument("--formats", nargs="*", default=None,

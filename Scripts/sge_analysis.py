@@ -43,6 +43,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 import raw_data_pipeline as rp                                # noqa: E402
 
 ROOT = rp.ROOT
@@ -586,7 +590,7 @@ def build_parser() -> argparse.ArgumentParser:
                                           "Inferred from the set alias if omitted.")
         sp.add_argument("--max-reads", type=int, default=None,
                          help="Cap reads per FASTQ (for a quick look).")
-        sp.add_argument("--max-download-gb", type=float, default=20.0)
+        sp.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB)
         sp.add_argument("--min-count", type=int, default=5)
         sp.add_argument("--label")
         return sp

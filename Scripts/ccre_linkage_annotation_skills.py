@@ -58,6 +58,10 @@ PLOT_DIR = REPORT_DIR / "Plots"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint, host as _resolve_host
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 
 SCREEN_DOWNLOAD_PAGES = [
     f"{_resolve_endpoint('screen')}/downloads",
@@ -1431,7 +1435,7 @@ def main(argv: list[str] | None = None) -> int:
     screen_download.add_argument("--manifest", default="", help="SCREEN manifest CSV. Defaults to latest.")
     screen_download.add_argument("--only", default="", help="Comma-separated label/category substrings to download.")
     screen_download.add_argument("--download", action="store_true", help="Actually download files.")
-    screen_download.add_argument("--max-download-gb", type=float, default=1.0)
+    screen_download.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB)
 
     linkage_manifest = subparsers.add_parser("linkage-manifest", help="Discover rE2G, single-cell, and Catalog linkage metadata.")
     linkage_manifest.add_argument("--source", choices=["encode", "portal", "catalog", "all"], default="all")

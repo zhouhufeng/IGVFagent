@@ -56,6 +56,11 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint          # noqa: E402
+from _endpoints import free_disk_gb as _free_disk_gb
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 from _credentials import portal_credentials as _portal_credentials  # noqa: E402
 import _assays as _A                                          # noqa: E402
 
@@ -1484,6 +1489,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                   f"--max-download-gb {args.max_download_gb}. Nothing was "
                   f"downloaded. Raise the cap to proceed.")
             return 4
+        _msg = _disk_check(inv["read_gb"], FASTQ_CACHE)
+        if _msg:
+            print(_msg)
+            return 4
 
         if args.index and args.t2g:
             index, t2g, refcmd = Path(args.index), Path(args.t2g), []
@@ -1701,6 +1710,27 @@ JOB_DIR = RUN_DIR / "_jobs"
 # change, so the second run of a dataset should not re-fetch 45 GB -- and,
 # before this, a per-run directory also meant a second copy of it on disk.
 FASTQ_CACHE = RUN_DIR / "_fastq"
+
+def _disk_check(need_gb: float, dest) -> "str | None":
+    """Refuse a transfer that will not fit. Returns a message, or None.
+
+    The size cap is a policy choice; free disk is the physical limit, and it
+    is the one that fails HALF WAY THROUGH -- after an hour of transfer, with
+    a partial FASTQ on disk. Checking it up front costs nothing. 15% headroom
+    because the aligner writes its index and intermediates alongside the
+    reads.
+    """
+    try:
+        free = _free_disk_gb(dest)
+    except Exception:                                       # noqa: BLE001
+        return None
+    if need_gb and free < need_gb * 1.15:
+        return (f"STOPPING: {need_gb:.1f} GB of reads needs ~{need_gb * 1.15:.1f} GB "
+                f"with working room, but only {free:.1f} GB is free at {dest}. "
+                f"Nothing was downloaded.")
+    return None
+
+
 # Completed runs, keyed by what actually determines the output, so a repeat
 # of the same analysis can hand back the matrix instead of recomputing it.
 RESULT_INDEX = RUN_DIR / "_results.json"
@@ -1994,6 +2024,10 @@ def cmd_guide_count(args: argparse.Namespace) -> int:
         print(f"Reads total {total_gb} GB, over --max-download-gb "
               f"{args.max_download_gb}. Nothing downloaded.")
         return 4
+    _msg = _disk_check(total_gb, FASTQ_CACHE)
+    if _msg:
+        print(_msg)
+        return 4
     FASTQ_CACHE.mkdir(parents=True, exist_ok=True)
     local = []
     for f in files:
@@ -2138,7 +2172,7 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Prebuilt kb reference to use (default: human).")
         sp.add_argument("--force-align", action="store_true",
                          help="Align the reads even if a published matrix exists.")
-        sp.add_argument("--max-download-gb", type=float, default=100.0,
+        sp.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB,
                          help="Refuse to download more than this (default 100).")
         return sp
 
@@ -2170,7 +2204,7 @@ def build_parser() -> argparse.ArgumentParser:
                               "library.")
     gc.add_argument("accession")
     gc.add_argument("--max-reads", type=int, default=None)
-    gc.add_argument("--max-download-gb", type=float, default=20.0)
+    gc.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB)
     gc.add_argument("--calibrate-reads", type=int, default=20000,
                      help="Reads sampled to choose the counting key.")
     gc.add_argument("--label")

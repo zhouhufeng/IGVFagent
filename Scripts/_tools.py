@@ -2405,7 +2405,9 @@ _TOOLS: "list[Tool]" = [
                     "description": "Subset of [matrix, suppl, soft]."},
                 "pattern": {**_S_STRING,
                     "description": "Case-insensitive regex over filenames."},
-                "max_download_gb": {"type": "number", "default": 1.0},
+                "max_download_gb": {"type": "number", "default": 200.0,
+                    "description": "Transfer ceiling in GB (guard, not a "
+                        "sampling limit)."},
             },
             "required": ["gse"],
         },
@@ -5603,7 +5605,7 @@ _TOOLS: "list[Tool]" = [
                 "reference":       {**_S_STRING, "default": "human",
                                      "description":
                                      "Prebuilt kb reference (human, mouse)."},
-                "max_download_gb": {**_S_NUMBER, "default": 100,
+                "max_download_gb": {**_S_NUMBER, "default": 200,
                                      "description":
                                      "Refuse to transfer more than this."},
                 "label":           {**_S_STRING},
@@ -5707,7 +5709,10 @@ _TOOLS: "list[Tool]" = [
                                      "reads (IGVFDS...)."},
                 "max_reads":       {**_S_INTEGER, "description":
                                      "Cap reads for a quick look."},
-                "max_download_gb": {**_S_NUMBER, "default": 20},
+                "max_download_gb": {**_S_NUMBER, "default": 200,
+                    "description": "Transfer ceiling in GB. A guard, not a "
+                        "sampling limit: over it the run refuses rather than "
+                        "keeping a partial file. Raise it for large runs."},
                 "label":           {**_S_STRING},
             },
             "required": ["accession"],
