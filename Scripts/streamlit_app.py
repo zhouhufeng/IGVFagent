@@ -1637,38 +1637,64 @@ def _expand_artefact_dirs(paths: "list[str]") -> "list[str]":
     return out
 
 
-def _render_artefacts(paths: "list[str]") -> None:
+def _artefacts_to_show(paths: "list[str]",
+                        already_rendered: "Optional[set]" = None) -> "list[str]":
+    """The artefacts that will actually be drawn: expanded, deduped, and
+    minus anything the answer already rendered inline.
+
+    Separate from _render_artefacts so the panel's header count and its
+    contents cannot disagree -- counting the raw list would show
+    "Artefacts (3)" above a panel that draws one, or none.
+    """
+    out = _expand_artefact_dirs(paths)
+    seen: "set[Path]" = set()
+    for r in (already_rendered or set()):
+        k = _norm_path(str(r))
+        if k is not None:
+            seen.add(k)
+    kept: "list[str]" = []
+    for q in out:
+        key = _norm_path(q)
+        if key is None:
+            key = Path(q)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(q)
+    return kept
+
+
+def _render_artefacts(paths: "list[str]",
+                       already_rendered: "Optional[set]" = None) -> None:
+    """Render a run's artefacts, skipping any the answer already showed.
+
+    THE DUPLICATION THIS CLOSES. Two different renderers run over the same
+    turn: _render_markdown_with_images draws figures the answer cites with
+    ![](...) syntax, and this draws the run's declared artefacts. A run that
+    both writes a figure and mentions it -- the normal shape -- therefore drew
+    it twice, once inline and once in the Artefacts panel.
+
+    The mechanism to prevent it already existed:
+    _render_markdown_with_images RETURNS the resolved paths it rendered,
+    documented as being "so callers can dedup against their own linked
+    artefacts list". Every chat call site discarded that return value. They
+    now pass it here.
+    """
     if not paths:
         return
 
     # Turn announced directories into the files inside them, so a run's
     # figures render instead of a folder icon the user cannot open.
-    paths = _expand_artefact_dirs(paths)
+    paths = _artefacts_to_show(paths, already_rendered)
+    if not paths:
+        return
 
+    # (Historical note, kept because it is the reason the helper above exists.)
     # Dedupe AFTER expansion, on the resolved path, keeping first-seen order.
-    #
-    # Both halves of that matter. Deduping BEFORE expansion cannot see that a
-    # directory and a file inside it are the same artefact: a run announcing
-    # "Output: <run dir>" and "Report: <run dir>/report.md" -- which is the
-    # normal shape -- expands the directory to report.md and then lists the
-    # file again. And comparing raw STRINGS misses it even then, because
-    # _collect_run_artefacts stores relative paths while _expand_artefact_dirs
-    # emits absolute ones, so "Docs/x/report.md" and
-    # "/workspace/Docs/x/report.md" are two entries for one file. That is the
-    # duplication reported in the Artefacts panel, still present after the
-    # earlier normalisation fix because that fix ran on the wrong side of the
-    # expansion.
-    seen: "set[Path]" = set()
-    deduped: "list[str]" = []
-    for p in paths:
-        key = _norm_path(p)
-        if key is None:
-            key = Path(p)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(p)
-    paths = deduped
+    # Deduping BEFORE expansion cannot see that a directory and a file inside
+    # it are the same artefact, and comparing raw STRINGS misses it anyway
+    # because the collector stores relative paths while the expander emits
+    # absolute ones. Both of those were real bugs here.
 
     images, svgs, markdowns, tabular, jsonl_files, jsons, pdfs, others = (
         [], [], [], [], [], [], [], []
@@ -2444,10 +2470,11 @@ def main() -> None:
         # Replay prior conversation
         for entry in st.session_state.messages:
             with st.chat_message(entry["role"]):
-                _render_markdown_with_images(entry.get("content", ""),
-                                              base_dir=_PROJECT_ROOT)
+                _inline = _render_markdown_with_images(
+                    entry.get("content", ""), base_dir=_PROJECT_ROOT)
                 if entry.get("artefacts"):
-                    _render_artefacts(entry["artefacts"])
+                    _render_artefacts(entry["artefacts"],
+                                       already_rendered=_inline)
                 if entry.get("meta"):
                     st.caption(entry["meta"])
 
@@ -2650,19 +2677,22 @@ def main() -> None:
         # the message is impossible to miss; otherwise render markdown
         # with image-aware chunking so any `![alt](path)` refs the LLM
         # included end up as real widgets, not broken-image icons.
+        # Whatever the stop reason, capture what was drawn inline so the
+        # artefact panel below does not draw the same figures again.
+        inline_rendered: "set" = set()
         if result.stop_reason == "complete_with_failures":
             n = getattr(result, "tool_calls_failed", 0)
             st.error(f"{n} tool call(s) did not succeed — this answer is "
                       f"incomplete. The failures are listed at the top of it.")
-            _render_markdown_with_images(result.final_answer,
-                                          base_dir=_PROJECT_ROOT)
+            inline_rendered = _render_markdown_with_images(
+                result.final_answer, base_dir=_PROJECT_ROOT)
         elif result.stop_reason != "complete" and result.final_answer:
             st.error("Agent run ended before completion. See details below.")
-            _render_markdown_with_images(result.final_answer,
-                                          base_dir=_PROJECT_ROOT)
+            inline_rendered = _render_markdown_with_images(
+                result.final_answer, base_dir=_PROJECT_ROOT)
         elif result.final_answer:
-            _render_markdown_with_images(result.final_answer,
-                                          base_dir=_PROJECT_ROOT)
+            inline_rendered = _render_markdown_with_images(
+                result.final_answer, base_dir=_PROJECT_ROOT)
         else:
             st.warning("_The agent finished without producing a final answer._")
 
@@ -2676,10 +2706,11 @@ def main() -> None:
         # entries for a six-gene query, including APOE, TP53 and BRCA1.
         artefacts = _collect_run_artefacts(list(result.artefacts or []),
                                             result.final_answer or "")
-        if artefacts:
-            with st.expander(f"📁 Artefacts ({len(artefacts)})",
-                             expanded=True):
-                _render_artefacts(artefacts)
+        shown = _artefacts_to_show(artefacts, inline_rendered)
+        if shown:
+            with st.expander(f"📁 Artefacts ({len(shown)})", expanded=True):
+                _render_artefacts(artefacts,
+                                   already_rendered=inline_rendered)
 
         meta_caption = (
             (f"**{getattr(result, 'tool_calls_failed', 0)} failed**  ·  "
