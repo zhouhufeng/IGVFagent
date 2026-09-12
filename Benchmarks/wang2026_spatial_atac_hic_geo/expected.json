@@ -1,0 +1,226 @@
+{
+  "paper": {
+    "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues.",
+    "authors": "Wang P, Wang J, Wang Q, Youngblood MW, Cheng Y, Tao B, Wong JH, Luan Y, Yu S, Swaroop A, Nandoliya KR, Najem H, Fu Y, McCortney K, Zhang D, Diao Y, Heimberger AB, Sonabend AM, Horbinski CM, Fan R, Yue F.",
+    "journal": "Nature methods",
+    "year": 2026,
+    "doi": "10.1038/s41592-026-03217-4",
+    "pmid": "42680843",
+    "pmcid": null
+  },
+  "generated_by": {
+    "tool": "igvfagent bench scaffold",
+    "generated_at": "2026-09-12 14:00:13 EDT",
+    "route": "spatial_atac_hic",
+    "resolver_confidence": 1.0,
+    "fulltext_source": null,
+    "review_required": true
+  },
+  "data_source": {
+    "type": "geo_series",
+    "accession": "GSE307620",
+    "note": "Series ships per-sample GSM*.fragments.tsv.gz plus GSE307620_RAW.tar (9.9 GB). `spatial-hic pull-geo` inventories it without downloading; stage one sample before the analysis legs. NOTE: this paper is closed-access, so `bench harvest` sees only title+abstract and cannot lift the accession itself -- GSE307620 is set here by hand from the Data availability statement.",
+    "related": {
+      "biccn_snatac": "GSE246791",
+      "snm3c_mouse_brain": "assets.nemoarchive.org/dat-sig83t9",
+      "code": "https://github.com/wangjuan001/Spatial-ATAC-Hi-C"
+    }
+  },
+  "skill_output_dir": "SpatialATACHiC",
+  "label": "wang2026_spatial_atac_hic_geo",
+  "primary_artefact": "qc_summary.json",
+  "checks": [
+    {
+      "name": "GEO deposit GSE307620 inventoried",
+      "type": "artefact",
+      "filename": "geo_files.tsv",
+      "source": "Data availability: 'available from the Gene Expression Omnibus under accession number GSE307620'"
+    },
+    {
+      "name": "spatial grid is 50 x 50 = 2,500 tissue pixels",
+      "type": "range",
+      "path": "grid_capacity",
+      "min": 2500,
+      "max": 2500,
+      "artefact": "demux_summary.json",
+      "source": "Results: 'a two-dimensional grid of spatially barcoded tissue pixels (n = 2,500)'"
+    },
+    {
+      "name": "most reads carry a resolvable pixel barcode",
+      "type": "range",
+      "path": "assigned_fraction",
+      "min": 0.5,
+      "max": 1.0,
+      "artefact": "demux_summary.json",
+      "source": "Barcodes A1-A50 x B1-B50 via microfluidic channels. Near-zero means the A/B layout is reversed; retry with layout 'AB'."
+    },
+    {
+      "name": "per-pixel QC written",
+      "type": "artefact",
+      "filename": "qc_summary.json",
+      "source": "Fig. 1e-g"
+    },
+    {
+      "name": "median total contacts per pixel within the published range",
+      "type": "range",
+      "path": "median_total_contacts",
+      "min": 25343,
+      "max": 58403,
+      "source": "Results: 'we achieved medians of 25,343-58,403 total contacts per pixel' (Fig. 1e, Supplementary Table 4)"
+    },
+    {
+      "name": "median intra-chromosomal (cis) fraction within the published range",
+      "type": "range",
+      "path": "median_cis_fraction",
+      "min": 0.881,
+      "max": 0.903,
+      "source": "Results: 'Among the total contacts, 88.1-90.3% were intra-chromosomal' (Extended Data Fig. 4c)"
+    },
+    {
+      "name": "median long-range (>=10 kb) ratio within the published range",
+      "type": "range",
+      "path": "median_long_range_ratio",
+      "min": 0.24,
+      "max": 0.333,
+      "source": "Results: '24-33.3% were long-range interactions (>10 kb)' (Fig. 1f). The Fig. 1f caption defines this as long-range over unique intra-chromosomal contacts."
+    },
+    {
+      "name": "gene activity score matrix (ATAC) written",
+      "type": "artefact",
+      "filename": "gas_summary.json",
+      "source": "Methods: GAS counts Tn5 insertions over gene body + 2 kb upstream of the TSS (Fig. 2b)"
+    },
+    {
+      "name": "gene-associated domain score matrix (Hi-C) written",
+      "type": "artefact",
+      "filename": "gad_summary.json",
+      "source": "Methods: the GAD score measures contact strength across each gene body (Fig. 2a)"
+    },
+    {
+      "name": "A/B compartments called at 100 kb",
+      "type": "range",
+      "path": "resolution",
+      "min": 100000,
+      "max": 100000,
+      "artefact": "compartment_summary.json",
+      "source": "Methods: 'Single-pixel A/B compartments were inferred ... at 100-kb resolution'"
+    },
+    {
+      "name": "per-pixel CNV called at 5 Mb",
+      "type": "range",
+      "path": "resolution",
+      "min": 5000000,
+      "max": 5000000,
+      "artefact": "cnv_summary.json",
+      "source": "Methods: 'For each single pixel, the CN ratio at 5-Mb resolution was estimated'"
+    },
+    {
+      "name": "CNV baseline is diploid",
+      "type": "range",
+      "path": "ploidy",
+      "min": 2,
+      "max": 2,
+      "artefact": "cnv_summary.json",
+      "source": "Methods: 'All samples ... were assumed to be diploid and the CN ratio here means the copy number divided by two copies.'"
+    },
+    {
+      "name": "median unique ATAC fragments per pixel 34,596-90,465",
+      "type": "range",
+      "path": "median_counts_per_pixel",
+      "min": 34596,
+      "max": 90465,
+      "artefact": "gas_summary.json",
+      "confirmed": false,
+      "provenance": "Results: 'the median unique fragments per pixel ranged from 34,596 to 90,465' (Extended Data Fig. 4g). UNSCORED: gas_summary counts Tn5 insertions over gene models, a different denominator from unique genome-wide fragments."
+    },
+    {
+      "name": "mouse R6 cell-type-specific loops: 268 excitatory / 556 inhibitory / 41 non-neuronal",
+      "type": "range",
+      "path": "n_cluster_specific_loops",
+      "min": 865,
+      "max": 865,
+      "artefact": "loops_summary.json",
+      "confirmed": false,
+      "provenance": "Results (Fig. 3i, Supplementary Table 9). UNSCORED: `spatial-hic loops` does not call loops de novo -- the paper used Peakachu at 10 kb -- and needs a pixel->cluster table the chain does not produce."
+    },
+    {
+      "name": "mouse R8 cell-type-specific loops: 1,688 / 243 / 17",
+      "type": "range",
+      "path": "n_cluster_specific_loops",
+      "min": 1948,
+      "max": 1948,
+      "artefact": "loops_summary.json",
+      "confirmed": false,
+      "provenance": "Results (Extended Data Fig. 6e,f). Same dependency as the R6 loop check."
+    },
+    {
+      "name": "1,683 cell-type-specific A/B compartment regions; 765 with PCC > 0.3",
+      "type": "range",
+      "path": "n_differential_regions",
+      "min": 1683,
+      "max": 1683,
+      "artefact": "compartment_summary.json",
+      "confirmed": false,
+      "provenance": "Results (Fig. 3a). UNSCORED: differential testing used ArchR imputeMatrix + FindAllMarkers, which the chain does not run."
+    },
+    {
+      "name": "915 cell-type-specific genes and 1,006 open chromatin regions (mouse R6)",
+      "type": "range",
+      "path": "n_marker_genes",
+      "min": 915,
+      "max": 915,
+      "artefact": "gas_summary.json",
+      "confirmed": false,
+      "provenance": "Results (Fig. 2h, Supplementary Fig. 1c, Supplementary Table 6). UNSCORED: requires Seurat clustering plus differential activity testing."
+    },
+    {
+      "name": "16 major cell-type identities transferred from the BICCN atlas (mouse R8)",
+      "type": "range",
+      "path": "n_cell_types",
+      "min": 16,
+      "max": 16,
+      "artefact": "gas_summary.json",
+      "confirmed": false,
+      "provenance": "Results (Extended Data Fig. 5d). UNSCORED: needs Seurat CCA label transfer against GSE246791."
+    },
+    {
+      "name": "GBM NU03747 pseudobulk: ~141M unique Hi-C pairs and ~264M ATAC reads",
+      "type": "range",
+      "path": "total_contacts",
+      "min": 130000000,
+      "max": 152000000,
+      "confirmed": false,
+      "provenance": "Results: 'we generated ~141 million unique Hi-C read pairs and ~264 million ATAC-seq reads'. UNSCORED: sample-specific; only meaningful when that exact GSM is the staged input."
+    },
+    {
+      "name": "SV concordance with WGS: 53/73 (72.6%) NU04707, 7/12 (58%) NU04741",
+      "type": "range",
+      "path": "n_sv_wgs_supported",
+      "min": 60,
+      "max": 60,
+      "confirmed": false,
+      "provenance": "Results (Extended Data Fig. 7f). UNSCORED: SVs called with EagleC, validated with Delly + Lumpy on WGS. IGVFagent wraps none of the three."
+    },
+    {
+      "name": "chromatin loops shared with in situ Hi-C: 6,492 (62%)",
+      "type": "range",
+      "path": "n_shared_loops",
+      "min": 6492,
+      "max": 6492,
+      "confirmed": false,
+      "provenance": "Results (Extended Data Fig. 3d,e). UNSCORED: needs de novo loop calls on both Spatial-ATAC-Hi-C and a matched in situ Hi-C library."
+    },
+    {
+      "name": "pseudobulk ATAC vs bulk ATAC Spearman correlation 0.895",
+      "type": "range",
+      "path": "spearman_vs_bulk",
+      "min": 0.88,
+      "max": 0.91,
+      "confirmed": false,
+      "provenance": "Results: 'the two datasets demonstrated high correlation (SCC = 0.895)' (Extended Data Fig. 2b). UNSCORED: needs the matched bulk ATAC-seq control library, a separate deposit."
+    }
+  ],
+  "companion_benchmark": "wang2026_spatial_atac_hic",
+  "skill": "spatial-hic",
+  "note": "Companion to wang2026_spatial_atac_hic, which is a SYNTHETIC recovery self-test (planted signal, 6x6 grid, no network) proving the spatial-hic math recovers known truth. THIS benchmark is the other half: the same chain on the paper's OWN GSE307620 deposit, scored against published numbers. The scaffold generated by `bench` writes the six structural checks; the paper-value checks below were read out of the article by hand and each carries its source sentence. Claims the chain cannot produce end-to-end carry confirmed=false: concordance.py reports them and never scores them, so this cannot pass by grading text extraction."
+}

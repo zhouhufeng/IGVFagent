@@ -230,11 +230,28 @@ def score_benchmark(paper_dir: Path) -> dict:
             })
             continue
         try:
+            # A chain that writes several summaries (spatial-hic emits
+            # qc_ / demux_ / gas_ / gad_ / compartment_ / cnv_summary.json)
+            # cannot be checked from the primary artefact alone. A check may
+            # name its own file with ``"artefact": "demux_summary.json"``;
+            # without this the path was looked up in the WRONG json and the
+            # check failed as "value is None" rather than saying so.
+            if chk.get("artefact"):
+                src = read_artefact(run_dir, chk["artefact"])
+                if src is None:
+                    result["checks"].append({
+                        "name": name, "type": ctype, "passed": False,
+                        "detail": f"artefact {chk['artefact']!r} not found in "
+                                   f"{run_dir}"})
+                    continue
+            else:
+                src = payload
+
             if ctype == "range":
-                v = get_path(payload, chk["path"])
+                v = get_path(src, chk["path"])
                 ok, msg = check_range(v, chk)
             elif ctype == "in_set":
-                v = get_path(payload, chk["path"])
+                v = get_path(src, chk["path"])
                 ok, msg = check_set_member(v, chk)
             elif ctype == "artefact":
                 ok, msg = check_artefact_exists(run_dir, chk, extras)

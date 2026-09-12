@@ -1,0 +1,201 @@
+{
+  "paper_id": "wang2026_spatial_atac_hic_geo",
+  "resolution": {
+    "decision": "resolved",
+    "confidence": 1.0,
+    "margin_over_runner_up": 0.556,
+    "identifier": {
+      "kind": "free_text",
+      "value": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues",
+      "raw": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues"
+    },
+    "constraints": {
+      "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues"
+    },
+    "sources_consulted": [
+      "biorxiv",
+      "europepmc",
+      "openalex",
+      "pubmed",
+      "semanticscholar"
+    ],
+    "paper_id": "wang2026_spatial_atac_hic_geo",
+    "paper": {
+      "source": "europepmc+pubmed",
+      "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues.",
+      "authors": "Wang P, Wang J, Wang Q, Youngblood MW, Cheng Y, Tao B, Wong JH, Luan Y, Yu S, Swaroop A, Nandoliya KR, Najem H, Fu Y, McCortney K, Zhang D, Diao Y, Heimberger AB, Sonabend AM, Horbinski CM, Fan R, Yue F.",
+      "journal": "Nature methods",
+      "year": 2026,
+      "doi": "10.1038/s41592-026-03217-4",
+      "pmid": "42680843",
+      "pmcid": "",
+      "epmc_id": "42680843",
+      "epmc_source": "MED",
+      "is_open_access": false,
+      "has_fulltext": false,
+      "in_epmc": false,
+      "abstract": "Cellular function depends on the spatial organization of cells and biomolecules within the tissue microenvironment. Advances in spatial omics have enabled profiling of molecular features such as transcriptome, proteome and epigenome, and there has been rapid progress of imaging-based approaches to study spatial three-dimensional (3D) genome organization. Here we present Spatial-ATAC-Hi-C, a microfluidic\u2011based platform for genome-wide, spatially resolved joint-profiling of 3D genome organization and chromatin accessibility on tissue slides. Applied to mouse and human brains, Spatial-ATAC-Hi-C revealed distinct chromatin architecture and gene regulatory programs in neuronal and non-neuronal populations in their native tissue context. In glioblastoma and astrocytoma samples, we detected spatially resolved 3D genome alterations, copy number variations and structural variations across tumor regions, revealing clinically relevant oncogenic events and clonal heterogeneity. By co-profiling of genome architecture and chromatin accessibility while preserving tissue architecture, Spatial-ATAC-Hi-C provides a powerful tool for studying spatial gene regulation in human biology and disease.",
+      "citation_count": 0
+    },
+    "match_reasons": [
+      "title exact"
+    ],
+    "candidates": [
+      {
+        "score": 1.0,
+        "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues.",
+        "authors": "Wang P, Wang J, Wang Q, Youngblood MW, Cheng Y, Tao B, Wong JH, Luan Y, Yu S, Swaroop A, Nandoliya KR, Najem H, Fu Y, Mc",
+        "journal": "Nature methods",
+        "year": 2026,
+        "doi": "10.1038/s41592-026-03217-4",
+        "pmid": "42680843",
+        "reasons": [
+          "title exact"
+        ]
+      },
+      {
+        "score": 0.444,
+        "title": "Spatial epigenome-transcriptome co-profiling of mammalian tissues.",
+        "authors": "Zhang D; Deng Y; Kukanja P; Agirre E; Bartosovic M\u2026",
+        "journal": "Nature",
+        "year": "2023",
+        "doi": "10.1038/s41586-023-05795-1",
+        "pmid": "36922587",
+        "reasons": [
+          "title overlap 0.44"
+        ]
+      },
+      {
+        "score": 0.4,
+        "title": "O-SNAP: A comprehensive pipeline for spatial profiling of chromatin architecture",
+        "authors": "Hannah H. Kim; Jose Angel Martinez-Sarmiento; Flavio R. Palma; Aayush Kant; Ellen Y. Zhang\u2026",
+        "journal": "biorxiv",
+        "year": "2025",
+        "doi": "10.1101/2025.07.18.665612",
+        "pmid": null,
+        "reasons": [
+          "title overlap 0.40"
+        ]
+      },
+      {
+        "score": 0.375,
+        "title": "Chromatin accessibility profiling methods",
+        "authors": "Liesbeth Minnoye; Georgi K. Marinov; Thomas Krausgruber; Lixia Pan; Alexandre P. Marand",
+        "journal": "Nature Reviews Methods Primers",
+        "year": "2021",
+        "doi": "10.1038/s43586-020-00008-9",
+        "pmid": "38410680",
+        "reasons": [
+          "title overlap 0.38"
+        ]
+      },
+      {
+        "score": 0.364,
+        "title": "Spatial joint profiling of DNA methylome and transcriptome in mammalian tissues",
+        "authors": "Chin Nien Lee; Hongxiang Fu; Angelysia Cardilla; Wanding Zhou; Yanxiang Deng",
+        "journal": "biorxiv",
+        "year": "2025",
+        "doi": "10.1101/2025.07.01.662607",
+        "pmid": null,
+        "reasons": [
+          "title overlap 0.36"
+        ]
+      }
+    ]
+  },
+  "harvest": {
+    "paper_id": "wang2026_spatial_atac_hic_geo",
+    "doi": "10.1038/s41592-026-03217-4",
+    "title": "Spatial chromatin architecture and accessibility co-profiling of mammalian tissues.",
+    "abstract": "Cellular function depends on the spatial organization of cells and biomolecules within the tissue microenvironment. Advances in spatial omics have enabled profiling of molecular features such as transcriptome, proteome and epigenome, and there has been rapid progress of imaging-based approaches to study spatial three-dimensional (3D) genome organization. Here we present Spatial-ATAC-Hi-C, a microfluidic\u2011based platform for genome-wide, spatially resolved joint-profiling of 3D genome organization and chromatin accessibility on tissue slides. Applied to mouse and human brains, Spatial-ATAC-Hi-C revealed distinct chromatin architecture and gene regulatory programs in neuronal and non-neuronal populations in their native tissue context. In glioblastoma and astrocytoma samples, we detected spatially resolved 3D genome alterations, copy number variations and structural variations across tumor regions, revealing clinically relevant oncogenic events and clonal heterogeneity. By co-profiling of genome architecture and chromatin accessibility while preserving tissue architecture, Spatial-ATAC-Hi-C provides a powerful tool for studying spatial gene regulation in human biology and disease.",
+    "fulltext_source": null,
+    "degraded_reason": "no open-access full text available (Europe PMC serves JATS only for PMC open-access articles; this paper is closed-access, not yet indexed, or a preprint whose publisher page could not be read) \u2014 harvest ran on title + abstract only",
+    "n_sections": 1,
+    "n_chars": 1279,
+    "section_titles": [
+      "Abstract"
+    ],
+    "data_availability": [],
+    "accessions": {},
+    "assays": [
+      {
+        "assay": "Spatial-ATAC-Hi-C",
+        "mentions": 3
+      },
+      {
+        "assay": "Hi-C",
+        "mentions": 3
+      }
+    ],
+    "genes": [],
+    "numeric_claims": [],
+    "llm_claims": {
+      "enabled": false,
+      "claims": [],
+      "error": "disabled with --no-llm"
+    }
+  },
+  "routing": {
+    "plans": [
+      {
+        "route": "spatial_atac_hic",
+        "title": "Spatial-ATAC-Hi-C \u2014 3D genome + accessibility per tissue pixel",
+        "score": 17.84,
+        "evidence": [
+          "assay:Spatial-ATAC-Hi-C\u00d73",
+          "assay:Hi-C\u00d73"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SpatialATACHiC",
+        "reference_benchmark": "wang2026_spatial_atac_hic (synthetic recovery) / wang2026_spatial_atac_hic_geo (real GSE307620)",
+        "requires_local_input": true,
+        "notes": null
+      }
+    ],
+    "all_scored": [
+      {
+        "route": "spatial_atac_hic",
+        "title": "Spatial-ATAC-Hi-C \u2014 3D genome + accessibility per tissue pixel",
+        "score": 17.84,
+        "evidence": [
+          "assay:Spatial-ATAC-Hi-C\u00d73",
+          "assay:Hi-C\u00d73"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SpatialATACHiC",
+        "reference_benchmark": "wang2026_spatial_atac_hic (synthetic recovery) / wang2026_spatial_atac_hic_geo (real GSE307620)",
+        "requires_local_input": true,
+        "notes": null
+      }
+    ],
+    "selected": "spatial_atac_hic",
+    "controlled_access_repos": [],
+    "unroutable_reason": null
+  },
+  "route_selected": "spatial_atac_hic",
+  "variables": [
+    {
+      "name": "GSE",
+      "value": null,
+      "origin": "unresolved",
+      "prompt": "GEO series holding the Spatial-ATAC-Hi-C deposit",
+      "needs_human": true
+    },
+    {
+      "name": "PAIRS",
+      "value": "Benchmarks/_data/wang2026_spatial_atac_hic_geo/sample.pairs.gz",
+      "origin": "local path (must be downloaded)",
+      "prompt": "one sample's Hi-C pairs file (from the GEO deposit)",
+      "needs_human": false
+    },
+    {
+      "name": "FRAGMENTS",
+      "value": "Benchmarks/_data/wang2026_spatial_atac_hic_geo/fragments.tsv.gz",
+      "origin": "local path (must be downloaded)",
+      "prompt": "matching ATAC fragments.tsv.gz for the same sample",
+      "needs_human": false
+    }
+  ]
+}

@@ -5004,9 +5004,66 @@ _TOOLS: "list[Tool]" = [
                    "bean_mode": "--bean-mode", "label": "--label"},
     ),
     _T(
+        "paper_benchmark",
+        "★ REPRODUCE AND BENCHMARK ANY PUBLISHED PAPER ★ — THE tool for "
+        "\"reproduce this paper\", \"can IGVFagent replicate X\", "
+        "\"benchmark against this study\", or a pasted title / DOI / PMID / "
+        "URL. It resolves the publication, harvests the accessions and "
+        "numeric claims out of its own text, ROUTES the deposit onto the "
+        "right IGVFagent analysis chain (Spatial-ATAC-Hi-C, MPRA, Flow-FISH, "
+        "Perturb-seq, SHARE-seq, MaveDB, ...), scaffolds "
+        "`Benchmarks/<paper-id>/`, runs it, and scores what we measured "
+        "against what the paper published. USE THIS FIRST for any "
+        "reproduction request — do NOT reach for a paper-specific benchmark "
+        "tool unless the question names that exact paper, and do NOT adopt a "
+        "document found on disk when the conversation already named a paper. "
+        "Subcommands: `resolve` (identifier -> one paper), `harvest` (text -> "
+        "accessions + claims), `route` (-> analysis chain; `list-routes` "
+        "shows the table), `scaffold`, `run`, `score`, `report`, and "
+        "`pipeline` (resolve -> harvest -> route -> scaffold; add "
+        "execute=true to also run -> score -> report).",
+        {
+            "type": "object",
+            "properties": {
+                "subcommand": {**_S_STRING, "description":
+                                "pipeline | resolve | harvest | route | "
+                                "scaffold | run | score | report | "
+                                "list-routes | selftest"},
+                "query":    {**_S_STRING, "description":
+                              "Title, URL, DOI, PMID or free text naming the "
+                              "paper. The usual entry point."},
+                "doi":      {**_S_STRING},
+                "pmid":     {**_S_STRING},
+                "url":      {**_S_STRING},
+                "paper_id": {**_S_STRING, "description":
+                              "Benchmark id, e.g. wang2026_spatial_atac_hic. "
+                              "REQUIRED for run / score / report / scaffold."},
+                "route":    {**_S_STRING, "description":
+                              "Force a route instead of the ranked pick, e.g. "
+                              "spatial_atac_hic."},
+                "execute":  {**_S_BOOLEAN, "description":
+                              "For `pipeline`: also run, score and report."},
+                "force":    {**_S_BOOLEAN, "description":
+                              "Overwrite an existing Benchmarks/<paper-id>/."},
+            },
+            "required": ["subcommand"],
+        },
+        cli=["bench"],
+        positional=("subcommand",),
+        flag_map={"query": "--query", "doi": "--doi", "pmid": "--pmid",
+                   "url": "--url", "paper_id": "--paper-id",
+                   "route": "--route", "execute": "--execute",
+                   "force": "--force"},
+        bool_flags={"execute", "force"},
+    ),
+
+    _T(
         "bean_paper_benchmark",
-        "★ BENCHMARK IGVFAGENT AGAINST THE CRISPR-BEAN PAPER ★ — Ryu et al., "
-        "Nat Genet 56:925-937 (2024). Runs on the AUTHORS' OWN deposited "
+        "Benchmark against ONE SPECIFIC PAPER: Ryu et al., CRISPR-BEAN, "
+        "Nat Genet 56:925-937 (2024), base-editing screens of LDLR / LDL-C "
+        "variants. DO NOT USE IT FOR ANY OTHER PAPER — for a general "
+        "\"reproduce this paper\" request use `paper_benchmark`, which "
+        "routes to the correct chain. Runs on the AUTHORS' OWN deposited "
         "screen objects (Zenodo 10.5281/zenodo.10139794), which are already "
         "downloaded, and compares 18 published claims to what we measure. "
         "**Use this, not an IGVF screen, for any question about reproducing "

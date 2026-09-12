@@ -621,6 +621,20 @@ ASSAY_TERMS: List[Dict[str, Any]] = [
                                                 "single-nucleus rna", "cell atlas"]},
     {"assay": "scATAC-seq",         "spec": 1.0, "terms": ["scatac", "snatac", "single-cell atac"]},
     {"assay": "ChIP-seq",           "spec": 1.5, "terms": ["chip-seq", "chipseq", "chip-atlas"]},
+    # Spatial-ATAC-Hi-C is its own assay, not "scATAC plus Hi-C": it is the
+    # only one that yields BOTH contacts and Tn5 insertions keyed to the same
+    # tissue pixel, so it must outrank both parents or Wang 2026 routes to a
+    # generic GEO walk. Without these two entries the paper detected NO assay
+    # at all -- "spatial-atac-seq" matches none of scATAC's terms -- and fell
+    # through to the geo_retrieval fallback.
+    {"assay": "Spatial-ATAC-Hi-C",  "spec": 3.0, "terms": ["spatial-atac-hi-c", "spatial atac hi-c",
+                                                "spatial-atac-hic", "spatialatachic"]},
+    {"assay": "spatial-ATAC-seq",   "spec": 2.5, "terms": ["spatial-atac-seq", "spatial atac-seq",
+                                                "spatial-cut&tag", "spatial-cut&tag-seq"]},
+    {"assay": "Hi-C",               "spec": 1.8, "terms": ["hi-c", "hic", "in situ hi-c", "micro-c",
+                                                "hichip", "chia-pet", "dip-c", "snm3c",
+                                                "chromatin loop", "a/b compartment",
+                                                "topologically associating domain"]},
     {"assay": "enhancer-gene",      "spec": 1.5, "terms": ["enhancer-gene", "enhancer to gene", "e2g",
                                                 "activity-by-contact", "abc model", "peak-to-gene",
                                                 "peak2gene"]},
@@ -1196,6 +1210,79 @@ ROUTES: List[Dict[str, Any]] = [
         # Neither subcommand accepts --label, so the run dir is not
         # paper-tagged; score against the skill's own default dir name.
         "label_hint": "summary",
+    },
+    {
+        "name": "spatial_atac_hic",
+        "title": "Spatial-ATAC-Hi-C — 3D genome + accessibility per tissue pixel",
+        "skill_output_dir": "SpatialATACHiC",
+        "primary_artefact": "qc_summary.json",
+        "reference_benchmark": "wang2026_spatial_atac_hic (synthetic recovery) / wang2026_spatial_atac_hic_geo (real GSE307620)",
+        "match": {"assays": ["Spatial-ATAC-Hi-C", "spatial-ATAC-seq", "Hi-C"],
+                   "support_accessions": ["geo_series"]},
+        "vars": [
+            {"name": "GSE", "from": "accessions.geo_series",
+             "prompt": "GEO series holding the Spatial-ATAC-Hi-C deposit"},
+            {"name": "PAIRS", "from": "local_input",
+             "default": "Benchmarks/_data/{paper_id}/sample.pairs.gz",
+             "prompt": "one sample's Hi-C pairs file (from the GEO deposit)"},
+            {"name": "FRAGMENTS", "from": "local_input",
+             "default": "Benchmarks/_data/{paper_id}/fragments.tsv.gz",
+             "prompt": "matching ATAC fragments.tsv.gz for the same sample"},
+        ],
+        "local_input": {
+            "var": "PAIRS",
+            "hint": "The pairs and fragments files are the per-sample "
+                    "supplementary deposits on the GEO series (GSE307620 ships "
+                    "GSM*.fragments.tsv.gz plus a 9.9 GB RAW tar). pull-geo "
+                    "lists them; download the sample you want before `run`.",
+        },
+        "steps": [
+            # Metadata first: cheap, always works, and proves the deposit is
+            # reachable before anything downloads ten gigabytes.
+            f'{IGVF} spatial-hic pull-geo --gse "$GSE" --label "$LABEL"',
+            # The 50x50 grid is the whole premise of the assay; everything
+            # downstream is keyed by pixel, so this runs before any analysis.
+            {"cmd": f'{IGVF} spatial-hic pixel-demux --pairs "$PAIRS" '
+                     f'--label "$LABEL"',
+             "needs": "PAIRS"},
+            {"cmd": f'{IGVF} spatial-hic qc --pairs "$PAIRS" '
+                     f'--fragments "$FRAGMENTS" --label "$LABEL"',
+             "needs": "PAIRS"},
+            {"cmd": f'{IGVF} spatial-hic gas --fragments "$FRAGMENTS" '
+                     f'--label "$LABEL"',
+             "needs": "FRAGMENTS"},
+            {"cmd": f'{IGVF} spatial-hic gad --pairs "$PAIRS" --label "$LABEL"',
+             "needs": "PAIRS"},
+            {"cmd": f'{IGVF} spatial-hic compartment --pairs "$PAIRS" '
+                     f'--resolution 100000 --label "$LABEL"',
+             "needs": "PAIRS"},
+            {"cmd": f'{IGVF} spatial-hic cnv --pairs "$PAIRS" '
+                     f'--resolution 5000000 --per-pixel --label "$LABEL"',
+             "needs": "PAIRS"},
+        ],
+        "checks": [
+            {"name": "GEO deposit inventoried",
+             "type": "artefact", "filename": "geo_files.tsv"},
+            {"name": "pixel grid demultiplexed (2,500 tissue pixels)",
+             "type": "artefact", "filename": "demux_summary.json"},
+            {"name": "per-pixel QC written",
+             "type": "artefact", "filename": "qc_summary.json"},
+            {"name": "median total contacts per pixel in the paper's range",
+             "type": "range", "path": "median_total_contacts",
+             "min": 25343, "max": 58403},
+            {"name": "median cis fraction in the paper's range",
+             "type": "range", "path": "median_cis_fraction",
+             "min": 0.881, "max": 0.903},
+            {"name": "median long-range (>=10 kb) ratio in the paper's range",
+             "type": "range", "path": "median_long_range_ratio",
+             "min": 0.24, "max": 0.333},
+        ],
+        "followups": [
+            "spatial-hic loops  — per-pixel loop quantification + one-way "
+            "ANOVA for cell-type-specific loops (needs a BEDPE of anchors)",
+            "spatial-hic viz    — render any per-pixel value back into "
+            "tissue space as a 50x50 heatmap",
+        ],
     },
     {
         "name": "geo_retrieval",
