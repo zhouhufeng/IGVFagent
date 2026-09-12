@@ -980,34 +980,25 @@ def _sidebar() -> dict:
 
 
 
-def _render_resource_panel(st) -> None:
-    """Compute + token usage for this session.
+def _resource_readings(box, tok: dict) -> None:
+    """Paint one set of readings into ``box`` (a container or placeholder).
 
-    Both halves answer the same question -- "what is this run costing?" -- so
-    they sit together. The compute half reads cgroup limits, not host stats:
-    in a container psutil reports the HOST's cores and memory, which would
-    show this app using a third of "available" RAM when against its own 22 GB
-    cap it is using half. The token half is accumulated from the usage each
-    LLM call reports, which is the only place cache hits are visible.
+    Separated from the panel so the SAME painter can be driven from two
+    places: the idle timer fragment, and the agent callback during a run.
     """
-    with st.expander("⚙️ Compute & usage", expanded=False):
-        # A diagnostics panel must never be able to take the sidebar down
-        # with it: every reading here is best-effort, and the app is still
-        # usable with none of them.
-        try:
-            import _resources as _res
-            snap = _res.snapshot(str(_PROJECT_ROOT / "Data"))
-        except Exception as e:                              # noqa: BLE001
-            st.caption(f"Resource readings unavailable ({type(e).__name__}).")
-            snap = {}
+    try:
+        import _resources as _res
+        snap = _res.snapshot(str(_PROJECT_ROOT / "Data"))
+    except Exception as e:                                  # noqa: BLE001
+        box.caption(f"Resource readings unavailable ({type(e).__name__}).")
+        return
 
-        cpu = snap.get("cpu_percent")
-        lim = snap.get("cpu_limit")
+    with box.container():
+        cpu, lim = snap.get("cpu_percent"), snap.get("cpu_limit")
         if cpu is not None:
             st.progress(min(cpu / 100.0, 1.0),
                         text=f"CPU {cpu:.0f}% of {lim:g} cores")
         elif lim:
-            # First reading has no interval to difference against.
             st.caption(f"CPU — {lim:g} cores allocated (sampling…)")
 
         mu, ml, mp = (snap.get("mem_used_gb"), snap.get("mem_limit_gb"),
@@ -1022,21 +1013,13 @@ def _render_resource_panel(st) -> None:
                         text=f"Disk {df:,.0f} GB free of {dt:,.0f} GB")
             st.caption(f"Largest download that fits: ~{df * 0.85:,.0f} GB")
 
-        tok = st.session_state.get("_token_usage") or {}
         if tok.get("calls"):
-            inp = tok.get("input", 0)
-            out = tok.get("output", 0)
-            cr = tok.get("cache_read", 0)
-            cw = tok.get("cache_write", 0)
+            inp, out = tok.get("input", 0), tok.get("output", 0)
+            cr, cw = tok.get("cache_read", 0), tok.get("cache_write", 0)
             billed = inp + cw
-            st.markdown(
-                f"**Tokens this session** ({tok['calls']} LLM calls)  \n"
-                f"in {inp:,} · out {out:,}  \n"
-                f"cache read {cr:,} · written {cw:,}"
-            )
-            # Cache reads are the tokens NOT re-read at full price. Without
-            # this line a working cache and a silently broken one look
-            # identical from the UI.
+            st.markdown(f"**Tokens this session** ({tok['calls']} LLM calls)  \n"
+                        f"in {inp:,} · out {out:,}  \n"
+                        f"cache read {cr:,} · written {cw:,}")
             if cr + billed:
                 st.caption(f"{100.0 * cr / (cr + billed):.0f}% of input served "
                             f"from cache")
@@ -1045,6 +1028,39 @@ def _render_resource_panel(st) -> None:
 
         if snap.get("source") == "psutil":
             st.caption("_Host figures (no container limits detected)._")
+
+
+@st.fragment(run_every="3s")
+def _resource_fragment() -> None:
+    """Idle refresh.
+
+    Streamlit paints the sidebar once per script run, so without this the
+    numbers froze at whatever they were when the page last rendered and never
+    moved again. A fragment reruns on its own timer without rerunning the
+    whole script.
+
+    It CANNOT cover a running job: the session's script thread is blocked
+    inside _agent.run() for the length of the run, and a fragment rerun queues
+    behind it. That case is driven from the agent callback instead, which can
+    write to this same placeholder while the thread is busy.
+    """
+    box = st.session_state.get("_res_slot")
+    if box is not None:
+        _resource_readings(box, st.session_state.get("_token_usage") or {})
+
+
+def _render_resource_panel(st) -> None:
+    """Compute + token usage for this session.
+
+    Reads cgroup limits, not host stats: in a container psutil reports the
+    HOST's cores and memory, which would show this app using a third of
+    "available" RAM when against its own 22 GB cap it is using half.
+    """
+    with st.expander("⚙️ Compute & usage", expanded=False):
+        slot = st.empty()
+        st.session_state["_res_slot"] = slot
+        _resource_readings(slot, st.session_state.get("_token_usage") or {})
+        _resource_fragment()
 
 
 # --------------------------- Artefact rendering ----------------------------
@@ -2709,6 +2725,27 @@ def main() -> None:
                     acc["output"] += u.get("output_tokens", 0) or 0
                     acc["cache_read"] += u.get("cache_read_tokens", 0) or 0
                     acc["cache_write"] += u.get("cache_write_tokens", 0) or 0
+
+            # Live compute readings DURING the run. The sidebar was painted
+            # before _agent.run() was entered and the script thread is blocked
+            # inside it for the whole run, so neither a rerun nor the timer
+            # fragment can fire until it returns -- which is exactly when a
+            # heavy job makes the numbers worth watching. Writing to the
+            # placeholder from here works because a DeltaGenerator keeps its
+            # position and can be written to while the thread is busy.
+            # Throttled: the readings are cheap but repainting on every token
+            # delta would be thousands of repaints per answer.
+            _slot = st.session_state.get("_res_slot")
+            if _slot is not None:
+                _now = time.time()
+                if _now - st.session_state.get("_res_painted", 0.0) > 2.0:
+                    st.session_state["_res_painted"] = _now
+                    try:
+                        _resource_readings(
+                            _slot, st.session_state.get("_token_usage") or {})
+                    except Exception:                       # noqa: BLE001
+                        pass        # never let a readout break a live run
+
             if event.kind in ("llm_call_start", "wrap_up_start"):
                 # A new plan step (or the wrap-up) supersedes the previous
                 # step's prose.
