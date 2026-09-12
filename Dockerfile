@@ -72,13 +72,55 @@ RUN python -m venv /opt/venv \
 # licence propagation. `igvfagent bean` implements BEAN's guide-assignment
 # method independently; the installed `bean` binary is what provides the
 # Bayesian model that is deliberately not reimplemented.
+# INTO ITS OWN VENV, not /opt/venv. BEAN cannot share the app's interpreter
+# environment: bean/mapping/CRISPResso2Align.pyx uses np.int_t / np.uint_t and
+# the code uses np.Inf, all removed in NumPy 2.0, so BEAN needs numpy<2 --
+# while scanpy / numba / anndata in /opt/venv are resolved against numpy 2.x.
+# Pinning /opt/venv down to numpy<2 to satisfy BEAN would break the stack the
+# rest of the app runs on. Since `bean` is invoked as a SUBPROCESS
+# (base_editing_screen.bean_available uses shutil.which), a separate venv on
+# PATH is all that is needed and nothing has to agree about numpy.
+#
+# Each pin below is load-bearing, and all three were established the hard way
+# in Deploy/Dockerfile.bean029:
+#   numpy<2   the .pyx types above
+#   cython<3  CRISPResso2Align.pyx does not compile under Cython 3 --
+#             "'uint_t' is not a type identifier", which is exactly how the
+#             unpinned version of this step failed
+#   --no-build-isolation  or pip builds in a fresh overlay carrying its own
+#             Cython 3 and BOTH pins are silently ignored
+#   torch from the CPU index  BEFORE crispr-bean, or its resolver pulls the
+#             default CUDA wheels: nvidia-cublas, cudnn, nccl and the rest,
+#             several GB onto a VM with no GPU. Measured: 1.8 GB with the CPU
+#             wheel against a multi-GB tree without it.
+#   numpy<2 AGAIN, and zarr<3, AFTER crispr-bean  its dependency tree
+#             reinstalls numpy 2.x over the pin (measured: 1.26.4 -> 2.4.6),
+#             and `bean --help` then dies on `np.Inf` at import. zarr 3
+#             requires numpy>=2, so it is pinned back with it.
+#
+# Verified end to end before this was committed: `bean run --help` answers and
+# bean.read_h5ad loads the paper's own deposit as a ReporterScreen (3451, 40)
+# with X_bcmatch present.
+#
+# Verified with `bean --help`, NOT `bean --version`: BEAN has no --version
+# flag and answers "error: unrecognized arguments: --version" with exit 2, so
+# the previous line here could never have passed even had the build worked.
 ARG INSTALL_CRISPR_BEAN=0
 RUN if [ "$INSTALL_CRISPR_BEAN" = "1" ]; then \
-        /opt/venv/bin/pip install cython numpy \
-     && /opt/venv/bin/pip install crispr-bean \
-     && /opt/venv/bin/bean --version; \
+        python -m venv /opt/bean-venv \
+     && /opt/bean-venv/bin/pip install --no-cache-dir --upgrade pip \
+     && /opt/bean-venv/bin/pip install --no-cache-dir "numpy<2" "cython<3" \
+     && /opt/bean-venv/bin/pip install --no-cache-dir \
+            --index-url https://download.pytorch.org/whl/cpu "torch==2.4.1" \
+     && /opt/bean-venv/bin/pip install --no-cache-dir --no-build-isolation \
+            crispr-bean \
+     && /opt/bean-venv/bin/pip install --no-cache-dir "numpy<2" "zarr<3" \
+     && /opt/bean-venv/bin/bean --help > /dev/null \
+     && /opt/bean-venv/bin/bean run --help > /dev/null \
+     && /opt/bean-venv/bin/python -c "import numpy, torch, bean; assert numpy.__version__.startswith('1.'), numpy.__version__; print('bean venv: numpy', numpy.__version__, '| torch', torch.__version__)"; \
     else \
         echo "crispr-bean NOT installed (INSTALL_CRISPR_BEAN=0)."; \
+        mkdir -p /opt/bean-venv; \
     fi
 
 
@@ -87,7 +129,7 @@ FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH" \
+    PATH="/opt/venv/bin:/opt/bean-venv/bin:$PATH" \
     IGVF_PROJECT_ROOT=/workspace \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
     STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
@@ -134,6 +176,9 @@ RUN useradd --create-home --shell /bin/bash --uid 1000 igvf \
  && chown -R igvf:igvf /workspace
 
 COPY --from=builder --chown=igvf:igvf /opt/venv /opt/venv
+# Empty when INSTALL_CRISPR_BEAN=0, so this COPY is unconditional and
+# costs nothing in the default build.
+COPY --from=builder --chown=igvf:igvf /opt/bean-venv /opt/bean-venv
 
 USER igvf
 WORKDIR /workspace
