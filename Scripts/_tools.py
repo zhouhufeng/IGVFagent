@@ -293,6 +293,51 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "audit_manifest",
+        "★ AUDIT AN UPLOADED OR GENERATED MANIFEST — USE THIS INSTEAD OF "
+        "WRITING A PASS/FAIL TABLE YOURSELF ★ Checks row count, column "
+        "uniqueness, one-to-one pairing between two columns, and "
+        "cross-tabulated coverage. Its point is that it reports THREE "
+        "outcomes, not two: pass, fail, and **limitation**. A `limitation` is "
+        "a VALID manifest truthfully recording something the upstream source "
+        "does not provide, or a study design that cannot support a given "
+        "comparison — it is NOT a validation failure and must never be "
+        "presented as one. Reporting a correctly-recorded absence as a failed "
+        "check tells a user their file is broken when it is not: a GSE213151 "
+        "audit showed `raw_rna_matrix_listed=false` and "
+        "`atac_peak_matrix_listed=false` as FAILURES when both values were "
+        "correct, because GEO genuinely does not supply those files. Pass "
+        "such columns as `absent_ok`; use `require_true` only for columns "
+        "where false really is a defect. Nothing is written or downloaded.",
+        {
+            "type": "object",
+            "properties": {
+                "path": {**_S_STRING, "description":
+                          "Workspace-relative path to the CSV/TSV manifest."},
+                "unique": {**_S_STRING, "description":
+                            "Comma-separated columns that must be unique, "
+                            "e.g. sample_id,rna_gsm,atac_gsm"},
+                "pair": {**_S_STRING, "description":
+                          "'a:b' — require a one-to-one pairing, e.g. "
+                          "rna_gsm:atac_gsm"},
+                "group": {**_S_STRING, "description":
+                           "Comma-separated columns to cross-tabulate for "
+                           "coverage, e.g. cell_line,diff_day. Levels present "
+                           "for only some groups are reported as limitations."},
+                "absent_ok": {**_S_STRING, "description":
+                               "Boolean columns whose false values are a DATA "
+                               "LIMITATION rather than a failure."},
+                "require_true": {**_S_STRING, "description":
+                                  "Boolean columns where false IS a failure."},
+            },
+            "required": ["path"],
+        },
+        cli=["artifact", "audit"],
+        flag_map={"path": "--path", "unique": "--unique", "pair": "--pair",
+                   "group": "--group", "absent_ok": "--absent-ok",
+                   "require_true": "--require-true"},
+    ),
+    _T(
         "rank_artifact",
         "★ USE THIS FOR ANY 'TOP', 'HIGHEST', 'BEST' OR 'RANKED' CLAIM ★ — "
         "sorts a CSV/TSV artefact by a numeric column across the ENTIRE file "

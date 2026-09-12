@@ -341,6 +341,151 @@ def rank_artifact(path: str, *, column: str, n: int = 10,
              "values": [r["_value"] for r in top]}
 
 
+# Three outcomes, not two. The audit of a GSE213151 manifest reported
+# `raw_rna_matrix_listed=false` and `atac_peak_matrix_listed=false` as FAILED
+# checks. Those values were correct: GEO genuinely does not supply a raw RNA
+# matrix or a filtered ATAC peak matrix for that series, and the manifest was
+# faithfully recording it. Presenting a truthful record of an absent upstream
+# file as a validation failure tells a user their file is broken when it is
+# not, and the two need different responses -- one is "fix your manifest", the
+# other is "this study cannot answer that question".
+PASS = "pass"
+FAIL = "fail"                 # the manifest is malformed or self-inconsistent
+LIMITATION = "limitation"     # the manifest is VALID and records an absence
+
+
+def audit_manifest(path: str, *, unique: "str | None" = None,
+                    pair: "str | None" = None,
+                    group: "str | None" = None,
+                    absent_ok: "str | None" = None,
+                    require_true: "str | None" = None) -> dict:
+    """Structural audit of a tabular manifest, with absence distinguished
+    from malformation.
+
+      unique       comma-separated columns whose values must be unique
+      pair         "a:b" — every row must have BOTH, giving a one-to-one
+                   pairing between the two columns
+      group        comma-separated columns to cross-tabulate for coverage
+      absent_ok    comma-separated boolean columns whose false values are a
+                   DATA LIMITATION, not a failure
+      require_true comma-separated boolean columns that genuinely must be
+                   true, where false IS a failure
+
+    Nothing is written and nothing is fetched; the file is only read.
+    """
+    p = _resolve(path)
+    with _open_maybe_gz(p) as fh:
+        sample = fh.read(64_000)
+        fh.seek(0)
+        delim = _sniff_delim(sample)
+        rows = list(csv.DictReader(fh, delimiter=delim))
+    cols = list(rows[0].keys()) if rows else []
+    checks: "list[dict]" = []
+
+    def add(name, status, detail, **extra):
+        checks.append({"check": name, "status": status, "detail": detail,
+                        **extra})
+
+    add("rows read", PASS if rows else FAIL,
+        f"{len(rows):,} data row(s)" if rows else "file has no data rows")
+
+    for c in [x.strip() for x in (unique or "").split(",") if x.strip()]:
+        if c not in cols:
+            add(f"unique: {c}", FAIL, f"no such column; columns are {cols}")
+            continue
+        vals = [r.get(c) for r in rows]
+        dupes = {v for v in vals if vals.count(v) > 1}
+        add(f"unique: {c}", PASS if not dupes else FAIL,
+            f"{len(set(vals)):,} distinct of {len(vals):,}"
+            + (f"; duplicated: {sorted(dupes)[:5]}" if dupes else ""))
+
+    if pair and ":" in pair:
+        a, b = [x.strip() for x in pair.split(":", 1)]
+        if a not in cols or b not in cols:
+            add(f"pairing: {a} <-> {b}", FAIL,
+                f"missing column(s); columns are {cols}")
+        else:
+            missing = [i for i, r in enumerate(rows, 1)
+                        if not r.get(a) or not r.get(b)]
+            na, nb = len({r[a] for r in rows}), len({r[b] for r in rows})
+            one_to_one = (not missing) and na == nb == len(rows)
+            add(f"pairing: {a} <-> {b}", PASS if one_to_one else FAIL,
+                f"{na} distinct {a}, {nb} distinct {b}, {len(rows)} rows"
+                + (f"; rows missing a value: {missing[:5]}" if missing else ""))
+
+    gcols = [x.strip() for x in (group or "").split(",") if x.strip()]
+    if gcols and all(c in cols for c in gcols):
+        grid: "dict" = {}
+        for r in rows:
+            grid.setdefault(r.get(gcols[0]), set()).add(
+                r.get(gcols[1]) if len(gcols) > 1 else "")
+        add("coverage", PASS,
+            "; ".join(f"{k}: {sorted(v)}" for k, v in sorted(grid.items())))
+        # Which levels are NOT shared by every group. This is the question
+        # "which cell lines lack d16" in its general form, and it is a
+        # statement about the study, never a failure of the file.
+        if len(gcols) > 1:
+            everything = set().union(*grid.values()) if grid else set()
+            shared = set.intersection(*grid.values()) if grid else set()
+            only_some = sorted(everything - shared)
+            if only_some:
+                add("levels not shared by every group", LIMITATION,
+                    f"{only_some} present for only some {gcols[0]}; "
+                    f"comparisons across {gcols[0]} are limited to "
+                    f"{sorted(shared)}")
+            for k, v in sorted(grid.items()):
+                if len(v) == 1:
+                    add(f"single-timepoint group: {k}", LIMITATION,
+                        f"{k} appears only at {sorted(v)}, so it cannot "
+                        f"support a within-group trajectory")
+
+    for c in [x.strip() for x in (absent_ok or "").split(",") if x.strip()]:
+        if c not in cols:
+            add(f"declared-absent: {c}", FAIL, f"no such column")
+            continue
+        vals = [str(r.get(c, "")).strip().lower() for r in rows]
+        n_true = sum(1 for v in vals if v in ("true", "1", "yes"))
+        if n_true == 0:
+            add(f"{c}", LIMITATION,
+                f"false for all {len(vals)} rows — the manifest is correctly "
+                f"recording that this input is not available upstream. This "
+                f"is a data-availability limitation, NOT a malformed manifest.")
+        elif n_true == len(vals):
+            add(f"{c}", PASS, f"true for all {len(vals)} rows")
+        else:
+            add(f"{c}", LIMITATION,
+                f"true for {n_true} of {len(vals)} rows — available for some "
+                f"samples only")
+
+    for c in [x.strip() for x in (require_true or "").split(",") if x.strip()]:
+        if c not in cols:
+            add(f"required: {c}", FAIL, "no such column")
+            continue
+        bad = [i for i, r in enumerate(rows, 1)
+                if str(r.get(c, "")).strip().lower() not in ("true", "1", "yes")]
+        add(f"required: {c}", PASS if not bad else FAIL,
+            "true for every row" if not bad
+            else f"false/absent on rows {bad[:5]}")
+
+    n = {k: sum(1 for c in checks if c["status"] == k)
+         for k in (PASS, FAIL, LIMITATION)}
+    return {
+        "path": str(p.relative_to(_root())), "rows": len(rows),
+        "columns": cols, "checks": checks, "counts": n,
+        "verdict": ("FAIL — the manifest is malformed or inconsistent"
+                     if n[FAIL] else
+                     ("PASS WITH LIMITATIONS — the manifest is valid; the "
+                       "limitations below are properties of the STUDY or of "
+                       "upstream data availability, not defects in the file"
+                       if n[LIMITATION] else "PASS")),
+        "note": ("A `limitation` is not a failure. It marks a valid manifest "
+                  "truthfully recording something the upstream source does not "
+                  "provide, or a study design that cannot support a given "
+                  "comparison. Reporting these as failed checks tells a user "
+                  "their file is broken when it is not."),
+    }
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="igvfagent artifact",
@@ -366,6 +511,17 @@ def main(argv=None) -> int:
     t.add_argument("--where-column", help="Restrict --where to one column.")
     t.add_argument("--exclude", help="Comma-separated terms; drop rows "
                                       "matching any (e.g. adrenal).")
+
+    a = sub.add_parser("audit", help="Structural audit of a tabular manifest, "
+                                      "distinguishing a malformed file from "
+                                      "one that truthfully records an absence")
+    a.add_argument("--path", required=True)
+    a.add_argument("--unique", help="Comma-separated columns that must be unique.")
+    a.add_argument("--pair", help="'a:b' — one-to-one pairing between two columns.")
+    a.add_argument("--group", help="Comma-separated columns to cross-tabulate.")
+    a.add_argument("--absent-ok", help="Boolean columns whose false values are a "
+                                        "DATA LIMITATION, not a failure.")
+    a.add_argument("--require-true", help="Boolean columns where false IS a failure.")
 
     g = sub.add_parser("grep", help="Search inside workspace artefacts")
     g.add_argument("--pattern", required=True)
@@ -404,6 +560,11 @@ def main(argv=None) -> int:
         elif args.cmd == "grep":
             print(json.dumps(grep_artifacts(args.pattern, path=args.path,
                                              max_hits=args.max_hits), indent=2))
+        elif args.cmd == "audit":
+            print(json.dumps(audit_manifest(
+                args.path, unique=args.unique, pair=args.pair,
+                group=args.group, absent_ok=args.absent_ok,
+                require_true=args.require_true), indent=2))
         elif args.cmd == "top":
             print(json.dumps(rank_artifact(
                 args.path, column=args.column, n=args.n,

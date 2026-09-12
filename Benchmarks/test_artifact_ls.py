@@ -175,6 +175,48 @@ check("and says it is a display limit",
 check("and points at the tool that reads the whole file",
       "artifact top" in src)
 
+# ── a truthful record of an absence is not a validation failure ───────────
+# The GSE213151 audit showed raw_rna_matrix_listed=false and
+# atac_peak_matrix_listed=false as FAILED checks. Both values were correct --
+# GEO does not supply those files -- so the manifest was valid and the report
+# told the user their file was broken.
+_man = root / "Docs" / "manifest.csv"
+_man.write_text(
+    "sample_id,cell_line,day,rna_gsm,atac_gsm,raw_rna,peak_mtx\n"
+    "AN1_d7,AN1,d7,G1,A1,false,false\n"
+    "AN1_d26,AN1,d26,G2,A2,false,false\n"
+    "BJFF_d26,BJFF,d26,G3,A3,false,false\n")
+au = ar.audit_manifest("Docs/manifest.csv", unique="sample_id,rna_gsm,atac_gsm",
+                        pair="rna_gsm:atac_gsm", group="cell_line,day",
+                        absent_ok="raw_rna,peak_mtx")
+_st = {c["check"]: c["status"] for c in au["checks"]}
+check("an all-false declared-absent column is a LIMITATION, not a failure",
+      _st.get("raw_rna") == "limitation", str(_st.get("raw_rna")))
+check("and so is the second one", _st.get("peak_mtx") == "limitation")
+check("the manifest as a whole does not FAIL", au["counts"]["fail"] == 0,
+      str(au["counts"]))
+check("the verdict says valid-with-limitations, not failed",
+      "PASS WITH LIMITATIONS" in au["verdict"])
+check("and explains that a limitation is not a defect in the file",
+      "not defects in the file" in au["verdict"]
+      or "NOT a malformed manifest" in str(au["checks"]))
+# A single-timepoint group is a study-design limitation, not a bad file.
+check("a group present at one timepoint is flagged as a limitation",
+      _st.get("single-timepoint group: BJFF") == "limitation")
+# The distinction must still catch REAL malformation.
+_bad = root / "Docs" / "bad.csv"
+_bad.write_text("sample_id,rna_gsm,atac_gsm\nS1,G1,A1\nS1,G1,A2\n")
+au2 = ar.audit_manifest("Docs/bad.csv", unique="sample_id,rna_gsm",
+                         pair="rna_gsm:atac_gsm")
+check("duplicate ids are still a FAIL", au2["counts"]["fail"] >= 1)
+check("and the verdict says so", au2["verdict"].startswith("FAIL"))
+# require_true is the opt-in for columns where false really is a defect.
+au3 = ar.audit_manifest("Docs/manifest.csv", require_true="raw_rna")
+check("require_true turns the same column into a failure",
+      any(c["status"] == "fail" for c in au3["checks"]))
+check("so the caller chooses which absences matter",
+      au["counts"]["fail"] == 0 and au3["counts"]["fail"] >= 1)
+
 print(f"\n{len(FAILURES)} failure(s)")
 _tmp.cleanup()
 sys.exit(1 if FAILURES else 0)
