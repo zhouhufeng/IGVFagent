@@ -3820,6 +3820,97 @@ _TOOLS: "list[Tool]" = [
                    "min_cells": "--min-cells", "label": "--label"},
     ),
 
+    # ── Single-cell CRISPR differential expression ────────────────────
+    _T(
+        "sc_crispr_de_prepare",
+        "★ SINGLE-CELL CRISPR SCREEN: STEP 1, PREPARE ★. 10x gene-expression "
+        "+ sgRNA matrices -> a filtered checkpoint with each cell's guide "
+        "call. Cells carrying exactly one guide become the test groups; cells "
+        "with NO detected guide are the shared background every guide is "
+        "tested against. Use for Perturb-seq / CRISPRi single-cell screens "
+        "where you want per-guide differential expression.",
+        {
+            "type": "object",
+            "properties": {
+                "gex":    {**_S_STRING, "description":
+                            "10x filtered_feature_bc_matrix dir, or .h5ad."},
+                "sgrna":  {**_S_STRING, "description":
+                            "sgRNA matrix dir/.h5ad. Omit if guide features "
+                            "are in `gex` (CRISPR Guide Capture)."},
+                "min_genes":  {**_S_INTEGER, "default": 200},
+                "min_counts": {**_S_INTEGER, "default": 500},
+                "label":  {**_S_STRING},
+            },
+            "required": ["gex"],
+        },
+        cli=["sc-crispr-de", "prepare"],
+        flag_map={"gex": "--gex", "sgrna": "--sgrna",
+                   "min_genes": "--min-genes", "min_counts": "--min-counts",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "sc_crispr_de_test",
+        "★ SINGLE-CELL CRISPR SCREEN: STEP 2, PER-GUIDE DE ★. Negative-"
+        "binomial GLM per guide per gene, guide-bearing cells vs no-guide "
+        "cells, with library size as a covariate. This is the compute-heavy "
+        "step: upstream runs one SLURM array task per guide, here guides run "
+        "across a process pool. Restrict with `gene_whitelist` or `guides` "
+        "when you only care about a locus.",
+        {
+            "type": "object",
+            "properties": {
+                "checkpoint": {**_S_STRING, "description":
+                                "Checkpoint .h5ad from sc_crispr_de_prepare."},
+                "latentvar":  {**_S_STRING, "default": "nCount_RNA",
+                                "description": "Comma list of .obs covariates."},
+                "gene_whitelist": {**_S_STRING, "description":
+                                    "Path to a plain-text gene list."},
+                "guides":     {**_S_STRING, "description": "Comma list."},
+                "max_guides": {**_S_INTEGER},
+                "workers":    {**_S_INTEGER},
+                "label":      {**_S_STRING},
+            },
+            "required": ["checkpoint"],
+        },
+        cli=["sc-crispr-de", "test"],
+        flag_map={"checkpoint": "--checkpoint", "latentvar": "--latentvar",
+                   "gene_whitelist": "--gene-whitelist", "guides": "--guides",
+                   "max_guides": "--max-guides", "workers": "--workers",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "sc_crispr_de_aggregate",
+        "★ SINGLE-CELL CRISPR SCREEN: STEP 3, GENE LEVEL ★. Aggregates the "
+        "per-guide p-values into one score per target-gene pair using "
+        "alpha-RRA, calibrated against the non-targeting guides when enough "
+        "are present. Emits rra_rho / rra_pval / rra_fdr / rra_effect_size. "
+        "NOTE these are alpha-RRA, NOT FRACTEL: the same family of method as "
+        "the upstream pipeline, deliberately named differently because the "
+        "numbers are not interchangeable.",
+        {
+            "type": "object",
+            "properties": {
+                "per_guide":    {**_S_STRING, "description":
+                                  "TSV from sc_crispr_de_test."},
+                "guide_map":    {**_S_STRING, "description":
+                                  "guide<TAB>target lines; default splits "
+                                  "<gene>_<n>."},
+                "nontargeting": {**_S_STRING, "description":
+                                  "Comma list of NTC guides — without these "
+                                  "the null is assumed, not measured."},
+                "alpha":        {**_S_NUMBER, "default": 0.25},
+                "label":        {**_S_STRING},
+            },
+            "required": ["per_guide"],
+        },
+        cli=["sc-crispr-de", "aggregate"],
+        flag_map={"per_guide": "--per-guide", "guide_map": "--guide-map",
+                   "nontargeting": "--nontargeting", "alpha": "--alpha",
+                   "label": "--label"},
+    ),
+
     _T(
         "spatial_hic_matrix",
         "Build a Hi-C contact matrix from Spatial-ATAC-Hi-C pairs, for one "

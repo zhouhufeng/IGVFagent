@@ -120,6 +120,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "sc-crispr-de":     ("igvfagent.sc_crispr_de_skill",
+                          "Single-cell CRISPR differential expression: "
+                          "per-guide negative-binomial GLM against no-guide "
+                          "cells, then alpha-RRA rank aggregation to gene "
+                          "level (method of Gersbach Lab sc-crispr-de)"),
     "kg-mirror":        ("igvfagent.kg_mirror_skill",
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",

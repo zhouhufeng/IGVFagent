@@ -18,12 +18,12 @@ _End-to-end view: a knowledge graph and multi-omics data resources feed an orche
 
 ![IGVF Agent — architecture and skill topology](Docs/Figures/IGVF_agent_archetcture.png)
 
-_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 74 skills / 242 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
+_Detailed five-layer architecture: user entry points (terminal, NL agent, browser UI) → agent runtime & tool dispatch → 75 skills / 245 typed tools grouped by domain → local persistence (filesystem + DuckDB warehouses) → upstream services. The `network` skill (highlighted) is the apex of the skill DAG — a clean-room MILP reimplementation of CORNETO that reads from the Silver + Bronze warehouses and writes inferred subnetworks back._
 
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it locally, and shows its
-working.** 74 skills / 242 typed tools.
+working.** 75 skills / 245 typed tools.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
@@ -2274,6 +2274,68 @@ igvfagent humantfs families
 database is not evidence against. The data is downloaded at build time,
 never vendored; cite Lambert 2018 for derived tables.
 
+### Single-cell CRISPR differential expression (`sc-crispr-de`)
+
+Per-guide differential expression for **Perturb-seq / single-cell CRISPRi
+screens**. Every guide is tested independently: the cells carrying it
+against the cells with **no detected guide**, one negative-binomial GLM
+per gene, then the per-guide p-values are aggregated to a score per
+target-gene pair.
+
+Method from
+[Gersbachlab-Bioinformatics/sc-crispr-de](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de)
+(MIT). Clean-room reimplementation, no source copied — the upstream is R
+(Seurat, `MASS::glm.nb`, brglm2, GenomicRanges) driven by a SLURM array,
+and this container has neither R nor a scheduler, so a port was never an
+option. What is reproduced is the method.
+
+```bash
+pip install 'igvfagent[analysis]'    # + statsmodels, scanpy, anndata
+
+# 1) 10x matrices -> filtered checkpoint with per-cell guide calls.
+#    Omit --sgrna when guide features are inside the GEX matrix
+#    (CRISPR Guide Capture); CellRanger output is read directly.
+igvfagent sc-crispr-de prepare --gex filtered_feature_bc_matrix/ \
+    --sgrna sgrna_matrix/ --label screen1
+
+# 2) Per-guide NB GLM. The compute-heavy step: upstream runs one SLURM
+#    array task per guide, here guides run across a process pool.
+#    --gene-whitelist restricts to a locus when that is the question.
+igvfagent sc-crispr-de test --checkpoint <run>.h5ad \
+    --latentvar nCount_RNA --workers 8 --label screen1
+
+# 3) Gene level, calibrated against the non-targeting guides.
+igvfagent sc-crispr-de aggregate --per-guide <run>_per_guide.tsv \
+    --nontargeting NTC_1,NTC_2,... --label screen1
+
+# or all three:
+igvfagent sc-crispr-de pipeline --gex ... --sgrna ... --label screen1
+```
+
+**Validated on planted signal.** Synthetic 1,300-cell screen, three
+targeting guides and twelve NTCs, two genes knocked down by a known
+factor:
+
+| planted | expected log2FC | recovered |
+|---|---|---|
+| GATA1 ×0.25 | −2.00 | −1.89 / −2.22 / −2.03 |
+| HBB ×0.40 | −1.32 | −1.18 / −1.25 / −1.38 |
+
+Both reach FDR < 0.05 at gene level; the NTC guides do not.
+
+**Three deliberate differences from upstream**, because a
+reimplementation that quietly diverges is worse than none. *Dispersion:*
+`MASS::glm.nb` profiles θ by ML with IRLS alternation, statsmodels
+estimates α = 1/θ by direct ML — same parameter, different optimiser, so
+the last digits differ. *Bias reduction:* `--apply-bias-reduction`
+(brglm2, Firth-type) has no equivalent here, so it is **not implemented**
+rather than approximated; separated guides are reported as `separated`.
+*Aggregation:* upstream calls the external FRACTEL package; this is
+α-RRA (Kolde 2012, as in MAGeCK) with an empirical null from the
+non-targeting guides. Same family, not the same numbers — the columns are
+`rra_*`, never `FRACTEL_*`, so no reader can confuse them. Without enough
+NTCs the null is *assumed* rather than measured, and the output says so.
+
 ### Spatial-ATAC-Hi-C (spatial 3D genome + chromatin accessibility)
 
 Spatially resolved **co-profiling of genome folding and chromatin
@@ -2806,6 +2868,7 @@ maintainers for releasing their code openly.
 | **TF regulon inference** (inside `tabula tf-regulons`) | [aertslab/pySCENIC](https://github.com/aertslab/pySCENIC) | **GPL-3 — runtime dep avoided.** | Clean-room GRNBoost2-style gradient-boosted co-expression, motif-supported regulon pruning, and rank-based AUCell activity. Motif support is weaker than cisTarget (which needs multi-GB ranking databases); the difference is reported in every run's summary. |
 | **Pseudobulk differential expression** (inside `tabula sex-de`) | edgeR (Robinson/McCarthy/Smyth) | **GPL — runtime dep avoided.** | Clean-room negative-binomial Wald test on donor pseudobulk with method-of-moments dispersion. Concordant in direction and ranking, not in exact p-values — edgeR shrinks dispersions empirically. |
 | **Ambient RNA / modules / specificity** (inside `tabula`) | DecontX (celda), cNMF, tspex | MIT | Clean-room variational EM, consensus NMF with density filtering, and the τ statistic. DecontX and scVI outputs stored in the published h5ads let these be validated against upstream, not merely run. |
+| **sc-CRISPR-DE** single-cell CRISPR differential expression (`sc-crispr-de`) | [Gersbachlab-Bioinformatics/sc-crispr-de](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de) | MIT (Gersbach Lab Bioinformatics) — clean-room; no source copied. | Per-guide negative-binomial GLM (statsmodels, replacing R `MASS::glm.nb`) of guide-bearing cells against no-guide cells with library size as covariate; process-pool fan-out replacing the SLURM array; α-RRA gene-level aggregation with an empirical null from non-targeting guides, in place of the external FRACTEL package. brglm2 bias reduction is not implemented. |
 | **Spatial-ATAC-Hi-C** spatial 3D genome + accessibility (`spatial-hic`) | [wangjuan001/Spatial-ATAC-Hi-C](https://github.com/wangjuan001/Spatial-ATAC-Hi-C) (paper: [Wang 2026 *Nat Methods*](https://doi.org/10.1038/s41592-026-03217-4), GEO GSE307620) | MIT (wangjuan001, 2026) — clean-room; no source copied. | 50×50 microfluidic pixel demultiplex (barcode-B+A concatenation, the upstream `bcsplit.py` offsets), per-pixel cis/trans/long-range contact QC, ArchR-style TSS enrichment, SnapATAC2-style gene activity score (promoter+body Tn5 insertions) and scGAD gene-associated domain score (Hi-C pair ends over gene bodies), scHiCluster convolution+RWR imputation, cooltools-style A/B compartment eigenvector, NeoLoopFinder-style per-pixel CNV + HMM segmentation, MAGIC spatial smoothing, per-pixel loop quantification with one-way-ANOVA cluster-specific loop calling and APA pileup, and 50×50 tissue-space rendering. |
 | **Hi-C read processing** (upstream of `spatial-hic`) | [XiaoTaoWang/HiC_pipeline](https://github.com/XiaoTaoWang/HiC_pipeline) (runHiC) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. runHiC's `.pairs` output is the *input contract* for `spatial-hic`; alignment is the one upstream step with no tractable clean-room form, so it stays an external tool. |
 | **Adapter/quality trimming** (upstream of `spatial-hic`) | [FelixKrueger/TrimGalore](https://github.com/FelixKrueger/TrimGalore) | **GPL-3.0 — runtime dep avoided.** | Nothing is imported. Documented as the external FASTQ-level step that precedes this skill's inputs. |
