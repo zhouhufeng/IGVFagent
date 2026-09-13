@@ -41,6 +41,10 @@ DOWNLOAD_DIR = DATA_DIR / "Interpreted" / "Downloads"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _endpoints import resolve as _resolve_endpoint
+from _endpoints import max_download_gb as _max_dl_gb
+
+# Shared transfer ceiling (IGVF_MAX_DOWNLOAD_GB, default 200 GB).
+_MAX_DL_GB = _max_dl_gb()
 from _credentials import portal_credentials as _portal_credentials
 
 IGVF_API_BASE = _resolve_endpoint("portal_api", "IGVF_PORTAL_API_BASE")
@@ -538,6 +542,13 @@ def download_files(source: str, manifest: list[dict[str, str]], label: str, max_
             out["download_status"] = "skipped_size_cap"
             out["local_path"] = ""
             rows.append(out)
+            # Loud, not just a CSV cell. This path is how "download the file"
+            # returned success having fetched nothing: the status landed in a
+            # column nobody reads and the summary said the run completed.
+            logging.warning(
+                "SKIPPED %s (%.2f GB): over --max-download-gb %.2f. Nothing "
+                "was written for it. Re-run with a higher --max-download-gb.",
+                row.get("accession") or url, size_gb, max_download_gb)
             continue
         filename = Path(urllib.parse.urlparse(url).path).name or row.get("accession") or "downloaded_file"
         local_path = destination / safe_label(filename)
@@ -788,7 +799,8 @@ def main(argv: list[str] | None = None) -> int:
     explain.add_argument("target", help="IGVF/ENCODE accession, object URL, or search URL.")
     explain.add_argument("--label", default="", help="Output label.")
     explain.add_argument("--download", action="store_true", help="Download files found in the manifest.")
-    explain.add_argument("--max-download-gb", type=float, default=2.0, help="Maximum total payload download size.")
+    explain.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB,
+                          help="Transfer ceiling in GB. Applies ONLY with --download; nothing is fetched without it.")
     explain.add_argument("--hydrate-limit", type=int, default=25, help="Fetch detail JSON for this many search-result rows.")
 
     subparsers.add_parser("write-playbook", help="Write the data illustration skill document.")

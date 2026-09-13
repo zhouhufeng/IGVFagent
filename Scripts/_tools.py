@@ -666,14 +666,25 @@ _TOOLS: "list[Tool]" = [
 
     _T(
         "explain_dataset",
-        "Plain-language explainer for an IGVF/ENCODE accession or URL: "
-        "metadata, file inventory, SVG overview plots, how-to-use report.",
+        "★ EXPLAIN **AND DOWNLOAD** AN IGVF / ENCODE ACCESSION OR URL ★. "
+        "Metadata, file inventory, SVG overview plots, how-to-use report "
+        "-- and with `download=true`, THE FILES THEMSELVES. **This is the "
+        "tool for \"download ENCODE file ENCFFxxxxxxx\"**, or any bigWig / "
+        "BED / BAM by accession. portal_get returns IGVF Portal JSON, not "
+        "ENCODE and not file payloads; geo_download only accepts a GSE "
+        "series -- neither can fetch an ENCFF file, and NEVER author a "
+        "script to do it. Files land under Data/Interpreted/Downloads/ and "
+        "each one's download_status is reported.",
         {
             "type": "object",
             "properties": {
                 "accession_or_url": {**_S_STRING},
                 "download": {**_S_BOOLEAN, "default": False},
-                "max_download_gb": {"type": "number", "default": 0.3},
+                "max_download_gb": {"type": "number", "default": 200.0,
+                    "description": "Transfer ceiling in GB. Applies ONLY "
+                        "when download=true; nothing is fetched without "
+                        "it. A file over the ceiling is SKIPPED, not "
+                        "truncated."},
             },
             "required": ["accession_or_url"],
         },

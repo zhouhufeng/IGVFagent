@@ -367,7 +367,18 @@ def describe(screen: str) -> dict:
 # which reads as a numerical problem and is really a wrong invocation.
 # SECOND, --scale-by-acc is not self-contained: it needs an external ENCODE
 # accessibility bigwig, on hg19, which is not part of the Zenodo deposit.
-ACC_BIGWIG = "ENCFF262URW.hg19.bw"      # HepG2 DNase, hg19, from ENCODE
+# NOT hg19, and NOT DNase -- both claims here were wrong, and the filename
+# still carries the first one. Checked against ENCODE's own metadata for this
+# accession on 2026-09-13:
+#     assembly GRCh38 · assay ATAC-seq · signal p-value bigWig · 1.86 GB
+#     experiment ENCSR291GJU, HepG2
+# The name is kept so an already-fetched file is still found, but nothing
+# should read a genome build off it. This matters because --scale-by-acc
+# looks accessibility up BY COORDINATE: if the screen's coordinates are hg19
+# and this file is GRCh38, every lookup silently lands in the wrong place and
+# the model still returns numbers. Verify the build of the screen against
+# this file before trusting an accessibility-scaled fit.
+ACC_BIGWIG = "ENCFF262URW.hg19.bw"      # HepG2 ATAC-seq signal, GRCh38
 ACC_URL = "https://www.encodeproject.org/files/ENCFF262URW/@@download/ENCFF262URW.bigWig"
 
 MODELS = {
@@ -467,8 +478,14 @@ def run_model(screen: str, model: str, *, n_iter: int = 0,
                 f"{m['label']} needs the accessibility track {ACC_BIGWIG}, "
                 f"which is NOT in the Zenodo deposit -- the paper pulls it "
                 f"separately from ENCODE ({ACC_URL}). Fetch it to "
-                f"{bw} and re-run. Note it is hg19, while the screen's "
-                f"coordinates should be checked against it.")}
+                f"{bw} and re-run.\n"
+                f"EASIEST: explain_dataset(accession_or_url='ENCFF262URW', "
+                f"download=True), then move the .bigWig to that path.\n"
+                f"BUILD WARNING: the filename says hg19, but ENCODE serves "
+                f"this accession as GRCh38 ATAC-seq (not hg19 DNase). "
+                f"--scale-by-acc looks accessibility up by coordinate, so "
+                f"check the screen's build against the file before trusting "
+                f"an accessibility-scaled fit.")}
         cmd += ["--acc-bw-path", str(bw)]
     if n_iter:
         cmd += ["--n-iter", str(n_iter)]
