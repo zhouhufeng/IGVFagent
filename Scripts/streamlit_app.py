@@ -1030,37 +1030,33 @@ def _resource_readings(box, tok: dict) -> None:
             st.caption("_Host figures (no container limits detected)._")
 
 
-@st.fragment(run_every="3s")
-def _resource_fragment() -> None:
-    """Idle refresh.
-
-    Streamlit paints the sidebar once per script run, so without this the
-    numbers froze at whatever they were when the page last rendered and never
-    moved again. A fragment reruns on its own timer without rerunning the
-    whole script.
-
-    It CANNOT cover a running job: the session's script thread is blocked
-    inside _agent.run() for the length of the run, and a fragment rerun queues
-    behind it. That case is driven from the agent callback instead, which can
-    write to this same placeholder while the thread is busy.
-    """
-    box = st.session_state.get("_res_slot")
-    if box is not None:
-        _resource_readings(box, st.session_state.get("_token_usage") or {})
-
-
 def _render_resource_panel(st) -> None:
     """Compute + token usage for this session.
 
     Reads cgroup limits, not host stats: in a container psutil reports the
     HOST's cores and memory, which would show this app using a third of
     "available" RAM when against its own 22 GB cap it is using half.
+
+    NO IDLE AUTO-REFRESH, deliberately. The obvious implementation --
+    st.fragment(run_every="3s") repainting the placeholder below -- was
+    deployed and took the page down: it rendered, then blanked to white on the
+    fragment's first rerun. A fragment may only write to elements created
+    INSIDE it; this placeholder is created by the outer script run, and
+    writing to it from a fragment rerun tears down the surrounding layout.
+
+    The panel therefore repaints on script reruns (any interaction) and, while
+    a job is running, from the agent callback -- which is the case that
+    actually matters and does not need a fragment, because a DeltaGenerator
+    can be written to while the script thread is blocked. If idle refresh is
+    wanted later, the fragment must own its own elements rather than reach
+    outside itself, and it must be checked in a real browser: this failure is
+    invisible to import checks, unit tests and a file-content diff, all of
+    which passed.
     """
     with st.expander("⚙️ Compute & usage", expanded=False):
         slot = st.empty()
         st.session_state["_res_slot"] = slot
         _resource_readings(slot, st.session_state.get("_token_usage") or {})
-        _resource_fragment()
 
 
 # --------------------------- Artefact rendering ----------------------------
