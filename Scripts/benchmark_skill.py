@@ -889,11 +889,32 @@ def extract_accessions(text: str, sections: List[Dict[str, str]]) -> Dict[str, L
     return found
 
 
+# Terms are matched on WORD BOUNDARIES, not as bare substrings. This was
+# `low.count(term)`, which counts a term anywhere inside any word -- and "hic"
+# is inside "which", "vehicle" and "chick". Every English paper therefore
+# scored at least one Hi-C mention, and a VAMP-seq paper on secreted proteins
+# (Popp 2025, MultiSTEP) routed to the Spatial-ATAC-Hi-C chain on the strength
+# of the word "which". The \b on each side is what makes a term mean the term.
+_ASSAY_RE_CACHE: "dict[str, Any]" = {}
+
+
+def _assay_pattern(term: str):
+    rx = _ASSAY_RE_CACHE.get(term)
+    if rx is None:
+        # \b is only meaningful next to a word character; a term that starts
+        # or ends with punctuation (none today, but "10x multiome" has a
+        # digit) gets the boundary only where it can apply.
+        left = r"\b" if term[:1].isalnum() else ""
+        right = r"\b" if term[-1:].isalnum() else ""
+        rx = re.compile(left + re.escape(term) + right, re.IGNORECASE)
+        _ASSAY_RE_CACHE[term] = rx
+    return rx
+
+
 def extract_assays(text: str) -> List[Dict[str, Any]]:
-    low = text.lower()
     out = []
     for spec in ASSAY_TERMS:
-        n = sum(low.count(t) for t in spec["terms"])
+        n = sum(len(_assay_pattern(t).findall(text)) for t in spec["terms"])
         if n:
             out.append({"assay": spec["assay"], "mentions": n})
     out.sort(key=lambda d: d["mentions"], reverse=True)
