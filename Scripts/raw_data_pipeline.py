@@ -1099,7 +1099,8 @@ def kb_available() -> "tuple[bool, str]":
     return True, f"{exe} ({ver})"
 
 
-def ensure_index(reference: str, dry_run: bool) -> "tuple[Path, Path, list[str]]":
+def ensure_index(reference: str, dry_run: bool,
+                  workflow: str = "standard") -> "tuple[Path, Path, list[str]]":
     """Return (index, t2g) for a prebuilt kb reference, downloading if absent.
 
     Two things here are not optional in a containerised deployment.
@@ -1119,12 +1120,21 @@ def ensure_index(reference: str, dry_run: bool) -> "tuple[Path, Path, list[str]]
     where it failed far from the real cause with "kallisto index file not
     found".
     """
-    ref_root = REF_DIR / safe_label(reference)
+    # The nac workflow needs its OWN index: `kb ref --workflow nac` emits two
+    # transcripts-to-capture lists (mature, nascent) that `kb count --workflow
+    # nac` then REQUIRES as -c1/-c2. A standard index has no such files, so
+    # the two cannot share a reference directory.
+    nac = (workflow or "standard") == "nac"
+    ref_root = REF_DIR / (safe_label(reference) + ("_nac" if nac else ""))
     index = ref_root / "index.idx"
     t2g = ref_root / "t2g.txt"
     tmp = ref_root / "tmp"
     cmd = ["kb", "ref", "-d", reference, "-i", str(index), "-g", str(t2g),
            "--tmp", str(tmp)]
+    if nac:
+        cmd += ["--workflow", "nac",
+                "-c1", str(ref_root / "cdna_t2c.txt"),
+                "-c2", str(ref_root / "nascent_t2c.txt")]
     if index.exists() and t2g.exists():
         return index, t2g, []
     ref_root.mkdir(parents=True, exist_ok=True)
@@ -1158,6 +1168,20 @@ def kb_count_cmd(index: Path, t2g: Path, tech: str, out_dir: Path,
            "-o", str(out_dir), "--h5ad", "-t", str(threads)]
     if workflow != "standard":
         cmd += ["--workflow", workflow]
+    if workflow == "nac":
+        # kb REQUIRES these for nac and refuses to start without them. They
+        # sit beside the index, written by `kb ref --workflow nac`. Offering
+        # `nac` in the CLI choices without passing them made it an option that
+        # could only ever fail at run time.
+        c1 = index.parent / "cdna_t2c.txt"
+        c2 = index.parent / "nascent_t2c.txt"
+        missing = [str(c) for c in (c1, c2) if not c.exists()]
+        if missing:
+            raise RuntimeError(
+                "workflow 'nac' needs the capture lists " + ", ".join(missing)
+                + ", written by `kb ref --workflow nac`. Rebuild the reference "
+                  "with workflow='nac'.")
+        cmd += ["-c1", str(c1), "-c2", str(c2)]
     if singles:
         # kb refuses BULK without --parity: it cannot know whether two files
         # are a pair or two single-end runs. These are single-end by
@@ -1497,7 +1521,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         if args.index and args.t2g:
             index, t2g, refcmd = Path(args.index), Path(args.t2g), []
         else:
-            index, t2g, refcmd = ensure_index(args.reference, args.dry_run)
+            index, t2g, refcmd = ensure_index(args.reference, args.dry_run,
+                                                workflow=args.workflow)
         if refcmd:
             print("Reference: " + " ".join(refcmd))
 
