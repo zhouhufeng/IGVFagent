@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "bcalm":            ("igvfagent.bcalm_skill",
+                          "Barcode-level MPRA activity with empirical-Bayes "
+                          "moderated statistics (BCalm approach)"),
     "scnt-seq":         ("igvfagent.scnt_seq_skill",
                           "scNT-seq: split new from old RNA by 4sU T>C "
                           "metabolic-labelling conversions"),

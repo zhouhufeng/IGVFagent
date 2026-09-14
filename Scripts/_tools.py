@@ -5243,6 +5243,40 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "bcalm_activity",
+        "★ MPRA ACTIVITY FROM BARCODE-LEVEL COUNTS ★ (BCalm approach). Use "
+        "INSTEAD OF mpra_activity when you have per-barcode counts and care "
+        "about confidence, not just effect size. mpra_activity SUMS an "
+        "element's barcodes before testing, which throws away the spread "
+        "among them — the best evidence about how noisy that measurement "
+        "really is. Two elements with the same mean activity, one whose "
+        "barcodes agree and one whose barcodes disagree, come out of a summed "
+        "analysis with the SAME confidence; here they do not. Per-element "
+        "variances are moderated by empirical Bayes, so an element with few "
+        "barcodes is shrunk toward the trend rather than trusted on its own "
+        "noisy estimate. Needs DNA*/RNA* count columns per replicate.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":     {**_S_STRING, "description":
+                                "Barcode-level table: oligo, barcode, "
+                                "DNA_rep1/RNA_rep1, ... (from "
+                                "mpraflow barcode-matrix or equivalent)."},
+                "oligo_col":  {**_S_STRING},
+                "barcode_col": {**_S_STRING},
+                "min_obs":    {**_S_INTEGER, "default": 3},
+                "fdr":        {**_S_NUMBER, "default": 0.05},
+                "label":      {**_S_STRING},
+            },
+            "required": ["counts"],
+        },
+        cli=["bcalm", "activity"],
+        flag_map={"counts": "--counts", "oligo_col": "--oligo-col",
+                   "barcode_col": "--barcode-col", "min_obs": "--min-obs",
+                   "fdr": "--fdr", "label": "--label"},
+    ),
+
+    _T(
         "scnt_seq_count",
         "★ NEW vs OLD RNA FROM 4sU METABOLIC LABELLING ★ (scNT-seq). Counts "
         "T>C conversions per read in an aligned BAM and splits new from old "
