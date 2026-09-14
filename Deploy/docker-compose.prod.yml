@@ -124,10 +124,18 @@ services:
       # Empty = the tag renders with no id and reports nothing, which is the
       # right default for anyone else deploying this repo.
       GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
-      # Substitute ONLY GA_* in the template. Without this filter envsubst
-      # would also replace nginx's own $$host / $$http_upgrade / $$remote_addr
-      # with empty strings and the rendered config would be broken.
-      NGINX_ENVSUBST_FILTER: "^GA_"
+      # Shared secret the WebSocket location accepts in place of basic auth,
+      # because Safari does not send basic-auth credentials on a WebSocket
+      # handshake (see the comment in nginx/igvfagent.conf.template). Set it
+      # in .env.prod; an empty value would make the cookie check trivially
+      # satisfiable, so the gateway refuses to start without one.
+      WS_TOKEN: ${WS_TOKEN:?WS_TOKEN is required (openssl rand -hex 24)}
+      # Substitute ONLY GA_* and WS_TOKEN in the template. Without this filter
+      # envsubst would also replace nginx's own $$host / $$http_upgrade /
+      # $$remote_addr with empty strings and the rendered config would be
+      # broken. WS_TOKEN must be listed or it renders literally and every
+      # WebSocket is refused.
+      NGINX_ENVSUBST_FILTER: "^(GA_|WS_TOKEN)"
     volumes:
       - ./nginx/igvfagent.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
