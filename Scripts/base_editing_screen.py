@@ -428,9 +428,12 @@ def bean_gap(lib: dict, scr: dict) -> "list[str]":
         gaps.append("reporter-allele analysis -- NOT OBTAINABLE from IGVF: "
                      f"the library ({lib['file']}) publishes no reporter "
                      "column, so there are no alleles to count")
-        gaps.append("bystander edit deconvolution -- NOT OBTAINABLE: it reads "
-                     "the reporter allele above, and needs CRISPResso2 "
-                     "alignment of it")
+        gaps.append("bystander edit deconvolution -- NOT OBTAINABLE FROM "
+                     "IGVF: it reads the reporter allele above, which this "
+                     "library does not publish. CRISPResso2 (which does the "
+                     "alignment) IS installed here, so this runs on a deposit "
+                     "that carries a reporter -- the paper's own Zenodo h5ad "
+                     "does; see crispresso_analyze and bean_paper_benchmark")
     if "barcode" not in cols:
         gaps.append("bcmatch/semimatch split -- NOT OBTAINABLE: no guide "
                      "barcode is published, so masked-sequence collisions "

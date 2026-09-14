@@ -105,6 +105,14 @@ RUN python -m venv /opt/venv \
 # Verified with `bean --help`, NOT `bean --version`: BEAN has no --version
 # flag and answers "error: unrecognized arguments: --version" with exit 2, so
 # the previous line here could never have passed even had the build worked.
+# CRISPResso2 is installed into this SAME venv, not the app venv. It needs the
+# same numpy<2 (BEAN already vendors its CRISPResso2Align.pyx), and BEAN reads
+# the reporter allele THROUGH CRISPResso2 alignment -- bystander edit
+# deconvolution is unavailable without it, which is a gap base_editing_screen
+# reports today. It is not on PyPI, so it installs from the repo, and
+# --no-build-isolation keeps the cython<3 pin above in force. Verified in a
+# throwaway container before this was committed: `bean --help` and
+# `CRISPResso --help` both answer, with numpy 1.26.4 and torch 2.4.1+cpu.
 ARG INSTALL_CRISPR_BEAN=0
 RUN if [ "$INSTALL_CRISPR_BEAN" = "1" ]; then \
         python -m venv /opt/bean-venv \
@@ -114,9 +122,12 @@ RUN if [ "$INSTALL_CRISPR_BEAN" = "1" ]; then \
             --index-url https://download.pytorch.org/whl/cpu "torch==2.4.1" \
      && /opt/bean-venv/bin/pip install --no-cache-dir --no-build-isolation \
             crispr-bean \
+     && /opt/bean-venv/bin/pip install --no-cache-dir --no-build-isolation \
+            git+https://github.com/pinellolab/CRISPResso2.git \
      && /opt/bean-venv/bin/pip install --no-cache-dir "numpy<2" "zarr<3" \
      && /opt/bean-venv/bin/bean --help > /dev/null \
      && /opt/bean-venv/bin/bean run --help > /dev/null \
+     && /opt/bean-venv/bin/CRISPResso --help > /dev/null \
      && /opt/bean-venv/bin/python -c "import numpy, torch, bean; assert numpy.__version__.startswith('1.'), numpy.__version__; print('bean venv: numpy', numpy.__version__, '| torch', torch.__version__)"; \
     else \
         echo "crispr-bean NOT installed (INSTALL_CRISPR_BEAN=0)."; \

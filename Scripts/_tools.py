@@ -5243,6 +5243,47 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "crispresso_analyze",
+        "★ QUANTIFY GENOME-EDITING OUTCOMES FROM AMPLICON READS ★ — CRISPResso2 "
+        "(Clement et al., Nat Biotechnol 2019). Aligns amplicon sequencing "
+        "reads against a reference and quantifies indels, substitutions and "
+        "HDR, including base-editing outcomes and the per-position "
+        "substitution table a bystander analysis reads. USE THIS for "
+        "\"what edits did this amplicon get\", \"quantify indels\", "
+        "\"base-editing efficiency from FASTQ\", or bystander/reporter allele "
+        "questions. It is a separate program run as a subprocess; pass "
+        "`extra_args` for any flag not surfaced here.",
+        {
+            "type": "object",
+            "properties": {
+                "fastq_r1":   {**_S_STRING, "description": "Reads (fastq or fastq.gz)."},
+                "fastq_r2":   {**_S_STRING, "description": "Optional mate."},
+                "amplicon":   {**_S_STRING, "description":
+                                "Reference amplicon SEQUENCE (not a path)."},
+                "guide":      {**_S_STRING, "description":
+                                "sgRNA spacer sequence, no PAM."},
+                "base_editor": {**_S_BOOLEAN, "description":
+                                 "Base-editor output: per-position "
+                                 "substitution quantification."},
+                "conversion": {**_S_STRING, "description":
+                                "For base editors, e.g. 'A,G' for ABE or "
+                                "'C,T' for CBE."},
+                "name":       {**_S_STRING, "description": "Run name."},
+                "output_dir": {**_S_STRING},
+                "extra_args": {**_S_STRING, "description":
+                                "Any further CRISPResso flags, verbatim."},
+            },
+            "required": ["fastq_r1", "amplicon"],
+        },
+        cli=["crispresso", "analyze"],
+        flag_map={"fastq_r1": "--fastq-r1", "fastq_r2": "--fastq-r2",
+                   "amplicon": "--amplicon", "guide": "--guide",
+                   "conversion": "--conversion", "name": "--name",
+                   "output_dir": "--output-dir", "extra_args": "--extra-args"},
+        bool_flags={"base_editor"},
+    ),
+
+    _T(
         "bean_paper_benchmark",
         "Benchmark against ONE SPECIFIC PAPER: Ryu et al., CRISPR-BEAN, "
         "Nat Genet 56:925-937 (2024), base-editing screens of LDLR / LDL-C "
