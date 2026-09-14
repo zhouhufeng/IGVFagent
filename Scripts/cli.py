@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "pgboost":          ("igvfagent.pgboost_skill",
+                          "Combine peak→gene link evidence into one calibrated "
+                          "probability (gradient boosting, leave-one-chromosome-out)"),
     "regulome":         ("igvfagent.regulome_skill",
                           "RegulomeDB regulatory rank + per-tissue scores for "
                           "non-coding variants"),

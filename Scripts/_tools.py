@@ -5308,6 +5308,57 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "pgboost_train",
+        "★ LEARN TO COMBINE PEAK→GENE LINK EVIDENCE ★ (pgBoost approach). "
+        "Several methods score a peak-gene link and they disagree — Signac, "
+        "SCENT, Cicero, distance, and this repo's sce2g_predict. Picking one "
+        "is arbitrary and averaging ignores that they are not equally "
+        "trustworthy. This trains a gradient-boosted classifier on links with "
+        "known labels (e.g. fine-mapped eQTLs) and reports honest metrics via "
+        "LEAVE-ONE-CHROMOSOME-OUT CV — random CV inflates the score, because "
+        "links on one chromosome share LD structure and near-duplicates leak "
+        "into the test split. Needs a chromosome column.",
+        {
+            "type": "object",
+            "properties": {
+                "training_file": {**_S_STRING, "description":
+                                   "Labelled links, TSV/CSV, with a chrom "
+                                   "column and numeric predictors."},
+                "label_col":     {**_S_STRING, "default": "label"},
+                "predictors":    {**_S_STRING, "description":
+                                   "Comma list; numeric columns if omitted."},
+                "label":         {**_S_STRING},
+            },
+            "required": ["training_file"],
+        },
+        cli=["pgboost", "train"],
+        flag_map={"training_file": "--training-file", "label_col": "--label-col",
+                   "predictors": "--predictors", "label": "--label"},
+    ),
+
+    _T(
+        "pgboost_predict",
+        "★ SCORE CANDIDATE PEAK→GENE LINKS ★ with a model from pgboost_train. "
+        "Emits pgBoost_probability and pgBoost_percentile alongside every "
+        "input column. Refuses, naming the missing columns, when the input "
+        "lacks a predictor the model was trained on — scoring against absent "
+        "features would return confident numbers from nothing.",
+        {
+            "type": "object",
+            "properties": {
+                "data_file": {**_S_STRING, "description": "Candidate links."},
+                "model":     {**_S_STRING, "description":
+                               "pgboost_model.pkl from pgboost_train."},
+                "label":     {**_S_STRING},
+            },
+            "required": ["data_file", "model"],
+        },
+        cli=["pgboost", "predict"],
+        flag_map={"data_file": "--data-file", "model": "--model",
+                   "label": "--label"},
+    ),
+
+    _T(
         "regulome_annotate",
         "★ IS THIS NON-CODING VARIANT IN A REGULATORY ELEMENT, AND IN WHICH "
         "TISSUES ★ — RegulomeDB rank (1a best .. 7 no evidence), probability, "
