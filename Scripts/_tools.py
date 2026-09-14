@@ -5243,6 +5243,35 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "sctransform_run",
+        "★ SCTRANSFORM NORMALISATION ★ — variance stabilisation by regularised "
+        "negative-binomial regression (Hafemeister & Satija 2019, Seurat's "
+        "SCTransform). Use INSTEAD OF log-normalisation when clustering looks "
+        "driven by sequencing depth: log-normalising assumes every gene "
+        "scales with depth the same way and low-expressed genes do not, so "
+        "depth leaks into the PCA. Returns Pearson residuals (NOT counts — do "
+        "not feed them to a count model such as sc_crispr_de_test or "
+        "mpra_activity; use them for PCA / clustering / HVG selection). "
+        "Residual variance also ranks genes, replacing a log-normalised HVG "
+        "list.",
+        {
+            "type": "object",
+            "properties": {
+                "input":     {**_S_STRING, "description": "Raw-count .h5ad."},
+                "min_cells": {**_S_INTEGER, "default": 5},
+                "bandwidth": {**_S_NUMBER, "default": 0.3,
+                               "description": "Kernel width over log10(gene "
+                               "mean) for the regularisation step."},
+                "label":     {**_S_STRING},
+            },
+            "required": ["input"],
+        },
+        cli=["sctransform", "run"],
+        flag_map={"input": "--input", "min_cells": "--min-cells",
+                   "bandwidth": "--bandwidth", "label": "--label"},
+    ),
+
+    _T(
         "guide_map",
         "★ MAP FASTQ READS TO A GUIDE LIBRARY ★ with imperfect matching. Point "
         "it at any FASTQ and any guide-library CSV/TSV and get per-guide "
