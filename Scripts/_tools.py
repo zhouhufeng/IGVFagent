@@ -5243,6 +5243,41 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "scnt_seq_count",
+        "★ NEW vs OLD RNA FROM 4sU METABOLIC LABELLING ★ (scNT-seq). Counts "
+        "T>C conversions per read in an aligned BAM and splits new from old "
+        "RNA per cell and per gene. NOT the same as kb's `nac` workflow, "
+        "which IGVFagent also has: `nac` calls a transcript nascent from "
+        "INTRON content, this calls it new from CHEMICAL LABELLING — an "
+        "intronless transcript made an hour ago is new here and mature there. "
+        "Needs a BAM with MD tags (conversions are read from them) and cell "
+        "barcodes. Reports the rate of every OTHER substitution type as "
+        "background, and warns when labelling conversions are not clearly "
+        "above it — a low ratio means the 'new' calls are sequencing error.",
+        {
+            "type": "object",
+            "properties": {
+                "bam":             {**_S_STRING, "description":
+                                     "Aligned BAM with MD tags."},
+                "cell_tag":        {**_S_STRING, "default": "CB"},
+                "gene_tag":        {**_S_STRING, "default": "GX"},
+                "min_conversions": {**_S_INTEGER, "default": 2,
+                                     "description": "Conversions needed to "
+                                     "call a read new. 1 is weak — SNPs and "
+                                     "sequencing error also make T>C."},
+                "max_reads":       {**_S_INTEGER},
+                "label":           {**_S_STRING},
+            },
+            "required": ["bam"],
+        },
+        cli=["scnt-seq", "count"],
+        flag_map={"bam": "--bam", "cell_tag": "--cell-tag",
+                   "gene_tag": "--gene-tag",
+                   "min_conversions": "--min-conversions",
+                   "max_reads": "--max-reads", "label": "--label"},
+    ),
+
+    _T(
         "sce2g_predict",
         "★ ENHANCER→GENE LINKS FROM PAIRED SINGLE-CELL ATAC + RNA ★ "
         "(scE2G-style). Computes, for every peak-gene pair in a window: the "

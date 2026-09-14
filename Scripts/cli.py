@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "scnt-seq":         ("igvfagent.scnt_seq_skill",
+                          "scNT-seq: split new from old RNA by 4sU T>C "
+                          "metabolic-labelling conversions"),
     "sce2g-predict":    ("igvfagent.sce2g_predict_skill",
                           "scE2G-style enhancer→gene features from paired "
                           "single-cell ATAC + RNA (Kendall + ABC)"),
