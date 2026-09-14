@@ -707,6 +707,111 @@ GPL bowtie2 chain at runtime.
 # CLI
 # ---------------------------------------------------------------------------
 
+
+# ─── Alignment route (SHARE-seq-alignmentV2's stage, on installed tools) ─────
+#
+# SHARE-seq-alignmentV2 (sai-ma-group) is a shell pipeline around STAR,
+# bowtie2, fastp, umi_tools, samtools, Picard, featureCounts and bedtools --
+# none of which are installed, and it is GPL-3.0 against this project's
+# Apache-2.0. Neither its code nor its toolchain can be absorbed.
+#
+# What CAN be done, and is what these two subcommands do, is run the same
+# STAGE on tools that ARE here: chromap for the ATAC half (installed for the
+# IGVF uniform pipeline) and kb-python for the RNA half. The SHARE-seq
+# specific part -- three 24-mer combinatorial barcodes at fixed offsets in R2
+# -- is expressed to chromap through --read-format rather than reimplemented.
+#
+# This is a DIFFERENT aligner from upstream's, not a reproduction of it.
+# chromap is not bowtie2 and kallisto is not STAR; expect concordant fragments
+# and counts, not identical ones.
+
+def _share_read_format(r1: int, r2: int, r3: int, bc_len: int = 8) -> str:
+    """chromap --read-format for SHARE-seq's three combinatorial barcodes.
+
+    chromap takes half-open, inclusive-end ranges, so a bc_len-mer starting at
+    `off` is `off:off+bc_len-1`. The three segments are concatenated into one
+    cell barcode in the order given, which must match the whitelist's order --
+    get it backwards and every barcode misses, which is what
+    demultiplex-bcs's `--shift-correct` exists to diagnose.
+    """
+    segs = [f"bc:{o}:{o + bc_len - 1}" for o in (r1, r2, r3)]
+    return "r1:0:-1,r2:0:-1," + ",".join(segs)
+
+
+def cmd_align_atac(args) -> int:
+    """SHARE-seq ATAC FASTQs -> fragments, via chromap."""
+    import shutil
+    import subprocess
+    exe = shutil.which("chromap")
+    if not exe:
+        print("chromap is not installed. It ships with the image built by "
+              "Deploy/redeploy.sh; rebuild, or install it on PATH.")
+        return 3
+    out_dir = Path(args.out_dir) if args.out_dir else (
+        REPORT_DIR / f"{timestamp()}_{safe_label(args.label)}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    frag = out_dir / "fragments.tsv"
+
+    rf = args.read_format or _share_read_format(args.r1_offset, args.r2_offset,
+                                                 args.r3_offset, args.bc_len)
+    cmd = [exe, "--preset", "atac", "-x", args.index, "-r", args.ref,
+           "-1", args.read1, "-2", args.read2, "-b", args.barcode,
+           "--read-format", rf, "-o", str(frag),
+           "-t", str(args.threads),
+           "--bc-error-threshold", str(args.bc_error_threshold)]
+    if args.whitelist:
+        cmd += ["--barcode-whitelist", args.whitelist]
+    print("  " + " ".join(cmd))
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout)
+    # chromap writes its statistics to stderr; they are the run's QC and are
+    # worth keeping rather than discarding with the process.
+    (out_dir / "chromap.log").write_text((r.stdout or "") + (r.stderr or ""))
+    if r.returncode != 0:
+        print(f"chromap exited {r.returncode}:")
+        for line in (r.stderr or "").strip().splitlines()[-6:]:
+            print("  " + line)
+        return r.returncode
+    print(f"Report: {frag}")
+    print(f"Wrote:  {out_dir / 'chromap.log'}")
+    print("  Next: share fragment-qc --fragments <this file>")
+    return 0
+
+
+def cmd_align_rna(args) -> int:
+    """SHARE-seq RNA FASTQs -> count matrix, via kb-python."""
+    import shutil
+    import subprocess
+    exe = shutil.which("kb")
+    if not exe:
+        print("kb-python is not installed. Install the aligner extra: "
+              "pip install 'igvfagent[align]'")
+        return 3
+    out_dir = Path(args.out_dir) if args.out_dir else (
+        REPORT_DIR / f"{timestamp()}_{safe_label(args.label)}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # kb takes the barcode geometry as a technology string. SHARE-seq is not
+    # one of its named presets, so it is given positionally: three barcode
+    # segments, then the UMI, then the biological read.
+    tech = args.technology or (
+        f"{args.bc_file_index},{args.r1_offset},{args.r1_offset + args.bc_len}:"
+        f"{args.bc_file_index},{args.umi_offset},{args.umi_offset + args.umi_len}:"
+        f"{args.cdna_file_index},0,0")
+    cmd = [exe, "count", "-i", args.index, "-g", args.t2g, "-x", tech,
+           "-o", str(out_dir), "--h5ad", "-t", str(args.threads)] + args.fastqs
+    print("  " + " ".join(cmd))
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout)
+    (out_dir / "kb.log").write_text((r.stdout or "") + (r.stderr or ""))
+    if r.returncode != 0:
+        print(f"kb exited {r.returncode}:")
+        for line in ((r.stderr or "") + (r.stdout or "")).strip().splitlines()[-6:]:
+            print("  " + line)
+        return r.returncode
+    h5 = out_dir / "counts_unfiltered" / "adata.h5ad"
+    print(f"Report: {h5 if h5.exists() else out_dir}")
+    print("  Next: share rna-qc --h5ad <this file>")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="SHARE-seq joint ATAC+RNA QC (clean-room).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -725,6 +830,40 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--shift-correct", action="store_true")
     p.add_argument("--max-reads", type=int, default=0, help="Stop after this many reads (0 = no limit).")
     p.add_argument("--label", default="share_demultiplex")
+
+    p = sub.add_parser("align-atac", help="SHARE-seq ATAC FASTQs -> fragments (chromap).")
+    p.add_argument("--read1", required=True)
+    p.add_argument("--read2", required=True)
+    p.add_argument("--barcode", required=True, help="FASTQ carrying the barcode read.")
+    p.add_argument("--index", required=True, help="chromap index.")
+    p.add_argument("--ref", required=True, help="Reference FASTA.")
+    p.add_argument("--whitelist", help="Barcode whitelist.")
+    p.add_argument("--r1-offset", type=int, default=14)
+    p.add_argument("--r2-offset", type=int, default=52)
+    p.add_argument("--r3-offset", type=int, default=90)
+    p.add_argument("--bc-len", type=int, default=8)
+    p.add_argument("--read-format", help="Override the derived chromap format.")
+    p.add_argument("--bc-error-threshold", type=int, default=1)
+    p.add_argument("--threads", type=int, default=4)
+    p.add_argument("--timeout", type=int, default=86400)
+    p.add_argument("--out-dir")
+    p.add_argument("--label", default="share_align_atac")
+
+    p = sub.add_parser("align-rna", help="SHARE-seq RNA FASTQs -> counts (kb).")
+    p.add_argument("fastqs", nargs="+")
+    p.add_argument("--index", required=True, help="kallisto index.")
+    p.add_argument("--t2g", required=True)
+    p.add_argument("--technology", help="kb -x string; derived when omitted.")
+    p.add_argument("--r1-offset", type=int, default=14)
+    p.add_argument("--bc-len", type=int, default=24)
+    p.add_argument("--umi-offset", type=int, default=0)
+    p.add_argument("--umi-len", type=int, default=10)
+    p.add_argument("--bc-file-index", type=int, default=1)
+    p.add_argument("--cdna-file-index", type=int, default=0)
+    p.add_argument("--threads", type=int, default=4)
+    p.add_argument("--timeout", type=int, default=86400)
+    p.add_argument("--out-dir")
+    p.add_argument("--label", default="share_align_rna")
 
     p = sub.add_parser("fragment-qc", help="Per-barcode ATAC QC from a fragments BED.")
     p.add_argument("--fragments", required=True)
@@ -760,6 +899,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_pull_portal(args)
     if args.command == "demultiplex-bcs":
         return cmd_demultiplex_bcs(args)
+    if args.command == "align-atac":
+        return cmd_align_atac(args)
+    if args.command == "align-rna":
+        return cmd_align_rna(args)
     if args.command == "fragment-qc":
         return cmd_fragment_qc(args)
     if args.command == "rna-qc":

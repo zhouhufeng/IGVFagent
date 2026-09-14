@@ -4331,6 +4331,71 @@ _TOOLS: "list[Tool]" = [
                   "max_reads": "--max-reads", "label": "--label"},
     ),
     _T(
+        "share_align_atac",
+        "★ SHARE-seq ATAC FASTQs → FRAGMENTS ★ via chromap. The alignment "
+        "stage SHARE-seq-alignmentV2 performs, run on the tools installed "
+        "here: that pipeline is GPL-3.0 and wraps STAR/bowtie2/fastp/"
+        "umi_tools/samtools/Picard/featureCounts/bedtools, none of which are "
+        "present. chromap IS (it is half the IGVF uniform pipeline). The "
+        "SHARE-seq part — three 24-mer combinatorial barcodes at fixed "
+        "offsets in the barcode read — is expressed through chromap's "
+        "read-format rather than reimplemented. A DIFFERENT aligner from "
+        "upstream's: expect concordant fragments, not identical ones. Feed "
+        "the output to share_fragment_qc.",
+        {
+            "type": "object",
+            "properties": {
+                "read1":     {**_S_STRING}, "read2": {**_S_STRING},
+                "barcode":   {**_S_STRING, "description": "FASTQ with the barcode read."},
+                "index":     {**_S_STRING, "description": "chromap index."},
+                "ref":       {**_S_STRING, "description": "Reference FASTA."},
+                "whitelist": {**_S_STRING},
+                "r1_offset": {**_S_INTEGER, "default": 14},
+                "r2_offset": {**_S_INTEGER, "default": 52},
+                "r3_offset": {**_S_INTEGER, "default": 90},
+                "threads":   {**_S_INTEGER, "default": 4},
+                "label":     {**_S_STRING},
+            },
+            "required": ["read1", "read2", "barcode", "index", "ref"],
+        },
+        cli=["share", "align-atac"],
+        flag_map={"read1": "--read1", "read2": "--read2", "barcode": "--barcode",
+                   "index": "--index", "ref": "--ref", "whitelist": "--whitelist",
+                   "r1_offset": "--r1-offset", "r2_offset": "--r2-offset",
+                   "r3_offset": "--r3-offset", "threads": "--threads",
+                   "label": "--label"},
+    ),
+
+    _T(
+        "share_align_rna",
+        "★ SHARE-seq RNA FASTQs → COUNT MATRIX ★ via kb-python. The RNA half "
+        "of the SHARE-seq alignment stage, using kallisto|bustools where "
+        "upstream uses STAR + featureCounts. The barcode geometry is passed "
+        "as a kb technology string, derived from the SHARE-seq offsets when "
+        "not given. Feed the output to share_rna_qc, then share_joint_qc to "
+        "pair it with the ATAC half.",
+        {
+            "type": "object",
+            "properties": {
+                "fastqs":     {**_S_STRING, "description":
+                                "Space-separated FASTQ paths, in kb order."},
+                "index":      {**_S_STRING, "description": "kallisto index."},
+                "t2g":        {**_S_STRING},
+                "technology": {**_S_STRING, "description":
+                                "kb -x string; derived when omitted."},
+                "threads":    {**_S_INTEGER, "default": 4},
+                "label":      {**_S_STRING},
+            },
+            "required": ["fastqs", "index", "t2g"],
+        },
+        cli=["share", "align-rna"],
+        positional=("fastqs",),
+        flag_map={"index": "--index", "t2g": "--t2g",
+                   "technology": "--technology", "threads": "--threads",
+                   "label": "--label"},
+    ),
+
+    _T(
         "share_fragment_qc",
         "Per-barcode ATAC QC from a SHARE-seq fragments BED: total "
         "fragments, reads in TSS +/-2kb window, reads in flanking 100bp "
