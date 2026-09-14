@@ -5243,6 +5243,43 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "guide_map",
+        "★ MAP FASTQ READS TO A GUIDE LIBRARY ★ with imperfect matching. Point "
+        "it at any FASTQ and any guide-library CSV/TSV and get per-guide "
+        "counts. Handles TWO different kinds of imperfect match, which are "
+        "not interchangeable: `mismatches` is a Hamming budget for SEQUENCING "
+        "ERROR, while `edit` (ABE or CBE) masks the editor's product so a "
+        "base-EDITED read still matches its own guide without spending that "
+        "budget. Use for a screen whose counts you want independently of the "
+        "full pipelines — crispr_screen_analyze and base_editing_screen_"
+        "analyze do this internally for a whole IGVF screen.",
+        {
+            "type": "object",
+            "properties": {
+                "fastq":      {**_S_STRING},
+                "library":    {**_S_STRING, "description":
+                                "Guide library CSV/TSV; sequence and id "
+                                "columns auto-detected."},
+                "seq_col":    {**_S_STRING},
+                "id_col":     {**_S_STRING},
+                "mismatches": {**_S_INTEGER, "default": 1,
+                                "description": "Hamming budget for sequencing "
+                                "error; 0 = exact only."},
+                "edit":       {**_S_STRING, "description":
+                                "ABE or CBE — mask the editor's product."},
+                "max_reads":  {**_S_INTEGER},
+                "label":      {**_S_STRING},
+            },
+            "required": ["fastq", "library"],
+        },
+        cli=["guide-map", "map"],
+        flag_map={"fastq": "--fastq", "library": "--library",
+                   "seq_col": "--seq-col", "id_col": "--id-col",
+                   "mismatches": "--mismatches", "edit": "--edit",
+                   "max_reads": "--max-reads", "label": "--label"},
+    ),
+
+    _T(
         "abc_score",
         "★ PREDICT WHICH ENHANCERS REGULATE WHICH GENES ★ — the Activity-by-"
         "Contact model (Fulco 2019 / Nasser 2021). GENERATES predictions from "

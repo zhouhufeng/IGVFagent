@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "guide-map":        ("igvfagent.guide_map_skill",
+                          "Map FASTQ reads to a guide library with imperfect "
+                          "matching (sequencing error and/or base editing)"),
     "abc":              ("igvfagent.abc_skill",
                           "Activity-by-Contact enhancer→gene prediction from "
                           "candidate elements + ATAC/H3K27ac signal"),
