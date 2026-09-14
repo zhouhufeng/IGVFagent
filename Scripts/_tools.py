@@ -5243,6 +5243,45 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "abc_score",
+        "★ PREDICT WHICH ENHANCERS REGULATE WHICH GENES ★ — the Activity-by-"
+        "Contact model (Fulco 2019 / Nasser 2021). GENERATES predictions from "
+        "your own data, where enhancer_gene_overview and "
+        "catalog_variant_enhancers only RETRIEVE predictions others computed. "
+        "Needs candidate elements (BED), gene TSSs (BED) and an ATAC/DNase "
+        "bigWig; H3K27ac is optional but makes activity much better. Hi-C is "
+        "NOT required — without it, contact falls back to the genome-wide "
+        "power law, which Nasser 2021 showed performs close to the Hi-C "
+        "version. NOTE the score is a SHARE: every gene's predictions sum to "
+        "1 across its neighbourhood, so a strong element among stronger "
+        "neighbours scores low. It is not 'how active is this enhancer'.",
+        {
+            "type": "object",
+            "properties": {
+                "elements":  {**_S_STRING, "description":
+                               "Candidate element BED (peaks/cCREs). This tool "
+                               "does NOT call peaks."},
+                "genes":     {**_S_STRING, "description":
+                               "Gene/TSS BED, name in column 4, strand in 6."},
+                "atac":      {**_S_STRING, "description": "ATAC/DNase bigWig."},
+                "h3k27ac":   {**_S_STRING, "description": "H3K27ac bigWig."},
+                "hic":       {**_S_STRING, "description":
+                               "Optional contact file; power law if omitted."},
+                "gamma":     {**_S_NUMBER, "default": -0.87,
+                               "description": "Power-law exponent (Fulco 2019)."},
+                "threshold": {**_S_NUMBER, "default": 0.02},
+                "label":     {**_S_STRING},
+            },
+            "required": ["elements", "genes", "atac"],
+        },
+        cli=["abc", "score"],
+        flag_map={"elements": "--elements", "genes": "--genes",
+                   "atac": "--atac", "h3k27ac": "--h3k27ac", "hic": "--hic",
+                   "gamma": "--gamma", "threshold": "--threshold",
+                   "label": "--label"},
+    ),
+
+    _T(
         "crispr_surf_deconvolve",
         "★ TILING SCREEN → REGULATORY REGIONS ★ (CRISPR-SURF method). In a "
         "tiling screen each guide perturbs a WINDOW, not a point — Cas9 cuts "
