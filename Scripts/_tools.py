@@ -5243,6 +5243,50 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "crispr_surf_deconvolve",
+        "★ TILING SCREEN → REGULATORY REGIONS ★ (CRISPR-SURF method). In a "
+        "tiling screen each guide perturbs a WINDOW, not a point — Cas9 cuts "
+        "locally, dCas9-KRAB spreads hundreds of bases — so one element makes "
+        "every nearby guide look active and the signal is SMEARED. This "
+        "deconvolves that smear back into discrete elements by solving "
+        "y = A·beta with an L1 penalty, and calls significance against an "
+        "empirical null built from the screen's own negative-control guides. "
+        "USE THIS when per-guide scores give a broad blur and you need the "
+        "actual element boundaries, or to separate two nearby elements. "
+        "Emits a bedgraph, a per-bin table and significant_regions.csv.",
+        {
+            "type": "object",
+            "properties": {
+                "guides":     {**_S_STRING, "description":
+                                "CSV/TSV: chrom,start[,stop],score column(s)"
+                                "[,class]. `class` marks negative_control "
+                                "guides — without them significance is "
+                                "uncalibrated and the run says so."},
+                "score_cols": {**_S_STRING, "description":
+                                "Comma list of replicate score columns; "
+                                "auto-detected when omitted."},
+                "nuclease":   {**_S_STRING, "description":
+                                "cas9 | cpf1 | crispri | crispra. Sets the "
+                                "perturbation range: 20 bp for a nuclease, "
+                                "250 bp for CRISPRi/a spreading."},
+                "range":      {**_S_INTEGER, "description":
+                                "Perturbation range in bp; overrides nuclease."},
+                "bin_size":   {**_S_INTEGER, "default": 10},
+                "lam":        {**_S_NUMBER, "default": 0.1,
+                                "description": "L1 strength; higher = sparser."},
+                "fdr":        {**_S_NUMBER, "default": 0.05},
+                "label":      {**_S_STRING},
+            },
+            "required": ["guides"],
+        },
+        cli=["crispr-surf", "deconvolve"],
+        flag_map={"guides": "--guides", "score_cols": "--score-cols",
+                   "nuclease": "--nuclease", "range": "--range",
+                   "bin_size": "--bin-size", "lam": "--lam", "fdr": "--fdr",
+                   "label": "--label"},
+    ),
+
+    _T(
         "crispresso_analyze",
         "★ QUANTIFY GENOME-EDITING OUTCOMES FROM AMPLICON READS ★ — CRISPResso2 "
         "(Clement et al., Nat Biotechnol 2019). Aligns amplicon sequencing "

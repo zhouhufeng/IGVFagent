@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "crispr-surf":      ("igvfagent.crispr_surf_skill",
+                          "Deconvolve a CRISPR tiling screen into regulatory "
+                          "regions (CRISPR-SURF method)"),
     "crispresso":       ("igvfagent.crispresso_skill",
                           "CRISPResso2 — genome-editing outcomes from amplicon "
                           "reads (indels, substitutions, base-editing)"),
