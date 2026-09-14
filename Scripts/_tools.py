@@ -5243,6 +5243,45 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "sce2g_predict",
+        "★ ENHANCER→GENE LINKS FROM PAIRED SINGLE-CELL ATAC + RNA ★ "
+        "(scE2G-style). Computes, for every peak-gene pair in a window: the "
+        "KENDALL rank correlation between the peak's accessibility and the "
+        "gene's expression across metacells, the ABC share, and distance. The "
+        "correlation is the thing ABC cannot see — abc_score uses bulk "
+        "activity and distance, so it cannot tell a peak that CO-VARIES with "
+        "the gene from one that merely sits nearby and is busy. Requires the "
+        "SAME cells in both matrices (multiome or matched). NOTE: these are "
+        "FEATURES plus a transparent combined score, NOT the output of "
+        "scE2G's trained model — that model's asset is its fitted weights, "
+        "which are not reproduced here. To retrieve published scE2G links "
+        "instead, use sce2g_kg_pull.",
+        {
+            "type": "object",
+            "properties": {
+                "rna":       {**_S_STRING, "description": "Gene x cell .h5ad."},
+                "atac":      {**_S_STRING, "description":
+                               "Peak x cell .h5ad, SAME cell barcodes."},
+                "peaks":     {**_S_STRING, "description":
+                               "Peak BED; names match the ATAC var_names."},
+                "genes":     {**_S_STRING, "description":
+                               "Gene TSS BED; names match the RNA var_names."},
+                "metacells": {**_S_INTEGER, "default": 50,
+                               "description": "Cells are pooled before "
+                               "correlating — scATAC is near-binary and a "
+                               "per-cell correlation mostly measures dropout."},
+                "window":    {**_S_INTEGER, "default": 1000000},
+                "label":     {**_S_STRING},
+            },
+            "required": ["rna", "atac", "peaks", "genes"],
+        },
+        cli=["sce2g-predict", "predict"],
+        flag_map={"rna": "--rna", "atac": "--atac", "peaks": "--peaks",
+                   "genes": "--genes", "metacells": "--metacells",
+                   "window": "--window", "label": "--label"},
+    ),
+
+    _T(
         "sctransform_run",
         "★ SCTRANSFORM NORMALISATION ★ — variance stabilisation by regularised "
         "negative-binomial regression (Hafemeister & Satija 2019, Seurat's "
