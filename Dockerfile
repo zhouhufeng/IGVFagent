@@ -42,6 +42,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         git \
+        curl \
+        ca-certificates \
         libcurl4-openssl-dev \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -105,6 +107,36 @@ RUN python -m venv /opt/venv \
 # Verified with `bean --help`, NOT `bean --version`: BEAN has no --version
 # flag and answers "error: unrecognized arguments: --version" with exit 2, so
 # the previous line here could never have passed even had the build worked.
+# chromap — the scATAC half of the IGVF uniform pipeline.
+#
+# IGVF/atomic-workflows (MIT) has exactly TWO modules: igvf-kallisto-bustools
+# and igvf-chromap. kb-python already provides the first, so this binary is
+# what completes IGVFagent's coverage of the official pipeline's tool set:
+# kb for RNA, chromap for ATAC.
+#
+# Built from the release tarball because there is no apt package, no PyPI
+# package, and the GitHub release ships source only. It is a small, cheap
+# build -- 1.5 MB binary, and the toolchain is already here for the [hic]
+# extra -- which is why this is worth doing where STAR (a ~30 GB-RAM index
+# build) is not. Verified before committing: chromap --version reports
+# 0.3.2-r518.
+# Unconditional, deliberately. A build ARG would need the runtime COPY to be
+# conditional too, and the usual workaround -- stubbing the path so COPY
+# succeeds -- puts a file named `chromap` on PATH that is not chromap. That is
+# the exact false-positive that `bean --version` and kb_available already had
+# to be hardened against: a tool that looks installed and fails on use is
+# worse than one that is honestly absent.
+RUN cd /tmp \
+ && curl -sL --max-time 300 \
+        https://github.com/haowenz/chromap/archive/refs/tags/v0.3.2.tar.gz \
+        -o chromap.tgz \
+ && tar xzf chromap.tgz \
+ && cd chromap-0.3.2 \
+ && make -j"$(nproc)" \
+ && install -m 0755 chromap /usr/local/bin/chromap \
+ && cd /tmp && rm -rf chromap-0.3.2 chromap.tgz \
+ && /usr/local/bin/chromap --version
+
 # CRISPResso2 is installed into this SAME venv, not the app venv. It needs the
 # same numpy<2 (BEAN already vendors its CRISPResso2Align.pyx), and BEAN reads
 # the reporter allele THROUGH CRISPResso2 alignment -- bystander edit
@@ -190,6 +222,8 @@ COPY --from=builder --chown=igvf:igvf /opt/venv /opt/venv
 # Empty when INSTALL_CRISPR_BEAN=0, so this COPY is unconditional and
 # costs nothing in the default build.
 COPY --from=builder --chown=igvf:igvf /opt/bean-venv /opt/bean-venv
+# chromap is a single 1.5 MB binary, always built above.
+COPY --from=builder /usr/local/bin/chromap /usr/local/bin/chromap
 
 USER igvf
 WORKDIR /workspace
