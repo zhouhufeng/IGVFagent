@@ -120,6 +120,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "scE2G element→gene linkages → local KG (bulk, "
                           "adaptive region tiling, resumable, runs to "
                           "completion regardless of size)"),
+    "regulome":         ("igvfagent.regulome_skill",
+                          "RegulomeDB regulatory rank + per-tissue scores for "
+                          "non-coding variants"),
     "bcalm":            ("igvfagent.bcalm_skill",
                           "Barcode-level MPRA activity with empirical-Bayes "
                           "moderated statistics (BCalm approach)"),

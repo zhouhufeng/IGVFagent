@@ -5308,6 +5308,35 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "regulome_annotate",
+        "★ IS THIS NON-CODING VARIANT IN A REGULATORY ELEMENT, AND IN WHICH "
+        "TISSUES ★ — RegulomeDB rank (1a best .. 7 no evidence), probability, "
+        "the evidence behind it (ChIP-seq, open chromatin, footprint, motif, "
+        "QTL), and a PER-TISSUE score across organs. Answers a DIFFERENT "
+        "question from the other annotators: FAVOR/ccre_favor give "
+        "conservation and deleteriousness (CADD, GERP), ClinVar gives "
+        "clinical significance — none say whether the base sits in something "
+        "regulatory, or where. Accepts chr1:39492462 or chr1-39492462-A-G. "
+        "The API returns ~1.3 MB per variant; this extracts the score and "
+        "tissue table and COUNTS the supporting experiments rather than "
+        "returning them.",
+        {
+            "type": "object",
+            "properties": {
+                "variants": {**_S_STRING, "description":
+                              "Comma/space separated, e.g. chr1:39492462."},
+                "input":    {**_S_STRING, "description":
+                              "Or a file with one variant per line."},
+                "assembly": {**_S_STRING, "default": "GRCh38"},
+                "label":    {**_S_STRING},
+            },
+        },
+        cli=["regulome", "annotate"],
+        flag_map={"variants": "--variants", "input": "--input",
+                   "assembly": "--assembly", "label": "--label"},
+    ),
+
+    _T(
         "bcalm_activity",
         "★ MPRA ACTIVITY FROM BARCODE-LEVEL COUNTS ★ (BCalm approach). Use "
         "INSTEAD OF mpra_activity when you have per-barcode counts and care "
