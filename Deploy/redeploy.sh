@@ -178,10 +178,20 @@ echo "==> 3/5  rebuilding the image (no cache — a reused layer is how this sil
 # invoked directly holds no job file, and recreating the container kills it
 # mid-run. Check for the process too, or a redeploy silently destroys hours
 # of somebody's analysis -- which nearly happened.
-echo "==> 4/5  recreating the container"
+echo "==> 4/6  recreating the container"
 "${COMPOSE[@]}" up -d --force-recreate app
 
-echo "==> 5/5  verifying the container actually runs the new code"
+# The gateway and the auth gate are NOT part of the app image, and used to be
+# left alone here -- which meant a change to the nginx template or to
+# Deploy/auth/gate.py looked deployed (git pulled, app rebuilt, script said
+# "complete") while the old config kept serving every request. The nginx
+# config is a read-only mount, so it needs a recreate to be re-read; the gate
+# is its own image, so it needs a build.
+echo "==> 5/6  rebuilding the auth gate and reloading the gateway"
+"${COMPOSE[@]}" up -d --build auth
+"${COMPOSE[@]}" up -d --force-recreate gateway
+
+echo "==> 6/6  verifying the container actually runs the new code"
 for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 3
     if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then break; fi
