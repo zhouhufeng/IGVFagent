@@ -87,12 +87,31 @@ The two secrets **must differ**. The gate refuses to start if they are equal:
 one value for both would mean anyone able to mint an SSO payload could mint a
 session cookie directly.
 
-`WS_TOKEN` and `Deploy/nginx/htpasswd` are no longer used and can go.
+`WS_TOKEN` and `Deploy/nginx/htpasswd` are no longer used. Both have been
+removed from the live deployment.
 
 Then redeploy. `Deploy/redeploy.sh` refuses while an analysis is running, which
 is the behaviour you want — wait for it rather than forcing.
 
 ---
+
+### Or do all of it in one command
+
+`Deploy/configure-discourse-sso.sh` performs every step in Parts 1 and 2 above
+against the Discourse API, and `--check` reports the current state without
+changing anything. Neither secret is echoed or pasted: the API key is read from
+the gitignored `Docs/Secret/discourse-API.txt`, the SSO secret straight off the
+deployment host. Safe to re-run — each step checks current state first.
+
+```bash
+bash Deploy/configure-discourse-sso.sh --check    # read-only
+bash Deploy/configure-discourse-sso.sh            # apply
+bash Deploy/configure-discourse-sso.sh --add alice bob
+```
+
+With no `--add`, it seeds the group with the forum's own administrators: an
+empty approval group means nobody can sign in, and admins can grant themselves
+access regardless.
 
 ## Part 3 — the cutover, in an order that cannot lock you out
 
@@ -110,10 +129,19 @@ would fix it**. So:
 3. **When that works, remove `IGVF_BOOTSTRAP_TOKEN`** from `.env.prod` and
    redeploy. The bootstrap URL then returns 404.
 
-Keep the token somewhere you can find it in a hurry — putting it back is how
-you get in if Discourse is ever down or the secret gets rotated out from under
-you. It is exactly as strong as the shared password it replaces, which is why
-it should not be left set.
+**The live deployment has completed this and `IGVF_BOOTSTRAP_TOKEN` is now
+unset**, so `/_auth/bootstrap` returns 404. To get back in if Discourse is ever
+down or the secret is rotated out from under you, put a fresh token back:
+
+```bash
+bash Deploy/vm.sh ssh "cd /srv/igvfagent/Deploy && \
+  echo IGVF_BOOTSTRAP_TOKEN=\$(openssl rand -hex 24) >> .env.prod && \
+  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate auth"
+```
+
+Then read it out of `.env.prod` and visit `/_auth/bootstrap?token=…`. It is
+exactly as strong as the shared password it replaced, which is why it is not
+left set.
 
 ---
 
