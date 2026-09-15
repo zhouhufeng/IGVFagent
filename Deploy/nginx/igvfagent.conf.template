@@ -37,6 +37,13 @@ server {
     # Analyses stream artefacts back; allow generous uploads for h5ad etc.
     client_max_body_size 2048m;
 
+    # Emit RELATIVE Location headers. Cloudflare terminates TLS, so nginx sees
+    # plain HTTP and would build `http://igvfagent.genohub.org/_auth/login`
+    # from $scheme — bouncing every unauthenticated visitor through an
+    # unencrypted hop on the way to the login page. A relative Location is
+    # resolved by the browser against the scheme it is already using.
+    absolute_redirect off;
+
     # Cloudflare already terminates TLS and sets these; keep real client IPs
     # in the access log so abuse is attributable to something.
     real_ip_header CF-Connecting-IP;
