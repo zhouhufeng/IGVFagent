@@ -239,6 +239,22 @@ def _note_accessions(con, accessions: Iterable[str], kind: str, ref: str,
     return n
 
 
+def _with_output(title: str, outputs) -> str:
+    """Append the first output path to a title, when there is one.
+
+    ``outputs`` arrives as a JSON list (from analysis_log) or already parsed.
+    """
+    try:
+        paths = json.loads(outputs) if isinstance(outputs, str) else list(outputs or [])
+    except (ValueError, TypeError):
+        paths = []
+    for path in paths:
+        text = str(path)
+        if "/" in text:
+            return f"{title} → {text}"
+    return title
+
+
 def _event(con, kind: str, project_id: str = "", detail: str = "") -> None:
     con.execute(
         "INSERT INTO history_events(at,kind,project_id,detail) VALUES(?,?,?,?)",
@@ -783,6 +799,10 @@ def backfill_analyses(limit: int = 200_000, con=None) -> dict:
                     continue
                 title = " ".join(x for x in (r["skill"], r["subcommand"],
                                              r["label"]) if x).strip()
+                # A skill run's id is an opaque digest, so the title carries
+                # where its output landed -- that is the part a person can
+                # actually open.
+                title = _with_output(title, r["outputs"])
                 body = f"{title}\n{r['inputs'] or ''}\n{r['outputs'] or ''}"
                 accs = sorted(set(ACCESSION_RE.findall(body)))
                 at = r["recorded_at"] or _NOW()

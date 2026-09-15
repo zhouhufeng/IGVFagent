@@ -205,12 +205,25 @@ def cmd_recall(a) -> int:
               f"If work predates the history store, run "
               f"`igvfagent project backfill` first.")
         return 0
-    print(f"{acc} — {len(rows)} recorded result(s), newest first:\n")
-    for r in rows:
-        print(f"[{r['kind']:8}] {(r['at'] or '')[:16]:16}  "
-              f"{(r['title'] or '')[:70]}")
-        print(f"           {r['ref']}")
-    print("\nOpen an agent session with:  igvfagent project show <ref>")
+    # Agent sessions first: they carry a written report and a directory of
+    # figures, which is what someone asking "what do we know about this"
+    # actually wants. Individual skill runs follow as supporting detail.
+    sessions = [r for r in rows if r["kind"] == "session"]
+    others = [r for r in rows if r["kind"] != "session"]
+    print(f"{acc} — {len(rows)} recorded result(s)\n")
+    if sessions:
+        print(f"Agent sessions ({len(sessions)}) — newest first:")
+        for r in sessions:
+            print(f"  {(r['at'] or '')[:16]:16}  {(r['title'] or '')[:72]}")
+            print(f"  {'':16}  {r['ref']}")
+        print()
+    if others:
+        print(f"Skill runs and downloads ({len(others)}):")
+        for r in others:
+            print(f"  {(r['at'] or '')[:16]:16}  [{r['kind']:8}] "
+                  f"{(r['title'] or '')[:90]}")
+    if sessions:
+        print(f"\nRead one in full:  igvfagent project show {sessions[0]['ref']}")
     _out(rows, a.json)
     return 0
 
