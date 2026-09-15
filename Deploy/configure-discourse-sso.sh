@@ -94,19 +94,46 @@ if [ "$CHECK" = 1 ]; then
 fi
 
 # ------------------------------------------------------------ 1. group ------
+#
+# The group is both the approval gate AND the place people apply. Discourse
+# has a native request-and-approve flow -- allow_membership_requests puts a
+# "Request Membership" button on the group page and files each request for a
+# group owner to accept or deny -- so there is no application form to build
+# and no queue to invent. public_admission stays false or people would simply
+# join themselves, which would make the whole gate decorative.
+GROUP_BODY="$(python3 - "$GROUP" "$SITE_HOST" <<'JSON'
+import json, sys
+group, site = sys.argv[1], sys.argv[2]
+print(json.dumps({"group": {
+    "name": group,
+    "full_name": "IGVF Agent Users",
+    "bio_raw": (
+        f"Members of this group can sign in to **{site}**.\n\n"
+        "Membership is the approval step: having an account on this community "
+        "does not by itself grant access to the agent, because analyses run on "
+        "shared hardware.\n\n"
+        "Use **Request Membership** below and say briefly who you are and what "
+        "you plan to use it for. An administrator will review it."),
+    "visibility_level": 0,           # the group page is publicly linkable
+    "members_visibility_level": 2,   # ...but the member list is not public
+    "public_admission": False,       # nobody joins themselves
+    "public_exit": True,             # leaving needs no ceremony
+    "allow_membership_requests": True,
+    "membership_request_template": (
+        "Who you are, your institution or lab, and what you plan to use "
+        "IGVF Agent for."),
+    "mentionable_level": 0,
+    "messageable_level": 2,
+}}))
+JSON
+)"
+
 echo
 echo "== 1/4  the approval group =="
 if [ -n "$GROUP_ID" ]; then
-    echo "  already exists (id $GROUP_ID)"
+    echo "  exists (id $GROUP_ID)"
 else
-    GROUP_ID="$(api POST /admin/groups.json "$(cat <<JSON
-{"group":{"name":"$GROUP","full_name":"IGVF Agent users",
-"bio_raw":"Members can sign in to $SITE_HOST. Membership is the approval step — signing up to the community does not grant it on its own.",
-"visibility_level":1,"members_visibility_level":1,
-"public_admission":false,"public_exit":false,
-"allow_membership_requests":false,"mentionable_level":0,"messageable_level":2}}
-JSON
-)" | jq_py "
+    GROUP_ID="$(api POST /admin/groups.json "$GROUP_BODY" | jq_py "
 import json,sys
 d=json.load(sys.stdin); g=d.get('basic_group') or d
 print(g.get('id','') if g.get('id') else '')
@@ -140,9 +167,36 @@ api PUT "/groups/$GROUP_ID/members.json" \
     "{\"usernames\":\"$(IFS=,; echo "${MEMBERS[*]}")\"}" | jq_py "
 import json,sys
 d=json.load(sys.stdin)
-if d.get('success') or d.get('usernames') is not None: print('  ok')
-else: print('  response:', json.dumps(d)[:240])
+errs=d.get('errors') or []
+if d.get('success') or d.get('usernames') is not None:
+    print('  ok')
+elif errs and all('already members' in e for e in errs):
+    print('  already members — nothing to do')
+else:
+    print('  response:', json.dumps(d)[:240])
 "
+
+# Owners BEFORE membership requests. Discourse refuses outright -- "You cannot
+# allow membership requests for a group without any owners" -- because a
+# request with no owner to notify would sit in a queue nobody can see. The
+# route is /groups/<id>/owners.json; the /admin/ one 404s.
+echo "  setting owners (a membership request notifies these people)"
+api PUT "/groups/$GROUP_ID/owners.json" \
+    "{\"usernames\":\"$(IFS=,; echo "${MEMBERS[*]}")\"}" | jq_py "
+import json,sys
+d=json.load(sys.stdin)
+if d.get('success'): print('  owners:', ', '.join(d.get('usernames') or []))
+else: print('  owners FAILED:', json.dumps(d)[:200])
+"
+
+# Now the settings that need an owner to exist.
+echo "  applying group settings"
+api PUT "/groups/$GROUP_ID.json" "$GROUP_BODY" | jq_py "
+import json,sys
+d=json.load(sys.stdin)
+if d.get('success'): print('  membership requests enabled')
+else: print('  SETTINGS FAILED:', json.dumps(d)[:240]); raise SystemExit(1)
+" || exit 1
 
 # ----------------------------------------------------------- 3. secret ------
 echo

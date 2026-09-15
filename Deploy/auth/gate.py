@@ -370,6 +370,16 @@ def page(title: str, body: str) -> bytes:
     return _SHELL.format(title=title, body=body, brand=BRAND).encode()
 
 
+def group_url() -> str:
+    """The group page, where Discourse's own Request Membership button lives.
+
+    Sending people here rather than telling them to "ask an administrator" is
+    the difference between a request that gets filed and notifies the group's
+    owners, and an email somebody has to remember to act on.
+    """
+    return f"{DISCOURSE_URL}/g/{APPROVAL_GROUP}"
+
+
 def _logo(alt: str = "IGVF Agent") -> str:
     return f'<img class=logo src="/_auth/logo.png" alt="{alt}">'
 
@@ -396,15 +406,18 @@ def _welcome_page(provider_ready: bool) -> bytes:
 </ul>
 {trouble}
 <a class=btn href="/_auth/login">Sign in with the Genohub Community</a>
-<a class="btn ghost" href="{_esc(DISCOURSE_URL)}/signup">Create an account</a>
+<a class="btn ghost" href="{_esc(group_url())}">Request access</a>
 <div class=steps>
   <ol>
-    <li><b>Sign up</b> at the Genohub Community, if you have not already.</li>
-    <li><b>Ask to be approved.</b> Access is granted by adding you to the
-        <code>{_esc(APPROVAL_GROUP)}</code> group — signing up does not grant
-        it on its own.</li>
-    <li><b>Sign in here.</b> Nothing else is needed once you are in the
-        group.</li>
+    <li><b>Sign up</b> at the
+        <a href="{_esc(DISCOURSE_URL)}/signup">Genohub Community</a>, if you
+        have not already.</li>
+    <li><b>Request access</b> on the
+        <a href="{_esc(group_url())}">IGVF Agent Users</a> group page and say
+        briefly who you are — having a community account does not grant access
+        on its own.</li>
+    <li><b>Sign in here</b> once an administrator has approved you. Nothing
+        else is needed on your side.</li>
   </ol>
 </div>
 <hr>
@@ -422,9 +435,10 @@ def _denied_page(payload: "dict[str, str]") -> bytes:
 <p>You are signed in to the Genohub Community as
    <code>{_esc(who)}</code>, but that account is not in the
    <code>{_esc(APPROVAL_GROUP)}</code> group yet.</p>
-<p>Ask an IGVF Agent administrator to add you. Once they do, reload this
-   page — nothing else is needed on your side.</p>
-<a class=btn href="/_auth/login">Try again</a>
+<p>Request access on the group page below and say briefly who you are. An
+   administrator reviews it; once you are approved, reload this page.</p>
+<a class=btn href="{_esc(group_url())}">Request access</a>
+<a class="btn ghost" href="/_auth/login">I have been approved — try again</a>
 <hr>
 <p class=muted>Signing up to the community and being approved for the agent
    are two separate steps, on purpose: analyses run on shared hardware.</p>""")
