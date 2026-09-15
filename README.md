@@ -1,4 +1,4 @@
-# IGVF Agent
+<img src="Docs/Figures/logo.png" alt="IGVF Agent" width="460">
 
 An **auditable, local-execution** AI agent for discovering, retrieving, and
 analyzing data from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog,

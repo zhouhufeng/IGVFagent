@@ -102,14 +102,55 @@ except Exception:
         _bmviz = None
 
 
+# --------------------------- Branding ---------------------------------------
+#
+# The logo files live in Docs/Figures/ in the repo, but the container does NOT
+# get that directory: the image COPYs only Scripts/, and /workspace/Docs is the
+# mounted data volume holding analysis output, not repo content. So the
+# Dockerfile also copies the two branding files to /opt/branding, and this
+# resolver tries both. Returning None on a checkout that has neither is fine --
+# every caller falls back to the emoji the site used before.
+
+
+def _brand_asset(name: str) -> "str | None":
+    root = Path(os.environ.get("IGVF_PROJECT_ROOT")
+                or Path(__file__).resolve().parents[1])
+    for base in (root / "Docs" / "Figures", Path("/opt/branding")):
+        try:
+            cand = base / name
+            if cand.is_file():
+                return str(cand)
+        except OSError:
+            continue
+    return None
+
+
+_LOGO_FULL = _brand_asset("logo.png")        # wordmark, for the sidebar
+_LOGO_MARK = _brand_asset("logo-mark.png")   # square glyph, for the browser tab
+
+
 # --------------------------- Page config -----------------------------------
 
 st.set_page_config(
     page_title="IGVFagent",
-    page_icon="🧬",
+    # A real favicon when the asset is there; the emoji is the fallback that
+    # kept the tab identifiable before, and still does on a bare checkout.
+    page_icon=_LOGO_MARK or "🧬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# st.logo pins the wordmark above the sidebar and collapses to the glyph when
+# the sidebar is. Added in Streamlit 1.35 and this project supports >=1.30, so
+# it is probed rather than assumed.
+if _LOGO_FULL and hasattr(st, "logo"):
+    try:
+        st.logo(_LOGO_FULL, icon_image=_LOGO_MARK or _LOGO_FULL, size="large")
+    except TypeError:
+        # `size=` arrived later than the function itself.
+        st.logo(_LOGO_FULL, icon_image=_LOGO_MARK or _LOGO_FULL)
+    except Exception:
+        pass
 
 
 # --------------------------- Sidebar config --------------------------------

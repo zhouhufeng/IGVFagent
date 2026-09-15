@@ -225,6 +225,12 @@ COPY --from=builder --chown=igvf:igvf /opt/bean-venv /opt/bean-venv
 # chromap is a single 1.5 MB binary, always built above.
 COPY --from=builder /usr/local/bin/chromap /usr/local/bin/chromap
 
+# Branding. Not under Scripts/, and /workspace/Docs is the mounted DATA volume
+# rather than repo content, so without this the UI has no logo to load and
+# falls back to the emoji favicon. Kept out of /workspace deliberately: that
+# path is a mount point at runtime and anything placed there is shadowed.
+COPY --chown=igvf:igvf Docs/Figures/logo.png Docs/Figures/logo-mark.png /opt/branding/
+
 USER igvf
 WORKDIR /workspace
 
