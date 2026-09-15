@@ -131,14 +131,27 @@ _LOGO_MARK = _brand_asset("logo-mark.png")   # square glyph, for the browser tab
 
 # --------------------------- Page config -----------------------------------
 
-st.set_page_config(
-    page_title="IGVFagent",
-    # A real favicon when the asset is there; the emoji is the fallback that
-    # kept the tab identifiable before, and still does on a bare checkout.
-    page_icon=_LOGO_MARK or "🧬",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# A real favicon when the asset is there; the emoji is the fallback that kept
+# the tab identifiable before, and still does on a bare checkout. Retried
+# rather than assumed: a local image as page_icon needs a newer Streamlit than
+# this project's floor of 1.30, and set_page_config raising here would take
+# down the whole page -- an all-white site is exactly the failure mode a
+# cosmetic change must not be able to cause.
+def _configure_page(icon) -> bool:
+    try:
+        st.set_page_config(
+            page_title="IGVFagent",
+            page_icon=icon,
+            layout="wide",
+            initial_sidebar_state="expanded",
+        )
+        return True
+    except Exception:
+        return False
+
+
+if not (_LOGO_MARK and _configure_page(_LOGO_MARK)):
+    _configure_page("🧬")
 
 # st.logo pins the wordmark above the sidebar and collapses to the glyph when
 # the sidebar is. Added in Streamlit 1.35 and this project supports >=1.30, so
