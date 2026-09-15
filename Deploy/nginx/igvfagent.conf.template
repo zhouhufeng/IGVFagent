@@ -76,11 +76,14 @@ server {
         proxy_set_header X-Original-URI $request_uri;
     }
 
-    # An unauthenticated request is bounced to the gate, which bounces it to
-    # Discourse. 302 rather than 401 so a browser hitting the site cold lands
-    # on a login page instead of an empty error.
+    # An unauthenticated request lands on the gate's welcome page, NOT
+    # straight on /_auth/login. Bouncing a first-time visitor directly into
+    # Discourse means the bare domain explains nothing about what this is, and
+    # renders as somebody else's 404 whenever the forum's SSO provider is not
+    # switched on. The welcome page explains the two steps and offers the
+    # sign-in button itself.
     location @start_login {
-        return 302 /_auth/login;
+        return 302 /_auth/;
     }
 
     # Unauthenticated liveness probe for `docker compose ps` / uptime checks.

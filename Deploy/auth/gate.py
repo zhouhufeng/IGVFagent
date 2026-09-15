@@ -63,9 +63,11 @@ import secrets
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 log = logging.getLogger("igvf-auth")
 
@@ -89,6 +91,7 @@ API_USER = os.environ.get("IGVF_DISCOURSE_API_USER", "system")
 # should be removed from the environment once SSO is confirmed working.
 BOOTSTRAP_TOKEN = os.environ.get("IGVF_BOOTSTRAP_TOKEN", "")
 COOKIE = "igvf_session"
+BRANDING = Path(os.environ.get("IGVF_BRANDING_DIR", "/app/branding"))
 PORT = int(os.environ.get("IGVF_AUTH_PORT", "9000"))
 
 # Nonces we have issued but not yet seen come back. Single-use and
@@ -225,6 +228,44 @@ def _groups_for(payload: "dict[str, str]") -> "list[str]":
     return [g.get("name", "") for g in (blob.get("user", {}).get("groups") or [])]
 
 
+_PROVIDER_STATE: "dict[str, float | bool]" = {"at": 0.0, "ok": False}
+
+
+def _provider_ready() -> bool:
+    """Is Discourse actually configured to log people in?
+
+    The provider endpoint 404s until `enable discourse connect provider` is
+    switched on. Without this check the landing page would offer a Sign in
+    button that dead-ends on somebody else's 404 with no explanation. Cached
+    for five minutes so a page view is not a round trip, and any failure is
+    treated as "not ready" -- an unnecessary warning is a far smaller problem
+    than a button that silently does nothing.
+    """
+    now = _now()
+    if now - float(_PROVIDER_STATE["at"]) < 300:
+        return bool(_PROVIDER_STATE["ok"])
+    # Only a definite 404 counts as "off". Anything else -- a timeout, a
+    # network error, a bot challenge -- is inconclusive, and an inconclusive
+    # probe must not put a scary banner on the front page of a working site.
+    # (Discourse sits behind a CDN that answers 403 to the default
+    # Python-urllib agent, which an earlier version read as "route exists" and
+    # got exactly backwards. Hence the explicit agent and the 404-only rule.)
+    ok = True
+    try:
+        req = urllib.request.Request(
+            f"{DISCOURSE_URL}/session/sso_provider",
+            headers={"User-Agent": "Mozilla/5.0 (compatible; IGVFagent-gate/1.0; "
+                                    f"+{PUBLIC_URL})"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            ok = resp.status != 404
+    except urllib.error.HTTPError as exc:
+        ok = exc.code != 404
+    except Exception:
+        ok = True
+    _PROVIDER_STATE.update({"at": now, "ok": ok})
+    return ok
+
+
 def approved(payload: "dict[str, str]") -> bool:
     if _truthy(payload.get("admin")):
         return True
@@ -233,45 +274,160 @@ def approved(payload: "dict[str, str]") -> bool:
 
 
 # ------------------------------ pages ---------------------------------------
+#
+# The gate owns every page an unauthenticated visitor sees, so these are the
+# first impression of the project for anyone arriving at the bare domain.
+# Previously that first impression was an instant redirect into Discourse --
+# no explanation of what the site is, and a raw 404 if the forum's SSO
+# provider happened to be switched off. A landing page costs one HTTP response
+# and replaces both problems.
+#
+# Styling is inline and dependency-free for the same reason the rest of this
+# file is: the auth boundary does not get a build step or a CDN.
 
-_PAGE = """<!doctype html><meta charset=utf-8>
+BRAND = "#38707f"
+
+_SHELL = """<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>{title} — IGVF Agent</title>
+<title>{title}</title>
+<link rel=icon href="/_auth/logo-mark.png">
 <style>
- :root {{ color-scheme: light dark; }}
- body {{ margin:0; min-height:100vh; display:grid; place-items:center;
-        font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-        background:#f6f7f8; color:#1b1b1b; padding:24px; }}
- @media (prefers-color-scheme:dark) {{ body {{ background:#14181b; color:#e8eaed; }} }}
- .card {{ max-width:30rem; text-align:center; }}
- h1 {{ font-size:1.35rem; margin:0 0 .75rem; }}
- p {{ margin:0 0 1rem; }}
- code {{ background:rgba(127,127,127,.18); padding:.1em .4em; border-radius:4px; }}
- a.btn {{ display:inline-block; background:#38707f; color:#fff; text-decoration:none;
-         padding:.6em 1.3em; border-radius:6px; font-weight:600; }}
- .muted {{ opacity:.7; font-size:.9rem; }}
+ :root {{
+   color-scheme: light dark;
+   --brand: {brand};
+   --bg: #f4f6f7; --card: #ffffff; --ink: #16202a; --muted: #5b6b78;
+   --line: rgba(22,32,42,.10);
+ }}
+ @media (prefers-color-scheme: dark) {{
+   :root {{ --bg: #0f1418; --card: #171e24; --ink: #e9edf0; --muted: #9bacb8;
+            --line: rgba(255,255,255,.10); }}
+ }}
+ * {{ box-sizing: border-box; }}
+ body {{
+   margin: 0; min-height: 100vh; padding: 32px 16px;
+   display: flex; align-items: center; justify-content: center;
+   background:
+     radial-gradient(1100px 520px at 50% -10%, color-mix(in srgb, var(--brand) 20%, transparent), transparent 70%),
+     var(--bg);
+   color: var(--ink);
+   font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter,
+         Roboto, "Helvetica Neue", Arial, sans-serif;
+   -webkit-font-smoothing: antialiased;
+ }}
+ .card {{
+   width: 100%; max-width: 40rem; background: var(--card);
+   border: 1px solid var(--line); border-radius: 16px;
+   padding: 40px 36px; text-align: center;
+   box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 40px rgba(0,0,0,.07);
+ }}
+ .logo {{ width: 100%; max-width: 310px; height: auto; margin: 0 auto 6px; display: block; }}
+ h1 {{ font-size: 1.3rem; line-height: 1.3; margin: 18px 0 10px; letter-spacing: -.01em; }}
+ p {{ margin: 0 0 14px; color: var(--muted); }}
+ p.lead {{ color: var(--ink); font-size: 1.02rem; }}
+ .btn {{
+   display: block; width: 100%; margin: 22px 0 10px; padding: .85em 1.2em;
+   background: var(--brand); color: #fff; border: 0; border-radius: 9px;
+   font: inherit; font-weight: 650; text-decoration: none; cursor: pointer;
+ }}
+ .btn:hover {{ filter: brightness(1.07); }}
+ .btn.ghost {{
+   background: transparent; color: var(--ink);
+   border: 1px solid var(--line); font-weight: 550; margin-top: 0;
+ }}
+ .steps {{
+   text-align: left; margin: 26px 0 0; padding: 18px 20px;
+   border: 1px solid var(--line); border-radius: 11px;
+   background: color-mix(in srgb, var(--brand) 5%, transparent);
+ }}
+ .steps ol {{ margin: 0; padding-left: 1.2em; }}
+ .steps li {{ margin: 0 0 7px; color: var(--muted); }}
+ .steps li:last-child {{ margin-bottom: 0; }}
+ .steps b {{ color: var(--ink); font-weight: 600; }}
+ .facts {{
+   display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: center;
+   margin: 22px 0 4px; padding: 0; list-style: none;
+ }}
+ .facts li {{ color: var(--muted); font-size: .88rem; }}
+ .facts b {{ color: var(--ink); display: block; font-size: 1.15rem; font-weight: 650; }}
+ code {{
+   background: color-mix(in srgb, var(--ink) 9%, transparent);
+   padding: .12em .42em; border-radius: 5px; font-size: .9em;
+ }}
+ .muted {{ font-size: .87rem; color: var(--muted); }}
+ hr {{ border: 0; border-top: 1px solid var(--line); margin: 26px 0 20px; }}
+ .warn {{
+   text-align: left; margin: 20px 0 0; padding: 14px 16px; border-radius: 10px;
+   border: 1px solid rgba(190,120,20,.35);
+   background: rgba(220,150,40,.10); color: var(--ink); font-size: .92rem;
+ }}
+ @media (max-width: 460px) {{ .card {{ padding: 30px 22px; }} }}
 </style>
 <div class=card>{body}</div>
 """
 
 
 def page(title: str, body: str) -> bytes:
-    return _PAGE.format(title=title, body=body).encode()
+    return _SHELL.format(title=title, body=body, brand=BRAND).encode()
+
+
+def _logo(alt: str = "IGVF Agent") -> str:
+    return f'<img class=logo src="/_auth/logo.png" alt="{alt}">'
+
+
+def _welcome_page(provider_ready: bool) -> bytes:
+    """The first thing anyone sees at the bare domain."""
+    # Placed ABOVE the buttons, not below: a warning that a button will not
+    # work is only useful before it is clicked.
+    trouble = "" if provider_ready else f"""
+<div class=warn><b>Sign-in is not available yet.</b> The Genohub Community has
+  not finished being set up as this site's login provider, so the sign-in
+  button below will not work. An administrator needs to enable
+  <code>discourse connect provider</code> on
+  {_esc(DISCOURSE_URL)}.</div>"""
+    return page("IGVF Agent", f"""
+{_logo()}
+<p class=lead>An auditable AI agent for discovering, retrieving and analysing
+   data across the IGVF ecosystem — Portal, Catalog and Knowledge Graph —
+   alongside ENCODE and related public resources.</p>
+<ul class=facts>
+  <li><b>85</b> skills</li>
+  <li><b>258</b> typed tools</li>
+  <li><b>Local</b> execution</li>
+</ul>
+{trouble}
+<a class=btn href="/_auth/login">Sign in with the Genohub Community</a>
+<a class="btn ghost" href="{_esc(DISCOURSE_URL)}/signup">Create an account</a>
+<div class=steps>
+  <ol>
+    <li><b>Sign up</b> at the Genohub Community, if you have not already.</li>
+    <li><b>Ask to be approved.</b> Access is granted by adding you to the
+        <code>{_esc(APPROVAL_GROUP)}</code> group — signing up does not grant
+        it on its own.</li>
+    <li><b>Sign in here.</b> Nothing else is needed once you are in the
+        group.</li>
+  </ol>
+</div>
+<hr>
+<p class=muted>Analyses run on shared hardware, which is why access is
+   approved rather than open. Prefer to run it yourself? IGVF Agent is open
+   source and installs locally with your own API keys, or entirely free with
+   local open-weight models.</p>""")
 
 
 def _denied_page(payload: "dict[str, str]") -> bytes:
     who = payload.get("username") or payload.get("email") or "your account"
-    return page("Access pending", f"""
-<h1>Not yet approved for IGVF Agent</h1>
-<p>You are signed in to the Genohub community as <code>{_esc(who)}</code>,
-   but that account is not in the <code>{_esc(APPROVAL_GROUP)}</code> group
-   yet.</p>
-<p>Ask an IGVF Agent administrator to add you. Once they do, come back to this
+    return page("Access pending — IGVF Agent", f"""
+{_logo()}
+<h1>Not yet approved</h1>
+<p>You are signed in to the Genohub Community as
+   <code>{_esc(who)}</code>, but that account is not in the
+   <code>{_esc(APPROVAL_GROUP)}</code> group yet.</p>
+<p>Ask an IGVF Agent administrator to add you. Once they do, reload this
    page — nothing else is needed on your side.</p>
-<p><a class=btn href="/_auth/login">Try again</a></p>
-<p class=muted>Signing up to the forum and being approved for the agent are
-   two separate steps, on purpose: the agent runs analyses on a shared
-   machine.</p>""")
+<a class=btn href="/_auth/login">Try again</a>
+<hr>
+<p class=muted>Signing up to the community and being approved for the agent
+   are two separate steps, on purpose: analyses run on shared hardware.</p>""")
 
 
 def _esc(text: str) -> str:
@@ -329,6 +485,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         path, _, query = self.path.partition("?")
         args = urllib.parse.parse_qs(query)
+        if path in ("/_auth", "/_auth/", "/_auth/welcome"):
+            return self._welcome()
+        if path in ("/_auth/logo.png", "/_auth/logo-mark.png"):
+            return self._asset(path.rsplit("/", 1)[-1])
         if path == "/_auth/verify":
             return self._verify()
         if path == "/_auth/login":
@@ -346,6 +506,23 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, page("Not found", "<h1>Not found</h1>"))
 
     do_HEAD = do_GET
+
+    def _welcome(self) -> None:
+        # If a session is already valid there is nothing to welcome anyone to;
+        # send them straight into the app rather than showing a sign-in page
+        # to somebody who is signed in.
+        if read_session(self._cookies().get(COOKIE, "")):
+            return self._redirect("/")
+        self._send(200, _welcome_page(_provider_ready()))
+
+    def _asset(self, name: str) -> None:
+        path = BRANDING / name
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            return self._send(404, b"", ctype="text/plain")
+        self._send(200, blob, ctype="image/png",
+                   headers=[("Cache-Control", "public, max-age=86400")])
 
     def _verify(self) -> None:
         """nginx auth_request target. Cookie only -- no network, no disk."""
@@ -449,7 +626,8 @@ class Handler(BaseHTTPRequestHandler):
                              max_age=min(SESSION_HOURS, 12) * 3600)])
 
     def _logout(self) -> None:
-        self._send(200, page("Signed out", f"""
+        self._send(200, page("Signed out — IGVF Agent", f"""
+{_logo()}
 <h1>Signed out</h1>
 <p>Your IGVF Agent session on this browser has ended.</p>
 <p><a class=btn href="/_auth/login">Sign in again</a></p>

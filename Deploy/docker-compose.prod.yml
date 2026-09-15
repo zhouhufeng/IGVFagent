@@ -118,7 +118,10 @@ services:
   # in shares nothing with the container that runs analysis subprocesses.
   auth:
     build:
-      context: ./auth
+      # Repo root, so the Dockerfile can pick up Docs/Figures/ for the pages
+      # the gate serves to signed-out visitors.
+      context: ..
+      dockerfile: Deploy/auth/Dockerfile
     image: igvfagent-auth:latest
     container_name: igvfagent-auth
     restart: unless-stopped

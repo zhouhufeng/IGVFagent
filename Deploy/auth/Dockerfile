@@ -10,7 +10,11 @@ FROM python:3.12-alpine
 
 RUN adduser -D -u 1000 gate
 WORKDIR /app
-COPY --chown=gate:gate gate.py /app/gate.py
+COPY --chown=gate:gate Deploy/auth/gate.py /app/gate.py
+# The gate serves the pages an unauthenticated visitor sees, so it needs the
+# logo. Built from the repo root (see the compose build context) purely so
+# these two files are reachable.
+COPY --chown=gate:gate Docs/Figures/logo.png Docs/Figures/logo-mark.png /app/branding/
 
 USER gate
 EXPOSE 9000
