@@ -1,42 +1,33 @@
-# Auth gate + WebSocket-aware reverse proxy in front of Streamlit.
+# Authentication gate + WebSocket-aware reverse proxy in front of Streamlit.
 #
 # This file is an envsubst TEMPLATE, rendered by the nginx image's
 # /docker-entrypoint.d/20-envsubst-on-templates.sh at container start.
-# NGINX_ENVSUBST_FILTER is set to ^GA_ in the compose file so ONLY
-# ${GA_MEASUREMENT_ID} is substituted — without that filter envsubst would
-# also eat nginx's own $host, $http_upgrade, $remote_addr … and the config
-# would render into nonsense.
+# NGINX_ENVSUBST_FILTER is set in the compose file so ONLY the variables
+# listed there are substituted — without that filter envsubst would also eat
+# nginx's own $host, $http_upgrade, $remote_addr … and the config would render
+# into nonsense.
 #
 # Streamlit is not a plain request/response app: the browser loads a small
 # shell over HTTP and then everything real happens on a long-lived WebSocket
 # at /_stcore/stream. A naive proxy_pass serves the shell and then hangs with
 # a blank page, so the Upgrade/Connection handling and the long read timeout
 # below are load-bearing, not boilerplate.
+#
+# AUTHENTICATION. Every request is settled by auth_request against the gate
+# service, which checks one signed cookie. There is no shared password any
+# more: identity comes from the Genohub Discourse forum and access requires
+# membership of a group an administrator controls (Deploy/auth/gate.py).
+#
+# This also retires the Safari workaround that used to live here. Safari does
+# not send HTTP Basic Auth credentials on a WebSocket handshake — it does send
+# cookies — so the old config had to gate the socket on a separate shared
+# token while the page used basic auth. Cookie-based sessions make that
+# distinction disappear: the HTML and the WebSocket are now checked exactly
+# the same way, by the same subrequest, which is one fewer thing to get wrong.
 
 map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
-}
-
-# Safari does NOT attach HTTP Basic Auth credentials to a WebSocket
-# handshake. Chrome and Firefox reuse them for a same-origin upgrade; Safari
-# sends the upgrade with no Authorization header at all. Streamlit loads its
-# HTML shell over plain HTTP (which DOES carry the credentials, so the page
-# appears to start) and then runs everything on a WebSocket to
-# /_stcore/stream -- which nginx refused. Measured in this gateway's own log:
-# 39 x 101 upgraded (all Chrome/Firefox) against 112 x 401 (all Safari,
-# macOS and iOS, retrying every few seconds on Streamlit's reconnect loop).
-#
-# Safari DOES send cookies on a WebSocket handshake. So the authenticated
-# HTML location below hands out a token cookie, and the WebSocket location
-# accepts that cookie INSTEAD of basic auth. Same shared secret, same
-# strength as the single shared password already in use -- and emphatically
-# not the same as turning auth off on that path, which would let anyone open
-# a socket and drive the agent without a password. The shell is not where the
-# work happens.
-map $http_cookie $igvf_ws_ok {
-    default                     0;
-    "~*igvf_ws=${WS_TOKEN}"     1;
 }
 
 server {
@@ -56,21 +47,56 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
+    # ---------------------------------------------------------------- auth --
+    # The gate's own endpoints must NOT require auth — /_auth/login is how an
+    # unauthenticated person starts, and gating it would be a redirect loop.
+    location /_auth/ {
+        proxy_pass http://auth:9000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # Internal subrequest target. `internal` keeps it unreachable from
+    # outside: without it a client could call /_auth/verify directly and read
+    # back the identity headers of whatever cookie it holds.
+    location = /_auth/verify {
+        internal;
+        proxy_pass http://auth:9000/_auth/verify;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+    }
+
+    # An unauthenticated request is bounced to the gate, which bounces it to
+    # Discourse. 302 rather than 401 so a browser hitting the site cold lands
+    # on a login page instead of an empty error.
+    location @start_login {
+        return 302 /_auth/login;
+    }
+
     # Unauthenticated liveness probe for `docker compose ps` / uptime checks.
     location = /healthz {
-        auth_basic off;
         access_log off;
         proxy_pass http://app:8501/_stcore/health;
     }
 
-    # WebSocket: cookie-gated rather than basic-auth-gated, for the Safari
-    # reason above. Everything else about the proxying is identical to
-    # `location /` -- an upgrade still needs the Upgrade/Connection headers
-    # and the long read timeout, and losing either here would reproduce the
-    # blank page for every browser instead of one.
+    # WebSocket. Same auth_request as everything else now — see the note at
+    # the top about why this used to be special. An upgrade still needs the
+    # Upgrade/Connection headers and the long read timeout, and losing either
+    # here would reproduce the blank page for every browser.
     location = /_stcore/stream {
-        auth_basic off;
-        if ($igvf_ws_ok = 0) { return 401; }
+        auth_request /_auth/verify;
+        # A dead socket cannot follow a redirect, so an expired session gets a
+        # plain 401 here; Streamlit's reconnect loop surfaces it and a page
+        # reload then goes through the normal login redirect.
+        error_page 401 = @ws_denied;
+
+        auth_request_set $igvf_user  $upstream_http_x_igvf_user;
+        auth_request_set $igvf_email $upstream_http_x_igvf_email;
+        auth_request_set $igvf_name  $upstream_http_x_igvf_name;
+        auth_request_set $igvf_admin $upstream_http_x_igvf_admin;
 
         proxy_pass http://app:8501;
         proxy_http_version 1.1;
@@ -78,6 +104,10 @@ server {
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-IGVF-User       $igvf_user;
+        proxy_set_header X-IGVF-Email      $igvf_email;
+        proxy_set_header X-IGVF-Name       $igvf_name;
+        proxy_set_header X-IGVF-Admin      $igvf_admin;
         proxy_set_header Upgrade    $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_read_timeout  86400s;
@@ -85,9 +115,22 @@ server {
         proxy_buffering     off;
     }
 
+    location @ws_denied {
+        return 401;
+    }
+
     location / {
-        auth_basic           "IGVFagent — shared lab access";
-        auth_basic_user_file /etc/nginx/htpasswd;
+        auth_request /_auth/verify;
+        error_page 401 403 = @start_login;
+
+        # Identity, read back out of the subrequest response and handed to the
+        # app. The app trusts these headers because nothing can reach it
+        # except through this server block — it listens only on the compose
+        # network and is never published to a host port.
+        auth_request_set $igvf_user  $upstream_http_x_igvf_user;
+        auth_request_set $igvf_email $upstream_http_x_igvf_email;
+        auth_request_set $igvf_name  $upstream_http_x_igvf_name;
+        auth_request_set $igvf_admin $upstream_http_x_igvf_admin;
 
         # --- Google Analytics -------------------------------------------
         # Streamlit serves a fixed SPA shell and offers no head-injection
@@ -99,16 +142,14 @@ server {
         # sub_filter cannot rewrite a compressed body, so ask the upstream
         # for identity encoding. (Streamlit does not gzip this response
         # today; this keeps the filter working if that ever changes.)
-        # Handed out only after basic auth has passed, so possession of the
-        # cookie is evidence of having authenticated. add_header does not
-        # inherit into a location that sets any of its own, so the three
-        # server-level security headers are repeated here deliberately --
-        # without them this fix would quietly remove them from every HTML
-        # response.
+        #
+        # add_header does not inherit into a location that sets any of its
+        # own, so the three server-level security headers are repeated here
+        # deliberately — without them this block would quietly remove them
+        # from every HTML response.
         add_header X-Frame-Options SAMEORIGIN always;
         add_header X-Content-Type-Options nosniff always;
         add_header Referrer-Policy strict-origin-when-cross-origin always;
-        add_header Set-Cookie "igvf_ws=${WS_TOKEN}; Path=/; HttpOnly; Secure; SameSite=Lax" always;
 
         proxy_set_header Accept-Encoding "";
         sub_filter_once on;
@@ -122,8 +163,12 @@ server {
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-IGVF-User       $igvf_user;
+        proxy_set_header X-IGVF-Email      $igvf_email;
+        proxy_set_header X-IGVF-Name       $igvf_name;
+        proxy_set_header X-IGVF-Admin      $igvf_admin;
 
-        # WebSocket upgrade for /_stcore/stream.
+        # WebSocket upgrade for any path Streamlit adds later.
         proxy_set_header Upgrade    $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
 

@@ -39,6 +39,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Iterable, Optional
@@ -150,13 +151,30 @@ CREATE TABLE IF NOT EXISTS ingest_ledger (
     ingested_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS project_members (
+    project_id TEXT NOT NULL,
+    username   TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT 'member',
+    added_at   TEXT,
+    PRIMARY KEY (project_id, username)
+);
+CREATE INDEX IF NOT EXISTS idx_members_user ON project_members(username);
+"""
+
+# The search index is DERIVED -- reindex() rebuilds it from the tables -- so
+# unlike the history tables it may be dropped and recreated, which is how a
+# column gets added to an FTS5 table at all.
+_FTS_COLUMNS = ["kind", "ref", "title", "body", "accessions", "at", "owner"]
+
+_FTS_SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
-    kind UNINDEXED,
-    ref  UNINDEXED,
+    kind  UNINDEXED,
+    ref   UNINDEXED,
     title,
     body,
     accessions,
-    at   UNINDEXED,
+    at    UNINDEXED,
+    owner UNINDEXED,
     tokenize='porter unicode61'
 );
 """
@@ -187,8 +205,63 @@ def connect() -> sqlite3.Connection:
     except sqlite3.OperationalError:
         pass
     con.executescript(_SCHEMA)
+    con.executescript(_FTS_SCHEMA)
     con.executescript(_TRIGGERS)
+    _migrate(con)
     return con
+
+
+# Rows written before there were user accounts. They were produced under a
+# single shared password by nobody in particular, so they belong to everybody:
+# treating them as private would hide the entire existing corpus from every
+# user at once and throw away the recall index built over it.
+LEGACY_OWNER = ""
+
+# What an unauthenticated deployment calls the person at the keyboard. A local
+# install has exactly one user and nothing to hide from them.
+LOCAL_OWNER = "local"
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    """Additive schema upgrades. Never drops a history row.
+
+    Called on every connect and cheap when there is nothing to do: the column
+    checks are PRAGMA reads against an already-open handle.
+    """
+    for table, column in (("sessions", "owner"), ("projects", "owner"),
+                          ("project_items", "owner")):
+        have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {column} "
+                        f"TEXT NOT NULL DEFAULT ''")
+
+    # An FTS5 table cannot be ALTERed, so a new column means recreating it.
+    # Safe precisely because nothing authoritative lives there.
+    #
+    # The rows are CARRIED ACROSS rather than regenerated. Regenerating would
+    # mean calling reindex(), which re-reads the knowledge graph for the
+    # analysis and download documents -- and if that database happened to be
+    # missing, moved, or mid-rebuild, those documents would silently vanish
+    # from search until someone noticed and ran a backfill. Measured on the
+    # live index: 6,478 documents in, 737 out. Copying is lossless, needs no
+    # second database, and runs in constant memory.
+    have_cols = [r[1] for r in con.execute("PRAGMA table_info(search_fts)")]
+    if have_cols and have_cols != _FTS_COLUMNS:
+        con.execute("DROP TABLE IF EXISTS _fts_carry")
+        con.execute("CREATE TABLE _fts_carry AS "
+                    "SELECT kind, ref, title, body, accessions, at "
+                    "FROM search_fts")
+        con.execute("DROP TABLE search_fts")
+        con.executescript(_FTS_SCHEMA)
+        # owner '' = the pre-accounts corpus, visible to everyone. Every row
+        # that existed before this migration was produced under the shared
+        # password, so that is exactly right.
+        con.execute("INSERT INTO search_fts"
+                    "(kind,ref,title,body,accessions,at,owner) "
+                    "SELECT kind, ref, title, body, accessions, at, '' "
+                    "FROM _fts_carry")
+        con.execute("DROP TABLE _fts_carry")
+        con.commit()
 
 
 def _digest(*parts: str) -> str:
@@ -209,11 +282,95 @@ def _rel(path) -> str:
         return str(path)
 
 
+# ------------------------------ who is acting -------------------------------
+#
+# The agent loop and the skills it calls are several layers below the web
+# request that carries the signed-in user, and threading a username through
+# every one of them would touch code that has nothing to do with identity.
+# Streamlit runs each browser session's script in its own thread, so a
+# thread-local is both correct here and invisible everywhere else.
+
+_ACTOR = threading.local()
+
+
+def set_actor(username: "str | None") -> None:
+    """Record who the work in THIS thread belongs to. '' means nobody."""
+    _ACTOR.name = (username or "").strip()
+
+
+def actor() -> str:
+    name = getattr(_ACTOR, "name", "")
+    if name:
+        return name
+    # For CLI runs, where there are no threads to speak of and an operator may
+    # want to attribute a batch.
+    return os.environ.get("IGVF_ACTING_USER", "").strip()
+
+
+def viewer() -> "str | None":
+    """Who to filter for, or None when this deployment has no accounts.
+
+    An unauthenticated deployment must behave exactly as it did before: one
+    person, everything visible. Only a real username turns filtering on.
+    """
+    return actor() or None
+
+
+# ------------------------------ visibility ----------------------------------
+#
+# "Private per user, shared into projects": you see your own work, plus
+# anything filed into a project you own or have been added to, plus the
+# pre-accounts corpus that belongs to nobody. Filtering happens in Python
+# against a single predicate rather than in six hand-written SQL fragments --
+# at this scale (hundreds of sessions, thousands of indexed documents) the
+# query cost is irrelevant and one auditable rule beats six chances to get a
+# WHERE clause subtly wrong.
+
+
+def visible_projects(con, viewer: "str | None") -> "set[str] | None":
+    """Project ids ``viewer`` may see, or None when nothing is hidden."""
+    if viewer is None:
+        return None
+    rows = con.execute(
+        "SELECT id FROM projects WHERE owner = ? OR owner = ? "
+        "UNION SELECT project_id FROM project_members WHERE username = ?",
+        (viewer, LEGACY_OWNER, viewer))
+    return {r[0] for r in rows}
+
+
+def _shared_refs(con, viewer: "str | None") -> "set[str]":
+    """Refs made visible to ``viewer`` by being filed into a shared project."""
+    pids = visible_projects(con, viewer)
+    if not pids:
+        return set()
+    marks = ",".join("?" * len(pids))
+    return {r[0] for r in con.execute(
+        f"SELECT ref FROM project_items WHERE removed_at IS NULL "
+        f"AND project_id IN ({marks})", tuple(pids))}
+
+
+def _visible_to(con, viewer: "str | None"):
+    """Build the predicate deciding what ``viewer`` may see.
+
+    ``viewer=None`` -- an unauthenticated or local deployment -- means one
+    person at the keyboard and nothing to hide, so everything passes.
+    """
+    if viewer is None:
+        return lambda owner, ref: True
+    shared = _shared_refs(con, viewer)
+    allowed = {viewer, LEGACY_OWNER}
+
+    def ok(owner: "str | None", ref: "str | None") -> bool:
+        return (owner or LEGACY_OWNER) in allowed or (ref or "") in shared
+
+    return ok
+
+
 # ------------------------------ FTS helpers ---------------------------------
 
 
 def _index(con, kind: str, ref: str, title: str, body: str,
-           accessions: Iterable[str], at: str) -> None:
+           accessions: Iterable[str], at: str, owner: str = "") -> None:
     """Replace this document in the search index.
 
     The FTS row is derived data — it is rebuilt from the tables it summarises
@@ -222,10 +379,10 @@ def _index(con, kind: str, ref: str, title: str, body: str,
     """
     con.execute("DELETE FROM search_fts WHERE kind = ? AND ref = ?", (kind, ref))
     con.execute(
-        "INSERT INTO search_fts(kind,ref,title,body,accessions,at) "
-        "VALUES(?,?,?,?,?,?)",
+        "INSERT INTO search_fts(kind,ref,title,body,accessions,at,owner) "
+        "VALUES(?,?,?,?,?,?,?)",
         (kind, ref, title or "", (body or "")[:200_000],
-         " ".join(sorted(set(accessions or ()))), at or _NOW()))
+         " ".join(sorted(set(accessions or ()))), at or _NOW(), owner or ""))
 
 
 def _note_accessions(con, accessions: Iterable[str], kind: str, ref: str,
@@ -265,7 +422,8 @@ def _event(con, kind: str, project_id: str = "", detail: str = "") -> None:
 
 
 def record_session(run_dir, *, query: str, answer: str = "",
-                   meta: Optional[dict] = None, con=None) -> dict:
+                   meta: Optional[dict] = None, owner: str = "",
+                   con=None) -> dict:
     """Record one agent run. Idempotent on ``run_dir``.
 
     Called from ``_agent._persist_transcript`` so every run lands here as it
@@ -289,21 +447,23 @@ def record_session(run_dir, *, query: str, answer: str = "",
         con.execute(
             "INSERT OR REPLACE INTO sessions(id,run_dir,started_at,query,answer,"
             "backend,model,iterations,tool_calls,stop_reason,artefacts,"
-            "accessions,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "accessions,recorded_at,owner) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (sid, rel, started, query, answer,
              str(meta.get("backend", "")), str(meta.get("model", "")),
              int(meta.get("iterations", 0) or 0),
              int(meta.get("tool_calls_made", meta.get("tool_calls", 0)) or 0),
              str(meta.get("stop_reason", "")),
-             json.dumps(artefacts), json.dumps(accs), _NOW()))
-        _index(con, "session", rel, query, f"{query}\n\n{answer}", accs, started)
+             json.dumps(artefacts), json.dumps(accs), _NOW(), owner or ""))
+        _index(con, "session", rel, query, f"{query}\n\n{answer}", accs,
+               started, owner=owner)
         _note_accessions(con, accs, "session", rel, query, started)
 
         # Auto-file into whichever project is active, so "everything in this
         # project" needs no bookkeeping from the user.
-        pid = active_project_id(con)
+        pid = active_project_id(con, viewer=owner or None)
         if pid:
-            _add_item(con, pid, "session", rel, title=query, note="")
+            _add_item(con, pid, "session", rel, title=query, note="",
+                      owner=owner)
         if own:
             con.commit()
     finally:
@@ -315,7 +475,8 @@ def record_session(run_dir, *, query: str, answer: str = "",
 # ------------------------------ projects ------------------------------------
 
 
-def create_project(name: str, description: str = "", con=None) -> dict:
+def create_project(name: str, description: str = "", owner: str = "",
+                   con=None) -> dict:
     own = con is None
     con = con or connect()
     try:
@@ -330,12 +491,13 @@ def create_project(name: str, description: str = "", con=None) -> dict:
         now = _NOW()
         con.execute(
             "INSERT INTO projects(id,name,slug,description,created_at,"
-            "updated_at,archived) VALUES(?,?,?,?,?,?,0)",
-            (pid, name.strip(), slug, description, now, now))
+            "updated_at,archived,owner) VALUES(?,?,?,?,?,?,0,?)",
+            (pid, name.strip(), slug, description, now, now, owner or ""))
         con.execute("INSERT INTO project_names(project_id,name,slug,set_at) "
                     "VALUES(?,?,?,?)", (pid, name.strip(), slug, now))
-        _index(con, "project", pid, name, f"{name}\n{description}", (), now)
-        _event(con, "project_created", pid, name)
+        _index(con, "project", pid, name, f"{name}\n{description}", (), now,
+               owner=owner)
+        _event(con, "project_created", pid, f"{name} (owner: {owner or '-'})")
         if own:
             con.commit()
         return {"created": True, "id": pid, "name": name.strip(), "slug": slug}
@@ -344,13 +506,20 @@ def create_project(name: str, description: str = "", con=None) -> dict:
             con.close()
 
 
-def resolve_project(ref: str, con=None) -> Optional[sqlite3.Row]:
-    """Find a project by id, current name/slug, or any name it ever had."""
+def resolve_project(ref: str, viewer: "str | None" = None,
+                    con=None) -> Optional[sqlite3.Row]:
+    """Find a project by id, current name/slug, or any name it ever had.
+
+    A viewer only resolves projects they can see, so a name they have no
+    access to reads as "no such project" rather than as a permission error --
+    which would otherwise confirm the project exists.
+    """
     if not ref:
         return None
     own = con is None
     con = con or connect()
     try:
+        allowed = visible_projects(con, viewer)
         ref = ref.strip()
         slug = _slugify(ref)
         for sql, arg in (
@@ -362,7 +531,7 @@ def resolve_project(ref: str, con=None) -> Optional[sqlite3.Row]:
              "ORDER BY n.seq DESC LIMIT 1", slug),
         ):
             row = con.execute(sql, (arg,)).fetchone()
-            if row:
+            if row and (allowed is None or row["id"] in allowed):
                 return row
         return None
     finally:
@@ -370,13 +539,33 @@ def resolve_project(ref: str, con=None) -> Optional[sqlite3.Row]:
             con.close()
 
 
-def rename_project(ref: str, new_name: str, con=None) -> dict:
+def _owner_only(row, viewer: "str | None") -> "dict | None":
+    """Guard the operations only a project's owner may perform.
+
+    Sharing grants VISIBILITY, not control. Without this, adding a collaborator
+    to a project also handed them the ability to rename it, rewrite its
+    description, or archive it out from under the owner. Adding and removing
+    items stays open to members -- that is the collaboration the sharing was
+    for; the project's identity and its membership list are not.
+    """
+    if viewer is None or row["owner"] in ("", viewer):
+        return None
+    return {"ok": False,
+            "error": f"only {row['owner']} can do that to {row['name']!r} — "
+                     f"you have access to it, but you do not own it"}
+
+
+def rename_project(ref: str, new_name: str, viewer: "str | None" = None,
+                   con=None) -> dict:
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref, con=con)
+        row = resolve_project(ref, viewer=viewer, con=con)
         if not row:
             return {"ok": False, "error": f"no project matches {ref!r}"}
+        denied = _owner_only(row, viewer)
+        if denied:
+            return denied
         new_slug = _slugify(new_name)
         clash = con.execute(
             "SELECT id FROM projects WHERE slug = ? AND id != ?",
@@ -403,13 +592,17 @@ def rename_project(ref: str, new_name: str, con=None) -> dict:
             con.close()
 
 
-def set_description(ref: str, description: str, con=None) -> dict:
+def set_description(ref: str, description: str, viewer: "str | None" = None,
+                    con=None) -> dict:
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref, con=con)
+        row = resolve_project(ref, viewer=viewer, con=con)
         if not row:
             return {"ok": False, "error": f"no project matches {ref!r}"}
+        denied = _owner_only(row, viewer)
+        if denied:
+            return denied
         con.execute("UPDATE projects SET description = ?, updated_at = ? "
                     "WHERE id = ?", (description, _NOW(), row["id"]))
         _index(con, "project", row["id"], row["name"],
@@ -423,15 +616,19 @@ def set_description(ref: str, description: str, con=None) -> dict:
             con.close()
 
 
-def archive_project(ref: str, archived: bool = True, con=None) -> dict:
+def archive_project(ref: str, archived: bool = True,
+                    viewer: "str | None" = None, con=None) -> dict:
     """Hide a project from the default listing. The rows stay — archiving is
     the only "delete" this store has, and it is reversible."""
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref, con=con)
+        row = resolve_project(ref, viewer=viewer, con=con)
         if not row:
             return {"ok": False, "error": f"no project matches {ref!r}"}
+        denied = _owner_only(row, viewer)
+        if denied:
+            return denied
         con.execute("UPDATE projects SET archived = ?, updated_at = ? WHERE id = ?",
                     (1 if archived else 0, _NOW(), row["id"]))
         _event(con, "project_archived" if archived else "project_unarchived",
@@ -444,7 +641,8 @@ def archive_project(ref: str, archived: bool = True, con=None) -> dict:
             con.close()
 
 
-def list_projects(include_archived: bool = False, con=None) -> "list[dict]":
+def list_projects(include_archived: bool = False,
+                  viewer: "str | None" = None, con=None) -> "list[dict]":
     own = con is None
     con = con or connect()
     try:
@@ -455,7 +653,9 @@ def list_projects(include_archived: bool = False, con=None) -> "list[dict]":
         if not include_archived:
             sql += " WHERE p.archived = 0"
         sql += " ORDER BY p.updated_at DESC"
-        return [dict(r) for r in con.execute(sql)]
+        allowed = visible_projects(con, viewer)
+        return [dict(r) for r in con.execute(sql)
+                if allowed is None or r["id"] in allowed]
     finally:
         if own:
             con.close()
@@ -465,7 +665,7 @@ def list_projects(include_archived: bool = False, con=None) -> "list[dict]":
 
 
 def _add_item(con, project_id: str, kind: str, ref: str, *, title: str = "",
-              note: str = "") -> str:
+              note: str = "", owner: str = "") -> str:
     iid = _digest("item", project_id, kind, ref)
     now = _NOW()
     existing = con.execute("SELECT id FROM project_items WHERE id = ?",
@@ -476,29 +676,33 @@ def _add_item(con, project_id: str, kind: str, ref: str, *, title: str = "",
                     "note = ? WHERE id = ?", (title, note, iid))
     else:
         con.execute("INSERT INTO project_items(id,project_id,kind,ref,title,"
-                    "note,added_at,removed_at) VALUES(?,?,?,?,?,?,?,NULL)",
-                    (iid, project_id, kind, ref, title, note, now))
+                    "note,added_at,removed_at,owner) "
+                    "VALUES(?,?,?,?,?,?,?,NULL,?)",
+                    (iid, project_id, kind, ref, title, note, now,
+                     owner or ""))
     con.execute("UPDATE projects SET updated_at = ? WHERE id = ?",
                 (now, project_id))
     accs = sorted(set(ACCESSION_RE.findall(f"{ref} {title} {note}")))
     _index(con, "item", f"{project_id}/{kind}/{ref}", title or ref,
-           f"{ref}\n{title}\n{note}", accs, now)
+           f"{ref}\n{title}\n{note}", accs, now, owner=owner)
     _event(con, "item_added", project_id, f"{kind}:{ref}")
     return iid
 
 
 def add_item(ref_project: str, kind: str, ref: str, *, title: str = "",
-             note: str = "", con=None) -> dict:
+             note: str = "", owner: str = "", viewer: "str | None" = None,
+             con=None) -> dict:
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref_project, con=con)
+        row = resolve_project(ref_project, viewer=viewer, con=con)
         if not row:
             return {"ok": False, "error": f"no project matches {ref_project!r}"}
         if kind not in ITEM_KINDS:
             return {"ok": False,
                     "error": f"kind must be one of {', '.join(ITEM_KINDS)}"}
-        iid = _add_item(con, row["id"], kind, ref, title=title, note=note)
+        iid = _add_item(con, row["id"], kind, ref, title=title, note=note,
+                        owner=owner)
         if own:
             con.commit()
         return {"ok": True, "id": iid, "project": row["name"]}
@@ -507,13 +711,14 @@ def add_item(ref_project: str, kind: str, ref: str, *, title: str = "",
             con.close()
 
 
-def remove_item(ref_project: str, kind: str, ref: str, con=None) -> dict:
+def remove_item(ref_project: str, kind: str, ref: str,
+                viewer: "str | None" = None, con=None) -> dict:
     """Soft-remove: the row stays and stays searchable, it just stops counting
     as part of the project's current contents."""
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref_project, con=con)
+        row = resolve_project(ref_project, viewer=viewer, con=con)
         if not row:
             return {"ok": False, "error": f"no project matches {ref_project!r}"}
         iid = _digest("item", row["id"], kind, ref)
@@ -529,11 +734,11 @@ def remove_item(ref_project: str, kind: str, ref: str, con=None) -> dict:
 
 
 def project_items(ref_project: str, include_removed: bool = False,
-                  con=None) -> "list[dict]":
+                  viewer: "str | None" = None, con=None) -> "list[dict]":
     own = con is None
     con = con or connect()
     try:
-        row = resolve_project(ref_project, con=con)
+        row = resolve_project(ref_project, viewer=viewer, con=con)
         if not row:
             return []
         sql = "SELECT * FROM project_items WHERE project_id = ?"
@@ -546,23 +751,112 @@ def project_items(ref_project: str, include_removed: bool = False,
             con.close()
 
 
+# ------------------------------ sharing -------------------------------------
+
+
+def share_project(ref_project: str, username: str, *, role: str = "member",
+                  viewer: "str | None" = None, con=None) -> dict:
+    """Give another user access to a project, and to everything in it.
+
+    This is the ONLY way work crosses between users: sessions are private to
+    whoever ran them, and filing one into a shared project is the deliberate
+    act that publishes it to that project's members.
+    """
+    own = con is None
+    con = con or connect()
+    try:
+        row = resolve_project(ref_project, viewer=viewer, con=con)
+        if not row:
+            return {"ok": False, "error": f"no project matches {ref_project!r}"}
+        denied = _owner_only(row, viewer)
+        if denied:
+            return denied
+        username = username.strip()
+        if not username:
+            return {"ok": False, "error": "no username given"}
+        con.execute("INSERT OR REPLACE INTO project_members"
+                    "(project_id,username,role,added_at) VALUES(?,?,?,?)",
+                    (row["id"], username, role, _NOW()))
+        _event(con, "project_shared", row["id"], f"{username} ({role})")
+        if own:
+            con.commit()
+        return {"ok": True, "project": row["name"], "username": username}
+    finally:
+        if own:
+            con.close()
+
+
+def unshare_project(ref_project: str, username: str,
+                    viewer: "str | None" = None, con=None) -> dict:
+    own = con is None
+    con = con or connect()
+    try:
+        row = resolve_project(ref_project, viewer=viewer, con=con)
+        if not row:
+            return {"ok": False, "error": f"no project matches {ref_project!r}"}
+        denied = _owner_only(row, viewer)
+        if denied:
+            return denied
+        cur = con.execute("DELETE FROM project_members WHERE project_id = ? "
+                          "AND username = ?", (row["id"], username.strip()))
+        _event(con, "project_unshared", row["id"], username.strip())
+        if own:
+            con.commit()
+        return {"ok": True, "changed": cur.rowcount}
+    finally:
+        if own:
+            con.close()
+
+
+def project_members(ref_project: str, viewer: "str | None" = None,
+                    con=None) -> "list[dict]":
+    own = con is None
+    con = con or connect()
+    try:
+        row = resolve_project(ref_project, viewer=viewer, con=con)
+        if not row:
+            return []
+        out = [{"username": row["owner"] or "(pre-accounts)", "role": "owner",
+                "added_at": row["created_at"]}]
+        out += [dict(r) for r in con.execute(
+            "SELECT username, role, added_at FROM project_members "
+            "WHERE project_id = ? ORDER BY added_at", (row["id"],))]
+        return out
+    finally:
+        if own:
+            con.close()
+
+
 # --------------------------- active project ---------------------------------
 
 
-def set_active(ref: Optional[str]) -> dict:
-    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+def _active_path(viewer: "str | None") -> Path:
+    """Where this user's active-project marker lives.
+
+    Per user, not per deployment: with accounts, one person picking a project
+    must not silently redirect everyone else's runs into it.
+    """
+    if not viewer:
+        return ACTIVE_PATH
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", viewer)[:64]
+    return HISTORY_DIR / "active" / f"{safe}"
+
+
+def set_active(ref: Optional[str], viewer: "str | None" = None) -> dict:
+    path = _active_path(viewer)
+    path.parent.mkdir(parents=True, exist_ok=True)
     if not ref:
-        if ACTIVE_PATH.exists():
-            ACTIVE_PATH.unlink()
+        if path.exists():
+            path.unlink()
         return {"ok": True, "active": None}
-    row = resolve_project(ref)
+    row = resolve_project(ref, viewer=viewer)
     if not row:
         return {"ok": False, "error": f"no project matches {ref!r}"}
-    ACTIVE_PATH.write_text(row["id"])
+    path.write_text(row["id"])
     return {"ok": True, "active": row["name"], "id": row["id"]}
 
 
-def active_project_id(con=None) -> Optional[str]:
+def active_project_id(con=None, viewer: "str | None" = None) -> Optional[str]:
     """Id of the project new runs are filed into, or None.
 
     ``IGVF_PROJECT`` wins over the on-disk marker, so a single command or a
@@ -570,23 +864,23 @@ def active_project_id(con=None) -> Optional[str]:
     """
     env = os.environ.get("IGVF_PROJECT", "").strip()
     if env:
-        row = resolve_project(env, con=con)
+        row = resolve_project(env, viewer=viewer, con=con)
         return row["id"] if row else None
     try:
-        pid = ACTIVE_PATH.read_text().strip()
+        pid = _active_path(viewer).read_text().strip()
     except OSError:
         return None
     if not pid:
         return None
-    row = resolve_project(pid, con=con)
+    row = resolve_project(pid, viewer=viewer, con=con)
     return row["id"] if row else None
 
 
-def active_project(con=None) -> Optional[dict]:
-    pid = active_project_id(con=con)
+def active_project(con=None, viewer: "str | None" = None) -> Optional[dict]:
+    pid = active_project_id(con=con, viewer=viewer)
     if not pid:
         return None
-    row = resolve_project(pid, con=con)
+    row = resolve_project(pid, viewer=viewer, con=con)
     return dict(row) if row else None
 
 
@@ -612,80 +906,111 @@ def _fts_query(text: str) -> str:
 
 
 def search(query: str, *, limit: int = 20, kind: str = "",
-           project: str = "", con=None) -> "list[dict]":
+           project: str = "", viewer: "str | None" = None,
+           con=None) -> "list[dict]":
     """Full-text search over questions, answers, skill runs and project notes."""
     own = con is None
     con = con or connect()
     try:
+        can_see = _visible_to(con, viewer)
+        # Overfetch, because rows the viewer may not see are dropped below and
+        # a LIMIT applied before that filter would silently return short.
+        want = limit if (viewer is None and not project) else limit * 10
         expr = _fts_query(query)
         if not expr:
-            sql = ("SELECT kind, ref, title, at, '' AS snip FROM search_fts "
-                   "ORDER BY at DESC LIMIT ?")
-            rows = con.execute(sql, (limit,)).fetchall()
+            sql = ("SELECT kind, ref, title, at, owner, '' AS snip "
+                   "FROM search_fts ORDER BY at DESC LIMIT ?")
+            rows = con.execute(sql, (want,)).fetchall()
         else:
-            sql = ("SELECT kind, ref, title, at, "
+            sql = ("SELECT kind, ref, title, at, owner, "
                    "snippet(search_fts, 3, '«', '»', ' … ', 18) AS snip "
                    "FROM search_fts WHERE search_fts MATCH ? ")
             args: list = [expr]
             if kind:
                 sql += "AND kind = ? "
                 args.append(kind)
-            sql += "ORDER BY bm25(search_fts, 0.0, 0.0, 4.0, 1.0, 8.0, 0.0) LIMIT ?"
-            args.append(limit * 3 if project else limit)
+            sql += ("ORDER BY bm25(search_fts, 0.0, 0.0, 4.0, 1.0, 8.0, 0.0, 0.0) "
+                    "LIMIT ?")
+            args.append(want)
             try:
                 rows = con.execute(sql, args).fetchall()
             except sqlite3.OperationalError:
                 return []
-        out = [dict(r) for r in rows]
+        out = [dict(r) for r in rows if can_see(r["owner"], r["ref"])]
         if project:
-            prow = resolve_project(project, con=con)
+            prow = resolve_project(project, viewer=viewer, con=con)
             if not prow:
                 return []
             refs = {r["ref"] for r in con.execute(
                 "SELECT ref FROM project_items WHERE project_id = ? "
                 "AND removed_at IS NULL", (prow["id"],))}
-            out = [r for r in out if r["ref"] in refs][:limit]
-        return out
+            out = [r for r in out if r["ref"] in refs]
+        return out[:limit]
     finally:
         if own:
             con.close()
 
 
-def by_accession(accession: str, limit: int = 50, con=None) -> "list[dict]":
-    """Everything ever produced about one accession, newest first."""
+def by_accession(accession: str, limit: int = 50,
+                 viewer: "str | None" = None, con=None) -> "list[dict]":
+    """Everything ever produced about one accession, newest first.
+
+    The index itself carries no owner -- it points at sessions and skill runs
+    -- so visibility is resolved against those: a session row is shown only if
+    its session is visible. Skill-run and download rows come from the shared
+    knowledge graph and are not per-user work, so they are shown to everyone.
+    """
     own = con is None
     con = con or connect()
     try:
         rows = con.execute(
             "SELECT * FROM accession_index WHERE accession = ? "
-            "ORDER BY at DESC LIMIT ?", (accession.strip().upper(), limit))
-        return [dict(r) for r in rows]
+            "ORDER BY at DESC LIMIT ?",
+            (accession.strip().upper(), limit * 10 if viewer else limit))
+        out = [dict(r) for r in rows]
+        if viewer is not None:
+            can_see = _visible_to(con, viewer)
+            owners = {r[0]: r[1] for r in con.execute(
+                "SELECT run_dir, owner FROM sessions")}
+            out = [r for r in out
+                   if r["kind"] != "session"
+                   or can_see(owners.get(r["ref"], LEGACY_OWNER), r["ref"])]
+        return out[:limit]
     finally:
         if own:
             con.close()
 
 
-def session(run_dir: str, con=None) -> Optional[dict]:
+def session(run_dir: str, viewer: "str | None" = None,
+            con=None) -> Optional[dict]:
     own = con is None
     con = con or connect()
     try:
         rel = _rel(run_dir)
         row = con.execute("SELECT * FROM sessions WHERE run_dir = ? OR id = ?",
                           (rel, rel)).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        if not _visible_to(con, viewer)(row["owner"], row["run_dir"]):
+            return None
+        return dict(row)
     finally:
         if own:
             con.close()
 
 
-def recent_sessions(limit: int = 50, con=None) -> "list[dict]":
+def recent_sessions(limit: int = 50, viewer: "str | None" = None,
+                    con=None) -> "list[dict]":
     own = con is None
     con = con or connect()
     try:
         rows = con.execute(
-            "SELECT run_dir, started_at, query, accessions, stop_reason "
-            "FROM sessions ORDER BY started_at DESC LIMIT ?", (limit,))
-        return [dict(r) for r in rows]
+            "SELECT run_dir, started_at, query, accessions, stop_reason, owner "
+            "FROM sessions ORDER BY started_at DESC LIMIT ?",
+            (limit * 10 if viewer else limit,))
+        can_see = _visible_to(con, viewer)
+        return [dict(r) for r in rows
+                if can_see(r["owner"], r["run_dir"])][:limit]
     finally:
         if own:
             con.close()
@@ -852,11 +1177,13 @@ def reindex(con=None) -> dict:
         for r in con.execute("SELECT * FROM sessions"):
             accs = json.loads(r["accessions"] or "[]")
             _index(con, "session", r["run_dir"], r["query"],
-                   f"{r['query']}\n\n{r['answer']}", accs, r["started_at"])
+                   f"{r['query']}\n\n{r['answer']}", accs, r["started_at"],
+                   owner=r["owner"])
             n += 1
         for r in con.execute("SELECT * FROM projects"):
             _index(con, "project", r["id"], r["name"],
-                   f"{r['name']}\n{r['description'] or ''}", (), r["updated_at"])
+                   f"{r['name']}\n{r['description'] or ''}", (),
+                   r["updated_at"], owner=r["owner"])
             n += 1
         for r in con.execute("SELECT * FROM project_items WHERE removed_at IS NULL"):
             accs = sorted(set(ACCESSION_RE.findall(
@@ -864,7 +1191,7 @@ def reindex(con=None) -> dict:
             _index(con, "item", f"{r['project_id']}/{r['kind']}/{r['ref']}",
                    r["title"] or r["ref"],
                    f"{r['ref']}\n{r['title'] or ''}\n{r['note'] or ''}",
-                   accs, r["added_at"])
+                   accs, r["added_at"], owner=r["owner"])
             n += 1
         # analysis/download rows live only in the KG, so re-ingest them.
         con.execute("DELETE FROM ingest_ledger WHERE kind = 'analysis'")

@@ -129,6 +129,38 @@ _LOGO_FULL = _brand_asset("logo.png")        # wordmark, for the sidebar
 _LOGO_MARK = _brand_asset("logo-mark.png")   # square glyph, for the browser tab
 
 
+# --------------------------- Who is signed in -------------------------------
+#
+# The gateway authenticates every request against the Discourse-backed gate
+# (Deploy/auth/gate.py) and forwards the result as X-IGVF-* headers. Reading
+# them here is safe because nothing can reach this process except through that
+# gateway: the app container publishes no host port and listens only on the
+# compose network, so a header cannot be spoofed by a client.
+#
+# A local `igvfagent ui` has no gateway and therefore no headers. That is not
+# an error -- it is the single-user case, and it must keep behaving exactly as
+# it did before accounts existed: no login, nothing hidden.
+
+
+def current_user() -> "dict | None":
+    """The signed-in user, or None on a deployment without authentication."""
+    try:
+        headers = st.context.headers or {}
+    except Exception:
+        return None
+    # Header lookup is case-insensitive in Streamlit's mapping, but be
+    # explicit rather than relying on it.
+    def get(name: str) -> str:
+        return (headers.get(name) or headers.get(name.lower()) or "").strip()
+
+    username = get("X-IGVF-User")
+    if not username:
+        return None
+    return {"username": username, "email": get("X-IGVF-Email"),
+            "name": get("X-IGVF-Name") or username,
+            "admin": get("X-IGVF-Admin") == "1"}
+
+
 # --------------------------- Page config -----------------------------------
 
 # A real favicon when the asset is there; the emoji is the fallback that kept
@@ -939,6 +971,7 @@ def _sidebar() -> dict:
 
         # Long-running detached work, surfaced where the user can see it.
         _sidebar_jobs()
+        _sidebar_account()
         _sidebar_projects()
         _sidebar_history()
 
@@ -2009,7 +2042,7 @@ def _history_store():
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _history_index(_stamp: float) -> "list[dict]":
+def _history_index(_stamp: float, _viewer: "str | None" = None) -> "list[dict]":
     """Every past agent run: when, what was asked, which accessions.
 
     Served from the history database when it has rows — one query instead of
@@ -2022,7 +2055,7 @@ def _history_index(_stamp: float) -> "list[dict]":
     H = _history_store()
     if H is not None:
         try:
-            rows = H.recent_sessions(limit=300)
+            rows = H.recent_sessions(limit=300, viewer=_viewer)
         except Exception:
             rows = []
         if rows:
@@ -2042,6 +2075,11 @@ def _history_index(_stamp: float) -> "list[dict]":
                             "accessions": accs,
                             "haystack": (query + " " + " ".join(accs)).lower()})
             return out
+        if _viewer is not None:
+            # Falling through to the filesystem here would list every run on
+            # the box regardless of who ran it. An empty list is the correct
+            # answer for a user with no recorded sessions.
+            return []
     root = _history_dir()
     out: "list[dict]" = []
     try:
@@ -2108,6 +2146,45 @@ def _history_figures(entry: dict) -> "list[str]":
         (".png", ".jpg", ".jpeg", ".gif", ".svg"))]
 
 
+def _bind_actor() -> "str | None":
+    """Tell the history store whose work this script run is, and return it.
+
+    Called at the top of every render and before any agent run. Streamlit runs
+    each browser session's script in its own thread and the store keys off a
+    thread-local, so two people using the site at once are attributed
+    correctly without passing a username through the whole agent stack.
+    """
+    H = _history_store()
+    user = current_user()
+    if H is not None:
+        try:
+            H.set_actor(user["username"] if user else "")
+        except Exception:
+            pass
+    return user["username"] if user else None
+
+
+def _sidebar_account() -> None:
+    """Who you are signed in as, and how to stop being them.
+
+    Renders nothing at all when there is no authentication in front of the
+    app, because on a local install there is no account to show and an empty
+    'Signed in as —' box would just be noise.
+    """
+    user = current_user()
+    if not user:
+        return
+    with st.expander(f"👤 {user['name']}", expanded=False):
+        st.caption(f"Signed in as `{user['username']}`"
+                   + (f" · {user['email']}" if user["email"] else ""))
+        if user["admin"]:
+            st.caption("Forum administrator.")
+        st.markdown(
+            "Your sessions and projects are private to you. Share work by "
+            "adding someone to a project below.")
+        st.link_button("Sign out", "/_auth/logout", width="stretch")
+
+
 def _sidebar_projects() -> None:
     """Pick or create the project that new runs are filed into.
 
@@ -2123,9 +2200,10 @@ def _sidebar_projects() -> None:
     if H is None:
         return
     with st.expander("🗂️ Project", expanded=False):
+        me = _bind_actor()
         try:
-            projects = H.list_projects()
-            active = H.active_project() or {}
+            projects = H.list_projects(viewer=me)
+            active = H.active_project(viewer=me) or {}
         except Exception as exc:
             st.caption(f"History store unavailable: {exc}")
             return
@@ -2137,13 +2215,13 @@ def _sidebar_projects() -> None:
                               key="project_pick",
                               label_visibility="collapsed")
         if picked != names[idx]:
-            H.set_active(None if picked == "— none —" else picked)
+            H.set_active(None if picked == "— none —" else picked, viewer=me)
             _history_index.clear()
             st.rerun()
 
         if active:
             try:
-                items = H.project_items(active["id"])
+                items = H.project_items(active["id"], viewer=me)
             except Exception:
                 items = []
             st.caption(f"{len(items)} item(s) filed. New answers are added "
@@ -2156,26 +2234,50 @@ def _sidebar_projects() -> None:
                                      placeholder=active["name"])
             if new_name.strip() and new_name.strip() != active["name"]:
                 if st.button("Rename", key="project_rename_go", width="stretch"):
-                    res = H.rename_project(active["id"], new_name.strip())
+                    res = H.rename_project(active["id"], new_name.strip(),
+                                           viewer=me)
                     if res.get("ok"):
-                        st.success(f"Renamed. The old name still resolves.")
+                        st.success("Renamed. The old name still resolves.")
                         st.rerun()
                     else:
                         st.error(res.get("error", "rename failed"))
+
+            # Sharing. Filing a session into a project is private until this
+            # happens, so this control is the one place work crosses between
+            # people -- worth being explicit about, hence the caption.
+            if me:
+                try:
+                    members = H.project_members(active["id"], viewer=me)
+                except Exception:
+                    members = []
+                st.caption("Shared with: "
+                           + ", ".join(f"`{m['username']}`" for m in members))
+                who = st.text_input("Share with", key="project_share",
+                                    placeholder="forum username")
+                if who.strip() and st.button("Share", key="project_share_go",
+                                              width="stretch"):
+                    res = H.share_project(active["id"], who.strip(), viewer=me)
+                    if res.get("ok"):
+                        st.success(f"{who.strip()} can now see this project "
+                                   f"and everything in it.")
+                        st.rerun()
+                    else:
+                        st.error(res.get("error", "sharing failed"))
 
         created = st.text_input("New project", key="project_new",
                                 placeholder="name a new project")
         if created.strip() and st.button("Create", key="project_new_go",
                                           width="stretch"):
-            res = H.create_project(created.strip())
-            H.set_active(res["id"])
+            res = H.create_project(created.strip(), owner=me or "")
+            H.set_active(res["id"], viewer=me)
             st.rerun()
 
 
 def _sidebar_history() -> None:
     """Searchable browser over past runs. Collapsed and inert until opened."""
     with st.expander("📚 Past results", expanded=False):
-        entries = _history_index(round(time.time() / 60))
+        me = _bind_actor()
+        entries = _history_index(round(time.time() / 60), me)
         if not entries:
             st.caption("No past runs recorded yet.")
             return
@@ -2193,7 +2295,7 @@ def _sidebar_history() -> None:
         if needle and not shown and H is not None:
             by_dir = {e["dir"]: e for e in entries}
             try:
-                hits = H.search(needle, limit=25, kind="session")
+                hits = H.search(needle, limit=25, kind="session", viewer=me)
             except Exception:
                 hits = []
             for h in hits:
@@ -2550,6 +2652,9 @@ def _jobs_body() -> None:
 
 
 def main() -> None:
+    # Before anything reads or writes history: attribute this script run to
+    # the signed-in user (a no-op without authentication in front).
+    _bind_actor()
     cfg = _sidebar()
 
     st.title("IGVFagent")

@@ -112,6 +112,46 @@ services:
       driver: json-file
       options: { max-size: "50m", max-file: "5" }
 
+  # Authentication. Identity comes from the Genohub Discourse forum via
+  # DiscourseConnect; access requires membership of a group an administrator
+  # controls. Kept in its own container so the component that decides who gets
+  # in shares nothing with the container that runs analysis subprocesses.
+  auth:
+    build:
+      context: ./auth
+    image: igvfagent-auth:latest
+    container_name: igvfagent-auth
+    restart: unless-stopped
+    environment:
+      # Must match Discourse's `discourse connect provider secrets` entry,
+      # written there as `igvfagent.genohub.org|<this value>`.
+      IGVF_SSO_SECRET:     ${IGVF_SSO_SECRET:?IGVF_SSO_SECRET is required (openssl rand -hex 32)}
+      # Signs our own session cookie. MUST differ from the above: one secret
+      # for both would let anyone able to mint an SSO payload mint a session.
+      IGVF_SESSION_SECRET: ${IGVF_SESSION_SECRET:?IGVF_SESSION_SECRET is required (openssl rand -hex 32)}
+      IGVF_DISCOURSE_URL:  ${IGVF_DISCOURSE_URL:-https://discussion.genohub.org}
+      IGVF_PUBLIC_URL:     ${IGVF_PUBLIC_URL:-https://igvfagent.genohub.org}
+      IGVF_APPROVAL_GROUP: ${IGVF_APPROVAL_GROUP:-igvfagent}
+      IGVF_SESSION_HOURS:  ${IGVF_SESSION_HOURS:-168}
+      # Only consulted if a Discourse payload arrives with no groups field.
+      IGVF_DISCOURSE_API_KEY:  ${IGVF_DISCOURSE_API_KEY:-}
+      IGVF_DISCOURSE_API_USER: ${IGVF_DISCOURSE_API_USER:-system}
+      # Break-glass, for verifying this stack before the Discourse side is
+      # switched on and for getting back in if SSO ever breaks. As strong as
+      # the shared password it replaces and no stronger — unset it once
+      # Discourse login is confirmed working. See Docs/AUTH.md.
+      IGVF_BOOTSTRAP_TOKEN:    ${IGVF_BOOTSTRAP_TOKEN:-}
+    expose:
+      - "9000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *logging
+
   gateway:
     image: nginx:1.27-alpine
     container_name: igvfagent-gateway
@@ -119,26 +159,25 @@ services:
     depends_on:
       app:
         condition: service_healthy
+      auth:
+        condition: service_healthy
     environment:
       # Google Analytics measurement ID, spliced into <head> by sub_filter.
       # Empty = the tag renders with no id and reports nothing, which is the
       # right default for anyone else deploying this repo.
       GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
-      # Shared secret the WebSocket location accepts in place of basic auth,
-      # because Safari does not send basic-auth credentials on a WebSocket
-      # handshake (see the comment in nginx/igvfagent.conf.template). Set it
-      # in .env.prod; an empty value would make the cookie check trivially
-      # satisfiable, so the gateway refuses to start without one.
-      WS_TOKEN: ${WS_TOKEN:?WS_TOKEN is required (openssl rand -hex 24)}
-      # Substitute ONLY GA_* and WS_TOKEN in the template. Without this filter
-      # envsubst would also replace nginx's own $$host / $$http_upgrade /
-      # $$remote_addr with empty strings and the rendered config would be
-      # broken. WS_TOKEN must be listed or it renders literally and every
-      # WebSocket is refused.
-      NGINX_ENVSUBST_FILTER: "^(GA_|WS_TOKEN)"
+      # Substitute ONLY GA_* in the template. Without this filter envsubst
+      # would also replace nginx's own $$host / $$http_upgrade / $$remote_addr
+      # with empty strings and the rendered config would be broken.
+      #
+      # WS_TOKEN used to be listed here too, for the shared secret the
+      # WebSocket location accepted in place of basic auth (Safari does not
+      # send basic-auth credentials on a WebSocket handshake). Session cookies
+      # made that unnecessary: the socket is now authenticated exactly like
+      # every other request. htpasswd is gone for the same reason.
+      NGINX_ENVSUBST_FILTER: "^GA_"
     volumes:
       - ./nginx/igvfagent.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
     expose:
       - "80"
     security_opt:

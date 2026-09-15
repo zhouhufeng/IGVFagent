@@ -519,7 +519,8 @@ def _persist_transcript(query: str, transcript: "list[dict]",
         from . import _history
 
         _history.record_session(out_dir, query=query,
-                                answer=final_answer or "", meta=meta)
+                                answer=final_answer or "", meta=meta,
+                                owner=_history.actor())
     except Exception as exc:                      # pragma: no cover - defensive
         logger.debug("history indexing skipped: %s", exc)
 

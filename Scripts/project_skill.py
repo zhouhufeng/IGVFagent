@@ -11,8 +11,18 @@
     igvfagent project recall IGVFDS5414UFNC
     igvfagent project show Docs/Agent/20260914_150552_...
 
+    igvfagent project share alice   # alice can now see this project's analyses
+    igvfagent project members
+
     igvfagent project backfill      # index everything that ran before this existed
     igvfagent project stats
+
+**Sessions are private to whoever ran them.** Filing one into a project and
+then sharing that project is the deliberate act that makes it visible to
+someone else -- there is no other path between users. Work recorded before
+this deployment had accounts belongs to nobody and stays visible to everyone,
+because hiding the entire existing corpus from every user at once would be the
+wrong reading of "private by default".
 
 Two things this gives that the filesystem did not.
 
@@ -44,6 +54,16 @@ except ImportError:                                      # direct execution
     import _history as H  # type: ignore
 
 
+def _me() -> "str | None":
+    """Who is running this command, or None on a deployment without accounts.
+
+    Comes from IGVF_ACTING_USER, which the web app sets on every tool
+    subprocess. Unset means single-user: nothing is filtered, exactly as
+    before accounts existed.
+    """
+    return H.viewer()
+
+
 def _out(obj, as_json: bool) -> None:
     if as_json:
         print(json.dumps(obj, indent=2, default=str))
@@ -58,12 +78,12 @@ def _fail(msg: str) -> int:
 
 
 def cmd_create(a) -> int:
-    res = H.create_project(a.name, a.description or "")
+    res = H.create_project(a.name, a.description or "", owner=_me() or "")
     if res.get("created"):
         print(f"Created project {res['name']!r}  (id {res['id']})")
         if a.use:
-            H.set_active(res["id"])
-            print(f"Now the active project — new runs are filed into it.")
+            H.set_active(res["id"], viewer=_me())
+            print("Now the active project — new runs are filed into it.")
     else:
         print(f"Project {res['name']!r} already exists (id {res['id']}).")
     _out(res, a.json)
@@ -71,12 +91,12 @@ def cmd_create(a) -> int:
 
 
 def cmd_list(a) -> int:
-    rows = H.list_projects(include_archived=a.all)
+    rows = H.list_projects(include_archived=a.all, viewer=_me())
     if not rows:
         print("No projects yet. Create one:\n"
               "  igvfagent project create \"My study\" --use")
         return 0
-    active = H.active_project() or {}
+    active = H.active_project(viewer=_me()) or {}
     print(f"{'':2}{'name':40} {'items':>6}  {'updated':19}  id")
     for r in rows:
         mark = "*" if r["id"] == active.get("id") else (
@@ -89,7 +109,7 @@ def cmd_list(a) -> int:
 
 
 def cmd_use(a) -> int:
-    res = H.set_active(a.name if a.name != "-" else None)
+    res = H.set_active(a.name if a.name != "-" else None, viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     if res.get("active"):
@@ -101,7 +121,7 @@ def cmd_use(a) -> int:
 
 
 def cmd_rename(a) -> int:
-    res = H.rename_project(a.name, a.to)
+    res = H.rename_project(a.name, a.to, viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     print(f"Renamed {res['was']!r} → {res['name']!r}  (id {res['id']} unchanged; "
@@ -111,7 +131,7 @@ def cmd_rename(a) -> int:
 
 
 def cmd_describe(a) -> int:
-    res = H.set_description(a.name, a.description)
+    res = H.set_description(a.name, a.description, viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     print("Description updated.")
@@ -120,7 +140,7 @@ def cmd_describe(a) -> int:
 
 
 def cmd_archive(a) -> int:
-    res = H.archive_project(a.name, archived=not a.unarchive)
+    res = H.archive_project(a.name, archived=not a.unarchive, viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     print(f"{'Archived' if res['archived'] else 'Restored'} — nothing was "
@@ -132,7 +152,7 @@ def cmd_archive(a) -> int:
 def _target_project(a) -> "str | None":
     if getattr(a, "project", None):
         return a.project
-    act = H.active_project()
+    act = H.active_project(viewer=_me())
     return act["id"] if act else None
 
 
@@ -141,7 +161,8 @@ def cmd_add(a) -> int:
     if not proj:
         return _fail("no project given and none active — "
                      "`igvfagent project use <name>` or pass --project")
-    res = H.add_item(proj, a.kind, a.ref, title=a.title or "", note=a.note or "")
+    res = H.add_item(proj, a.kind, a.ref, title=a.title or "",
+                     note=a.note or "", owner=_me() or "", viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     print(f"Added {a.kind} {a.ref} to {res['project']!r}.")
@@ -153,7 +174,7 @@ def cmd_remove(a) -> int:
     proj = _target_project(a)
     if not proj:
         return _fail("no project given and none active")
-    res = H.remove_item(proj, a.kind, a.ref)
+    res = H.remove_item(proj, a.kind, a.ref, viewer=_me())
     if not res.get("ok"):
         return _fail(res["error"])
     print("Marked removed. The row is kept and stays searchable.")
@@ -165,7 +186,7 @@ def cmd_items(a) -> int:
     proj = _target_project(a)
     if not proj:
         return _fail("no project given and none active")
-    rows = H.project_items(proj, include_removed=a.all)
+    rows = H.project_items(proj, include_removed=a.all, viewer=_me())
     if not rows:
         print("No items in this project yet.")
         return 0
@@ -180,9 +201,48 @@ def cmd_items(a) -> int:
     return 0
 
 
+def cmd_share(a) -> int:
+    proj = _target_project(a)
+    if not proj:
+        return _fail("no project given and none active")
+    res = H.share_project(proj, a.username, viewer=_me())
+    if not res.get("ok"):
+        return _fail(res["error"])
+    print(f"{a.username} can now see {res['project']!r} and every analysis "
+          f"filed into it.")
+    _out(res, a.json)
+    return 0
+
+
+def cmd_unshare(a) -> int:
+    proj = _target_project(a)
+    if not proj:
+        return _fail("no project given and none active")
+    res = H.unshare_project(proj, a.username, viewer=_me())
+    if not res.get("ok"):
+        return _fail(res["error"])
+    print("Access removed." if res["changed"] else "They did not have access.")
+    _out(res, a.json)
+    return 0
+
+
+def cmd_members(a) -> int:
+    proj = _target_project(a)
+    if not proj:
+        return _fail("no project given and none active")
+    rows = H.project_members(proj, viewer=_me())
+    if not rows:
+        return _fail("no such project, or you cannot see it")
+    for r in rows:
+        print(f"  {r['role']:7}  {r['username']}"
+              f"   {(r.get('added_at') or '')[:16]}")
+    _out(rows, a.json)
+    return 0
+
+
 def cmd_search(a) -> int:
     rows = H.search(a.query, limit=a.limit, kind=a.kind or "",
-                    project=a.project or "")
+                    project=a.project or "", viewer=_me())
     if not rows:
         print("Nothing in history matches that.")
         return 0
@@ -199,7 +259,7 @@ def cmd_search(a) -> int:
 
 def cmd_recall(a) -> int:
     acc = a.accession.strip().upper()
-    rows = H.by_accession(acc, limit=a.limit)
+    rows = H.by_accession(acc, limit=a.limit, viewer=_me())
     if not rows:
         print(f"Nothing recorded yet for {acc}. "
               f"If work predates the history store, run "
@@ -229,7 +289,7 @@ def cmd_recall(a) -> int:
 
 
 def cmd_show(a) -> int:
-    row = H.session(a.ref)
+    row = H.session(a.ref, viewer=_me())
     if not row:
         print(f"No recorded session at {a.ref!r}.")
         return 1
@@ -253,7 +313,7 @@ def cmd_show(a) -> int:
 
 
 def cmd_recent(a) -> int:
-    rows = H.recent_sessions(limit=a.limit)
+    rows = H.recent_sessions(limit=a.limit, viewer=_me())
     if not rows:
         print("No sessions recorded yet — try `igvfagent project backfill`.")
         return 0
@@ -360,6 +420,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--project", default="")
     s.add_argument("--all", action="store_true", help="Include removed items.")
     s.set_defaults(func=cmd_items)
+
+    s = sub.add_parser(
+        "share", help="Let another user see this project and its analyses.")
+    s.add_argument("username", help="Their Genohub forum username.")
+    s.add_argument("--project", default="", help="Defaults to the active one.")
+    s.set_defaults(func=cmd_share)
+
+    s = sub.add_parser("unshare", help="Withdraw a user's access.")
+    s.add_argument("username")
+    s.add_argument("--project", default="")
+    s.set_defaults(func=cmd_unshare)
+
+    s = sub.add_parser("members", help="Who can see this project.")
+    s.add_argument("--project", default="")
+    s.set_defaults(func=cmd_members)
 
     s = sub.add_parser("search", help="Full-text search across all history.")
     s.add_argument("query")

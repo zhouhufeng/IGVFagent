@@ -902,6 +902,25 @@ Growth is idempotent (deterministic upserts + a harvest ledger) and safe under
 concurrent agent/CLI writers (WAL + busy-timeout). Disable with
 `IGVF_LOCALSTORE=0`.
 
+## Accounts, approval and sign-in
+
+The hosted deployment has real accounts. Identity comes from the **Genohub
+Discourse community** — signup, email verification and moderation already live
+there — and access to the agent requires membership of a Discourse group that
+administrators control. Signing up and being approved are two separate steps on
+purpose: anyone may join the forum; only approved members may drive an agent
+that runs analysis pipelines on a shared machine.
+
+Approving someone is adding them to the group. Revoking is removing them.
+There is no second password to distribute and no credential store of our own —
+authentication sits in the gateway (`Deploy/auth/gate.py`, stdlib only), never
+in the app, because the app is the thing being protected.
+
+Setup, cutover and day-to-day administration: [`Docs/AUTH.md`](Docs/AUTH.md).
+
+A local install has no gateway and therefore no login — one person at the
+keyboard, nothing hidden, exactly as before.
+
 ## Projects and permanent history
 
 The knowledge graph remembers *what is true*. A separate store remembers *what
@@ -936,6 +955,14 @@ While a project is active, every answer is filed into it automatically — in th
 CLI and in the web UI, which has a **🗂️ Project** panel in the sidebar.
 Renaming is safe: items reference the project's immutable id, and every former
 name stays resolvable, so a reference written down months ago still works.
+
+**Work is private to whoever ran it.** On a deployment with accounts, your
+sessions and projects are yours; the only way work reaches someone else is to
+file it into a project and share that project (`igvfagent project share
+<username>`). Members can see and add to a shared project; only the owner can
+rename, archive or change its membership. Runs recorded before accounts existed
+belong to nobody and stay visible to everyone. Without authentication in front,
+nothing is filtered at all.
 
 **Nothing here is ever deleted.** That is enforced by `BEFORE DELETE` triggers
 on every history table, not by convention — removing an item from a project

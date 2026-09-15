@@ -1,0 +1,193 @@
+# Accounts, approval and sign-in
+
+The hosted deployment used to be gated by one shared password in an nginx
+`htpasswd` file. Everyone who could use it used the same credential, there was
+no record of who ran what, and revoking one person meant changing the password
+for everyone.
+
+It now uses real accounts. Identity comes from the **Genohub Discourse
+community** at `https://discussion.genohub.org`, which already has a signup
+flow, email verification and staff moderation. Access to IGVF Agent requires
+membership of a Discourse **group** that administrators control.
+
+```
+  browser ──► Cloudflare tunnel ──► nginx ──auth_request──► gate (Deploy/auth/gate.py)
+                                      │                        │
+                                      │                        └──► discussion.genohub.org
+                                      └──► Streamlit app  (X-IGVF-User: …)
+```
+
+**Signing up and being approved are two separate steps, deliberately.** Anyone
+may join the forum. Only members of the approval group may drive an agent that
+executes analysis pipelines on a shared machine.
+
+---
+
+## Part 1 — one-time setup on Discourse
+
+Needs a Discourse administrator account. Everything here is in the admin UI.
+
+### 1. Create the approval group
+
+**Admin → Groups → New Group**
+
+| Field | Value |
+|---|---|
+| Name | `igvfagent` |
+| Full name | IGVF Agent users |
+| Who can join | Nobody (owners add members) — **not** "anyone" |
+| Visibility | Whatever suits; membership visibility does not affect access |
+
+Adding somebody to this group is the approval step. Removing them revokes
+access at their next sign-in, and within `IGVF_SESSION_HOURS` for a browser
+that is already signed in.
+
+### 2. Enable the SSO provider
+
+**Admin → Settings → Login**
+
+| Setting | Value |
+|---|---|
+| `enable discourse connect provider` | ✅ on |
+| `discourse connect provider secrets` | `igvfagent.genohub.org` \| `<the SSO secret>` |
+
+The secrets setting is a two-column list: the left column is the **hostname**
+of the site being logged into, the right column is the shared secret. Discourse
+picks the secret by matching the hostname of the `return_sso_url` the gate
+sends, so the left column must be exactly `igvfagent.genohub.org`.
+
+Generate the secret with `openssl rand -hex 32`. It goes in two places and
+nowhere else: that Discourse setting, and `IGVF_SSO_SECRET` in
+`Deploy/.env.prod` on the host.
+
+### 3. Check that the endpoint woke up
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://discussion.genohub.org/session/sso_provider
+```
+
+`404` means the provider is still off. Anything else means the setting took.
+
+---
+
+## Part 2 — the host side
+
+In `Deploy/.env.prod`:
+
+```bash
+IGVF_SSO_SECRET=<the same value pasted into Discourse>
+IGVF_SESSION_SECRET=<a DIFFERENT openssl rand -hex 32>
+IGVF_APPROVAL_GROUP=igvfagent
+IGVF_SESSION_HOURS=168
+# Break-glass, for the cutover. Remove once Discourse sign-in works.
+IGVF_BOOTSTRAP_TOKEN=<openssl rand -hex 24>
+```
+
+The two secrets **must differ**. The gate refuses to start if they are equal:
+one value for both would mean anyone able to mint an SSO payload could mint a
+session cookie directly.
+
+`WS_TOKEN` and `Deploy/nginx/htpasswd` are no longer used and can go.
+
+Then redeploy. `Deploy/redeploy.sh` refuses while an analysis is running, which
+is the behaviour you want — wait for it rather than forcing.
+
+---
+
+## Part 3 — the cutover, in an order that cannot lock you out
+
+Turning a live site over to a new identity provider in one step means that if
+anything about the Discourse side is wrong — provider not enabled, secret
+mistyped, group not created — **nobody can get in, including the person who
+would fix it**. So:
+
+1. **Deploy with `IGVF_BOOTSTRAP_TOKEN` set.** Visit
+   `https://igvfagent.genohub.org/_auth/bootstrap?token=<that token>`. You get
+   a session without Discourse. If the site loads, the gate, nginx and the app
+   are wired correctly.
+2. **Now try the real thing**: sign out, then load the site normally. You
+   should be bounced to Discourse and back.
+3. **When that works, remove `IGVF_BOOTSTRAP_TOKEN`** from `.env.prod` and
+   redeploy. The bootstrap URL then returns 404.
+
+Keep the token somewhere you can find it in a hurry — putting it back is how
+you get in if Discourse is ever down or the secret gets rotated out from under
+you. It is exactly as strong as the shared password it replaces, which is why
+it should not be left set.
+
+---
+
+## Day to day
+
+**Approve someone**: Admin → Groups → `igvfagent` → add their username. Tell
+them to reload. Nothing else is needed on their side.
+
+**Revoke someone**: remove them from the group. They lose access at their next
+sign-in; an existing browser session survives until its cookie expires. To cut
+every session immediately, rotate `IGVF_SESSION_SECRET` and redeploy — that
+invalidates all cookies at once, including your own.
+
+**Someone says they are stuck**: they will have landed on a page naming the
+group they need. That page appears only after they have successfully signed in
+to Discourse, so if they never reach it the problem is the forum account, not
+the approval.
+
+---
+
+## What each person can see
+
+Signing in makes work **private by default**:
+
+- Your sessions, and the projects you create, are yours.
+- Work recorded before accounts existed belongs to nobody in particular — it
+  was produced under the shared password — so it stays visible to everyone.
+  Hiding the entire existing corpus from every user at once would be the wrong
+  reading of "private by default".
+- The only way work reaches another person is a project: file it into one, then
+  share the project (`igvfagent project share <username>`, or the sidebar).
+  Members of a shared project can see and add to it; only the owner can rename,
+  archive or change who else is in it.
+- Skill runs and downloads recorded in the shared knowledge graph are not
+  per-user work and stay visible to everyone.
+
+`Scripts/test_history_visibility.py` asserts all of the above.
+
+---
+
+## Why it is built this way
+
+**Why not a signup form in IGVF Agent?** It would mean a second credential
+store — password hashing, email verification, reset flows, an approval queue —
+on a public host, duplicating a forum that already does all of it. A homegrown
+credential store is the thing that gets breached.
+
+**Why not Cloudflare Access?** It is a good option and needs no code, but it
+has no self-service signup: an administrator adds every email by hand, and user
+management lives in the Cloudflare dashboard rather than in the community the
+lab already runs.
+
+**Why is auth in nginx rather than in Streamlit?** The app runs analysis CLIs
+as subprocesses on prompts from the public internet. It is the thing being
+protected; it must not also be the thing deciding who gets in. The app container
+publishes no host port and is reachable only through the gateway, which is why
+it can trust the `X-IGVF-*` headers it is handed.
+
+**Why did the Safari workaround disappear?** Safari does not send HTTP Basic
+Auth credentials on a WebSocket handshake, so the old config had to gate
+`/_stcore/stream` on a separate shared token while the page used basic auth.
+Safari *does* send cookies. With cookie sessions the page and the socket are
+checked the same way, by the same subrequest, and the special case is gone.
+
+---
+
+## Testing
+
+```bash
+python3 Deploy/auth/test_gate.py              # the gate, over real HTTP
+python3 Scripts/test_history_visibility.py    # who can see whose work
+```
+
+The first plays both browser and Discourse against a live gate: forged
+signatures, replayed callbacks, spent nonces, tampered cookies, a user outside
+the group, and the break-glass path. The second asserts the visibility rules
+above, including that sharing a project grants visibility but not control.

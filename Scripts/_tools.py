@@ -7091,6 +7091,19 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
         argv = _resolve_igvfagent() + argv[1:]
 
     env = os.environ.copy()
+    # Carry the signed-in user into the subprocess. A thread-local cannot
+    # cross a fork, and without this every history_recall / history_search the
+    # agent makes would run unattributed -- which the history store reads as
+    # "no accounts here, show everything", leaking one user's private sessions
+    # into another user's answer.
+    try:
+        from . import _history as _h
+
+        acting = _h.actor()
+        if acting:
+            env["IGVF_ACTING_USER"] = acting
+    except Exception:
+        pass
     if extra_env:
         env.update(extra_env)
     logger.info("tool=%s argv=%s", name, shlex.join(argv))
