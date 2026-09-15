@@ -138,6 +138,13 @@ DEFAULT_SYSTEM_PROMPT = """\
 You are IGVFagent, a research assistant for IGVF and ENCODE data.
 
 Workflow:
+0. Check what this deployment has ALREADY produced before producing it again.
+   Accession named -> history_recall(accession); a reference to earlier work
+   with no accession -> history_search(words). If a past session already
+   answers the question, open it with history_show and report that result,
+   saying when it was produced and where its files are, instead of re-running
+   the analysis. Re-run only when the user asks for it or the recorded answer
+   does not cover what was asked.
 1. Pick the fewest tools that answer the user. Starting points:
    gene symbol -> kg_gene; IGVF/ENCODE accession or URL -> explain_dataset;
    discover datasets -> portal_kg_pull / splitseq_retrieve / encode_retrieve;
@@ -502,6 +509,20 @@ def _persist_transcript(query: str, transcript: "list[dict]",
             lines.append(f"- `{a}`")
         lines.append("")
     report_path.write_text("\n".join(lines))
+
+    # Index the run so it is searchable and, if a project is active, filed
+    # into it. Best effort by design: history is a convenience layer, and a
+    # locked or unwritable history DB must never lose the run itself -- the
+    # transcript and report are already on disk by this point, and
+    # `igvfagent project backfill` picks up anything this misses.
+    try:
+        from . import _history
+
+        _history.record_session(out_dir, query=query,
+                                answer=final_answer or "", meta=meta)
+    except Exception as exc:                      # pragma: no cover - defensive
+        logger.debug("history indexing skipped: %s", exc)
+
     return str(transcript_path), str(report_path)
 
 

@@ -5359,6 +5359,118 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "history_recall",
+        "★ WHAT HAVE WE ALREADY PRODUCED ABOUT THIS ACCESSION ★ — CALL THIS "
+        "FIRST whenever a question names an IGVF or ENCODE accession. Returns "
+        "every past agent session, skill run and download that ever touched "
+        "it, newest first, with the run directory holding the figures, tables "
+        "and report. A dataset that was analysed last week does not need "
+        "analysing again: read the recorded result and say where it came "
+        "from. Returns nothing when the accession is genuinely new, which is "
+        "the signal to go and do the work.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "IGVFDS… / IGVFFI… / ENCSR… — one accession."},
+                "limit":     {**_S_INTEGER, "default": 50},
+            },
+            "required": ["accession"],
+        },
+        cli=["project", "recall"],
+        positional=("accession",),
+        flag_map={"limit": "--limit"},
+    ),
+
+    _T(
+        "history_search",
+        "★ SEARCH EVERY PAST ANALYSIS BY WORDS ★ — full-text over the "
+        "questions asked, the answers given, the skill runs executed and the "
+        "project notes written. Use it when the user refers to earlier work "
+        "without an accession (\"the spatial ATAC paper we did\", \"that "
+        "CRISPR screen\"), or before starting something that may already have "
+        "been done. Each hit carries a run directory that history_show "
+        "replays in full.",
+        {
+            "type": "object",
+            "properties": {
+                "query":   {**_S_STRING, "description": "Free text keywords."},
+                "kind":    {**_S_STRING, "description":
+                             "Restrict to session | analysis | download | "
+                             "project | item."},
+                "project": {**_S_STRING, "description":
+                             "Restrict to one project by name or id."},
+                "limit":   {**_S_INTEGER, "default": 20},
+            },
+            "required": ["query"],
+        },
+        cli=["project", "search"],
+        positional=("query",),
+        flag_map={"kind": "--kind", "project": "--project", "limit": "--limit"},
+    ),
+
+    _T(
+        "history_show",
+        "★ REPLAY ONE RECORDED SESSION ★ — the original question, the answer "
+        "as given, the accessions involved and every artefact path it "
+        "produced. Takes a run directory from history_recall or "
+        "history_search. This is how a past result is quoted accurately "
+        "instead of paraphrased from memory.",
+        {
+            "type": "object",
+            "properties": {
+                "ref":   {**_S_STRING, "description":
+                           "Run directory, e.g. Docs/Agent/20260914_150552_…"},
+                "brief": {**_S_BOOLEAN, "description":
+                           "Omit the answer text; metadata only."},
+            },
+            "required": ["ref"],
+        },
+        cli=["project", "show"],
+        positional=("ref",),
+        flag_map={"brief": "--brief"},
+        bool_flags={"brief"},
+    ),
+
+    _T(
+        "project_manage",
+        "★ CREATE / LIST / RENAME A PROJECT, OR FILE WORK INTO ONE ★ — a "
+        "project is a permanent named container for analyses. Subcommands: "
+        "create (needs name), list, use (make active — later runs are filed "
+        "automatically), rename (needs name + to; old references still "
+        "resolve), add (needs kind + ref), items, describe, archive, stats. "
+        "Use it when the user says they are starting a study, or asks to keep "
+        "or group results. Nothing a project holds is ever deleted.",
+        {
+            "type": "object",
+            "properties": {
+                "subcommand": {**_S_STRING, "description":
+                                "create | list | use | rename | add | items | "
+                                "describe | archive | stats | recent"},
+                "name":        {**_S_STRING, "description":
+                                 "Project name or id, for every subcommand "
+                                 "that names one."},
+                "to":          {**_S_STRING, "description": "New name, for rename."},
+                "description": {**_S_STRING},
+                "kind":        {**_S_STRING, "description":
+                                 "For add: session | analysis | artifact | "
+                                 "dataset | figure | paper | note."},
+                "ref":         {**_S_STRING, "description":
+                                 "For add: run directory, accession or path."},
+                "title":       {**_S_STRING},
+                "project":     {**_S_STRING, "description":
+                                 "For add/items: target project; defaults to "
+                                 "the active one."},
+            },
+            "required": ["subcommand"],
+        },
+        cli=["project"],
+        positional=("subcommand", "name"),
+        flag_map={"to": "--to", "description": "--description", "kind": "--kind",
+                   "ref": "--ref", "title": "--title", "project": "--project"},
+    ),
+
+    _T(
         "regulome_annotate",
         "★ IS THIS NON-CODING VARIANT IN A REGULATORY ELEMENT, AND IN WHICH "
         "TISSUES ★ — RegulomeDB rank (1a best .. 7 no evidence), probability, "

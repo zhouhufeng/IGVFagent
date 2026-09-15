@@ -155,6 +155,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "per-guide negative-binomial GLM against no-guide "
                           "cells, then alpha-RRA rank aggregation to gene "
                           "level (method of Gersbach Lab sc-crispr-de)"),
+    "project":          ("igvfagent.project_skill",
+                          "Projects + permanent searchable history: file "
+                          "analyses into a named project, recall everything "
+                          "ever produced about an accession, full-text search "
+                          "every past run. Nothing recorded is ever deleted."),
     "kg-mirror":        ("igvfagent.kg_mirror_skill",
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",

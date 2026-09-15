@@ -902,6 +902,55 @@ Growth is idempotent (deterministic upserts + a harvest ledger) and safe under
 concurrent agent/CLI writers (WAL + busy-timeout). Disable with
 `IGVF_LOCALSTORE=0`.
 
+## Projects and permanent history
+
+The knowledge graph remembers *what is true*. A separate store remembers *what
+was done*: `Data/History/history.sqlite` holds one durable row per agent run —
+the question, the answer, the artefact paths, the accessions — plus every skill
+invocation and download, all in one FTS5 search index.
+
+Two things follow from that.
+
+**A dataset is analysed once.** Ask about an accession that has been worked on
+before and the agent looks it up instead of recomputing it:
+
+```bash
+igvfagent project recall IGVFDS5414UFNC   # every result ever produced about it
+igvfagent project search "spatial ATAC Hi-C"   # full text over questions AND answers
+igvfagent project show Docs/Agent/20260914_150552_…   # replay one session
+```
+
+The agent has the same three as tools (`history_recall`, `history_search`,
+`history_show`) and its first instruction is to use them before re-running work.
+
+**Results can be grouped into a project that outlives the session.**
+
+```bash
+igvfagent project create "Wang 2026 reproduction" --use
+igvfagent project add --kind dataset --ref IGVFDS5414UFNC --title "primary set"
+igvfagent project items
+igvfagent project rename "Wang 2026 reproduction" --to "Spatial ATAC-Hi-C repro"
+```
+
+While a project is active, every answer is filed into it automatically — in the
+CLI and in the web UI, which has a **🗂️ Project** panel in the sidebar.
+Renaming is safe: items reference the project's immutable id, and every former
+name stays resolvable, so a reference written down months ago still works.
+
+**Nothing here is ever deleted.** That is enforced by `BEFORE DELETE` triggers
+on every history table, not by convention — removing an item from a project
+marks it removed and keeps the row searchable, and archiving a project hides it
+from the listing and is reversible. The store is a separate SQLite file from
+the knowledge graph on purpose: the KG is bulk-rebuilt by `kg-integrate` and is
+disposable scratch, while history must outlive all of it.
+
+Index work that predates the store (safe to re-run; also rebuilds the index):
+
+```bash
+igvfagent project backfill
+igvfagent project stats
+```
+
 ## Smoke test
 
 After `cp .env.example .env` and (optionally) editing it, verify the install:

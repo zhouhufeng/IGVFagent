@@ -885,6 +885,7 @@ def _sidebar() -> dict:
 
         # Long-running detached work, surfaced where the user can see it.
         _sidebar_jobs()
+        _sidebar_projects()
         _sidebar_history()
 
         # Resolved configuration block — kept for transparency.
@@ -1936,13 +1937,57 @@ def _history_dir() -> Path:
     return _PROJECT_ROOT / "Docs" / "Agent"
 
 
+def _history_store():
+    """The permanent history store, or None if it cannot be opened.
+
+    Imported lazily and defensively: the sidebar must still render on a
+    deployment whose Data/ volume is read-only or not yet initialised.
+    """
+    try:
+        from igvfagent import _history
+        return _history
+    except Exception:
+        try:
+            import _history            # type: ignore
+            return _history
+        except Exception:
+            return None
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _history_index(_stamp: float) -> "list[dict]":
     """Every past agent run: when, what was asked, which accessions.
 
-    Cached for a minute and keyed on a coarse timestamp, because 100+ runs
-    means 100+ small file reads and the sidebar re-renders constantly.
+    Served from the history database when it has rows — one query instead of
+    300 file reads — and from the filesystem otherwise, which is what happens
+    on a fresh deployment before `igvfagent project backfill` has run.
+
+    Cached for a minute and keyed on a coarse timestamp, because the sidebar
+    re-renders constantly and neither path should pay per render.
     """
+    H = _history_store()
+    if H is not None:
+        try:
+            rows = H.recent_sessions(limit=300)
+        except Exception:
+            rows = []
+        if rows:
+            out: "list[dict]" = []
+            for r in rows:
+                try:
+                    accs = json.loads(r.get("accessions") or "[]")
+                except ValueError:
+                    accs = []
+                rel = r.get("run_dir") or ""
+                d = Path(rel)
+                if not d.is_absolute():
+                    d = _PROJECT_ROOT / rel
+                when = (r.get("started_at") or "")[:16].replace("T", " ")
+                query = r.get("query") or d.name
+                out.append({"dir": str(d), "when": when, "query": query,
+                            "accessions": accs,
+                            "haystack": (query + " " + " ".join(accs)).lower()})
+            return out
     root = _history_dir()
     out: "list[dict]" = []
     try:
@@ -2009,6 +2054,70 @@ def _history_figures(entry: dict) -> "list[str]":
         (".png", ".jpg", ".jpeg", ".gif", ".svg"))]
 
 
+def _sidebar_projects() -> None:
+    """Pick or create the project that new runs are filed into.
+
+    A project is a permanent container: everything answered while it is
+    active is filed into it and stays there, and it can be renamed later
+    without breaking any reference, because items point at an immutable id.
+
+    Like history, this is shared across the deployment -- one shared password,
+    no per-user identity -- so it is a shelf everyone can see, not a private
+    workspace. Collapsed by default; nothing changes until someone opens it.
+    """
+    H = _history_store()
+    if H is None:
+        return
+    with st.expander("🗂️ Project", expanded=False):
+        try:
+            projects = H.list_projects()
+            active = H.active_project() or {}
+        except Exception as exc:
+            st.caption(f"History store unavailable: {exc}")
+            return
+
+        names = ["— none —"] + [p["name"] for p in projects]
+        current = active.get("name")
+        idx = names.index(current) if current in names else 0
+        picked = st.selectbox("Active project", names, index=idx,
+                              key="project_pick",
+                              label_visibility="collapsed")
+        if picked != names[idx]:
+            H.set_active(None if picked == "— none —" else picked)
+            _history_index.clear()
+            st.rerun()
+
+        if active:
+            try:
+                items = H.project_items(active["id"])
+            except Exception:
+                items = []
+            st.caption(f"{len(items)} item(s) filed. New answers are added "
+                       f"automatically.")
+            for it in items[:8]:
+                st.markdown(f"- `{it['kind']}` {(it['title'] or it['ref'])[:60]}")
+            if len(items) > 8:
+                st.caption(f"…{len(items) - 8} more.")
+            new_name = st.text_input("Rename to", key="project_rename",
+                                     placeholder=active["name"])
+            if new_name.strip() and new_name.strip() != active["name"]:
+                if st.button("Rename", key="project_rename_go", width="stretch"):
+                    res = H.rename_project(active["id"], new_name.strip())
+                    if res.get("ok"):
+                        st.success(f"Renamed. The old name still resolves.")
+                        st.rerun()
+                    else:
+                        st.error(res.get("error", "rename failed"))
+
+        created = st.text_input("New project", key="project_new",
+                                placeholder="name a new project")
+        if created.strip() and st.button("Create", key="project_new_go",
+                                          width="stretch"):
+            res = H.create_project(created.strip())
+            H.set_active(res["id"])
+            st.rerun()
+
+
 def _sidebar_history() -> None:
     """Searchable browser over past runs. Collapsed and inert until opened."""
     with st.expander("📚 Past results", expanded=False):
@@ -2022,6 +2131,22 @@ def _sidebar_history() -> None:
         ).strip().lower()
         shown = [e for e in entries
                  if not needle or all(t in e["haystack"] for t in needle.split())]
+        # Substring matching over the index only sees the question. When the
+        # store is available, fall back to full-text search over the ANSWERS
+        # too -- which is where accessions, gene names and file paths that were
+        # discovered (rather than asked about) actually live.
+        H = _history_store()
+        if needle and not shown and H is not None:
+            by_dir = {e["dir"]: e for e in entries}
+            try:
+                hits = H.search(needle, limit=25, kind="session")
+            except Exception:
+                hits = []
+            for h in hits:
+                cand = h.get("ref") or ""
+                full = str(_PROJECT_ROOT / cand) if not Path(cand).is_absolute() else cand
+                if full in by_dir:
+                    shown.append(by_dir[full])
         st.caption(f"{len(shown)} of {len(entries)} runs")
         for e in shown[:25]:
             label = e["query"][:58] + ("…" if len(e["query"]) > 58 else "")

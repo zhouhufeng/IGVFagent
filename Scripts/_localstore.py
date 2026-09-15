@@ -257,6 +257,32 @@ def record_analysis(skill: str, *, subcommand: str = "", label: str = "",
     finally:
         if own:
             con.close()
+
+    # Mirror into the permanent history index so this run is findable by
+    # accession and by words, not only as a graph edge. Best effort: the KG
+    # write above is the record, and `igvfagent project backfill` re-reads
+    # analysis_log, so a failure here loses nothing.
+    try:
+        from . import _history
+
+        title = " ".join(x for x in (skill, subcommand, label) if x).strip()
+        body = "\n".join([title, json.dumps(list(inputs or [])),
+                           json.dumps(list(outputs or [])), text[:20000]])
+        accs = sorted(set(_history.ACCESSION_RE.findall(body)))
+        hcon = _history.connect()
+        try:
+            _history._index(hcon, "analysis", run_id, title, body, accs, _NOW())
+            _history._note_accessions(hcon, accs, "analysis", run_id, title,
+                                      _NOW())
+            hcon.execute("INSERT OR REPLACE INTO ingest_ledger"
+                         "(key,kind,ingested_at) VALUES(?,?,?)",
+                         (run_id, "analysis", _NOW()))
+            hcon.commit()
+        finally:
+            hcon.close()
+    except Exception:
+        pass
+
     return {"recorded": True, "entities": len(uniq), "edges_added": n_edges}
 
 
