@@ -341,6 +341,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._logout()
         if path == "/_auth/health":
             return self._send(200, b"ok", ctype="text/plain")
+        if path == "/_auth/echo":
+            return self._echo()
         self._send(404, page("Not found", "<h1>Not found</h1>"))
 
     do_HEAD = do_GET
@@ -412,6 +414,23 @@ class Handler(BaseHTTPRequestHandler):
         self._redirect("/", headers=[
             self._set_cookie(make_session(payload),
                              max_age=SESSION_HOURS * 3600)])
+
+    def _echo(self) -> None:
+        """Reflect the X-IGVF-* headers this request arrived with.
+
+        A diagnostic for one specific silent failure: if auth_request_set or
+        proxy_set_header were wrong, the app would receive no identity, read
+        that as "this deployment has no accounts", and show every user
+        everyone's private work. Nothing here is privileged -- it echoes what
+        the caller sent -- so it is safe to leave in place, and pointing a
+        location at it through the same proxy_set_header lines the app gets is
+        the only way to test that chain end to end.
+        """
+        body = "".join(
+            f"{h}: {self.headers.get(h, '')}\n"
+            for h in ("X-IGVF-User", "X-IGVF-Email", "X-IGVF-Name",
+                      "X-IGVF-Admin"))
+        self._send(200, body.encode(), ctype="text/plain; charset=utf-8")
 
     def _bootstrap(self, args) -> None:
         if not BOOTSTRAP_TOKEN:
