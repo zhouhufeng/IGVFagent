@@ -267,6 +267,11 @@ LEGACY_OWNER = ""
 # install has exactly one user and nothing to hide from them.
 LOCAL_OWNER = "local"
 
+# A legacy run an administrator has reviewed and decided is safe to share.
+# Distinct from the empty legacy owner precisely so that "nobody has looked at
+# this" and "somebody looked and said yes" are different states.
+PUBLIC_OWNER = "public"
+
 
 def _migrate(con: sqlite3.Connection) -> None:
     """Additive schema upgrades. Never drops a history row.
@@ -424,6 +429,33 @@ def _answers_are_shared() -> bool:
 _RESULT_KINDS = ("session", "analysis", "download")
 
 
+# Pre-account material is QUARANTINED by default.
+#
+# Runs recorded under the old shared password have no owner, and it is
+# tempting to read that as "belongs to everyone". It is not evidence of
+# anything: a shared-password run is not proof its inputs were public, and the
+# uploads and manifests behind it were never reviewed for disclosure. An
+# authenticated retest confirmed the exposure — a newly approved account could
+# open and reuse reports and manifests created under the old login.
+#
+# So legacy runs are readable by admins, who can review and release them, and
+# by nobody else. IGVF_LEGACY_PUBLIC=1 restores the old behaviour for a
+# deployment that has audited its history and knows it is all public.
+def _legacy_is_public() -> bool:
+    return os.environ.get("IGVF_LEGACY_PUBLIC", "0") == "1"
+
+
+def is_admin(viewer: "str | None") -> bool:
+    """Admins review quarantined material; everyone else cannot see it.
+
+    The gateway knows who is an administrator (X-IGVF-Admin, from the forum),
+    and passes it down as IGVF_ACTING_ADMIN on the tool subprocess.
+    """
+    if viewer is None:
+        return True                       # local single-user install
+    return os.environ.get("IGVF_ACTING_ADMIN", "0") == "1"
+
+
 def _visible_to(con, viewer: "str | None"):
     """Build the predicate deciding what ``viewer`` may see.
 
@@ -433,13 +465,19 @@ def _visible_to(con, viewer: "str | None"):
     if viewer is None:
         return lambda kind, owner, ref: True
     shared_refs = _shared_refs(con, viewer)
-    allowed = {viewer, LEGACY_OWNER}
     answers_shared = _answers_are_shared()
+    legacy_ok = _legacy_is_public() or is_admin(viewer)
+    allowed = {viewer} | ({LEGACY_OWNER} if legacy_ok else set())
 
     def ok(kind: str, owner: "str | None", ref: "str | None") -> bool:
+        owner = owner or LEGACY_OWNER
+        if owner == LEGACY_OWNER and not legacy_ok:
+            # Quarantined: not served, not searched, not recalled — for
+            # anybody but an administrator, whatever the sharing policy says.
+            return False
         if answers_shared and kind in _RESULT_KINDS:
             return True
-        return (owner or LEGACY_OWNER) in allowed or (ref or "") in shared_refs
+        return owner in allowed or (ref or "") in shared_refs
 
     return ok
 
@@ -1205,6 +1243,57 @@ def flag_session(run_dir: str, verdict: str, *, reason: str = "",
         if own:
             con.commit()
         return {"ok": True, "run_dir": rel, "verdict": verdict}
+    finally:
+        if own:
+            con.close()
+
+
+def release_session(run_dir: str, viewer: "str | None" = None,
+                    con=None) -> dict:
+    """Mark one quarantined legacy run as reviewed and safe to share."""
+    if not is_admin(viewer):
+        return {"ok": False,
+                "error": "only an administrator can release quarantined "
+                         "history — it has not been reviewed for disclosure"}
+    own = con is None
+    con = con or connect()
+    try:
+        rel = _rel(run_dir)
+        row = con.execute("SELECT owner FROM sessions WHERE run_dir = ?",
+                          (rel,)).fetchone()
+        if not row:
+            return {"ok": False, "error": f"no recorded session at {rel}"}
+        if row["owner"] not in (LEGACY_OWNER, PUBLIC_OWNER):
+            return {"ok": False,
+                    "error": f"that run already belongs to {row['owner']!r}; "
+                             "release is only for unowned legacy runs"}
+        con.execute("UPDATE sessions SET owner = ? WHERE run_dir = ?",
+                    (PUBLIC_OWNER, rel))
+        _index_owner_update(con, rel, PUBLIC_OWNER)
+        _event(con, "legacy_released", "", f"{rel} released by {viewer or '-'}")
+        if own:
+            con.commit()
+        return {"ok": True, "run_dir": rel}
+    finally:
+        if own:
+            con.close()
+
+
+def _index_owner_update(con, run_dir: str, owner: str) -> None:
+    """Keep the search index's owner column in step with the table."""
+    con.execute("UPDATE search_fts SET owner = ? WHERE kind = 'session' "
+                "AND ref = ?", (owner, run_dir))
+
+
+def quarantined(limit: int = 500, con=None) -> "list[dict]":
+    """Legacy runs awaiting review."""
+    own = con is None
+    con = con or connect()
+    try:
+        return [dict(r) for r in con.execute(
+            "SELECT run_dir, started_at, query, stop_reason FROM sessions "
+            "WHERE owner = ? ORDER BY started_at DESC LIMIT ?",
+            (LEGACY_OWNER, limit))]
     finally:
         if own:
             con.close()

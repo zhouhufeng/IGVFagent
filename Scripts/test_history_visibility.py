@@ -53,10 +53,9 @@ def main() -> int:
     # dataset is not re-analysed once per person, while ORGANISATION (who
     # filed what into which project) stays private.
     print("\nanswers are shared, so nobody pays twice for the same question")
-    check("alice sees every recorded run, including bob's",
+    check("alice sees every post-account run, including bob's",
           refs(H.recent_sessions(viewer="alice")),
-          {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
-           "Docs/Agent/20260201_000000_alice_bbbbbbbb",
+          {"Docs/Agent/20260201_000000_alice_bbbbbbbb",
            "Docs/Agent/20260301_000000_bob_cccccccc"})
     check("an unauthenticated/local deployment sees everything too",
           len(H.recent_sessions(viewer=None)), 3)
@@ -67,15 +66,15 @@ def main() -> int:
     check("...and open the run itself",
           H.session("Docs/Agent/20260301_000000_bob_cccccccc",
                     viewer="alice") is not None, True)
-    check("the pre-accounts corpus stays readable",
-          len(H.search("legacy shared-password", viewer="alice")) >= 1, True)
+    check("the pre-accounts corpus is NOT readable — it is quarantined "
+          "until reviewed",
+          H.search("legacy shared-password", viewer="alice"), [])
 
     print("\nIGVF_HISTORY_SHARED=0 restores strict per-user privacy")
     os.environ["IGVF_HISTORY_SHARED"] = "0"
     check("alice no longer sees bob's run",
           refs(H.recent_sessions(viewer="alice")),
-          {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
-           "Docs/Agent/20260201_000000_alice_bbbbbbbb"})
+          {"Docs/Agent/20260201_000000_alice_bbbbbbbb"})
     check("...nor recalls his accession",
           H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
     check("...nor finds his answer text",
@@ -85,6 +84,35 @@ def main() -> int:
     os.environ["IGVF_HISTORY_SHARED"] = "1"
     check("shared mode restored",
           len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
+
+    print("\npre-account history is quarantined, not public")
+    os.environ["IGVF_ACTING_ADMIN"] = "0"
+    check("a normal user cannot see the legacy run",
+          "Docs/Agent/20260101_000000_legacy_aaaaaaaa"
+          in refs(H.recent_sessions(viewer="alice")), False)
+    check("...nor search it",
+          H.search("legacy shared-password", viewer="alice"), [])
+    check("an admin can, in order to review it",
+          (os.environ.__setitem__("IGVF_ACTING_ADMIN", "1"),
+           "Docs/Agent/20260101_000000_legacy_aaaaaaaa"
+           in refs(H.recent_sessions(viewer="alice")))[1], True)
+    check("...and list what is awaiting review",
+          any(r["run_dir"] == "Docs/Agent/20260101_000000_legacy_aaaaaaaa"
+              for r in H.quarantined()), True)
+    check("a normal user cannot release it",
+          (os.environ.__setitem__("IGVF_ACTING_ADMIN", "0"),
+           H.release_session("Docs/Agent/20260101_000000_legacy_aaaaaaaa",
+                             viewer="alice")["ok"])[1], False)
+    os.environ["IGVF_ACTING_ADMIN"] = "1"
+    check("an admin can release it",
+          H.release_session("Docs/Agent/20260101_000000_legacy_aaaaaaaa",
+                            viewer="admin")["ok"], True)
+    os.environ["IGVF_ACTING_ADMIN"] = "0"
+    check("once released, everyone sees it",
+          "Docs/Agent/20260101_000000_legacy_aaaaaaaa"
+          in refs(H.recent_sessions(viewer="alice")), True)
+    check("...and it is searchable again",
+          len(H.search("legacy shared-password", viewer="alice")) >= 1, True)
 
     print("\nprojects stay private even though answers are shared")
     H.create_project("Bob's study", "private", owner="bob")

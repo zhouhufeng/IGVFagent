@@ -202,6 +202,9 @@ def _print_callback(event: AgentEvent) -> None:
                   f"({p.get('chars', 0)} chars reused)")
         else:
             print(f"  ⇑ no prior results for {accs} — this is new work")
+    elif k == "unit_warning":
+        for w in p.get("warnings") or []:
+            print(f"  ⚠ impossible value: {w.split('.')[0]}")
     elif k == "route":
         print(f"  ⇒ route[{p.get('shape')}] -> {p['tool']}"
               f"({_short_args(p.get('arguments'))})  [deterministic]")
@@ -1222,6 +1225,33 @@ def run(
         final_answer = _compose_templated_answer(transcript, artefacts,
                                                   final_answer)
 
+    # Impossible statistics, caught before the answer leaves. A hosted retest
+    # found "p_adj capped at 240" in a final summary: the tool had correctly
+    # returned neg_log10_pvalue, and only the prose renamed it. Nothing about
+    # 240 looks wrong until you know which field it belongs to, so a reader
+    # cannot catch this but a range check can. The note is appended rather
+    # than the number silently rewritten — the confusion is the finding.
+    unit_warnings: "list[str]" = []
+    if os.environ.get("IGVF_UNIT_CHECK", "1") != "0":
+        try:
+            from . import _units
+        except ImportError:                              # direct execution
+            try:
+                import _units  # type: ignore
+            except ImportError:
+                _units = None
+        if _units is not None:
+            try:
+                unit_warnings = _units.scan_text(final_answer)
+            except Exception as exc:                     # pragma: no cover
+                logger.debug("unit check skipped: %s", exc)
+    if unit_warnings:
+        _emit(callback, "unit_warning", {"warnings": unit_warnings})
+        final_answer += (
+            "\n\n> **Impossible values in this answer — do not trust the "
+            "lines below without checking the tool output:**\n"
+            + "\n".join(f"> - {w}" for w in unit_warnings))
+
     transcript_path = ""
     report_path = ""
     if persist:
@@ -1237,6 +1267,7 @@ def run(
                 # What this run did NOT have to rediscover.
                 "recall_accessions": recall_accessions,
                 "recall_reused_chars": len(recall_block),
+                "unit_warnings": unit_warnings,
             },
         )
 

@@ -383,6 +383,33 @@ def cmd_audit(a) -> int:
     return 0
 
 
+def cmd_quarantine(a) -> int:
+    rows = H.quarantined(limit=a.limit)
+    if not rows:
+        print("No quarantined legacy runs.")
+        return 0
+    print(f"{len(rows)} pre-account run(s) awaiting review. These are hidden "
+          f"from everyone but administrators,\nbecause a shared-password run "
+          f"is not evidence that its inputs were public.\n")
+    for r in rows[:a.limit]:
+        print(f"  {(r['started_at'] or '')[:16]}  {(r['stop_reason'] or ''):24}"
+              f"  {(r['query'] or '')[:48]}")
+        print(f"    {r['run_dir']}")
+    print("\nRelease one with:  igvfagent project release <run_dir>")
+    _out(rows, a.json)
+    return 0
+
+
+def cmd_release(a) -> int:
+    res = H.release_session(a.ref, viewer=_me())
+    if not res.get("ok"):
+        return _fail(res["error"])
+    print(f"Released: {res['run_dir']}\nIt is now readable by every signed-in "
+          f"user.")
+    _out(res, a.json)
+    return 0
+
+
 def cmd_recent(a) -> int:
     rows = H.recent_sessions(limit=a.limit, viewer=_me())
     if not rows:
@@ -555,6 +582,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Also list the runs in one tier.")
     s.add_argument("--limit", type=int, default=20)
     s.set_defaults(func=cmd_audit)
+
+    s = sub.add_parser(
+        "quarantine", help="Pre-account runs awaiting disclosure review.")
+    s.add_argument("--limit", type=int, default=50)
+    s.set_defaults(func=cmd_quarantine)
+
+    s = sub.add_parser(
+        "release", help="Mark a reviewed legacy run safe to share (admin).")
+    s.add_argument("ref")
+    s.set_defaults(func=cmd_release)
 
     s = sub.add_parser("recent", help="Most recent sessions.")
     s.add_argument("--limit", type=int, default=20)

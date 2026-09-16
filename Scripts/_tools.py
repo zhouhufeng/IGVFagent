@@ -7285,6 +7285,7 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
         acting = _h.actor()
         if acting:
             env["IGVF_ACTING_USER"] = acting
+        env["IGVF_ACTING_ADMIN"] = os.environ.get("IGVF_ACTING_ADMIN", "0")
     except Exception:
         pass
     if extra_env:

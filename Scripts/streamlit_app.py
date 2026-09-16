@@ -2161,6 +2161,11 @@ def _bind_actor() -> "str | None":
             H.set_actor(user["username"] if user else "")
         except Exception:
             pass
+    # Quarantined pre-account history is admin-only, and the only thing that
+    # knows who is an admin is the gateway header. Carried in the environment
+    # because the check happens in tool subprocesses too, which a thread-local
+    # cannot reach.
+    os.environ["IGVF_ACTING_ADMIN"] = "1" if (user and user.get("admin")) else "0"
     return user["username"] if user else None
 
 
