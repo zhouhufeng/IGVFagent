@@ -209,8 +209,13 @@ if verify; then
     #
     # So before claiming success, look for commits that landed mid-build.
     git -C "$ROOT" fetch --quiet origin 2>/dev/null || true
-    REMOTE_HEAD="$(git -C "$ROOT" rev-parse origin/HEAD 2>/dev/null \
-                   || git -C "$ROOT" rev-parse origin/main 2>/dev/null || echo "")"
+    # `@{u}` — the upstream of whatever branch is checked out. NOT
+    # `origin/HEAD`: that symbolic ref is unset on a plain clone, and
+    # rev-parse then prints the literal string "origin/HEAD" to STDOUT while
+    # failing, so a `||` fallback appended the real hash after it and the
+    # comparison could never match. The guard reported every build stale.
+    # --verify --quiet makes a failed resolve print nothing at all.
+    REMOTE_HEAD="$(git -C "$ROOT" rev-parse --verify --quiet '@{u}' 2>/dev/null || true)"
     if [ -n "$REMOTE_HEAD" ] && [ "$REMOTE_HEAD" != "$BUILD_HEAD" ]; then
         echo
         echo "This build is ALREADY STALE. It was made from"
