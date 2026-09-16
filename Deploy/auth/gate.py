@@ -287,6 +287,23 @@ def approved(payload: "dict[str, str]") -> bool:
 
 BRAND = "#38707f"
 
+
+def _stats() -> dict:
+    """Counts for the landing page, generated from the real catalogue.
+
+    Written by Scripts/gen_landing_stats.py and shipped with this image,
+    because this container is stdlib-only by design and cannot import the
+    agent package to count for itself. The previous version had the numbers
+    typed into the page as literal text; they were right when typed and wrong
+    within weeks. Missing or unreadable means the counts are simply not shown
+    — a landing page with one fewer statistic is better than one asserting a
+    number nobody checked.
+    """
+    try:
+        return json.loads((BRANDING.parent / "stats.json").read_text())
+    except Exception:
+        return {}
+
 _SHELL = """<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>{title}</title>
@@ -384,6 +401,20 @@ def _logo(alt: str = "IGVF Agent") -> str:
     return f'<img class=logo src="/_auth/logo.png" alt="{alt}">'
 
 
+def _facts_row() -> str:
+    st = _stats()
+    items = []
+    if st.get("skills"):
+        items.append(f"<li><b>{st['skills']}</b> skills</li>")
+    if st.get("tools"):
+        items.append(f"<li><b>{st['tools']}</b> typed tools</li>")
+    # Not "Local execution". It runs hosted here and installs locally, and
+    # claiming only one of those misdescribes the project to the people
+    # reading this page to decide which they want.
+    items.append("<li><b>Hosted or local</b> execution</li>")
+    return "<ul class=facts>" + "".join(items) + "</ul>"
+
+
 def _welcome_page(provider_ready: bool) -> bytes:
     """The first thing anyone sees at the bare domain."""
     # Placed ABOVE the buttons, not below: a warning that a button will not
@@ -399,11 +430,7 @@ def _welcome_page(provider_ready: bool) -> bytes:
 <p class=lead>An auditable AI agent for discovering, retrieving and analysing
    data across the IGVF ecosystem — Portal, Catalog and Knowledge Graph —
    alongside ENCODE and related public resources.</p>
-<ul class=facts>
-  <li><b>85</b> skills</li>
-  <li><b>258</b> typed tools</li>
-  <li><b>Local</b> execution</li>
-</ul>
+{_facts_row()}
 {trouble}
 <a class=btn href="/_auth/login">Sign in with the Genohub Community</a>
 <a class="btn ghost" href="{_esc(group_url())}">Request access</a>

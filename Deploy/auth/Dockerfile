@@ -15,6 +15,10 @@ COPY --chown=gate:gate Deploy/auth/gate.py /app/gate.py
 # logo. Built from the repo root (see the compose build context) purely so
 # these two files are reachable.
 COPY --chown=gate:gate Docs/Figures/logo.png Docs/Figures/logo-mark.png /app/branding/
+# Skill and tool counts for the landing page, generated from the real
+# catalogue by Scripts/gen_landing_stats.py. This container is stdlib-only and
+# cannot import the agent package to count for itself.
+COPY --chown=gate:gate Deploy/auth/stats.json /app/stats.json
 
 USER gate
 EXPOSE 9000
