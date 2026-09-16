@@ -1557,6 +1557,7 @@ _TOOLS: "list[Tool]" = [
                    "min_dist": "--min-dist", "cluster": "--cluster",
                    "resolution": "--resolution", "seed": "--seed",
                    "label": "--label"},
+        bool_flags=("cluster",),
     ),
     _T(
         "multiome_peak2gene",
@@ -3277,6 +3278,7 @@ _TOOLS: "list[Tool]" = [
             "layout": "--layout", "html": "--html",
             "label": "--label", "title": "--title",
         },
+        bool_flags=("html",),
     ),
 
     _T(
@@ -4187,6 +4189,7 @@ _TOOLS: "list[Tool]" = [
         cli=["kg-mirror", "pull"],
         flag_map={"collection": "--collection", "batch_size": "--batch-size",
                    "max_rows": "--max-rows", "restart": "--restart"},
+        bool_flags=("restart",),
     ),
     _T(
         "kg_mirror_pull_all",
@@ -4208,6 +4211,7 @@ _TOOLS: "list[Tool]" = [
                    "max_collection_bytes": "--max-collection-bytes",
                    "batch_size": "--batch-size", "max_rows": "--max-rows",
                    "restart": "--restart"},
+        bool_flags=("include_giants", "restart",),
     ),
     _T(
         "kg_mirror_register",
@@ -4329,6 +4333,7 @@ _TOOLS: "list[Tool]" = [
                   "r2_offset": "--r2-offset", "r3_offset": "--r3-offset",
                   "shift_correct": "--shift-correct",
                   "max_reads": "--max-reads", "label": "--label"},
+        bool_flags=("shift_correct",),
     ),
     _T(
         "share_align_atac",
@@ -4850,6 +4855,7 @@ _TOOLS: "list[Tool]" = [
                    "field_filters": "--field-filters",
                    "limit": "--limit", "fetch": "--fetch",
                    "label": "--label"},
+        bool_flags=("fetch",),
     ),
     _T(
         "portal_endpoint_params",
@@ -5500,6 +5506,34 @@ _TOOLS: "list[Tool]" = [
         flag_map={"in_file": "--in-file", "out_file": "--out-file",
                    "col1": "--col1", "col2": "--col2",
                    "min_count": "--min-count", "min_ratio": "--min-ratio"},
+    ),
+
+    _T(
+        "history_flag",
+        "★ MARK A PAST ANSWER WRONG ★ — call this the moment you establish "
+        "that a recalled prior result is incorrect: it contradicts the "
+        "portal, the literature, a fresh computation, or plain arithmetic. "
+        "Prior answers are served automatically to everyone who asks about "
+        "that dataset, so leaving a wrong one in place means the next person "
+        "inherits it as though it were settled. Flagging stops it being "
+        "recalled; it is never deleted and stays searchable. Also takes "
+        "'correct' when you have verified one holds up. Give a reason — the "
+        "next reader needs to know WHAT was wrong.",
+        {
+            "type": "object",
+            "properties": {
+                "ref":     {**_S_STRING, "description":
+                             "Run directory, e.g. Docs/Agent/20260914_150552_…"},
+                "verdict": {**_S_STRING, "description":
+                             "wrong | correct | unsure", "default": "wrong"},
+                "reason":  {**_S_STRING, "description":
+                             "What is wrong with it, specifically."},
+            },
+            "required": ["ref", "reason"],
+        },
+        cli=["project", "flag"],
+        positional=("ref",),
+        flag_map={"verdict": "--verdict", "reason": "--reason"},
     ),
 
     _T(
@@ -6620,6 +6654,7 @@ _TOOLS: "list[Tool]" = [
         flag_map={"entity_id": "", "relationship": "--relationship",
                    "filters": "--filters", "limit": "--limit",
                    "page": "--page", "verbose": "--verbose"},
+        bool_flags=("verbose",),
     ),
     _T(
         "catalog_find_ld",
@@ -6646,6 +6681,7 @@ _TOOLS: "list[Tool]" = [
                    "d_prime_threshold": "--d-prime-threshold",
                    "ancestry": "--ancestry", "limit": "--limit",
                    "verbose": "--verbose"},
+        bool_flags=("verbose",),
     ),
     _T(
         "catalog_resolve_id",
@@ -6759,6 +6795,7 @@ _TOOLS: "list[Tool]" = [
         cli=["chipatlas", "download-experiment"],
         flag_map={"experiment_id": "", "genome": "--genome",
                    "kinds": "--kinds", "urls_only": "--urls-only"},
+        bool_flags=("urls_only",),
     ),
     _T(
         "chipatlas_assemble_bed",
@@ -6788,6 +6825,7 @@ _TOOLS: "list[Tool]" = [
                    "antigen": "--antigen", "cell_class": "--cell-class",
                    "cell_subclass": "--cell-subclass", "qval": "--qval",
                    "fetch": "--fetch", "max_bytes": "--max-bytes"},
+        bool_flags=("fetch",),
     ),
     _T(
         "chipatlas_target_genes",
@@ -6813,6 +6851,7 @@ _TOOLS: "list[Tool]" = [
         flag_map={"genome": "--genome", "list": "--list",
                    "antigen": "--antigen", "distance": "--distance",
                    "limit": "--limit"},
+        bool_flags=("list",),
     ),
     _T(
         "chipatlas_showcase",

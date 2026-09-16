@@ -176,6 +176,19 @@ CREATE TABLE IF NOT EXISTS history_events (
     detail     TEXT
 );
 
+-- Human (or agent) judgements about whether a recorded answer was right.
+-- Append-only: a verdict is never edited or removed, it is superseded by a
+-- later one, so the history of who believed what and when survives.
+CREATE TABLE IF NOT EXISTS session_verdicts (
+    seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_dir  TEXT NOT NULL,
+    verdict  TEXT NOT NULL,      -- wrong | correct | unsure
+    reason   TEXT,
+    author   TEXT,
+    at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_verdicts_run ON session_verdicts(run_dir, seq DESC);
+
 CREATE TABLE IF NOT EXISTS ingest_ledger (
     key         TEXT PRIMARY KEY,
     kind        TEXT,
@@ -223,6 +236,8 @@ CREATE TRIGGER IF NOT EXISTS no_delete_names BEFORE DELETE ON project_names
 BEGIN SELECT RAISE(ABORT, 'history is append-only: former project names are kept so old references resolve'); END;
 CREATE TRIGGER IF NOT EXISTS no_delete_events BEFORE DELETE ON history_events
 BEGIN SELECT RAISE(ABORT, 'history is append-only: the audit log cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS no_delete_verdicts BEFORE DELETE ON session_verdicts
+BEGIN SELECT RAISE(ABORT, 'history is append-only: a verdict is superseded by a later one, never deleted'); END;
 """
 
 
@@ -265,6 +280,14 @@ def _migrate(con: sqlite3.Connection) -> None:
         if column not in have:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {column} "
                         f"TEXT NOT NULL DEFAULT ''")
+    # How many tool calls failed during the run. The agent has always passed
+    # this in its metadata and this table threw it away, so a run where three
+    # of nine tools errored was indistinguishable from a clean one when it
+    # came back out of recall.
+    have = {r[1] for r in con.execute("PRAGMA table_info(sessions)")}
+    if "tool_calls_failed" not in have:
+        con.execute("ALTER TABLE sessions ADD COLUMN tool_calls_failed "
+                    "INTEGER NOT NULL DEFAULT 0")
 
     # An FTS5 table cannot be ALTERed, so a new column means recreating it.
     # Safe precisely because nothing authoritative lives there.
@@ -502,13 +525,15 @@ def record_session(run_dir, *, query: str, answer: str = "",
         con.execute(
             "INSERT OR REPLACE INTO sessions(id,run_dir,started_at,query,answer,"
             "backend,model,iterations,tool_calls,stop_reason,artefacts,"
-            "accessions,recorded_at,owner) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "accessions,recorded_at,owner,tool_calls_failed) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (sid, rel, started, query, answer,
              str(meta.get("backend", "")), str(meta.get("model", "")),
              int(meta.get("iterations", 0) or 0),
              int(meta.get("tool_calls_made", meta.get("tool_calls", 0)) or 0),
              str(meta.get("stop_reason", "")),
-             json.dumps(artefacts), json.dumps(accs), _NOW(), owner or ""))
+             json.dumps(artefacts), json.dumps(accs), _NOW(), owner or "",
+             int(meta.get("tool_calls_failed", 0) or 0)))
         _index(con, "session", rel, query, f"{query}\n\n{answer}", accs,
                started, owner=owner)
         _note_accessions(con, accs, "session", rel, query, started)
@@ -1069,6 +1094,117 @@ def recent_sessions(limit: int = 50, viewer: "str | None" = None,
         can_see = _visible_to(con, viewer)
         return [dict(r) for r in rows
                 if can_see("session", r["owner"], r["run_dir"])][:limit]
+    finally:
+        if own:
+            con.close()
+
+
+# ------------------------------ trustworthiness -----------------------------
+#
+# A cache that serves a wrong answer back is worse than no cache: it launders
+# one bad run into something that looks established, and every later question
+# about that dataset inherits it.
+#
+# The first line of defence costs nothing, because the agent already records
+# how each run ended and simply was not being asked. On this deployment 133 of
+# 392 recorded sessions -- 34% -- did NOT finish cleanly: 89 completed with
+# tool failures, 35 ran out of iterations mid-answer, 7 errored, 2 violated
+# the protocol. Recalling those beside a clean run, with nothing to tell them
+# apart, is how a truncated answer becomes next week's premise.
+
+TIER_TRUSTED = "trusted"      # finished, nothing failed
+TIER_PARTIAL = "partial"      # finished, but something went wrong on the way
+TIER_FAILED = "failed"        # did not finish
+TIER_WRONG = "wrong"          # a human or the agent marked it incorrect
+
+_CLEAN_STOPS = ("complete", "done", "final_answer")
+_BROKEN_STOPS = ("error", "protocol_violation", "timeout")
+
+
+def session_tier(row, verdict: str = "") -> str:
+    """How much weight a recorded answer deserves.
+
+    A human verdict outranks every machine signal in both directions: somebody
+    who read the answer knows things `stop_reason` cannot.
+    """
+    if verdict == "wrong":
+        return TIER_WRONG
+    if verdict == "correct":
+        return TIER_TRUSTED
+    def _get(key, default=None):
+        try:
+            return row[key]
+        except (KeyError, IndexError, TypeError):
+            return default
+
+    stop = _get("stop_reason", "") or ""
+    try:
+        failed = int(_get("tool_calls_failed", 0) or 0)
+    except (TypeError, ValueError):
+        failed = 0
+    if stop in _BROKEN_STOPS:
+        return TIER_FAILED
+    if stop.startswith("max_iterations"):
+        return TIER_PARTIAL
+    if "with_failures" in stop or failed:
+        return TIER_PARTIAL
+    if stop in _CLEAN_STOPS:
+        return TIER_TRUSTED
+    return TIER_PARTIAL       # unknown stop reason: do not assume the best
+
+
+def latest_verdict(run_dir: str, con=None) -> dict:
+    own = con is None
+    con = con or connect()
+    try:
+        row = con.execute(
+            "SELECT verdict, reason, author, at FROM session_verdicts "
+            "WHERE run_dir = ? ORDER BY seq DESC LIMIT 1", (_rel(run_dir),)
+        ).fetchone()
+        return dict(row) if row else {}
+    finally:
+        if own:
+            con.close()
+
+
+def verdicts_for(run_dir: str, con=None) -> "list[dict]":
+    own = con is None
+    con = con or connect()
+    try:
+        return [dict(r) for r in con.execute(
+            "SELECT verdict, reason, author, at FROM session_verdicts "
+            "WHERE run_dir = ? ORDER BY seq DESC", (_rel(run_dir),))]
+    finally:
+        if own:
+            con.close()
+
+
+def flag_session(run_dir: str, verdict: str, *, reason: str = "",
+                 author: str = "", con=None) -> dict:
+    """Record that a past answer was wrong, right, or doubtful.
+
+    Marking one wrong does not delete it -- nothing here is ever deleted --
+    it stops it being recalled and served back as though it were established.
+    """
+    verdict = verdict.strip().lower()
+    if verdict not in ("wrong", "correct", "unsure"):
+        return {"ok": False,
+                "error": "verdict must be wrong, correct or unsure"}
+    own = con is None
+    con = con or connect()
+    try:
+        rel = _rel(run_dir)
+        exists = con.execute("SELECT 1 FROM sessions WHERE run_dir = ?",
+                             (rel,)).fetchone()
+        if not exists:
+            return {"ok": False, "error": f"no recorded session at {rel}"}
+        con.execute("INSERT INTO session_verdicts"
+                    "(run_dir,verdict,reason,author,at) VALUES(?,?,?,?,?)",
+                    (rel, verdict, reason, author or actor(), _NOW()))
+        _event(con, "session_flagged", "", f"{rel}: {verdict} — {reason[:160]}")
+        if own:
+            con.commit()
+        return {"ok": True, "run_dir": rel, "verdict": verdict}
     finally:
         if own:
             con.close()

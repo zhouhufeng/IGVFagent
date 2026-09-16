@@ -312,6 +312,77 @@ def cmd_show(a) -> int:
     return 0
 
 
+def cmd_flag(a) -> int:
+    verdict = (getattr(a, "verdict", None) or
+               ("wrong" if a.wrong else "correct" if a.correct else
+                "unsure" if a.unsure else ""))
+    if not verdict:
+        return _fail("say which: --wrong, --correct, --unsure, or --verdict")
+    res = H.flag_session(a.ref, verdict, reason=a.reason or "",
+                         author=_me() or "")
+    if not res.get("ok"):
+        return _fail(res["error"])
+    if verdict == "wrong":
+        print(f"Marked WRONG: {res['run_dir']}\n"
+              "It stays in history and stays searchable, but it will no "
+              "longer be recalled and served to anyone asking about this "
+              "dataset.")
+    elif verdict == "correct":
+        print(f"Marked correct: {res['run_dir']}\n"
+              "It now outranks clean-but-unconfirmed runs in recall.")
+    else:
+        print(f"Marked unsure: {res['run_dir']}")
+    _out(res, a.json)
+    return 0
+
+
+def cmd_verdicts(a) -> int:
+    rows = H.verdicts_for(a.ref)
+    if not rows:
+        print("No verdicts recorded for that run.")
+        return 0
+    for r in rows:
+        who = r.get("author") or "(unattributed)"
+        print(f"  {(r['at'] or '')[:16]:16}  {r['verdict']:8}  {who:16} "
+              f"{(r.get('reason') or '')[:60]}")
+    print("\nNewest first; earlier verdicts are superseded, never deleted.")
+    _out(rows, a.json)
+    return 0
+
+
+def cmd_audit(a) -> int:
+    """What the recall cache would actually serve, by trustworthiness."""
+    con = H.connect()
+    try:
+        rows = list(con.execute("SELECT * FROM sessions"))
+        tiers = {}
+        for r in rows:
+            v = H.latest_verdict(r["run_dir"], con=con).get("verdict", "")
+            tiers.setdefault(H.session_tier(r, v), []).append(r)
+    finally:
+        con.close()
+    total = sum(len(v) for v in tiers.values())
+    print(f"{total} recorded session(s)\n")
+    order = [H.TIER_TRUSTED, H.TIER_PARTIAL, H.TIER_FAILED, H.TIER_WRONG]
+    note = {
+        H.TIER_TRUSTED: "recalled first",
+        H.TIER_PARTIAL: "recalled, flagged INCOMPLETE",
+        H.TIER_FAILED:  "never recalled (run did not finish)",
+        H.TIER_WRONG:   "never recalled (marked incorrect)",
+    }
+    for t in order:
+        rows = tiers.get(t, [])
+        pct = 100 * len(rows) / total if total else 0
+        print(f"  {t:8} {len(rows):>4}  ({pct:4.1f}%)   {note[t]}")
+    if a.list_tier:
+        print(f"\n--- {a.list_tier} ---")
+        for r in tiers.get(a.list_tier, [])[:a.limit]:
+            print(f"  {(r['started_at'] or '')[:16]}  "
+                  f"{(r['stop_reason'] or ''):24} {(r['query'] or '')[:54]}")
+            print(f"    {r['run_dir']}")
+    return 0
+
+
 def cmd_recent(a) -> int:
     rows = H.recent_sessions(limit=a.limit, viewer=_me())
     if not rows:
@@ -457,6 +528,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("ref", help="Run directory from search/recall.")
     s.add_argument("--brief", action="store_true", help="Omit the answer text.")
     s.set_defaults(func=cmd_show)
+
+    s = sub.add_parser(
+        "flag", help="Mark a past answer wrong or correct. Wrong answers stop "
+                     "being recalled; nothing is ever deleted.")
+    s.add_argument("ref", help="Run directory, from recall or search.")
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--wrong", action="store_true")
+    g.add_argument("--correct", action="store_true")
+    g.add_argument("--unsure", action="store_true")
+    # A single-valued form as well as the switches, because a tool call
+    # carries a value far more naturally than a choice of three flags.
+    g.add_argument("--verdict", choices=["wrong", "correct", "unsure"])
+    s.add_argument("--reason", default="", help="What was wrong with it.")
+    s.set_defaults(func=cmd_flag)
+
+    s = sub.add_parser("verdicts", help="Every verdict recorded on one run.")
+    s.add_argument("ref")
+    s.set_defaults(func=cmd_verdicts)
+
+    s = sub.add_parser(
+        "audit", help="What recall would serve, broken down by how much the "
+                      "run can be trusted.")
+    s.add_argument("--list-tier", choices=["trusted", "partial", "failed",
+                                            "wrong"],
+                   help="Also list the runs in one tier.")
+    s.add_argument("--limit", type=int, default=20)
+    s.set_defaults(func=cmd_audit)
 
     s = sub.add_parser("recent", help="Most recent sessions.")
     s.add_argument("--limit", type=int, default=20)

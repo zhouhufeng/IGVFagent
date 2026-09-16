@@ -597,6 +597,14 @@ def _prepare_history(history) -> "list[dict]":
 # is safe -- and what saves the tokens -- is making sure the model never
 # starts from nothing when something is already known.
 
+def _ts(text: str) -> float:
+    """ISO timestamp as a sortable number; 0 when unparseable."""
+    try:
+        return time.mktime(time.strptime(text[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (ValueError, TypeError):
+        return 0.0
+
+
 _PREFLIGHT_MAX_CHARS = int(os.environ.get("IGVF_RECALL_MAX_CHARS", "7000"))
 _PREFLIGHT_MAX_SESSIONS = 4
 
@@ -636,17 +644,51 @@ def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
                         f"{r['title']}" for r in others[:3] if r.get("title")))
             parts.append("\n".join(head))
 
-            for r in sessions[:_PREFLIGHT_MAX_SESSIONS]:
+            # Rank by trustworthiness, then recency. A clean run always
+            # outranks one that limped to an answer, however recent.
+            ranked = []
+            for r in sessions:
                 sess = _history.session(r["ref"], viewer=viewer, con=con)
                 if not sess:
                     continue
+                verdict = _history.latest_verdict(r["ref"], con=con)
+                tier = _history.session_tier(sess, verdict.get("verdict", ""))
+                sess["_tier"] = tier
+                sess["_verdict"] = verdict
+                ranked.append(sess)
+
+            # Never recall an answer somebody has marked wrong, or one from a
+            # run that did not finish. Both would be served back as though
+            # established, which is how one bad run becomes next week's
+            # premise. They stay in history and stay searchable -- this is
+            # about what gets pushed at people unasked.
+            usable = [x for x in ranked
+                      if x["_tier"] in (_history.TIER_TRUSTED,
+                                        _history.TIER_PARTIAL)]
+            usable.sort(key=lambda x: (x["_tier"] != _history.TIER_TRUSTED,
+                                       -_ts(x.get("started_at", ""))))
+            withheld = len(ranked) - len(usable)
+            if withheld:
+                parts.append(
+                    f"_{withheld} further run(s) for {acc} were withheld: "
+                    f"marked incorrect, or the run did not finish._")
+
+            for sess in usable[:_PREFLIGHT_MAX_SESSIONS]:
                 answer = (sess.get("answer") or "").strip()
                 budget = max(400, (per_acc - used) //
                              max(1, _PREFLIGHT_MAX_SESSIONS))
                 if len(answer) > budget:
                     answer = answer[:budget] + "\n…[truncated]"
+                quality = (
+                    "clean run" if sess["_tier"] == _history.TIER_TRUSTED
+                    else f"INCOMPLETE — {sess.get('stop_reason','?')}"
+                         f", {sess.get('tool_calls_failed', 0)} tool failure(s)")
+                if sess["_verdict"].get("verdict") == "correct":
+                    quality += "; confirmed correct by " + (
+                        sess["_verdict"].get("author") or "a user")
                 chunk = (f"\n**{sess['started_at'][:16]} — asked:** "
                          f"{sess['query']}\n"
+                         f"**Run quality:** {quality}\n"
                          f"**Answered:** {answer or '(no text recorded)'}\n"
                          f"**Run directory:** `{sess['run_dir']}`")
                 parts.append(chunk)
@@ -659,11 +701,21 @@ def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
             return accessions, ""
         body = "\n".join(parts)
         return accessions, (
-            "## PRIOR RESULTS FROM THIS DEPLOYMENT\n\n"
+            "## PRIOR RESULTS FROM THIS DEPLOYMENT (unverified)\n\n"
             "These analyses have already been run and their outputs are on "
-            "disk. Build on them: cite what is here, name the run directory "
-            "it came from, and re-run a step only if the question actually "
-            "asks for something these do not already answer.\n\n" + body)
+            "disk. They save re-running work, but they are PRIOR OUTPUT, not "
+            "established fact — a past run can be wrong. So:\n"
+            "- Use them, and say which run directory each claim came from, so "
+            "a reader can check it.\n"
+            "- Sanity-check them against what you know and against anything "
+            "you look up. If one contradicts the portal, the literature, or "
+            "another run here, say so plainly and trust the evidence over the "
+            "cache.\n"
+            "- A run marked INCOMPLETE limped to its answer; treat it as a "
+            "lead, not a result.\n"
+            "- If you conclude a prior answer is wrong, call history_flag on "
+            "its run directory so it stops being served to the next "
+            "person.\n\n" + body)
     finally:
         con.close()
 
