@@ -30,12 +30,26 @@ sys.path.insert(0, str(HERE))
 
 
 def current() -> dict:
-    import _tools
+    """Counts of the BUILT-IN catalogue, read from source.
 
-    src = (HERE / "cli.py").read_text()
+    Deliberately not ``len(_tools._TOOLS)``. That list has agent-authored
+    extensions merged into it at import time, so its length depends on which
+    machine you ask: 270 in a fresh checkout, 338 on the deployment, and the
+    landing page would advertise whichever host last regenerated the file.
+
+    Counting ``_T(`` declarations in the source instead gives the same answer
+    everywhere. It is also the more honest number to put on a public page:
+    extensions are written by the agent at runtime and are not reviewed — one
+    of them is what reported a matrix maximum of 14 for a matrix whose maximum
+    was 3,724.
+    """
+    tools_src = (HERE / "_tools.py").read_text()
+    tools = re.findall(r'^    _T\(\n\s*"([a-z0-9_]+)"', tools_src, re.M)
+
+    cli_src = (HERE / "cli.py").read_text()
     skills = re.findall(r'^\s{4}"([a-z0-9-]+)":\s*\(\s*"igvfagent\.',
-                        src, re.M)
-    return {"skills": len(set(skills)), "tools": len(_tools._TOOLS)}
+                        cli_src, re.M)
+    return {"skills": len(set(skills)), "tools": len(set(tools))}
 
 
 def main(argv=None) -> int:
