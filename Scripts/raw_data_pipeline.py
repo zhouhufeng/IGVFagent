@@ -218,8 +218,22 @@ def list_files(accession: str) -> "list[dict]":
     return out
 
 
+# Processed products that are NOT count matrices. These were falling into
+# "other" and so were invisible to routing: an ATAC workflow needing fragments
+# would plan a full alignment even though the uniform pipeline had already
+# published a fragments file -- on IGVFDS9875NBZW, a 5.6 GB public one, next to
+# raw reads that are 72 GB and controlled.
+_DERIVED_KINDS = {
+    "fragments":  ("fragments",),
+    "peaks":      ("peaks", "pseudoreplicated peaks", "conservative idr"),
+    "alignments": ("alignments",),
+    "barcodes":   ("cell hashing barcodes", "barcode",),
+}
+
+
 def classify(files: "list[dict]") -> "dict[str, list[dict]]":
     reads, seqspecs, matrices, other = [], [], [], []
+    derived = {k: [] for k in _DERIVED_KINDS}
     for f in files:
         fmt = str(f.get("file_format") or "").lower()
         ctype = str(f.get("content_type") or "").lower()
@@ -232,8 +246,14 @@ def classify(files: "list[dict]") -> "dict[str, list[dict]]":
         elif fmt in _MATRIX_FORMATS and any(h in ctype for h in _MATRIX_HINTS):
             matrices.append(f)
         else:
-            other.append(f)
-    return {"reads": reads, "seqspecs": seqspecs, "matrices": matrices, "other": other}
+            for kind, hints in _DERIVED_KINDS.items():
+                if any(h in ctype for h in hints):
+                    derived[kind].append(f)
+                    break
+            else:
+                other.append(f)
+    return {"reads": reads, "seqspecs": seqspecs, "matrices": matrices,
+            "other": other, **derived}
 
 
 # Preference order for a published matrix. The single-cell pipeline loads
@@ -1263,9 +1283,17 @@ def decide_route(accession: str, buckets: "dict[str, list[dict]]",
                 continue
             dfiles = classify(list_files(dacc))
             if dfiles["matrices"]:
+                # Report the other published products too. They do not change
+                # the route -- the matrix is what this pipeline consumes --
+                # but a caller asking "can I skip alignment for fragments?"
+                # could not previously find out that fragments already exist.
+                also = {k: [f.get("accession") for f in dfiles.get(k) or []]
+                        for k in ("fragments", "peaks", "alignments", "barcodes")
+                        if dfiles.get(k)}
                 return {"route": "matrix_derived",
                         "matrices": rank_matrices(dfiles["matrices"]),
                         "analysis_set": dacc,
+                        "also_published": also,
                         "why": f"AnalysisSet {dacc} derived from {accession} "
                                f"already publishes a count matrix"}
     if buckets["reads"]:
@@ -1360,10 +1388,41 @@ def _inventory(accession: str, force_align: bool) -> "Optional[dict]":
             "read_gb": total_gb, "seqspec_text": seqspec_text}
 
 
+def _already_processed(accession: str) -> "list[dict]":
+    """Processed outputs IGVF has already produced from this accession.
+
+    A MeasurementSet's own file list contains raw reads, so planning from that
+    alone plans an alignment -- even when `input_for` points at an AnalysisSet
+    whose `uniform_pipeline_status` is `completed` and whose matrices are
+    already published. On IGVFDS9875NBZW that was ~70 GB of controlled FASTQ
+    and hours of compute to recreate a 3.7 GB h5ad that already existed.
+    """
+    try:
+        try:
+            from igvfagent import processed_first_skill as pf   # type: ignore
+        except ImportError:
+            import processed_first_skill as pf                  # type: ignore
+        res = pf.processed_files(accession)
+        return pf.rank_for(res["files"], "matrix")
+    except Exception as exc:                        # pragma: no cover
+        logging.debug("processed-output check skipped: %s", exc)
+        return []
+
+
 def cmd_plan(args: argparse.Namespace) -> int:
     inv = _inventory(args.accession, args.force_align)
     if inv is None:
         return 2
+
+    also = (inv.get("route") or {}).get("also_published") or {}
+    if also:
+        print("Also published by that analysis set (no need to derive these "
+              "either):")
+        for kind, accs in also.items():
+            print(f"             {kind:11} {', '.join(a for a in accs if a)}")
+        print(f"             igvfagent processed find {args.accession}"
+              f"   # sizes and access")
+
     ok, detail = kb_available()
     print(f"Aligner:     {'available' if ok else 'MISSING'} — {detail}")
     if inv["route"]["route"] == "align":

@@ -160,6 +160,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "analyses into a named project, recall everything "
                           "ever produced about an accession, full-text search "
                           "every past run. Nothing recorded is ever deleted."),
+    "processed":        ("igvfagent.processed_first_skill",
+                          "What IGVF has ALREADY computed from an accession — "
+                          "uniform-pipeline matrices, fragments, peaks — so a "
+                          "workflow downloads the result instead of "
+                          "recomputing it from raw reads"),
     "matrix-qc":        ("igvfagent.matrix_qc_skill",
                           "Whole-matrix h5ad summaries that state what they "
                           "measured (full vs sampled), and threshold "

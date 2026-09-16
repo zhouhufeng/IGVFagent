@@ -5509,6 +5509,54 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "processed_find",
+        "★ HAS IGVF ALREADY PROCESSED THIS? ★ CALL THIS BEFORE PLANNING ANY "
+        "ALIGNMENT OR REPROCESSING. A MeasurementSet's own files are raw "
+        "reads, but `input_for` points at AnalysisSets, and one whose "
+        "`uniform_pipeline_status` is `completed` already holds the matrices, "
+        "fragments, peaks and alignments IGVF derived from it. On "
+        "IGVFDS9875NBZW that is a 3.7 GB h5ad and a 5.6 GB PUBLIC fragments "
+        "file, versus 72 GB of CONTROLLED FASTQ and hours of compute to "
+        "recreate them. Access matters as much as size: raw reads often need "
+        "credentials the caller does not have, while a derived file may be "
+        "public. Lists every processed output with its size and access.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING, "description":
+                               "MeasurementSet, AnalysisSet or sample accession."},
+            },
+            "required": ["accession"],
+        },
+        cli=["processed", "find"],
+        positional=("accession",),
+    ),
+
+    _T(
+        "processed_plan",
+        "★ DOWNLOAD THE EXISTING RESULT, OR RUN THE PIPELINE? ★ Answers that "
+        "for one product. `want` is matrix, fragments, peaks, alignments or "
+        "index. Returns the specific file to fetch when IGVF has already "
+        "produced it — preferring output of a COMPLETED uniform pipeline, "
+        "which is the version IGVF stands behind — and says to run the "
+        "pipeline only when nothing suitable exists. Use this to decide the "
+        "route before committing to a long job.",
+        {
+            "type": "object",
+            "properties": {
+                "accession": {**_S_STRING},
+                "want":      {**_S_STRING, "description":
+                               "matrix | fragments | peaks | alignments | index",
+                               "default": "matrix"},
+            },
+            "required": ["accession"],
+        },
+        cli=["processed", "plan"],
+        positional=("accession",),
+        flag_map={"want": "--want"},
+    ),
+
+    _T(
         "matrix_summary",
         "★ WHAT IS ACTUALLY IN THIS h5ad ★ — shape, obs/var columns, layers, "
         "raw, and TRUE whole-matrix statistics: min, max, where the max is, "
