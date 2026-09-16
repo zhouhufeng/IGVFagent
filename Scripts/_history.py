@@ -83,10 +83,15 @@ _ACCESSION_PATTERNS = (
     r"E-[A-Z]{4}-[0-9]+",                      # ArrayExpress / BioStudies
     r"phs[0-9]{6}(?:\.v[0-9]+\.p[0-9]+)?",     # dbGaP
     r"EGA[SDNCF][0-9]{6,}",                    # EGA
-    r"HCA[0-9A-Z-]{4,}",                       # HCA project shorthand
     r"syn[0-9]{6,}",                           # Synapse
     r"PXD[0-9]{5,}",                           # PRIDE
 )
+# No HCA pattern. The Human Cell Atlas keys projects by UUID and short name,
+# neither of which has a prefix worth matching -- an attempt at `HCA[0-9A-Z-]+`
+# matched HCASMC (human coronary artery smooth muscle cell) in this
+# deployment's own history, which would have filed real results under a cell
+# type mistaken for an accession. HCA datasets carry GEO/SRA/BioProject
+# accessions, and those are matched above.
 ACCESSION_RE = re.compile(
     r"\b(?:" + "|".join(_ACCESSION_PATTERNS) + r")\b")
 
