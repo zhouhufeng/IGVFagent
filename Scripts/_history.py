@@ -62,7 +62,33 @@ ACTIVE_PATH = HISTORY_DIR / "active_project"
 
 _NOW = lambda: time.strftime("%Y-%m-%dT%H:%M:%S")  # noqa: E731
 
-ACCESSION_RE = re.compile(r"\b(?:IGVF|ENC)[A-Z]{2}[0-9A-Z]{6,}\b")
+# Every archive identifier worth keying results on. This started as IGVF and
+# ENCODE only, which meant a question about a GEO series was re-analysed every
+# time it was asked -- the index simply could not see the accession in it.
+#
+# Each pattern is anchored on its archive's own prefix rather than something
+# generic, because a loose pattern is worse than a narrow one here: a false
+# match keys one dataset's results under another dataset's name, and a wrong
+# cached answer is far more expensive than a missed one.
+_ACCESSION_PATTERNS = (
+    r"(?:IGVF|ENC)[A-Z]{2}[0-9A-Z]{6,}",      # IGVF, ENCODE
+    r"GS[EM][0-9]{3,}",                        # GEO series / sample
+    r"GPL[0-9]{3,}",                           # GEO platform
+    r"GDS[0-9]{3,}",                           # GEO dataset
+    r"SR[RXPSZ][0-9]{5,}",                     # SRA run/experiment/project/…
+    r"ERR[0-9]{5,}|ERX[0-9]{5,}|ERP[0-9]{5,}",  # ENA
+    r"DRR[0-9]{5,}|DRX[0-9]{5,}",              # DDBJ
+    r"PRJ(?:NA|EB|DB)[0-9]{3,}",               # BioProject
+    r"SAM[NED][A-Z]?[0-9]{5,}",                # BioSample
+    r"E-[A-Z]{4}-[0-9]+",                      # ArrayExpress / BioStudies
+    r"phs[0-9]{6}(?:\.v[0-9]+\.p[0-9]+)?",     # dbGaP
+    r"EGA[SDNCF][0-9]{6,}",                    # EGA
+    r"HCA[0-9A-Z-]{4,}",                       # HCA project shorthand
+    r"syn[0-9]{6,}",                           # Synapse
+    r"PXD[0-9]{5,}",                           # PRIDE
+)
+ACCESSION_RE = re.compile(
+    r"\b(?:" + "|".join(_ACCESSION_PATTERNS) + r")\b")
 
 ITEM_KINDS = ("session", "analysis", "artifact", "dataset", "figure",
               "paper", "note")

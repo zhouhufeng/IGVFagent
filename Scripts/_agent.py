@@ -138,13 +138,16 @@ DEFAULT_SYSTEM_PROMPT = """\
 You are IGVFagent, a research assistant for IGVF and ENCODE data.
 
 Workflow:
-0. Check what this deployment has ALREADY produced before producing it again.
-   Accession named -> history_recall(accession); a reference to earlier work
-   with no accession -> history_search(words). If a past session already
-   answers the question, open it with history_show and report that result,
-   saying when it was produced and where its files are, instead of re-running
-   the analysis. Re-run only when the user asks for it or the recorded answer
-   does not cover what was asked.
+0. A "PRIOR RESULTS FROM THIS DEPLOYMENT" block may already be at the top of
+   the question. It is not background reading: those analyses have been run,
+   their files are on disk, and re-running them wastes a shared machine. Open
+   the answer with what is already known, cite the run directory it came from,
+   and do new work ONLY for what the question asks that those results do not
+   already cover. If they cover it entirely, say so and stop -- that is a
+   complete answer, not a lazy one.
+   No such block, but the question mentions earlier work? Use history_search.
+   Need more of a prior run than the block quotes? history_recall /
+   history_show.
 1. Pick the fewest tools that answer the user. Starting points:
    gene symbol -> kg_gene; IGVF/ENCODE accession or URL -> explain_dataset;
    discover datasets -> portal_kg_pull / splitseq_retrieve / encode_retrieve;
@@ -192,6 +195,13 @@ def _print_callback(event: AgentEvent) -> None:
                          f" cache_write={u.get('cache_write_tokens',0)}")
             print(f"    [usage] in={u.get('input_tokens',0)} "
                   f"out={u.get('output_tokens',0)}{cache}")
+    elif k == "recall":
+        accs = ", ".join(p.get("accessions") or [])
+        if p.get("found"):
+            print(f"  ⇑ prior results found for {accs} "
+                  f"({p.get('chars', 0)} chars reused)")
+        else:
+            print(f"  ⇑ no prior results for {accs} — this is new work")
     elif k == "route":
         print(f"  ⇒ route[{p.get('shape')}] -> {p['tool']}"
               f"({_short_args(p.get('arguments'))})  [deterministic]")
@@ -496,6 +506,10 @@ def _persist_transcript(query: str, transcript: "list[dict]",
         f"- Backend: `{meta.get('backend','')}`  ·  Model: `{meta.get('model','')}`",
         f"- Iterations: {meta.get('iterations',0)}  ·  Tool calls: {meta.get('tool_calls_made',0)}",
         f"- Stop reason: `{meta.get('stop_reason','')}`",
+        (f"- Prior results reused: {', '.join(meta['recall_accessions'])} "
+         f"({meta.get('recall_reused_chars', 0)} chars)"
+         if meta.get("recall_accessions") and meta.get("recall_reused_chars")
+         else ""),
         f"- Transcript JSON: `{transcript_path.relative_to(ROOT)}`",
         "",
         "## Final answer",
@@ -561,6 +575,93 @@ def _prepare_history(history) -> "list[dict]":
     while out and out[0]["role"] != "user":
         out.pop(0)
     return out
+
+
+# --------------------- Prior-results pre-flight -----------------------------
+#
+# The expensive failure this exists to stop: the same dataset analysed again
+# from scratch every time somebody asks about it. Step 0 of the system prompt
+# already tells the model to check history first, but a prompt is advice -- it
+# gets skipped, and each skip costs a full multi-tool run on a machine shared
+# by the whole lab.
+#
+# So the lookup is not advice. Whenever a question names an archive accession
+# -- IGVF, ENCODE, GEO, SRA, BioProject, ArrayExpress, dbGaP, EGA, HCA,
+# Synapse, PRIDE -- the prior results for it are fetched BEFORE the loop
+# starts, shown to the user, and prepended to the model's context. The model
+# then continues from them instead of rediscovering them.
+#
+# It seeds rather than short-circuits, deliberately. "What assay is
+# IGVFDS6290WNNH" and "re-run QC on IGVFDS6290WNNH" name the same dataset and
+# want different work; answering the second from a cache would be wrong. What
+# is safe -- and what saves the tokens -- is making sure the model never
+# starts from nothing when something is already known.
+
+_PREFLIGHT_MAX_CHARS = int(os.environ.get("IGVF_RECALL_MAX_CHARS", "7000"))
+_PREFLIGHT_MAX_SESSIONS = 4
+
+
+def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
+    """(accessions found, a context block of what is already known)."""
+    try:
+        from . import _history
+    except ImportError:                                  # direct execution
+        import _history  # type: ignore
+
+    accessions = sorted(set(_history.ACCESSION_RE.findall(query or "")))
+    if not accessions:
+        return [], ""
+
+    con = _history.connect()
+    try:
+        parts: "list[str]" = []
+        used = 0
+        for acc in accessions:
+            rows = _history.by_accession(acc, limit=40, viewer=viewer, con=con)
+            if not rows:
+                continue
+            sessions = [r for r in rows if r["kind"] == "session"]
+            others = [r for r in rows if r["kind"] != "session"]
+            head = [f"### Already known about {acc}"]
+            if others:
+                head.append(
+                    f"{len(others)} prior skill run(s)/download(s); latest: "
+                    + ", ".join(
+                        f"{r['title']}" for r in others[:3] if r.get("title")))
+            parts.append("\n".join(head))
+
+            for r in sessions[:_PREFLIGHT_MAX_SESSIONS]:
+                sess = _history.session(r["ref"], viewer=viewer, con=con)
+                if not sess:
+                    continue
+                answer = (sess.get("answer") or "").strip()
+                budget = max(600, (_PREFLIGHT_MAX_CHARS - used) //
+                             max(1, _PREFLIGHT_MAX_SESSIONS))
+                if len(answer) > budget:
+                    answer = answer[:budget] + "\n…[truncated]"
+                chunk = (f"\n**{sess['started_at'][:16]} — asked:** "
+                         f"{sess['query']}\n"
+                         f"**Answered:** {answer or '(no text recorded)'}\n"
+                         f"**Run directory:** `{sess['run_dir']}`")
+                parts.append(chunk)
+                used += len(chunk)
+                if used >= _PREFLIGHT_MAX_CHARS:
+                    break
+            if used >= _PREFLIGHT_MAX_CHARS:
+                parts.append("\n…[earlier results truncated; use "
+                             "history_recall for the rest]")
+                break
+        if not parts:
+            return accessions, ""
+        body = "\n".join(parts)
+        return accessions, (
+            "## PRIOR RESULTS FROM THIS DEPLOYMENT\n\n"
+            "These analyses have already been run and their outputs are on "
+            "disk. Build on them: cite what is here, name the run directory "
+            "it came from, and re-run a step only if the question actually "
+            "asks for something these do not already answer.\n\n" + body)
+    finally:
+        con.close()
 
 
 def run(
@@ -629,7 +730,31 @@ def run(
         "routed_shapes": [r["shape"] for r in routed_plan],
     }
 
+
+
+    # Prior results for any accession named in the question, fetched before a
+    # single token is spent. See prior_results_for() for why this is a hard
+    # step rather than a prompt instruction.
+    recall_accessions: "list[str]" = []
+    recall_block = ""
+    if os.environ.get("IGVF_RECALL_PREFLIGHT", "1") != "0":
+        try:
+            from . import _history as _h
+
+            recall_accessions, recall_block = prior_results_for(
+                query, viewer=_h.viewer())
+        except Exception as exc:                  # pragma: no cover - defensive
+            logger.debug("recall pre-flight skipped: %s", exc)
+    if recall_accessions:
+        _emit(callback, "recall", {
+            "accessions": recall_accessions,
+            "found": bool(recall_block),
+            "chars": len(recall_block),
+        })
+
     user_text = query if not extra_context else f"{query}\n\n{extra_context}"
+    if recall_block:
+        user_text = f"{recall_block}\n\n---\n\n{user_text}"
 
     # Prior turns of the SAME conversation. Without them every message is a
     # cold start: a user who uploads a paper and then says "reproduce the
@@ -1053,6 +1178,9 @@ def run(
                 "tool_calls_failed": len(failed_calls),
                 "failed_calls": failed_calls,
                 "consistency": consistency,
+                # What this run did NOT have to rediscover.
+                "recall_accessions": recall_accessions,
+                "recall_reused_chars": len(recall_block),
             },
         )
 
