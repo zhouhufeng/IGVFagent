@@ -346,6 +346,9 @@ def cmd_reindex(a) -> int:
     res = H.reindex()
     print(f"Rebuilt the search index: {res['reindexed']} history rows "
           f"+ {res.get('analyses_added', 0)} KG rows. No history was altered.")
+    if res.get("sessions_rescanned"):
+        print(f"Re-extracted accessions for {res['sessions_rescanned']} "
+              f"session(s) — these become recall keys now.")
     _out(res, a.json)
     return 0
 

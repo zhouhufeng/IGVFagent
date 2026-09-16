@@ -1205,11 +1205,26 @@ def reindex(con=None) -> dict:
     try:
         con.execute("DELETE FROM search_fts")
         n = 0
+        # Accessions are RE-EXTRACTED here, not read back from the stored
+        # list. That list was produced by whatever pattern was current when
+        # the run happened, so widening the pattern -- adding GEO, SRA,
+        # BioProject and the rest -- would otherwise change nothing for the
+        # 390 sessions already recorded: the new archives stay invisible to
+        # recall on exactly the corpus that would benefit most.
+        rescanned = 0
         for r in con.execute("SELECT * FROM sessions"):
-            accs = json.loads(r["accessions"] or "[]")
+            text = f"{r['query'] or ''}\n{r['answer'] or ''}"
+            accs = sorted(set(ACCESSION_RE.findall(text)))
+            stored = json.loads(r["accessions"] or "[]")
+            if accs != stored:
+                con.execute("UPDATE sessions SET accessions = ? WHERE id = ?",
+                            (json.dumps(accs), r["id"]))
+                rescanned += 1
             _index(con, "session", r["run_dir"], r["query"],
                    f"{r['query']}\n\n{r['answer']}", accs, r["started_at"],
                    owner=r["owner"])
+            _note_accessions(con, accs, "session", r["run_dir"], r["query"],
+                             r["started_at"])
             n += 1
         for r in con.execute("SELECT * FROM projects"):
             _index(con, "project", r["id"], r["name"],
@@ -1229,7 +1244,7 @@ def reindex(con=None) -> dict:
         con.commit()
         extra = backfill_analyses(con=con)
         con.commit()
-        return {"reindexed": n, **extra}
+        return {"reindexed": n, "sessions_rescanned": rescanned, **extra}
     finally:
         if own:
             con.close()
