@@ -49,36 +49,44 @@ def main() -> int:
                      query="bob studies IGVFDS2222CCCC",
                      answer="bob's private result", owner="bob")
 
-    print("\nprivate by default")
-    check("alice sees her own run and the legacy one, not bob's",
+    # Default policy: RESULTS are shared across the deployment, so the same
+    # dataset is not re-analysed once per person, while ORGANISATION (who
+    # filed what into which project) stays private.
+    print("\nanswers are shared, so nobody pays twice for the same question")
+    check("alice sees every recorded run, including bob's",
+          refs(H.recent_sessions(viewer="alice")),
+          {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
+           "Docs/Agent/20260201_000000_alice_bbbbbbbb",
+           "Docs/Agent/20260301_000000_bob_cccccccc"})
+    check("an unauthenticated/local deployment sees everything too",
+          len(H.recent_sessions(viewer=None)), 3)
+    check("alice can search bob's answer text",
+          len(H.search("bob's private result", viewer="alice")) >= 1, True)
+    check("alice can recall bob's accession — this is the whole point",
+          len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
+    check("...and open the run itself",
+          H.session("Docs/Agent/20260301_000000_bob_cccccccc",
+                    viewer="alice") is not None, True)
+    check("the pre-accounts corpus stays readable",
+          len(H.search("legacy shared-password", viewer="alice")) >= 1, True)
+
+    print("\nIGVF_HISTORY_SHARED=0 restores strict per-user privacy")
+    os.environ["IGVF_HISTORY_SHARED"] = "0"
+    check("alice no longer sees bob's run",
           refs(H.recent_sessions(viewer="alice")),
           {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
            "Docs/Agent/20260201_000000_alice_bbbbbbbb"})
-    check("bob sees his own run and the legacy one, not alice's",
-          refs(H.recent_sessions(viewer="bob")),
-          {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
-           "Docs/Agent/20260301_000000_bob_cccccccc"})
-    check("an unauthenticated/local deployment sees everything",
-          len(H.recent_sessions(viewer=None)), 3)
-
-    print("\nsearch obeys the same rule")
-    check("bob's answer text is not searchable by alice",
-          H.search("bob's private result", viewer="alice"), [])
-    check("bob can find his own answer",
-          len(H.search("private result", viewer="bob")) >= 1, True)
-    check("the legacy corpus stays searchable by everyone",
-          len(H.search("legacy shared-password", viewer="alice")) >= 1, True)
-
-    print("\nrecall obeys the same rule")
-    check("alice cannot recall bob's accession",
+    check("...nor recalls his accession",
           H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
-    check("bob can recall his own",
-          len(H.by_accession("IGVFDS2222CCCC", viewer="bob")), 1)
-    check("direct session fetch is gated too",
-          H.session("Docs/Agent/20260301_000000_bob_cccccccc", viewer="alice"),
-          None)
+    check("...nor finds his answer text",
+          H.search("bob's private result", viewer="alice"), [])
+    check("bob still sees his own", len(H.by_accession("IGVFDS2222CCCC",
+                                                        viewer="bob")), 1)
+    os.environ["IGVF_HISTORY_SHARED"] = "1"
+    check("shared mode restored",
+          len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
 
-    print("\nprojects are private until shared")
+    print("\nprojects stay private even though answers are shared")
     H.create_project("Bob's study", "private", owner="bob")
     check("bob sees his project", [p["name"] for p in
           H.list_projects(viewer="bob")], ["Bob's study"])
@@ -93,26 +101,18 @@ def main() -> int:
     H.add_item("Bob's study", "session",
                "Docs/Agent/20260301_000000_bob_cccccccc",
                title="bob's run", owner="bob", viewer="bob")
-    check("still invisible to alice before sharing",
-          H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
+    check("the project itself is still invisible to alice",
+          H.list_projects(viewer="alice"), [])
+    check("...and its contents are not listable by her",
+          H.project_items("Bob's study", viewer="alice"), [])
     check("alice cannot share a project she cannot see",
           H.share_project("Bob's study", "alice", viewer="alice")["ok"], False)
     check("bob shares it", H.share_project("Bob's study", "alice",
                                            viewer="bob")["ok"], True)
     check("alice now sees the project", [p["name"] for p in
           H.list_projects(viewer="alice")], ["Bob's study"])
-    check("...and the session filed into it",
-          len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
-    check("...and can open it",
-          H.session("Docs/Agent/20260301_000000_bob_cccccccc",
-                    viewer="alice") is not None, True)
-    check("...and it turns up in her search",
-          len(H.search("bob studies", viewer="alice")) >= 1, True)
-    check("but bob's OTHER work stays private", refs(
-          H.recent_sessions(viewer="alice")),
-          {"Docs/Agent/20260101_000000_legacy_aaaaaaaa",
-           "Docs/Agent/20260201_000000_alice_bbbbbbbb",
-           "Docs/Agent/20260301_000000_bob_cccccccc"})
+    check("...and its contents",
+          len(H.project_items("Bob's study", viewer="alice")), 1)
 
     print("\nsharing grants visibility, not control")
     H.share_project("Bob's study", "alice", viewer="bob")
@@ -145,8 +145,8 @@ def main() -> int:
     check("bob unshares", H.unshare_project("Bob's study", "alice",
                                             viewer="bob")["ok"], True)
     check("alice loses sight of the project", H.list_projects(viewer="alice"), [])
-    check("...and of the session in it",
-          H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
+    check("...and of its contents",
+          H.project_items("Bob's study", viewer="alice"), [])
 
     print("\nper-user active project")
     H.create_project("Alice's study", owner="alice")

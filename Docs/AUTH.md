@@ -164,19 +164,23 @@ the approval.
 
 ## What each person can see
 
-Signing in makes work **private by default**:
+**Results are shared; organisation is private.**
 
-- Your sessions, and the projects you create, are yours.
+- **Any past answer is readable by anyone signed in**, and is recalled
+  automatically when someone asks about the same accession. This is deliberate:
+  the expensive case is two people asking the same question a week apart, and
+  there is little point paying for that analysis twice to hide a result from a
+  colleague who could simply ask for it. Set `IGVF_HISTORY_SHARED=0` for a
+  deployment where that trade goes the other way — strict per-user privacy,
+  at the cost of re-running work.
+- **Projects stay private.** A project is visible only to its owner and the
+  people they share it with (`igvfagent project share <username>`, or the
+  sidebar). Members can see and add to a shared project; only the owner can
+  rename, archive, or change who else is in it.
+- Each run still records **who** produced it, so shared does not mean
+  anonymous.
 - Work recorded before accounts existed belongs to nobody in particular — it
-  was produced under the shared password — so it stays visible to everyone.
-  Hiding the entire existing corpus from every user at once would be the wrong
-  reading of "private by default".
-- The only way work reaches another person is a project: file it into one, then
-  share the project (`igvfagent project share <username>`, or the sidebar).
-  Members of a shared project can see and add to it; only the owner can rename,
-  archive or change who else is in it.
-- Skill runs and downloads recorded in the shared knowledge graph are not
-  per-user work and stay visible to everyone.
+  was produced under the shared password — and stays readable.
 
 `Scripts/test_history_visibility.py` asserts all of the above.
 

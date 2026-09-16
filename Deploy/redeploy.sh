@@ -124,6 +124,7 @@ fi
 
 echo "==> 1/5  updating the checkout"
 git -C "$ROOT" pull --ff-only
+BUILD_HEAD="$(git -C "$ROOT" rev-parse HEAD)"
 
 echo "==> 2/5  seeding read-only fixtures onto the mounted volume"
 seed_fixtures
@@ -199,6 +200,35 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 
 if verify; then
+    # The pull happens once, at the start. A --no-cache build takes 10+
+    # minutes, and anything pushed during that window is NOT in the image --
+    # yet the checkout has already moved on, so the hash comparison above
+    # still says MATCH and this script still prints "Redeploy complete". That
+    # is how a fix gets committed, reported as deployed, and quietly is not:
+    # it cost three consecutive rebuilds on 2026-09-16 before anyone noticed.
+    #
+    # So before claiming success, look for commits that landed mid-build.
+    git -C "$ROOT" fetch --quiet origin 2>/dev/null || true
+    REMOTE_HEAD="$(git -C "$ROOT" rev-parse origin/HEAD 2>/dev/null \
+                   || git -C "$ROOT" rev-parse origin/main 2>/dev/null || echo "")"
+    if [ -n "$REMOTE_HEAD" ] && [ "$REMOTE_HEAD" != "$BUILD_HEAD" ]; then
+        echo
+        echo "This build is ALREADY STALE. It was made from"
+        echo "  $BUILD_HEAD"
+        echo "but origin has since moved to"
+        echo "  $REMOTE_HEAD"
+        git -C "$ROOT" log --oneline "$BUILD_HEAD..$REMOTE_HEAD" 2>/dev/null \
+            | sed 's/^/    /'
+        if [ "${REDEPLOY_RETRY:-0}" -lt 1 ]; then
+            echo
+            echo "Rebuilding once from the newer commit."
+            REDEPLOY_RETRY=1 exec "$0" "$@"
+        fi
+        echo
+        echo "Already retried once; not looping. Re-run this script when the"
+        echo "pushes settle."
+        exit 4
+    fi
     echo
     echo "Redeploy complete. Hard-refresh the browser (Cmd/Ctrl+Shift+R)."
     exit 0

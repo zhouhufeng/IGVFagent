@@ -956,12 +956,14 @@ CLI and in the web UI, which has a **🗂️ Project** panel in the sidebar.
 Renaming is safe: items reference the project's immutable id, and every former
 name stays resolvable, so a reference written down months ago still works.
 
-**Work is private to whoever ran it.** On a deployment with accounts, your
-sessions and projects are yours; the only way work reaches someone else is to
-file it into a project and share that project (`igvfagent project share
-<username>`). Members can see and add to a shared project; only the owner can
-rename, archive or change its membership. Runs recorded before accounts existed
-belong to nobody and stay visible to everyone. Without authentication in front,
+**Results are shared, organisation is private.** Any past answer is readable
+by anyone signed in and is recalled automatically when someone asks about the
+same accession — paying twice for the same analysis to hide it from a colleague
+helps nobody, and each run still records who produced it. Projects are the
+private part: visible to their owner and whoever they share them with
+(`igvfagent project share <username>`), where members can add but only the
+owner can rename, archive or change membership. `IGVF_HISTORY_SHARED=0` flips
+answers back to strict per-user privacy. Without authentication in front,
 nothing is filtered at all.
 
 **Nothing here is ever deleted.** That is enforced by `BEFORE DELETE` triggers

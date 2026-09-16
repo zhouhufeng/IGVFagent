@@ -380,6 +380,27 @@ def _shared_refs(con, viewer: "str | None") -> "set[str]":
         f"AND project_id IN ({marks})", tuple(pids))}
 
 
+# Whether a completed ANSWER is readable across the deployment.
+#
+# The two goods here are in genuine tension. Private-by-default protects
+# unpublished work; shared answers stop the same dataset being re-analysed by
+# every person who asks about it, on hardware the whole lab pays for. On a
+# single-lab deployment the second wins: the expensive case is two people
+# asking the same question a week apart, and there is little point paying for
+# that twice to hide a result from a colleague who could ask for it anyway.
+#
+# So RESULTS are shared and ORGANISATION stays private: anyone signed in can
+# read any past answer and have it recalled for them, while projects remain
+# visible only to their owner and the people they were shared with. Set
+# IGVF_HISTORY_SHARED=0 for a deployment where that trade goes the other way.
+def _answers_are_shared() -> bool:
+    return os.environ.get("IGVF_HISTORY_SHARED", "1") != "0"
+
+
+# Kinds that record a RESULT rather than someone's filing decisions.
+_RESULT_KINDS = ("session", "analysis", "download")
+
+
 def _visible_to(con, viewer: "str | None"):
     """Build the predicate deciding what ``viewer`` may see.
 
@@ -387,12 +408,15 @@ def _visible_to(con, viewer: "str | None"):
     person at the keyboard and nothing to hide, so everything passes.
     """
     if viewer is None:
-        return lambda owner, ref: True
-    shared = _shared_refs(con, viewer)
+        return lambda kind, owner, ref: True
+    shared_refs = _shared_refs(con, viewer)
     allowed = {viewer, LEGACY_OWNER}
+    answers_shared = _answers_are_shared()
 
-    def ok(owner: "str | None", ref: "str | None") -> bool:
-        return (owner or LEGACY_OWNER) in allowed or (ref or "") in shared
+    def ok(kind: str, owner: "str | None", ref: "str | None") -> bool:
+        if answers_shared and kind in _RESULT_KINDS:
+            return True
+        return (owner or LEGACY_OWNER) in allowed or (ref or "") in shared_refs
 
     return ok
 
@@ -967,7 +991,8 @@ def search(query: str, *, limit: int = 20, kind: str = "",
                 rows = con.execute(sql, args).fetchall()
             except sqlite3.OperationalError:
                 return []
-        out = [dict(r) for r in rows if can_see(r["owner"], r["ref"])]
+        out = [dict(r) for r in rows
+               if can_see(r["kind"], r["owner"], r["ref"])]
         if project:
             prow = resolve_project(project, viewer=viewer, con=con)
             if not prow:
@@ -1005,7 +1030,8 @@ def by_accession(accession: str, limit: int = 50,
                 "SELECT run_dir, owner FROM sessions")}
             out = [r for r in out
                    if r["kind"] != "session"
-                   or can_see(owners.get(r["ref"], LEGACY_OWNER), r["ref"])]
+                   or can_see("session", owners.get(r["ref"], LEGACY_OWNER),
+                              r["ref"])]
         return out[:limit]
     finally:
         if own:
@@ -1022,7 +1048,8 @@ def session(run_dir: str, viewer: "str | None" = None,
                           (rel, rel)).fetchone()
         if not row:
             return None
-        if not _visible_to(con, viewer)(row["owner"], row["run_dir"]):
+        if not _visible_to(con, viewer)("session", row["owner"],
+                                        row["run_dir"]):
             return None
         return dict(row)
     finally:
@@ -1041,7 +1068,7 @@ def recent_sessions(limit: int = 50, viewer: "str | None" = None,
             (limit * 10 if viewer else limit,))
         can_see = _visible_to(con, viewer)
         return [dict(r) for r in rows
-                if can_see(r["owner"], r["run_dir"])][:limit]
+                if can_see("session", r["owner"], r["run_dir"])][:limit]
     finally:
         if own:
             con.close()
