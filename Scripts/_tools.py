@@ -5359,6 +5359,150 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "scqers_activity",
+        "★ IS THIS ENHANCER ACTIVE, AND HOW STRONGLY ★ from a scQers "
+        "single-cell reporter experiment. Bootstraps each element's own "
+        "integrations against the minP and noP controls AT MATCHED SAMPLE "
+        "SIZE, so a rare element is not beaten by a control that was simply "
+        "pooled over more cells. Reports median bootstrap activity, the "
+        "control median, the best-expressing cluster, and an empirical "
+        "p-value. Input is a joined count table with one row per integration "
+        "per cell (cell_bc, CRE_id, UMIs_mBC, gex_UMI, cluster_id, biol_rep) "
+        "— the shape of GSE217686 / GSE217689.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":     {**_S_STRING, "description":
+                                "Joined count table, one row per integration "
+                                "per cell."},
+                "bootstraps": {**_S_INTEGER, "default": 200},
+                "cre":        {**_S_STRING, "description":
+                                "Restrict to a single element."},
+                "cluster_groups": {**_S_STRING, "description":
+                                    "JSON mapping lineage -> cluster ids, to "
+                                    "analyse at coarse lineage level."},
+            },
+            "required": ["counts"],
+        },
+        cli=["scqers", "activity"],
+        flag_map={"counts": "--counts", "bootstraps": "--bootstraps",
+                   "cre": "--cre", "cluster_groups": "--cluster-groups"},
+    ),
+
+    _T(
+        "scqers_specificity",
+        "★ IS THIS ENHANCER CELL-TYPE SPECIFIC ★ — a fold-change between "
+        "clusters cannot answer this on its own, because the BEST of several "
+        "clusters is high by construction. This permutes the cell-to-cluster "
+        "assignment and recomputes the best cluster's fold-change, giving the "
+        "null for 'how specific does this look when cell type carries no "
+        "information'. Cells are permuted rather than rows, so two "
+        "integrations in one cell keep the same label. Reports observed "
+        "fold-change against the permuted 95th percentile plus an empirical "
+        "p-value.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":       {**_S_STRING},
+                "permutations": {**_S_INTEGER, "default": 200},
+                "cre":          {**_S_STRING},
+                "cluster_groups": {**_S_STRING},
+            },
+            "required": ["counts"],
+        },
+        cli=["scqers", "specificity"],
+        flag_map={"counts": "--counts", "permutations": "--permutations",
+                   "cre": "--cre", "cluster_groups": "--cluster-groups"},
+    ),
+
+    _T(
+        "scqers_pipeline",
+        "★ FULL scQers ANALYSIS ★ — bootstrap activity, permutation "
+        "specificity, then BH-corrected calls in one run. An element counts "
+        "as reproducibly active or specific only if it clears the FDR in "
+        "EVERY replicate it was measured in, which is the criterion the "
+        "method is built around: one replicate is an observation, agreement "
+        "across replicates is the claim. Emits activity.tsv, specificity.tsv "
+        "and calls.tsv.",
+        {
+            "type": "object",
+            "properties": {
+                "counts":       {**_S_STRING},
+                "bootstraps":   {**_S_INTEGER, "default": 200},
+                "permutations": {**_S_INTEGER, "default": 200},
+                "fdr":          {**_S_NUMBER, "default": 0.05},
+                "min_fc":       {**_S_NUMBER, "default": 1.5,
+                                  "description": "Fold-change floor for "
+                                                 "calling an element specific."},
+                "min_reps":     {**_S_INTEGER, "default": 1},
+                "cluster_groups": {**_S_STRING},
+            },
+            "required": ["counts"],
+        },
+        cli=["scqers", "pipeline"],
+        flag_map={"counts": "--counts", "bootstraps": "--bootstraps",
+                   "permutations": "--permutations", "fdr": "--fdr",
+                   "min_fc": "--min-fc", "min_reps": "--min-reps",
+                   "cluster_groups": "--cluster-groups"},
+    ),
+
+    _T(
+        "scqers_extract_bc",
+        "★ PULL BARCODES OUT OF scQers / MPRA FASTQ ★ at fixed positions, "
+        "with a constant-region sequence check. The check is the point: a "
+        "read with an upstream indel still yields something at those "
+        "positions, and nothing downstream can tell that apart from a real "
+        "barcode. Handles one read or a paired barcode amplicon (oBC+mBC). "
+        "Follow with scqers_count_bc to threshold.",
+        {
+            "type": "object",
+            "properties": {
+                "in_r1":     {**_S_STRING, "description": "R1 FASTQ (.gz ok)."},
+                "in_r2":     {**_S_STRING, "description":
+                               "R2, for paired barcode amplicons."},
+                "out_file":  {**_S_STRING},
+                "start":     {**_S_INTEGER, "default": 0},
+                "end":       {**_S_INTEGER, "default": 15},
+                "check_seq": {**_S_STRING, "description":
+                               "Constant sequence expected right after the "
+                               "barcode, e.g. GCT."},
+            },
+            "required": ["in_r1", "out_file"],
+        },
+        cli=["scqers", "extract-bc"],
+        flag_map={"in_r1": "--in-r1", "in_r2": "--in-r2",
+                   "out_file": "--out-file", "start": "--start",
+                   "end": "--end", "check_seq": "--check-seq"},
+    ),
+
+    _T(
+        "scqers_subassembly",
+        "★ BUILD THE oBC <-> mBC BARCODE DICTIONARY ★ from a counted pair "
+        "table, keeping only unambiguous pairings. A barcode mapping to two "
+        "partners is a chimera or a collision, and keeping it attributes one "
+        "element's reporter counts to another — the most damaging error "
+        "available in this assay because it is invisible downstream. Requires "
+        "the best partner to beat the runner-up by --min-ratio rather than "
+        "just a majority.",
+        {
+            "type": "object",
+            "properties": {
+                "in_file":   {**_S_STRING},
+                "out_file":  {**_S_STRING},
+                "col1":      {**_S_STRING, "default": "oBC"},
+                "col2":      {**_S_STRING, "default": "mBC"},
+                "min_count": {**_S_INTEGER, "default": 3},
+                "min_ratio": {**_S_NUMBER, "default": 5.0},
+            },
+            "required": ["in_file", "out_file"],
+        },
+        cli=["scqers", "subassembly"],
+        flag_map={"in_file": "--in-file", "out_file": "--out-file",
+                   "col1": "--col1", "col2": "--col2",
+                   "min_count": "--min-count", "min_ratio": "--min-ratio"},
+    ),
+
+    _T(
         "history_recall",
         "★ WHAT HAVE WE ALREADY PRODUCED ABOUT THIS ACCESSION ★ — CALL THIS "
         "FIRST whenever a question names an IGVF or ENCODE accession. Returns "

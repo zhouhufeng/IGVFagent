@@ -160,6 +160,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "analyses into a named project, recall everything "
                           "ever produced about an accession, full-text search "
                           "every past run. Nothing recorded is ever deleted."),
+    "scqers":           ("igvfagent.scqers_skill",
+                          "scQers: quantitative single-cell enhancer "
+                          "reporters. Paired oBC (which element) + mBC (how "
+                          "hard it drives) from barcode extraction through "
+                          "bootstrap activity, permutation cell-type "
+                          "specificity, and FDR-controlled CRE calls"),
     "kg-mirror":        ("igvfagent.kg_mirror_skill",
                           "Local IGVF KG mirror (Arango -> Parquet + DuckDB)"),
     "ref":              ("igvfagent.reference_skill",

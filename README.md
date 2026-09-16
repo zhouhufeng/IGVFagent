@@ -1232,6 +1232,40 @@ If you hold a licence, integrate your own export with
 unification and KG ingestion as the fetched sources, and nothing licensed is
 redistributed.
 
+### scQers — quantitative single-cell enhancer reporters
+
+Two barcodes per construct are the whole trick. A candidate element drives
+mCherry carrying an **mBC**; the same construct constitutively expresses an
+**oBC**. In single cells the oBC says *which* element a cell received and the
+mBC says *how hard it is driving* — which is what makes the readout
+quantitative rather than a sort-based enrichment.
+
+```bash
+igvfagent scqers extract-bc --in-r1 mBC_R1.fastq.gz --out-file mBC.txt.gz \
+    --start 0 --end 15 --check-seq GCT
+igvfagent scqers count-bc --in-file mBC.txt.gz --out-file high_mBC.txt \
+    --threshold 300 --plot dist.png
+igvfagent scqers subassembly --in-file paired_counts.txt --out-file oBC_mBC.tsv
+igvfagent scqers pipeline --counts joined_counts.tsv       # activity → specificity → calls
+igvfagent scqers selftest                                  # synthetic data, no inputs
+```
+
+Activity is bootstrapped against the library's `minP` and `noP` controls **at
+matched sample size**, so a rare element is not beaten by a control that was
+merely pooled over more cells. Specificity is a permutation of the
+cell-to-cluster assignment, because the best of several clusters has a high
+fold-change by construction and a fold-change alone cannot tell you otherwise.
+p-values are empirical and BH-corrected within each replicate, and an element
+is called only if it clears the FDR in *every* replicate it was measured in.
+
+Method: Shendure lab, *Multiplex profiling of developmental enhancers with
+quantitative, single-cell expression reporters*
+([shendurelab/scQers](https://github.com/shendurelab/scQers), MIT). The
+upstream repository is R and shell shared "for transparency" rather than as a
+pipeline; this is the method as a runnable CLI. Barcode extraction and
+counting reproduce the upstream example output exactly — all 191 barcodes
+above threshold, with identical counts.
+
 ### Enhancer–gene linkage
 
 ```bash
