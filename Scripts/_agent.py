@@ -615,8 +615,14 @@ def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
     con = _history.connect()
     try:
         parts: "list[str]" = []
-        used = 0
+        # Budget is split BETWEEN accessions, not spent first-come. A global
+        # running total let whichever accession sorted first consume the whole
+        # allowance: "compare IGVFDS5414UFNC with GSE213151" returned only
+        # GSE213151's history and silently nothing for the other one, which is
+        # precisely backwards for a comparison.
+        per_acc = max(1200, _PREFLIGHT_MAX_CHARS // max(1, len(accessions)))
         for acc in accessions:
+            used = 0
             rows = _history.by_accession(acc, limit=40, viewer=viewer, con=con)
             if not rows:
                 continue
@@ -635,7 +641,7 @@ def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
                 if not sess:
                     continue
                 answer = (sess.get("answer") or "").strip()
-                budget = max(600, (_PREFLIGHT_MAX_CHARS - used) //
+                budget = max(400, (per_acc - used) //
                              max(1, _PREFLIGHT_MAX_SESSIONS))
                 if len(answer) > budget:
                     answer = answer[:budget] + "\n…[truncated]"
@@ -645,12 +651,10 @@ def prior_results_for(query: str, viewer=None) -> "tuple[list[str], str]":
                          f"**Run directory:** `{sess['run_dir']}`")
                 parts.append(chunk)
                 used += len(chunk)
-                if used >= _PREFLIGHT_MAX_CHARS:
+                if used >= per_acc:
+                    parts.append("\n…[more prior results for this accession; "
+                                 "use history_recall to see them]")
                     break
-            if used >= _PREFLIGHT_MAX_CHARS:
-                parts.append("\n…[earlier results truncated; use "
-                             "history_recall for the rest]")
-                break
         if not parts:
             return accessions, ""
         body = "\n".join(parts)
