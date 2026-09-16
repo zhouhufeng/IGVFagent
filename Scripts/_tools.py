@@ -5509,6 +5509,65 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "matrix_summary",
+        "★ WHAT IS ACTUALLY IN THIS h5ad ★ — shape, obs/var columns, layers, "
+        "raw, and TRUE whole-matrix statistics: min, max, where the max is, "
+        "non-zero count, whether values are integer-valued. The full "
+        "reduction is the DEFAULT and walks the sparse matrix in row blocks, "
+        "so it never builds a dense copy. Use this instead of writing your "
+        "own inspector: a hand-rolled one that peeked at the first 50 rows "
+        "reported a maximum of 14 on a matrix whose true maximum was 3,724, "
+        "and nothing in its output revealed that it had sampled. If you "
+        "genuinely want a quick peek, pass sample_rows — the result is then "
+        "labelled `sampled` and every field is named sample_*, so it cannot "
+        "be quoted as a whole-matrix figure by accident.",
+        {
+            "type": "object",
+            "properties": {
+                "h5ad":        {**_S_STRING, "description": "Path to the .h5ad."},
+                "sample_rows": {**_S_INTEGER, "description":
+                                 "Examine only the first N rows; the output "
+                                 "then says so. Omit for the true statistics."},
+                "no_x_stats":  {**_S_BOOLEAN, "description":
+                                 "Structure only; do not read matrix values."},
+                "backed":      {**_S_BOOLEAN, "description":
+                                 "Open backed on disk for a very large file."},
+            },
+            "required": ["h5ad"],
+        },
+        cli=["matrix-qc", "summary"],
+        flag_map={"h5ad": "--h5ad", "sample_rows": "--sample-rows",
+                   "no_x_stats": "--no-x-stats", "backed": "--backed"},
+        bool_flags=("no_x_stats", "backed"),
+    ),
+
+    _T(
+        "table_threshold",
+        "★ COUNT ROWS MEETING NUMERIC CONDITIONS, WITH MEDIANS ★ — the "
+        "'now filter this QC table and tell me how many pass' step. Reads a "
+        "plain TSV/CSV and needs NOTHING initialised: not a warehouse, not a "
+        "database, not a new tool. Use it whenever a question asks how many "
+        "rows clear some cut-offs and what the medians are before and after. "
+        "Rule syntax: \"total_counts>=1000,n_genes_by_counts>=200\". Reports "
+        "rows passing as QC-PASSING, never as validated cells — calling cells "
+        "takes a cell-calling method, not a threshold.",
+        {
+            "type": "object",
+            "properties": {
+                "table":  {**_S_STRING, "description": "TSV or CSV path."},
+                "where":  {**_S_STRING, "description":
+                            'Comma-separated conditions, e.g. '
+                            '"total_counts>=1000,n_genes_by_counts>=200".'},
+                "median": {**_S_STRING, "description":
+                            "Comma-separated columns to take medians of."},
+            },
+            "required": ["table", "where"],
+        },
+        cli=["matrix-qc", "threshold"],
+        flag_map={"table": "--table", "where": "--where", "median": "--median"},
+    ),
+
+    _T(
         "history_flag",
         "★ MARK A PAST ANSWER WRONG ★ — call this the moment you establish "
         "that a recalled prior result is incorrect: it contradicts the "

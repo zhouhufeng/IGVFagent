@@ -160,6 +160,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "analyses into a named project, recall everything "
                           "ever produced about an accession, full-text search "
                           "every past run. Nothing recorded is ever deleted."),
+    "matrix-qc":        ("igvfagent.matrix_qc_skill",
+                          "Whole-matrix h5ad summaries that state what they "
+                          "measured (full vs sampled), and threshold "
+                          "aggregation over a table with no warehouse needed"),
     "scqers":           ("igvfagent.scqers_skill",
                           "scQers: quantitative single-cell enhancer "
                           "reporters. Paired oBC (which element) + mBC (how "
