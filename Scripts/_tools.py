@@ -5509,6 +5509,40 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "upstream_check",
+        "★ HAS AN UPSTREAM PROJECT CHANGED SINCE WE BUILT AGAINST IT ★ — many "
+        "skills here reimplement a published method whose reference "
+        "implementation lives in someone else's repository. This compares the "
+        "revision each was pinned to against that project's current head and "
+        "latest release, and reports the drift with a compare link. Use it "
+        "when asked whether a method is current, when a result disagrees with "
+        "a published one, or before trusting a reimplementation for new work.",
+        {"type": "object", "properties": {}, "required": []},
+        cli=["upstream", "check"],
+    ),
+
+    _T(
+        "upstream_list",
+        "★ WHERE DID THIS METHOD COME FROM ★ — the upstream project behind "
+        "each skill, the exact revision it was built against, its licence, "
+        "and whether it was reimplemented clean-room, ported, vendored, or "
+        "invoked as an installed binary. Answers provenance and licensing "
+        "questions precisely instead of from a docstring's prose.",
+        {
+            "type": "object",
+            "properties": {
+                "unpinned": {**_S_BOOLEAN, "description":
+                              "Only those with no recorded revision."},
+                "verbose":  {**_S_BOOLEAN},
+            },
+            "required": [],
+        },
+        cli=["upstream", "list"],
+        flag_map={"unpinned": "--unpinned", "verbose": "--verbose"},
+        bool_flags=("unpinned", "verbose"),
+    ),
+
+    _T(
         "processed_find",
         "★ HAS IGVF ALREADY PROCESSED THIS? ★ CALL THIS BEFORE PLANNING ANY "
         "ALIGNMENT OR REPROCESSING. A MeasurementSet's own files are raw "

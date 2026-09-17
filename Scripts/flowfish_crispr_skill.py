@@ -8,7 +8,7 @@ significance (Mann-Whitney U + Welch t against negative controls,
 BH-FDR).
 
 This is a clean-room reimplementation of the algorithms in
-[EngreitzLab/CRISPRi-FlowFISH-pipeline](https://github.com/EngreitzLab/CRISPRi-FlowFISH-pipeline)
+[EngreitzLab/CRISPRi-FlowFISH](https://github.com/EngreitzLab/CRISPRi-FlowFISH)
 (MIT, Engreitz Lab 2021). No source code from that repository is copied;
 the math is paraphrased from the published descriptions in:
 
@@ -463,7 +463,7 @@ def write_playbook() -> Path:
 Use this skill to call regulatory elements from a CRISPRi Flow-FISH screen
 (cells sorted by RNA-FISH or protein-FACS readout into N bins per guide,
 guide-counts sequenced per bin). The math is a clean-room reimplementation
-of [EngreitzLab/CRISPRi-FlowFISH-pipeline](https://github.com/EngreitzLab/CRISPRi-FlowFISH-pipeline)
+of [EngreitzLab/CRISPRi-FlowFISH](https://github.com/EngreitzLab/CRISPRi-FlowFISH)
 (MIT, Engreitz Lab 2021), following the published methods in:
 
 - **Fulco CP et al. (2019)** *Nature Genetics* 51:1664–1669 — SI describes

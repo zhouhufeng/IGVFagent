@@ -160,6 +160,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "analyses into a named project, recall everything "
                           "ever produced about an accession, full-text search "
                           "every past run. Nothing recorded is ever deleted."),
+    "upstream":         ("igvfagent.upstream_skill",
+                          "Provenance of absorbed upstream projects: which "
+                          "revision each was built against, its licence, "
+                          "whether it was reimplemented or wrapped, and what "
+                          "has changed there since"),
     "processed":        ("igvfagent.processed_first_skill",
                           "What IGVF has ALREADY computed from an accession — "
                           "uniform-pipeline matrices, fragments, peaks — so a "

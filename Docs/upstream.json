@@ -1,0 +1,328 @@
+{
+  "upstreams": [
+    {
+      "repo": "ave-dcd/dcd_mapping",
+      "skills": [
+        "mavedb"
+      ],
+      "modules": [
+        "mavedb_mapping_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "121d0fa523c20678aa7a161e34d7a105d1aa8177",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-04-27T21:27:32Z",
+        "release": "0.3.0",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. MaveDB coordinate-mapping conventions."
+    },
+    {
+      "repo": "broadinstitute/epi-SHARE-seq-pipeline",
+      "skills": [
+        "share"
+      ],
+      "modules": [
+        "share_seq_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "9b2b2eceed3944fe610d85c922d3c3dbeceff6e4",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-09-24T16:28:02Z",
+        "release": "",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. Route implemented against the tools actually installed here."
+    },
+    {
+      "repo": "czbiohub-sf/tabula-sapiens",
+      "skills": [
+        "tabula"
+      ],
+      "modules": [
+        "tabula_sapiens_skill.py"
+      ],
+      "license": "BSD-3-Clause",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "14de8b082a25dba79e12c39626843543ab92e5b5",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2025-12-10T21:11:28Z",
+        "release": "manuscript1",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "BSD-3-Clause upstream; followed from its published description, no source copied."
+    },
+    {
+      "repo": "EngreitzLab/CRISPRi-FlowFISH",
+      "skills": [
+        "flowfish"
+      ],
+      "modules": [
+        "flowfish_crispr_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "44008b8842b1ffd82874fc9df669dfb8bb70b2de",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-07-25T18:30:32Z",
+        "release": "v0.1.0",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. RENAMED upstream: was CRISPRi-FlowFISH-pipeline, now CRISPRi-FlowFISH \u2014 found 2026-09-17 because the old name 404'd. Clean-room; nothing copied.",
+      "former_names": [
+        "EngreitzLab/CRISPRi-FlowFISH-pipeline"
+      ]
+    },
+    {
+      "repo": "Gartner-Lab/deMULTIplex2",
+      "skills": [
+        "multiseq"
+      ],
+      "modules": [
+        "multiseq_analysis_skill.py"
+      ],
+      "license": "CC-BY-4.0",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "de48333b89f60447bc037237f6cb45985ffb33f4",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-03-12T00:07:32Z",
+        "release": "v1.0.1",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "Upstream is CC-BY-4.0, a CONTENT licence applied to software \u2014 attribution required, and its suitability for code is unclear. Reimplemented, nothing copied."
+    },
+    {
+      "repo": "Genentech/sceps",
+      "skills": [
+        "sceps"
+      ],
+      "modules": [
+        "sceps_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "3a07fda29ead41e3872ab08a9fee34bed0ed963e",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2026-08-04T20:56:36Z",
+        "release": "",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT."
+    },
+    {
+      "repo": "Gersbachlab-Bioinformatics/sc-crispr-de",
+      "skills": [
+        "sc-crispr-de"
+      ],
+      "modules": [
+        "sc_crispr_de_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "ce5598ed7fb4f2a91c0c8b30e9dea69b91690aba",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-06-08T18:35:36Z",
+        "release": "v0.2.0",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. NB GLM + alpha-RRA reimplemented from the method description."
+    },
+    {
+      "repo": "hbliu/Open4Gene",
+      "skills": [
+        "open4gene"
+      ],
+      "modules": [
+        "open4gene_skill.py"
+      ],
+      "license": "",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "6e7f36aa80e6ff778737fc25978337342394cc68",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-03-17T14:52:23Z",
+        "release": "v1.1.0",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "NO LICENCE DECLARED upstream, so default copyright applies and nothing may be copied. Reimplemented from the paper."
+    },
+    {
+      "repo": "IGVF-DACC/igvf-catalog-mcp",
+      "skills": [
+        "catalog"
+      ],
+      "modules": [
+        "catalog_query_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "c6437e780fa770940f92d46b6cd49636acf85202",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-05-19T20:52:49Z",
+        "release": "",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. Endpoint surface only."
+    },
+    {
+      "repo": "IGVF-DACC/igvf-portal-mcp",
+      "skills": [
+        "portal"
+      ],
+      "modules": [
+        "portal_query_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "0ee37d9850c5980d0407bfc9ca4e163fde8ac3d4",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-09-11T12:31:59Z",
+        "release": "",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. Endpoint surface only."
+    },
+    {
+      "repo": "inutano/chip-atlas",
+      "skills": [
+        "chipatlas"
+      ],
+      "modules": [
+        "chipatlas_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "21d848e936cb746e140d657e8464ced367bf395e",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2026-05-30T01:14:30Z",
+        "release": "v4.0.1",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT upstream MCP server; wire contract re-derived to stay stdlib-only."
+    },
+    {
+      "repo": "kircherlab/MPRAlib",
+      "skills": [
+        "mpralib"
+      ],
+      "modules": [
+        "_mpra_schemas.py",
+        "mpralib_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "3bbf20d8bad1a0280b3bd5444538903f46bfcf4f",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2026-08-06T09:22:02Z",
+        "release": "v0.10.6",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT. Schemas and conventions followed."
+    },
+    {
+      "repo": "kircherlab/MPRAOligoDesign",
+      "skills": [
+        "oligo"
+      ],
+      "modules": [
+        "mpra_oligo_design_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "af31df108afb8b07664e64909dc52051878bfd1f",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2026-06-25T08:05:34Z",
+        "release": "v0.1.2",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT."
+    },
+    {
+      "repo": "pinellolab/crispr-bean",
+      "skills": [
+        "bean"
+      ],
+      "modules": [
+        "base_editing_screen.py"
+      ],
+      "license": "AGPL-3.0",
+      "relationship": "wraps-binary",
+      "pinned": {
+        "ref": "44bf0b7092a8433b716deee340f055410c1ff9f9",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-08-13T17:19:06Z",
+        "release": "v1.2.8",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "AGPL-3.0. Installed into its own venv and invoked as a program; no source copied into this repo."
+    },
+    {
+      "repo": "rosstewart/exCALIBR",
+      "skills": [
+        "calibrate"
+      ],
+      "modules": [
+        "excalibr_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "9c1f0c6e2be9fae233d52d69bc9e221659986a9f",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-18T04:17:19Z",
+        "release": "v1.1.0",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "MIT."
+    },
+    {
+      "repo": "saezlab/corneto",
+      "skills": [
+        "network"
+      ],
+      "modules": [
+        "network_integration_skill.py"
+      ],
+      "license": "GPL-3.0",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "c2d24f6c914e2d9fd3ebd5a19fc566f9ddc180a8",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-07T23:41:33Z",
+        "release": "",
+        "pinned_at": "2026-09-17"
+      },
+      "notes": "GPL-3.0 upstream; source explicitly NOT vendored or imported. The MILP formulation is re-derived from the published description."
+    }
+  ]
+}
