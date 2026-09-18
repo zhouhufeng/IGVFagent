@@ -103,6 +103,24 @@ Docs/CrisprScreen/
 Docs/SGE/
 Docs/MCT/
 Docs/RawPipeline/
+# More timestamped run output, same reason as the entries above: these are
+# regenerable analysis artefacts, and PathwayDB/Publications alone are 460 MB.
+Docs/PathwayDB/
+Docs/MPRAlib/
+Docs/Documents/
+Docs/GradientScreen/
+Docs/BaseEditingScreen/
+Docs/RegulomeDB/
+Docs/SCTransform/
+Docs/scCRISPRde/
+Docs/Processed/
+Docs/MatrixQC/
+Docs/scQers/
+Benchmarks/generated.txt
+# Publications/ holds a manuscript and poster — working documents, not code,
+# and not this repo's to publish.
+Docs/Publications/
+
 Docs/EnhancerGene/2*
 Docs/VariantAnnotation/2*
 Docs/Multiome10x/2*
