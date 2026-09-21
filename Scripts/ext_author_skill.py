@@ -27,6 +27,11 @@ Subcommands::
     igvfagent extauthor list
     igvfagent extauthor remove      --name s --kind skill
 
+Re-running ``write-skill`` / ``write-tool`` with the name of an extension
+you already authored is an update: the previous file is kept as ``*.prev``
+and the duplication guard is not consulted (it compares against built-ins
+only). ``--force`` overrides the guard for a genuinely new name.
+
 Pure standard library (``json`` + ``re`` + ``compile``); PyYAML is used only
 if present, and manifests are written as JSON — which every YAML parser reads —
 so the skill never depends on it.
@@ -126,6 +131,32 @@ def known_subcommands() -> "set[str]":
     return names
 
 
+def user_extension_names() -> "set[str]":
+    """Names already authored into an extension directory (tools + skills).
+
+    An authored extension re-submitted under its own name is an UPDATE. It
+    used to be refused twice over -- the duplication guard scored it against
+    its own earlier manifest (user tools are merged into the registry, so
+    they look like core tools from here), and the built-in clash check then
+    reported it as "already a built-in tool name". The hosted agent hit both
+    when it tried to re-register a fixed census skill, and had to register
+    the fix under a second name, leaving the broken original in a shared
+    workspace.
+    """
+    names: "set[str]" = set()
+    try:
+        names |= {t.get("name", "") for t in _userext.discover_tools()}
+        names |= {sub.replace("-", "_") for sub in _userext.discover_skills()}
+    except Exception:
+        pass
+    names.discard("")
+    return names
+
+
+def is_update(name: str) -> bool:
+    return (name or "").strip() in user_extension_names()
+
+
 def _check_name(name: str, *, kind: str) -> str:
     name = (name or "").strip()
     if not _NAME_RE.match(name):
@@ -139,12 +170,31 @@ def _check_name(name: str, *, kind: str) -> str:
         from igvfagent import _tools
     except Exception:  # pragma: no cover
         import _tools  # type: ignore
-    if any(t.name == name for t in _tools.list_tools()):
+    # A registry entry that did NOT come from a user manifest is a built-in,
+    # and stays refused even when a stale extension of the same name exists
+    # on disk (the loader skips that extension, so "updating" it would run
+    # the built-in anyway).
+    user_in_registry = getattr(_tools, "_USER_TOOL_NAMES", set())
+    if any(t.name == name and t.name not in user_in_registry
+           for t in _tools.list_tools()):
         raise InvalidExtension(
             f"{name!r} is already a built-in tool name — pick another; a "
             "shadowing extension would be ignored by the loader."
         )
     return name
+
+
+def _keep_previous(path: Path) -> "Optional[Path]":
+    """Move an existing file aside as ``<name>.prev`` before overwriting.
+
+    The loader only picks up ``.py`` / ``.json`` / ``.yaml`` / ``.yml``, so
+    the copy is inert; it exists so a bad re-author can be undone by hand.
+    """
+    if not path.is_file():
+        return None
+    prev = path.with_name(path.name + ".prev")
+    shutil.copyfile(path, prev)
+    return prev
 
 
 # --------------------------------------------------------------------------
@@ -211,6 +261,7 @@ def write_tool(*, name: str, description: str,
     d = _target_dir() / "tools"
     d.mkdir(parents=True, exist_ok=True)
     path = d / f"{name}.json"          # JSON is valid YAML — no PyYAML needed
+    _keep_previous(path)
     path.write_text(json.dumps(manifest, indent=2) + "\n")
     return path
 
@@ -284,6 +335,7 @@ def write_skill(*, name: str, description: str,
     d = _target_dir() / "skills"
     d.mkdir(parents=True, exist_ok=True)
     path = d / f"{name}.py"
+    _keep_previous(path)
     path.write_text(source if source.endswith("\n") else source + "\n")
 
     if register_tool:
@@ -313,6 +365,7 @@ def write_skill(*, name: str, description: str,
             manifest["flag_map"] = fmap
         td = _target_dir() / "tools"
         td.mkdir(parents=True, exist_ok=True)
+        _keep_previous(td / f"{name}.json")
         (td / f"{name}.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
         if not schema.get("properties"):
@@ -455,7 +508,12 @@ def find_similar_core_tools(name: str, description: str,
     except Exception:
         return []
 
-    core = [t for t in tools_mod.list_tools() if not getattr(t, "command", None)]
+    # User extensions are merged into the registry, and a `cli`-style one
+    # has no `command`, so without this filter a proposal is scored against
+    # its own previous version -- and refused for duplicating itself.
+    user = user_extension_names() | {name}
+    core = [t for t in tools_mod.list_tools()
+            if not getattr(t, "command", None) and t.name not in user]
     if not core:
         return []
 
@@ -583,12 +641,17 @@ def main(argv=None) -> int:
 
     try:
         if args.cmd in ("write-tool", "write-skill"):
-            # Authoring is for gaps, not for shadowing a core tool.
-            refusal = duplication_refusal(args.name, args.description,
-                                           force=getattr(args, "force", False))
-            if refusal:
-                print(refusal)
-                return 3
+            if is_update(args.name):
+                print(f"Updating existing extension `{args.name}` (previous "
+                      f"version kept beside it as *.prev).")
+            else:
+                # Authoring is for gaps, not for shadowing a core tool.
+                refusal = duplication_refusal(
+                    args.name, args.description,
+                    force=getattr(args, "force", False))
+                if refusal:
+                    print(refusal)
+                    return 3
         if args.cmd == "write-tool":
             p = write_tool(name=args.name, description=args.description,
                            cli=args.cli, command=args.command,

@@ -1,0 +1,3 @@
+accession,@type,preferred_assay_titles,assay_titles,file_set_type,lab.title,status,release_timestamp,summary,content_type,file_format,assembly,file_size,file_set.@id,classifications,sample_terms.term_id,samples.sample_terms.term_id
+IGVFSM8486DOEQ,InVitroSystem,,,,"External Lab, Community",released,2025-07-17T18:00:17.517309+00:00,virtual Homo sapiens GM12878 cell line,,,,,,cell line,,
+IGVFSM9674YEMN,InVitroSystem,,,,"Harinder Singh, University of Pittsburgh",released,2025-12-19T18:20:38.941421+00:00,"Homo sapiens (female, European) GM12878 cell line transfected with a reporter library targeting accessible genome regions, TF binding sites genome-wide",,,,,,cell line,,

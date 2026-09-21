@@ -1,0 +1,44 @@
+term,count
+TF ChIP-seq,213
+intact Hi-C,68
+Control ChIP-seq,33
+Histone ChIP-seq,15
+polyA plus RNA-seq,15
+RIP-seq,14
+scRNA-seq,13
+RIP-chip,11
+RNA microarray,8
+ChIA-PET,7
+CAGE,6
+DNase-seq,6
+Repli-seq,6
+in situ Hi-C,6
+small RNA-seq,6
+total RNA-seq,6
+MS-MS,5
+long read RNA-seq,4
+microRNA-seq,4
+DNA-PET,3
+DNAme array,3
+polyA minus RNA-seq,3
+snATAC-seq,3
+5C,2
+ATAC-seq,2
+Bru-seq,2
+BruChase-seq,2
+GRO-cap,2
+MRE-seq,2
+RNA-PET,2
+RRBS,2
+WGBS,2
+dilution Hi-C,2
+genotyping array,2
+icSHAPE,2
+BruUV-seq,1
+FAIRE-seq,1
+Hi-C,1
+MNase-seq,1
+MeDIP-seq,1
+PAS-seq,1
+RAMPAGE,1
+microRNA counts,1

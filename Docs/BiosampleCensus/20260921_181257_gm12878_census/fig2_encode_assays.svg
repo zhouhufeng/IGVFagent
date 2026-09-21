@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="504" viewBox="0 0 760 504" font-family="Inter, Helvetica, Arial, sans-serif">
+<rect width="760" height="504" fill="#fcfcfb"/>
+<text x="20" y="26" font-size="16" font-weight="700" fill="#0b0b0b">ENCODE GM12878 experiments by assay</text>
+<text x="20" y="58" font-size="13" font-weight="600" fill="#0b0b0b">count</text>
+<text x="242" y="87" font-size="11" text-anchor="end" fill="#52514e">TF ChIP-seq</text>
+<rect x="250" y="76" width="420" height="16" rx="3" fill="#2a78d6"/>
+<text x="676" y="87" font-size="11" fill="#0b0b0b">213</text>
+<text x="242" y="107" font-size="11" text-anchor="end" fill="#52514e">intact Hi-C</text>
+<rect x="250" y="96" width="134" height="16" rx="3" fill="#2a78d6"/>
+<text x="390" y="107" font-size="11" fill="#0b0b0b">68</text>
+<text x="242" y="127" font-size="11" text-anchor="end" fill="#52514e">Control ChIP-seq</text>
+<rect x="250" y="116" width="65" height="16" rx="3" fill="#2a78d6"/>
+<text x="321" y="127" font-size="11" fill="#0b0b0b">33</text>
+<text x="242" y="147" font-size="11" text-anchor="end" fill="#52514e">Histone ChIP-seq</text>
+<rect x="250" y="136" width="29" height="16" rx="3" fill="#2a78d6"/>
+<text x="285" y="147" font-size="11" fill="#0b0b0b">15</text>
+<text x="242" y="167" font-size="11" text-anchor="end" fill="#52514e">polyA plus RNA-seq</text>
+<rect x="250" y="156" width="29" height="16" rx="3" fill="#2a78d6"/>
+<text x="285" y="167" font-size="11" fill="#0b0b0b">15</text>
+<text x="242" y="187" font-size="11" text-anchor="end" fill="#52514e">RIP-seq</text>
+<rect x="250" y="176" width="27" height="16" rx="3" fill="#2a78d6"/>
+<text x="283" y="187" font-size="11" fill="#0b0b0b">14</text>
+<text x="242" y="207" font-size="11" text-anchor="end" fill="#52514e">scRNA-seq</text>
+<rect x="250" y="196" width="25" height="16" rx="3" fill="#2a78d6"/>
+<text x="281" y="207" font-size="11" fill="#0b0b0b">13</text>
+<text x="242" y="227" font-size="11" text-anchor="end" fill="#52514e">RIP-chip</text>
+<rect x="250" y="216" width="21" height="16" rx="3" fill="#2a78d6"/>
+<text x="277" y="227" font-size="11" fill="#0b0b0b">11</text>
+<text x="242" y="247" font-size="11" text-anchor="end" fill="#52514e">RNA microarray</text>
+<rect x="250" y="236" width="15" height="16" rx="3" fill="#2a78d6"/>
+<text x="271" y="247" font-size="11" fill="#0b0b0b">8</text>
+<text x="242" y="267" font-size="11" text-anchor="end" fill="#52514e">ChIA-PET</text>
+<rect x="250" y="256" width="13" height="16" rx="3" fill="#2a78d6"/>
+<text x="269" y="267" font-size="11" fill="#0b0b0b">7</text>
+<text x="242" y="287" font-size="11" text-anchor="end" fill="#52514e">CAGE</text>
+<rect x="250" y="276" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="287" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="307" font-size="11" text-anchor="end" fill="#52514e">DNase-seq</text>
+<rect x="250" y="296" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="307" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="327" font-size="11" text-anchor="end" fill="#52514e">Repli-seq</text>
+<rect x="250" y="316" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="327" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="347" font-size="11" text-anchor="end" fill="#52514e">in situ Hi-C</text>
+<rect x="250" y="336" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="347" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="367" font-size="11" text-anchor="end" fill="#52514e">small RNA-seq</text>
+<rect x="250" y="356" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="367" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="387" font-size="11" text-anchor="end" fill="#52514e">total RNA-seq</text>
+<rect x="250" y="376" width="11" height="16" rx="3" fill="#2a78d6"/>
+<text x="267" y="387" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="407" font-size="11" text-anchor="end" fill="#52514e">MS-MS</text>
+<rect x="250" y="396" width="9" height="16" rx="3" fill="#2a78d6"/>
+<text x="265" y="407" font-size="11" fill="#0b0b0b">5</text>
+<text x="242" y="427" font-size="11" text-anchor="end" fill="#52514e">long read RNA-seq</text>
+<rect x="250" y="416" width="7" height="16" rx="3" fill="#2a78d6"/>
+<text x="263" y="427" font-size="11" fill="#0b0b0b">4</text>
+<text x="242" y="447" font-size="11" text-anchor="end" fill="#52514e">microRNA-seq</text>
+<rect x="250" y="436" width="7" height="16" rx="3" fill="#2a78d6"/>
+<text x="263" y="447" font-size="11" fill="#0b0b0b">4</text>
+<text x="242" y="467" font-size="11" text-anchor="end" fill="#52514e">DNA-PET</text>
+<rect x="250" y="456" width="5" height="16" rx="3" fill="#2a78d6"/>
+<text x="261" y="467" font-size="11" fill="#0b0b0b">3</text>
+<text x="242" y="487" font-size="11" text-anchor="end" fill="#52514e">Other (23 more)</text>
+<rect x="250" y="476" width="80" height="16" rx="3" fill="#2a78d6"/>
+<text x="336" y="487" font-size="11" fill="#0b0b0b">41</text>
+<line x1="250" y1="72" x2="250" y2="494" stroke="#d0cfca" stroke-width="1"/>
+</svg>

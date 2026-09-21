@@ -1,0 +1,17 @@
+portal,type,total,released,filter_field,http_status,url
+encode,Experiment,490,437,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=Experiment&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,FunctionalCharacterizationExperiment,17,17,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=FunctionalCharacterizationExperiment&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,Annotation,3287,2512,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=Annotation&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,ReferenceEpigenome,2,1,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=ReferenceEpigenome&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,Series,11,0,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=Series&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,Biosample,421,417,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=Biosample&biosample_ontology.term_name=GM12878&format=json&limit=0
+encode,File,29333,24328,biosample_ontology.term_name,200,https://www.encodeproject.org/search/?type=File&biosample_ontology.term_name=GM12878&format=json&limit=0
+igvf,MeasurementSet,5,5,samples.sample_terms.term_name,200,https://api.data.igvf.org/search/?type=MeasurementSet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,AnalysisSet,0,0,samples.sample_terms.term_name,404,https://api.data.igvf.org/search/?type=AnalysisSet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,AuxiliarySet,0,0,samples.sample_terms.term_name,404,https://api.data.igvf.org/search/?type=AuxiliarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,PredictionSet,1,1,samples.sample_terms.term_name,200,https://api.data.igvf.org/search/?type=PredictionSet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,ConstructLibrarySet,1,1,samples.sample_terms.term_name,200,https://api.data.igvf.org/search/?type=ConstructLibrarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,ModelSet,0,0,samples.sample_terms.term_name,404,https://api.data.igvf.org/search/?type=ModelSet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,CuratedSet,3,1,samples.sample_terms.term_name,200,https://api.data.igvf.org/search/?type=CuratedSet&samples.sample_terms.term_name=GM12878&format=json&limit=0
+igvf,Sample,2,2,sample_terms.term_name,200,https://api.data.igvf.org/search/?type=Sample&sample_terms.term_name=GM12878&format=json&limit=0
+igvf,File,11,10,file_set.samples.sample_terms.term_name,200,https://api.data.igvf.org/search/?type=File&file_set.samples.sample_terms.term_name=GM12878&format=json&limit=0

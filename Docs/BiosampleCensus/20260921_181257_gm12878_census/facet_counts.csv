@@ -1,0 +1,849 @@
+portal,type,facet,term,count
+encode,Experiment,assay_title,TF ChIP-seq,213
+encode,Experiment,assay_title,intact Hi-C,68
+encode,Experiment,assay_title,Control ChIP-seq,33
+encode,Experiment,assay_title,Histone ChIP-seq,15
+encode,Experiment,assay_title,polyA plus RNA-seq,15
+encode,Experiment,assay_title,RIP-seq,14
+encode,Experiment,assay_title,scRNA-seq,13
+encode,Experiment,assay_title,RIP-chip,11
+encode,Experiment,assay_title,RNA microarray,8
+encode,Experiment,assay_title,ChIA-PET,7
+encode,Experiment,assay_title,CAGE,6
+encode,Experiment,assay_title,DNase-seq,6
+encode,Experiment,assay_title,Repli-seq,6
+encode,Experiment,assay_title,in situ Hi-C,6
+encode,Experiment,assay_title,small RNA-seq,6
+encode,Experiment,assay_title,total RNA-seq,6
+encode,Experiment,assay_title,MS-MS,5
+encode,Experiment,assay_title,long read RNA-seq,4
+encode,Experiment,assay_title,microRNA-seq,4
+encode,Experiment,assay_title,DNA-PET,3
+encode,Experiment,assay_title,DNAme array,3
+encode,Experiment,assay_title,polyA minus RNA-seq,3
+encode,Experiment,assay_title,snATAC-seq,3
+encode,Experiment,assay_title,5C,2
+encode,Experiment,assay_title,ATAC-seq,2
+encode,Experiment,assay_title,Bru-seq,2
+encode,Experiment,assay_title,BruChase-seq,2
+encode,Experiment,assay_title,GRO-cap,2
+encode,Experiment,assay_title,MRE-seq,2
+encode,Experiment,assay_title,RNA-PET,2
+encode,Experiment,assay_title,RRBS,2
+encode,Experiment,assay_title,WGBS,2
+encode,Experiment,assay_title,dilution Hi-C,2
+encode,Experiment,assay_title,genotyping array,2
+encode,Experiment,assay_title,icSHAPE,2
+encode,Experiment,assay_title,BruUV-seq,1
+encode,Experiment,assay_title,FAIRE-seq,1
+encode,Experiment,assay_title,Hi-C,1
+encode,Experiment,assay_title,MNase-seq,1
+encode,Experiment,assay_title,MeDIP-seq,1
+encode,Experiment,assay_title,PAS-seq,1
+encode,Experiment,assay_title,RAMPAGE,1
+encode,Experiment,assay_title,microRNA counts,1
+encode,Experiment,status,released,437
+encode,Experiment,status,archived,29
+encode,Experiment,status,revoked,24
+encode,Experiment,target.label,CTCF,7
+encode,Experiment,target.label,POLR2A,5
+encode,Experiment,target.label,RAD21,5
+encode,Experiment,target.label,EP300,4
+encode,Experiment,target.label,BHLHE40,3
+encode,Experiment,target.label,CHD1,3
+encode,Experiment,target.label,ELAVL1,3
+encode,Experiment,target.label,H3K4me3,3
+encode,Experiment,target.label,IKZF1,3
+encode,Experiment,target.label,PABPC1,3
+encode,Experiment,target.label,SRF,3
+encode,Experiment,target.label,SUZ12,3
+encode,Experiment,target.label,T7,3
+encode,Experiment,target.label,ARID3A,2
+encode,Experiment,target.label,ATF2,2
+encode,Experiment,target.label,BACH1,2
+encode,Experiment,target.label,BCLAF1,2
+encode,Experiment,target.label,CEBPB,2
+encode,Experiment,target.label,CHD4,2
+encode,Experiment,target.label,EBF1,2
+encode,Experiment,target.label,EGR1,2
+encode,Experiment,target.label,ELF1,2
+encode,Experiment,target.label,ETV6,2
+encode,Experiment,target.label,GABPA,2
+encode,Experiment,target.label,H3K27me3,2
+encode,Experiment,target.label,H3K36me3,2
+encode,Experiment,target.label,IGF2BP1,2
+encode,Experiment,target.label,IKZF2,2
+encode,Experiment,target.label,IRF3,2
+encode,Experiment,target.label,JUND,2
+encode,Experiment,target.label,MAX,2
+encode,Experiment,target.label,MAZ,2
+encode,Experiment,target.label,PAX5,2
+encode,Experiment,target.label,RB1,2
+encode,Experiment,target.label,RELA,2
+encode,Experiment,target.label,REST,2
+encode,Experiment,target.label,STAT1,2
+encode,Experiment,target.label,TARDBP,2
+encode,Experiment,target.label,TCF12,2
+encode,Experiment,target.label,TRIM22,2
+encode,Experiment,target.label,YY1,2
+encode,Experiment,target.label,ZBTB33,2
+encode,Experiment,target.label,ZNF143,2
+encode,Experiment,target.label,ARNT,1
+encode,Experiment,target.label,ASH2L,1
+encode,Experiment,target.label,ATF3,1
+encode,Experiment,target.label,ATF7,1
+encode,Experiment,target.label,BATF,1
+encode,Experiment,target.label,BCL11A,1
+encode,Experiment,target.label,BCL3,1
+encode,Experiment,target.label,BMI1,1
+encode,Experiment,target.label,BRCA1,1
+encode,Experiment,target.label,CBFB,1
+encode,Experiment,target.label,CBX3,1
+encode,Experiment,target.label,CBX5,1
+encode,Experiment,target.label,CBX8,1
+encode,Experiment,target.label,CEBPZ,1
+encode,Experiment,target.label,CELF1,1
+encode,Experiment,target.label,CHD2,1
+encode,Experiment,target.label,CHD7,1
+encode,Experiment,target.label,CREB1,1
+encode,Experiment,target.label,CREBBP,1
+encode,Experiment,target.label,CREM,1
+encode,Experiment,target.label,CTBP1,1
+encode,Experiment,target.label,CUX1,1
+encode,Experiment,target.label,DNMT1,1
+encode,Experiment,target.label,DPF2,1
+encode,Experiment,target.label,E2F1,1
+encode,Experiment,target.label,E2F4,1
+encode,Experiment,target.label,E2F8,1
+encode,Experiment,target.label,E4F1,1
+encode,Experiment,target.label,EED,1
+encode,Experiment,target.label,ELK1,1
+encode,Experiment,target.label,ESRRA,1
+encode,Experiment,target.label,ETS1,1
+encode,Experiment,target.label,EZH2,1
+encode,Experiment,target.label,FOS,1
+encode,Experiment,target.label,FOXK2,1
+encode,Experiment,target.label,FOXM1,1
+encode,Experiment,target.label,GATAD2B,1
+encode,Experiment,target.label,GTF2F1,1
+encode,Experiment,target.label,H2AFZ,1
+encode,Experiment,target.label,H3K27ac,1
+encode,Experiment,target.label,H3K4me1,1
+encode,Experiment,target.label,H3K4me2,1
+encode,Experiment,target.label,H3K79me2,1
+encode,Experiment,target.label,H3K9ac,1
+encode,Experiment,target.label,H3K9me3,1
+encode,Experiment,target.label,H4K20me1,1
+encode,Experiment,target.label,HCFC1,1
+encode,Experiment,target.label,HDAC1,1
+encode,Experiment,target.label,HDAC2,1
+encode,Experiment,target.label,HDAC6,1
+encode,Experiment,target.label,HDGF,1
+encode,Experiment,target.label,HNRNPH1,1
+encode,Experiment,target.label,HSF1,1
+encode,Experiment,target.label,IRF4,1
+encode,Experiment,target.label,IRF5,1
+encode,Experiment,target.label,JUNB,1
+encode,Experiment,target.label,KAT2A,1
+encode,Experiment,target.label,KDM1A,1
+encode,Experiment,target.label,KDM5A,1
+encode,Experiment,target.label,KLF5,1
+encode,Experiment,target.label,LARP7,1
+encode,Experiment,target.label,MAFF,1
+encode,Experiment,target.label,MAFK,1
+encode,Experiment,target.label,MEF2A,1
+encode,Experiment,target.label,MEF2B,1
+encode,Experiment,target.label,MEF2C,1
+encode,Experiment,target.label,MLLT1,1
+encode,Experiment,target.label,MTA2,1
+encode,Experiment,target.label,MTA3,1
+encode,Experiment,target.label,MXI1,1
+encode,Experiment,target.label,MYB,1
+encode,Experiment,target.label,MYC,1
+encode,Experiment,target.label,Methylcytidine,1
+encode,Experiment,target.label,NBN,1
+encode,Experiment,target.label,NFATC1,1
+encode,Experiment,target.label,NFATC3,1
+encode,Experiment,target.label,NFE2,1
+encode,Experiment,target.label,NFIC,1
+encode,Experiment,target.label,NFXL1,1
+encode,Experiment,target.label,NFYA,1
+encode,Experiment,target.label,NFYB,1
+encode,Experiment,target.label,NKRF,1
+encode,Experiment,target.label,NR2C1,1
+encode,Experiment,target.label,NR2C2,1
+encode,Experiment,target.label,NR2F1,1
+encode,Experiment,target.label,NR3C1,1
+encode,Experiment,target.label,NRF1,1
+encode,Experiment,target.label,PAX8,1
+encode,Experiment,target.label,PBX3,1
+encode,Experiment,target.label,PKNOX1,1
+encode,Experiment,target.label,PML,1
+encode,Experiment,target.label,POLR2AphosphoS2,1
+encode,Experiment,target.label,POLR2AphosphoS5,1
+encode,Experiment,target.label,POLR3G,1
+encode,Experiment,target.label,POU2F2,1
+encode,Experiment,target.label,PRDM15,1
+encode,Experiment,target.label,RAD51,1
+encode,Experiment,target.label,RBBP5,1
+encode,Experiment,target.label,RCOR1,1
+encode,Experiment,target.label,RELB,1
+encode,Experiment,target.label,RFX5,1
+encode,Experiment,target.label,RNF2,1
+encode,Experiment,target.label,RUNX3,1
+encode,Experiment,target.label,RXRA,1
+encode,Experiment,target.label,SIN3A,1
+encode,Experiment,target.label,SIX5,1
+encode,Experiment,target.label,SKIL,1
+encode,Experiment,target.label,SLBP,1
+encode,Experiment,target.label,SMAD1,1
+encode,Experiment,target.label,SMAD5,1
+encode,Experiment,target.label,SMARCA5,1
+encode,Experiment,target.label,SMC1A,1
+encode,Experiment,target.label,SMC3,1
+encode,Experiment,target.label,SP1,1
+encode,Experiment,target.label,SPI1,1
+encode,Experiment,target.label,SREBF1,1
+encode,Experiment,target.label,SREBF2,1
+encode,Experiment,target.label,STAT3,1
+encode,Experiment,target.label,STAT5A,1
+encode,Experiment,target.label,SUPT20H,1
+encode,Experiment,target.label,TAF1,1
+encode,Experiment,target.label,TBL1XR1,1
+encode,Experiment,target.label,TBP,1
+encode,Experiment,target.label,TBX21,1
+encode,Experiment,target.label,TCF3,1
+encode,Experiment,target.label,TCF7,1
+encode,Experiment,target.label,UBTF,1
+encode,Experiment,target.label,USF1,1
+encode,Experiment,target.label,USF2,1
+encode,Experiment,target.label,WHSC1,1
+encode,Experiment,target.label,WRNIP1,1
+encode,Experiment,target.label,YBX1,1
+encode,Experiment,target.label,ZBED1,1
+encode,Experiment,target.label,ZBTB11,1
+encode,Experiment,target.label,ZBTB17,1
+encode,Experiment,target.label,ZBTB4,1
+encode,Experiment,target.label,ZBTB40,1
+encode,Experiment,target.label,ZEB1,1
+encode,Experiment,target.label,ZFP36,1
+encode,Experiment,target.label,ZNF207,1
+encode,Experiment,target.label,ZNF217,1
+encode,Experiment,target.label,ZNF24,1
+encode,Experiment,target.label,ZNF274,1
+encode,Experiment,target.label,ZNF384,1
+encode,Experiment,target.label,ZNF592,1
+encode,Experiment,target.label,ZNF622,1
+encode,Experiment,target.label,ZNF687,1
+encode,Experiment,target.label,ZSCAN29,1
+encode,Experiment,target.label,ZZZ3,1
+encode,Experiment,replicates.library.biosample.treatments.treatment_term_name,tumor necrosis factor,2
+encode,Experiment,replicates.library.biosample.treatments.treatment_term_name,NAI-N3,1
+encode,Experiment,replicates.library.biosample.treatments.treatment_term_name,dimethyl sulfoxide,1
+encode,Experiment,replicates.library.biosample.treatments.treatment_term_name,irradiation,1
+encode,Experiment,award.rfa,ENCODE2,210
+encode,Experiment,award.rfa,ENCODE3,160
+encode,Experiment,award.rfa,ENCODE4,118
+encode,Experiment,award.rfa,community,2
+encode,Experiment,assembly,GRCh38,378
+encode,Experiment,assembly,hg19,308
+encode,Experiment,files.file_type,fastq,427
+encode,Experiment,files.file_type,bam,422
+encode,Experiment,files.file_type,bigWig,377
+encode,Experiment,files.file_type,bed narrowPeak,215
+encode,Experiment,files.file_type,bigBed narrowPeak,214
+encode,Experiment,files.file_type,bed idr_ranked_peak,190
+encode,Experiment,files.file_type,bed broadPeak,93
+encode,Experiment,files.file_type,bigBed broadPeak,93
+encode,Experiment,files.file_type,hic,81
+encode,Experiment,files.file_type,tsv,71
+encode,Experiment,files.file_type,gtf,23
+encode,Experiment,files.file_type,bed bedRnaElements,18
+encode,Experiment,files.file_type,bigBed bedRnaElements,18
+encode,Experiment,files.file_type,tagAlign,12
+encode,Experiment,files.file_type,bedpe,11
+encode,Experiment,files.file_type,bed bed9+,9
+encode,Experiment,files.file_type,tar,9
+encode,Experiment,files.file_type,bed bed3+,8
+encode,Experiment,files.file_type,pairs,8
+encode,Experiment,files.file_type,bed bed9,7
+encode,Experiment,files.file_type,bed tss_peak,7
+encode,Experiment,files.file_type,bigBed bed9,7
+encode,Experiment,files.file_type,bigBed tss_peak,7
+encode,Experiment,files.file_type,gff gff3,7
+encode,Experiment,files.file_type,bigBed bed3+,6
+encode,Experiment,files.file_type,bed bedGraph,5
+encode,Experiment,files.file_type,bigInteract,5
+encode,Experiment,files.file_type,bigWig bed3+,5
+encode,Experiment,files.file_type,csfasta,5
+encode,Experiment,files.file_type,csqual,5
+encode,Experiment,files.file_type,bed bedMethyl,4
+encode,Experiment,files.file_type,bed idr_peak,4
+encode,Experiment,files.file_type,bigBed bedMethyl,4
+encode,Experiment,files.file_type,bigBed idr_peak,4
+encode,Experiment,files.file_type,bed bed12,3
+encode,Experiment,files.file_type,bed peptideMapping,3
+encode,Experiment,files.file_type,bigBed bed12,3
+encode,Experiment,files.file_type,bigBed peptideMapping,3
+encode,Experiment,files.file_type,idat,3
+encode,Experiment,files.file_type,bed bed3,2
+encode,Experiment,files.file_type,bed modPepMap,2
+encode,Experiment,files.file_type,bed pepMap,2
+encode,Experiment,files.file_type,bigBed bed3,2
+encode,Experiment,files.file_type,bigBed modPepMap,2
+encode,Experiment,files.file_type,bigBed pepMap,2
+encode,Experiment,files.file_type,bed bed6+,1
+encode,Experiment,files.file_type,bed bedLogR,1
+encode,Experiment,files.file_type,bigBed bed6+,1
+encode,Experiment,files.file_type,bigBed bed9+,1
+encode,Experiment,files.file_type,rcc,1
+encode,Experiment,files.file_type,starch,1
+encode,Experiment,date_released,2025-09-22,59
+encode,Experiment,date_released,2011-07-18,38
+encode,Experiment,date_released,2011-10-29,37
+encode,Experiment,date_released,2014-07-07,32
+encode,Experiment,date_released,2014-06-30,20
+encode,Experiment,date_released,2011-02-10,13
+encode,Experiment,date_released,2012-05-14,13
+encode,Experiment,date_released,2012-02-29,11
+encode,Experiment,date_released,2025-09-30,11
+encode,Experiment,date_released,2016-05-04,10
+encode,Experiment,date_released,2011-10-17,9
+encode,Experiment,date_released,2011-04-28,7
+encode,Experiment,date_released,2012-08-20,7
+encode,Experiment,date_released,2017-05-17,7
+encode,Experiment,date_released,2012-02-14,6
+encode,Experiment,date_released,2016-11-23,6
+encode,Experiment,date_released,2009-07-06,5
+encode,Experiment,date_released,2011-03-17,5
+encode,Experiment,date_released,2016-06-13,5
+encode,Experiment,date_released,2017-06-07,5
+encode,Experiment,date_released,2018-01-26,5
+encode,Experiment,date_released,2018-10-29,5
+encode,Experiment,date_released,2021-01-14,5
+encode,Experiment,date_released,2011-02-11,4
+encode,Experiment,date_released,2011-02-14,4
+encode,Experiment,date_released,2011-08-29,4
+encode,Experiment,date_released,2011-09-30,4
+encode,Experiment,date_released,2011-12-22,4
+encode,Experiment,date_released,2016-01-08,4
+encode,Experiment,date_released,2016-08-24,4
+encode,Experiment,date_released,2016-09-20,4
+encode,Experiment,date_released,2017-06-26,4
+encode,Experiment,date_released,2020-08-03,4
+encode,Experiment,date_released,2022-01-20,4
+encode,Experiment,date_released,2011-01-12,3
+encode,Experiment,date_released,2012-02-22,3
+encode,Experiment,date_released,2012-09-10,3
+encode,Experiment,date_released,2016-11-24,3
+encode,Experiment,date_released,2017-01-31,3
+encode,Experiment,date_released,2017-02-21,3
+encode,Experiment,date_released,2022-03-16,3
+encode,Experiment,date_released,2011-02-08,2
+encode,Experiment,date_released,2011-03-21,2
+encode,Experiment,date_released,2011-03-23,2
+encode,Experiment,date_released,2012-07-09,2
+encode,Experiment,date_released,2012-09-11,2
+encode,Experiment,date_released,2014-05-09,2
+encode,Experiment,date_released,2016-02-02,2
+encode,Experiment,date_released,2016-06-14,2
+encode,Experiment,date_released,2016-07-08,2
+encode,Experiment,date_released,2016-07-28,2
+encode,Experiment,date_released,2016-10-27,2
+encode,Experiment,date_released,2016-11-17,2
+encode,Experiment,date_released,2017-01-08,2
+encode,Experiment,date_released,2017-04-14,2
+encode,Experiment,date_released,2017-11-13,2
+encode,Experiment,date_released,2018-02-02,2
+encode,Experiment,date_released,2018-10-30,2
+encode,Experiment,date_released,2019-05-13,2
+encode,Experiment,date_released,2020-08-05,2
+encode,Experiment,date_released,2021-01-04,2
+encode,Experiment,date_released,2021-09-09,2
+encode,Experiment,date_released,2022-05-12,2
+encode,Experiment,date_released,2023-12-18,2
+encode,Experiment,date_released,2009-10-02,1
+encode,Experiment,date_released,2010-11-17,1
+encode,Experiment,date_released,2011-04-01,1
+encode,Experiment,date_released,2011-04-19,1
+encode,Experiment,date_released,2011-05-04,1
+encode,Experiment,date_released,2011-06-14,1
+encode,Experiment,date_released,2011-07-29,1
+encode,Experiment,date_released,2011-08-16,1
+encode,Experiment,date_released,2011-09-29,1
+encode,Experiment,date_released,2011-10-10,1
+encode,Experiment,date_released,2011-11-14,1
+encode,Experiment,date_released,2011-12-01,1
+encode,Experiment,date_released,2012-01-17,1
+encode,Experiment,date_released,2012-03-06,1
+encode,Experiment,date_released,2012-03-22,1
+encode,Experiment,date_released,2013-03-29,1
+encode,Experiment,date_released,2014-07-31,1
+encode,Experiment,date_released,2014-09-29,1
+encode,Experiment,date_released,2014-11-20,1
+encode,Experiment,date_released,2016-01-14,1
+encode,Experiment,date_released,2016-02-05,1
+encode,Experiment,date_released,2016-02-23,1
+encode,Experiment,date_released,2016-03-02,1
+encode,Experiment,date_released,2016-03-30,1
+encode,Experiment,date_released,2016-04-22,1
+encode,Experiment,date_released,2016-06-28,1
+encode,Experiment,date_released,2016-08-05,1
+encode,Experiment,date_released,2016-10-10,1
+encode,Experiment,date_released,2016-10-26,1
+encode,Experiment,date_released,2016-11-08,1
+encode,Experiment,date_released,2016-11-14,1
+encode,Experiment,date_released,2016-11-18,1
+encode,Experiment,date_released,2017-01-27,1
+encode,Experiment,date_released,2017-06-15,1
+encode,Experiment,date_released,2017-06-23,1
+encode,Experiment,date_released,2017-07-24,1
+encode,Experiment,date_released,2017-08-12,1
+encode,Experiment,date_released,2017-11-14,1
+encode,Experiment,date_released,2017-11-30,1
+encode,Experiment,date_released,2017-12-14,1
+encode,Experiment,date_released,2018-01-17,1
+encode,Experiment,date_released,2018-02-13,1
+encode,Experiment,date_released,2018-09-20,1
+encode,Experiment,date_released,2019-06-28,1
+encode,Experiment,date_released,2020-03-20,1
+encode,Experiment,date_released,2020-06-11,1
+encode,Experiment,date_released,2020-09-28,1
+encode,Experiment,date_released,2021-02-20,1
+encode,Experiment,date_released,2021-12-18,1
+encode,Experiment,date_released,2022-03-08,1
+encode,Experiment,date_released,2022-03-22,1
+encode,Experiment,date_released,2022-06-10,1
+encode,Experiment,date_released,2022-07-28,1
+encode,Experiment,date_released,2022-11-08,1
+encode,Experiment,date_released,2025-09-19,1
+encode,Experiment,date_released,2025-09-20,1
+encode,Experiment,date_released,2025-10-13,1
+encode,Experiment,lab.title,"Michael Snyder, Stanford",144
+encode,Experiment,lab.title,"Richard Myers, HAIB",81
+encode,Experiment,lab.title,"Erez Aiden, Baylor",78
+encode,Experiment,lab.title,"Bradley Bernstein, Broad",30
+encode,Experiment,lab.title,"Barbara Wold, Caltech",23
+encode,Experiment,lab.title,"Thomas Gingeras, CSHL",23
+encode,Experiment,lab.title,"John Stamatoyannopoulos, UW",18
+encode,Experiment,lab.title,"Scott Tenenbaum, SUNY-Albany",15
+encode,Experiment,lab.title,"Ali Mortazavi, UCI",10
+encode,Experiment,lab.title,"John Rinn, Broad",10
+encode,Experiment,lab.title,"Yijun Ruan, JAX",10
+encode,Experiment,lab.title,"Piero Carninci, RIKEN",6
+encode,Experiment,lab.title,"Sherman Weissman, Yale",6
+encode,Experiment,lab.title,"Kevin Struhl, HMS",5
+encode,Experiment,lab.title,"Mats Ljungman, UMichigan",5
+encode,Experiment,lab.title,"Morgan Giddings, UNC",5
+encode,Experiment,lab.title,"Vishwanath Iyer, UTA",5
+encode,Experiment,lab.title,"Peggy Farnham, USC",4
+encode,Experiment,lab.title,"Brenton Graveley, UConn",2
+encode,Experiment,lab.title,Charles Lee,2
+encode,Experiment,lab.title,"Gregory Crawford, Duke",2
+encode,Experiment,lab.title,"John Lis, Cornell",2
+encode,Experiment,lab.title,"Rob Spitale, UCI",2
+encode,Experiment,lab.title,"Jason Lieb, UNC",1
+encode,Experiment,lab.title,"Job Dekker, UMass",1
+encode,FunctionalCharacterizationExperiment,assay_title,MPRA,9
+encode,FunctionalCharacterizationExperiment,assay_title,Flow-FISH CRISPR screen,6
+encode,FunctionalCharacterizationExperiment,assay_title,perturbation followed by snATAC-seq,1
+encode,FunctionalCharacterizationExperiment,assay_title,pooled clone sequencing,1
+encode,FunctionalCharacterizationExperiment,status,released,17
+encode,FunctionalCharacterizationExperiment,assembly,hg19,14
+encode,FunctionalCharacterizationExperiment,assembly,GRCh38,8
+encode,FunctionalCharacterizationExperiment,lab.title,"Ryan Tewhey, JAX",9
+encode,FunctionalCharacterizationExperiment,lab.title,"Jesse Engreitz, Stanford",6
+encode,FunctionalCharacterizationExperiment,lab.title,"Will Greenleaf, Stanford",2
+encode,Annotation,annotation_type,footprints,2486
+encode,Annotation,annotation_type,imputation,402
+encode,Annotation,annotation_type,gkm-SVM-model,187
+encode,Annotation,annotation_type,BPNet-model,141
+encode,Annotation,annotation_type,BPNet-control,32
+encode,Annotation,annotation_type,candidate Cis-Regulatory Elements,14
+encode,Annotation,annotation_type,element gene regulatory interaction predictions,9
+encode,Annotation,annotation_type,chromatin state,8
+encode,Annotation,annotation_type,ChromBPNet-model,5
+encode,Annotation,annotation_type,ChromBPNet-bias-model,1
+encode,Annotation,annotation_type,curated SNVs,1
+encode,Annotation,annotation_type,overlap,1
+encode,Annotation,status,released,2512
+encode,Annotation,status,archived,772
+encode,Annotation,status,revoked,3
+encode,Annotation,encyclopedia_version,current,356
+encode,Annotation,encyclopedia_version,ENCODE v5,336
+encode,Annotation,encyclopedia_version,ENCODE v1,29
+encode,Annotation,encyclopedia_version,ENCODE v2,20
+encode,Annotation,encyclopedia_version,ENCODE v0.3,8
+encode,Annotation,encyclopedia_version,ENCODE v0.2,3
+encode,Annotation,encyclopedia_version,ENCODE v4,2
+encode,Annotation,encyclopedia_version,ENCODE v3,1
+encode,Annotation,encyclopedia_version,Roadmap,1
+encode,Annotation,assembly,GRCh38,2251
+encode,Annotation,assembly,hg19,76
+encode,Annotation,lab.title,"Alan Boyle, University of Michigan",2487
+encode,Annotation,lab.title,"Bill Noble, UW",385
+encode,Annotation,lab.title,"Michael Beer, JHU",187
+encode,Annotation,lab.title,"Anshul Kundaje, Stanford",179
+encode,Annotation,lab.title,"Manolis Kellis, Broad",21
+encode,Annotation,lab.title,"Zhiping Weng, UMass",15
+encode,Annotation,lab.title,"Jesse Engreitz, Stanford",7
+encode,Annotation,lab.title,"Bradley Bernstein, Broad",1
+encode,Annotation,lab.title,"Christina Leslie, MSKCC",1
+encode,Annotation,lab.title,ENCODE Consortium Analysis Working Group,1
+encode,Annotation,lab.title,"Gregory Crawford, Duke",1
+encode,Annotation,lab.title,"Maxwell Libbrecht, SFU",1
+encode,Annotation,lab.title,"Roderic Guigo, CRG",1
+encode,ReferenceEpigenome,status,archived,1
+encode,ReferenceEpigenome,status,released,1
+encode,ReferenceEpigenome,lab.title,"Anshul Kundaje, Stanford",1
+encode,ReferenceEpigenome,lab.title,ENCODE Consortium,1
+encode,Series,type,Dataset,11
+encode,Series,type,Series,11
+encode,Series,type,AggregateSeries,5
+encode,Series,type,ReferenceEpigenome,2
+encode,Series,type,FunctionalCharacterizationSeries,1
+encode,Series,type,PulseChaseTimeSeries,1
+encode,Series,type,ReplicationTimingSeries,1
+encode,Series,type,TreatmentConcentrationSeries,1
+encode,Biosample,status,released,417
+encode,Biosample,status,revoked,4
+encode,Biosample,treatments.treatment_term_name,NAI-N3,2
+encode,Biosample,treatments.treatment_term_name,dimethyl sulfoxide,2
+encode,Biosample,treatments.treatment_term_name,irradiation,2
+encode,Biosample,treatments.treatment_term_name,tumor necrosis factor,1
+encode,Biosample,lab.title,"Erez Aiden, Baylor",97
+encode,Biosample,lab.title,"John Stamatoyannopoulos, UW",56
+encode,Biosample,lab.title,"Michael Snyder, Stanford",56
+encode,Biosample,lab.title,"Ryan Tewhey, JAX",44
+encode,Biosample,lab.title,"Thomas Gingeras, CSHL",25
+encode,Biosample,lab.title,"Barbara Wold, Caltech",20
+encode,Biosample,lab.title,"Mats Ljungman, UMichigan",17
+encode,Biosample,lab.title,"Ali Mortazavi, UCI",16
+encode,Biosample,lab.title,"Richard Myers, HAIB",14
+encode,Biosample,lab.title,"Bradley Bernstein, Broad",13
+encode,Biosample,lab.title,"Jesse Engreitz, Stanford",12
+encode,Biosample,lab.title,"Yijun Ruan, JAX",11
+encode,Biosample,lab.title,"Morgan Giddings, UNC",9
+encode,Biosample,lab.title,"Piero Carninci, RIKEN",9
+encode,Biosample,lab.title,"Peggy Farnham, USC",8
+encode,Biosample,lab.title,"Rob Spitale, UCI",4
+encode,Biosample,lab.title,Charles Lee,2
+encode,Biosample,lab.title,"Vishwanath Iyer, UTA",2
+encode,Biosample,lab.title,"Gregory Crawford, Duke",1
+encode,Biosample,lab.title,"Job Dekker, UMass",1
+encode,Biosample,lab.title,"John Lis, Cornell",1
+encode,Biosample,lab.title,"Scott Tenenbaum, SUNY-Albany",1
+encode,Biosample,lab.title,Unknown Lab,1
+encode,Biosample,lab.title,"Will Greenleaf, Stanford",1
+encode,File,status,released,24328
+encode,File,status,archived,3748
+encode,File,status,revoked,1257
+encode,File,output_category,annotation,13522
+encode,File,output_category,signal,7519
+encode,File,output_category,alignment,4100
+encode,File,output_category,raw data,3025
+encode,File,output_category,quantification,1007
+encode,File,output_category,reference,155
+encode,File,output_category,validation,5
+encode,File,output_type,reads,2944
+encode,File,output_type,footprints,2498
+encode,File,output_type,alignments,2464
+encode,File,output_type,signal p-value,2136
+encode,File,output_type,peaks and background as input for IDR,2132
+encode,File,output_type,fold change over control,1794
+encode,File,output_type,unfiltered alignments,1448
+encode,File,output_type,IDR thresholded peaks,1244
+encode,File,output_type,conservative IDR thresholded peaks,1086
+encode,File,output_type,optimal IDR thresholded peaks,922
+encode,File,output_type,peaks,868
+encode,File,output_type,IDR ranked peaks,812
+encode,File,output_type,mapping quality thresholded contact matrix,623
+encode,File,output_type,haplotype-specific contact matrix,472
+encode,File,output_type,haplotype-specific nuclease cleavage frequency,472
+encode,File,output_type,counts sequence contribution scores,292
+encode,File,output_type,profile sequence contribution scores,292
+encode,File,output_type,selected regions for predicted signal and sequence contribution scores,292
+encode,File,output_type,sequence motifs instances,280
+encode,File,output_type,gene quantifications,263
+encode,File,output_type,nuclease cleavage frequency,239
+encode,File,output_type,transcript quantifications,238
+encode,File,output_type,minus strand signal of all reads,225
+encode,File,output_type,plus strand signal of all reads,225
+encode,File,output_type,minus strand signal of unique reads,194
+encode,File,output_type,plus strand signal of unique reads,194
+encode,File,output_type,kmer weights,192
+encode,File,output_type,TF binding prediction model,182
+encode,File,output_type,signal of unique reads,160
+encode,File,output_type,transcriptome alignments,160
+encode,File,output_type,predicted signal profile,151
+encode,File,output_type,sequence motifs,148
+encode,File,output_type,models,146
+encode,File,output_type,sequence motifs report,146
+encode,File,output_type,training and test regions,145
+encode,File,output_type,model performance metrics,144
+encode,File,output_type,normalized observed signal profile (minus strand),141
+encode,File,output_type,normalized observed signal profile (plus strand),141
+encode,File,output_type,normalized predicted signal profile (minus strand),141
+encode,File,output_type,normalized predicted signal profile (plus strand),141
+encode,File,output_type,observed signal profile (minus strand),141
+encode,File,output_type,observed signal profile (plus strand),141
+encode,File,output_type,predicted signal profile (minus strand),141
+encode,File,output_type,predicted signal profile (plus strand),141
+encode,File,output_type,replicated peaks,124
+encode,File,output_type,signal of all reads,122
+encode,File,output_type,hotspots,120
+encode,File,output_type,pseudoreplicated peaks,120
+encode,File,output_type,raw signal,117
+encode,File,output_type,signal,114
+encode,File,output_type,transcription start sites,91
+encode,File,output_type,contact matrix,62
+encode,File,output_type,read-depth normalized signal,62
+encode,File,output_type,loops,54
+encode,File,output_type,guide quantifications,48
+encode,File,output_type,rejected reads,46
+encode,File,output_type,element quantifications,44
+encode,File,output_type,genome compartments,44
+encode,File,output_type,minus strand signal,44
+encode,File,output_type,plus strand signal,44
+encode,File,output_type,observed control profile (minus strand),32
+encode,File,output_type,observed control profile (plus strand),32
+encode,File,output_type,genome subcompartments,30
+encode,File,output_type,merged transcription segment quantifications,30
+encode,File,output_type,transcription segment quantifications,30
+encode,File,output_type,RNA-binding protein associated mRNAs,29
+encode,File,output_type,contact domains,25
+encode,File,output_type,exon quantifications,25
+encode,File,output_type,splice junctions,25
+encode,File,output_type,contigs,24
+encode,File,output_type,thresholded links,22
+encode,File,output_type,FDR cut rate,20
+encode,File,output_type,index reads,18
+encode,File,output_type,methylation state at CpG,18
+encode,File,output_type,candidate Cis-Regulatory Elements,16
+encode,File,output_type,pseudoreplicated IDR thresholded peaks,16
+encode,File,output_type,predicted transcription start sites,14
+encode,File,output_type,transcribed fragments,14
+encode,File,output_type,transcriptome annotations,14
+encode,File,output_type,element gene links,13
+encode,File,output_type,filtered transcribed fragments,12
+encode,File,output_type,semi-automated genome annotation,12
+encode,File,output_type,thresholded element gene links,12
+encode,File,output_type,microRNA quantifications,11
+encode,File,output_type,bias-corrected predicted signal profile,10
+encode,File,output_type,filtered peptide quantification,10
+encode,File,output_type,pairs,10
+encode,File,output_type,preprocessed alignments,10
+encode,File,output_type,unfiltered peptide quantification,10
+encode,File,output_type,candidate enhancers,8
+encode,File,output_type,filtered reads,8
+encode,File,output_type,fragments,8
+encode,File,output_type,gene alignments,8
+encode,File,output_type,genic features quantifications,8
+encode,File,output_type,methylation state at CHG,8
+encode,File,output_type,methylation state at CHH,8
+encode,File,output_type,clusters,7
+encode,File,output_type,variant effect quantifications,7
+encode,File,output_type,UV enriched segment quantifications,6
+encode,File,output_type,elements reference,6
+encode,File,output_type,percentage normalized signal,6
+encode,File,output_type,base overlap signal,5
+encode,File,output_type,chromatin stripes,5
+encode,File,output_type,enhancer prediction model,5
+encode,File,output_type,promoter prediction model,5
+encode,File,output_type,validation,5
+encode,File,output_type,HMM predicted chromatin state,4
+encode,File,output_type,candidate promoters,4
+encode,File,output_type,copy number variation,4
+encode,File,output_type,enrichment,4
+encode,File,output_type,filtered modified peptide quantification,4
+encode,File,output_type,polyA sites,4
+encode,File,output_type,sequence barcodes,4
+encode,File,output_type,transcribed region quantifications,4
+encode,File,output_type,unfiltered modified peptide quantification,4
+encode,File,output_type,idat green channel,3
+encode,File,output_type,idat red channel,3
+encode,File,output_type,normalized bias-corrected predicted signal profile,3
+encode,File,output_type,normalized observed signal profile,3
+encode,File,output_type,normalized predicted signal profile,3
+encode,File,output_type,observed signal profile,3
+encode,File,output_type,CpG sites coverage,2
+encode,File,output_type,minus strand methylation state at CpG,2
+encode,File,output_type,plus strand methylation state at CpG,2
+encode,File,output_type,reporter code counts,2
+encode,File,output_type,bias models,1
+encode,File,output_type,bidirectional peaks,1
+encode,File,output_type,curated SNVs,1
+encode,File,output_type,perturbation signal,1
+encode,File,output_type,phased variant calls,1
+encode,File,output_type,subreads,1
+encode,File,output_type,unidirectional peaks,1
+encode,File,file_format,bigWig,7703
+encode,File,file_format,bed,7080
+encode,File,file_format,bam,4082
+encode,File,file_format,bigBed,3752
+encode,File,file_format,fastq,2984
+encode,File,file_format,tar,1334
+encode,File,file_format,hic,1157
+encode,File,file_format,tsv,769
+encode,File,file_format,txt,192
+encode,File,file_format,gtf,91
+encode,File,file_format,bedpe,78
+encode,File,file_format,gff,22
+encode,File,file_format,bigInteract,18
+encode,File,file_format,csfasta,16
+encode,File,file_format,csqual,16
+encode,File,file_format,tagAlign,14
+encode,File,file_format,pairs,10
+encode,File,file_format,idat,6
+encode,File,file_format,csv,4
+encode,File,file_format,rcc,2
+encode,File,file_format,starch,2
+encode,File,file_format,vcf,1
+encode,File,file_type,bigWig,7655
+encode,File,file_type,bam,4082
+encode,File,file_type,bed narrowPeak,3040
+encode,File,file_type,bigBed narrowPeak,3023
+encode,File,file_type,fastq,2984
+encode,File,file_type,bed bed3+,1962
+encode,File,file_type,tar,1334
+encode,File,file_type,hic,1157
+encode,File,file_type,bed idr_ranked_peak,812
+encode,File,file_type,tsv,769
+encode,File,file_type,bed bed12,742
+encode,File,file_type,bed broadPeak,192
+encode,File,file_type,txt,192
+encode,File,file_type,bigBed broadPeak,178
+encode,File,file_type,bed bed3,154
+encode,File,file_type,bigBed bed3,152
+encode,File,file_type,bigBed bed6+,136
+encode,File,file_type,bigBed bed3+,113
+encode,File,file_type,gtf,91
+encode,File,file_type,bedpe,75
+encode,File,file_type,bigWig bed3+,48
+encode,File,file_type,bed bed9+,40
+encode,File,file_type,bigBed bed9,37
+encode,File,file_type,bed bed9,30
+encode,File,file_type,bed bedRnaElements,26
+encode,File,file_type,bigBed bedRnaElements,26
+encode,File,file_type,bed tss_peak,22
+encode,File,file_type,bigBed tss_peak,22
+encode,File,file_type,gff gff3,22
+encode,File,file_type,csfasta,16
+encode,File,file_type,csqual,16
+encode,File,file_type,bigInteract,15
+encode,File,file_type,bed element enrichments,14
+encode,File,file_type,bigBed element enrichments,14
+encode,File,file_type,tagAlign,14
+encode,File,file_type,bed bedMethyl,11
+encode,File,file_type,bigBed bedMethyl,11
+encode,File,file_type,pairs,10
+encode,File,file_type,bigBed bed9+,9
+encode,File,file_type,bed idr_peak,8
+encode,File,file_type,bigBed idr_peak,8
+encode,File,file_type,bed bedGraph,7
+encode,File,file_type,bed peptideMapping,6
+encode,File,file_type,bigBed peptideMapping,6
+encode,File,file_type,idat,6
+encode,File,file_type,bed modPepMap,4
+encode,File,file_type,bed pepMap,4
+encode,File,file_type,bigBed bed12,4
+encode,File,file_type,bigBed modPepMap,4
+encode,File,file_type,bigBed pepMap,4
+encode,File,file_type,csv,4
+encode,File,file_type,bedpe bed3+,3
+encode,File,file_type,bigInteract bed3+,3
+encode,File,file_type,bed bed6+,2
+encode,File,file_type,bed bedLogR,2
+encode,File,file_type,bigBed bedLogR,2
+encode,File,file_type,bigBed shortFrags,2
+encode,File,file_type,rcc,2
+encode,File,file_type,starch,2
+encode,File,file_type,bed openChromCombinedPeaks,1
+encode,File,file_type,bed unknown,1
+encode,File,file_type,bigBed openChromCombinedPeaks,1
+encode,File,file_type,vcf,1
+encode,File,assembly,GRCh38,18154
+encode,File,assembly,hg19,7752
+encode,File,assembly,GRCh38-minimal,1
+encode,File,lab.title,ENCODE Processing Pipeline,15051
+encode,File,lab.title,"Erez Aiden, Baylor",3602
+encode,File,lab.title,"Anshul Kundaje, Stanford",3329
+encode,File,lab.title,"Alan Boyle, University of Michigan",2488
+encode,File,lab.title,"Michael Snyder, Stanford",799
+encode,File,lab.title,"Richard Myers, HAIB",566
+encode,File,lab.title,"John Stamatoyannopoulos, UW",489
+encode,File,lab.title,"Bill Noble, UW",385
+encode,File,lab.title,"Michael Beer, JHU",384
+encode,File,lab.title,"Thomas Gingeras, CSHL",304
+encode,File,lab.title,"Barbara Wold, Caltech",221
+encode,File,lab.title,"Bradley Bernstein, Broad",221
+encode,File,lab.title,"Mats Ljungman, UMichigan",214
+encode,File,lab.title,"Jesse Engreitz, Stanford",140
+encode,File,lab.title,ENCODE Consortium,139
+encode,File,lab.title,"Ryan Tewhey, JAX",129
+encode,File,lab.title,ENCODE Consortium Analysis Working Group,90
+encode,File,lab.title,"Yijun Ruan, JAX",81
+encode,File,lab.title,"Brenton Graveley, UConn",60
+encode,File,lab.title,"Scott Tenenbaum, SUNY-Albany",59
+encode,File,lab.title,"Ali Mortazavi, UCI",57
+encode,File,lab.title,Charles Lee,55
+encode,File,lab.title,"Piero Carninci, RIKEN",55
+encode,File,lab.title,"Job Dekker, UMass",47
+encode,File,lab.title,"John Rinn, Broad",40
+encode,File,lab.title,"Kevin Struhl, HMS",39
+encode,File,lab.title,"Sherman Weissman, Yale",37
+encode,File,lab.title,"Vishwanath Iyer, UTA",36
+encode,File,lab.title,"Will Greenleaf, Stanford",32
+encode,File,lab.title,"Peggy Farnham, USC",30
+encode,File,lab.title,"Zhiping Weng, UMass",30
+encode,File,lab.title,"Rob Spitale, UCI",28
+encode,File,lab.title,"Manolis Kellis, Broad",22
+encode,File,lab.title,"Gregory Crawford, Duke",20
+encode,File,lab.title,"Morgan Giddings, UNC",14
+encode,File,lab.title,"John Lis, Cornell",12
+encode,File,lab.title,"Jason Lieb, UNC",9
+encode,File,lab.title,"Roderic Guigo, CRG",8
+encode,File,lab.title,"Andrew Z. Fire, Stanford",4
+encode,File,lab.title,"Christina Leslie, MSKCC",3
+encode,File,lab.title,"Maxwell Libbrecht, SFU",2
+encode,File,lab.title,"J. Michael Cherry, Stanford",1
+encode,File,lab.title,"Ross Hardison, PennState",1
+igvf,MeasurementSet,assay_slims,reporter,5
+igvf,MeasurementSet,assay_titles,massively parallel reporter assay,5
+igvf,MeasurementSet,preferred_assay_titles,MPRA,5
+igvf,MeasurementSet,samples.classifications,cell line,5
+igvf,MeasurementSet,files.content_type,reads,5
+igvf,MeasurementSet,files.file_format,fastq,5
+igvf,MeasurementSet,lab.title,"Harinder Singh, University of Pittsburgh",5
+igvf,MeasurementSet,status,released,5
+igvf,PredictionSet,file_set_type,disease associations,1
+igvf,PredictionSet,lab.title,"Kushal Dey, MSKCC",1
+igvf,PredictionSet,status,released,1
+igvf,ConstructLibrarySet,file_set_type,reporter library,1
+igvf,ConstructLibrarySet,lab.title,"Harinder Singh, University of Pittsburgh",1
+igvf,ConstructLibrarySet,status,released,1
+igvf,CuratedSet,file_set_type,functional effect,3
+igvf,CuratedSet,lab.title,"ENCODE Project, NHGRI",3
+igvf,CuratedSet,status,archived,2
+igvf,CuratedSet,status,released,1
+igvf,Sample,classifications,cell line,2
+igvf,Sample,lab.title,"External Lab, Community",1
+igvf,Sample,lab.title,"Harinder Singh, University of Pittsburgh",1
+igvf,Sample,status,released,2
+igvf,File,content_type,reads,7
+igvf,File,content_type,element to gene interactions,3
+igvf,File,content_type,variant functions,1
+igvf,File,file_format,fastq,7
+igvf,File,file_format,bed,3
+igvf,File,file_format,tsv,1
+igvf,File,assembly,GRCh38,4
+igvf,File,file_set.file_set_type,experimental data,5
+igvf,File,file_set.file_set_type,functional effect,3
+igvf,File,file_set.file_set_type,reporter library,2
+igvf,File,file_set.file_set_type,disease associations,1
+igvf,File,preferred_assay_titles,MPRA,7
+igvf,File,lab.title,"Harinder Singh, University of Pittsburgh",7
+igvf,File,lab.title,"ENCODE Project, NHGRI",3
+igvf,File,lab.title,"Kushal Dey, MSKCC",1
+igvf,File,status,released,10
+igvf,File,status,archived,1

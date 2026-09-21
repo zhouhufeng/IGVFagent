@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="504" viewBox="0 0 760 504" font-family="Inter, Helvetica, Arial, sans-serif">
+<rect width="760" height="504" fill="#fcfcfb"/>
+<text x="20" y="26" font-size="16" font-weight="700" fill="#0b0b0b">ENCODE GM12878 files by format</text>
+<text x="20" y="58" font-size="13" font-weight="600" fill="#0b0b0b">count</text>
+<text x="242" y="87" font-size="11" text-anchor="end" fill="#52514e">bigWig</text>
+<rect x="250" y="76" width="420" height="16" rx="3" fill="#2a78d6"/>
+<text x="676" y="87" font-size="11" fill="#0b0b0b">7,703</text>
+<text x="242" y="107" font-size="11" text-anchor="end" fill="#52514e">bed</text>
+<rect x="250" y="96" width="386" height="16" rx="3" fill="#2a78d6"/>
+<text x="642" y="107" font-size="11" fill="#0b0b0b">7,080</text>
+<text x="242" y="127" font-size="11" text-anchor="end" fill="#52514e">bam</text>
+<rect x="250" y="116" width="222" height="16" rx="3" fill="#2a78d6"/>
+<text x="478" y="127" font-size="11" fill="#0b0b0b">4,082</text>
+<text x="242" y="147" font-size="11" text-anchor="end" fill="#52514e">bigBed</text>
+<rect x="250" y="136" width="204" height="16" rx="3" fill="#2a78d6"/>
+<text x="460" y="147" font-size="11" fill="#0b0b0b">3,752</text>
+<text x="242" y="167" font-size="11" text-anchor="end" fill="#52514e">fastq</text>
+<rect x="250" y="156" width="162" height="16" rx="3" fill="#2a78d6"/>
+<text x="418" y="167" font-size="11" fill="#0b0b0b">2,984</text>
+<text x="242" y="187" font-size="11" text-anchor="end" fill="#52514e">tar</text>
+<rect x="250" y="176" width="72" height="16" rx="3" fill="#2a78d6"/>
+<text x="328" y="187" font-size="11" fill="#0b0b0b">1,334</text>
+<text x="242" y="207" font-size="11" text-anchor="end" fill="#52514e">hic</text>
+<rect x="250" y="196" width="63" height="16" rx="3" fill="#2a78d6"/>
+<text x="319" y="207" font-size="11" fill="#0b0b0b">1,157</text>
+<text x="242" y="227" font-size="11" text-anchor="end" fill="#52514e">tsv</text>
+<rect x="250" y="216" width="41" height="16" rx="3" fill="#2a78d6"/>
+<text x="297" y="227" font-size="11" fill="#0b0b0b">769</text>
+<text x="242" y="247" font-size="11" text-anchor="end" fill="#52514e">txt</text>
+<rect x="250" y="236" width="10" height="16" rx="3" fill="#2a78d6"/>
+<text x="266" y="247" font-size="11" fill="#0b0b0b">192</text>
+<text x="242" y="267" font-size="11" text-anchor="end" fill="#52514e">gtf</text>
+<rect x="250" y="256" width="4" height="16" rx="3" fill="#2a78d6"/>
+<text x="260" y="267" font-size="11" fill="#0b0b0b">91</text>
+<text x="242" y="287" font-size="11" text-anchor="end" fill="#52514e">bedpe</text>
+<rect x="250" y="276" width="4" height="16" rx="3" fill="#2a78d6"/>
+<text x="260" y="287" font-size="11" fill="#0b0b0b">78</text>
+<text x="242" y="307" font-size="11" text-anchor="end" fill="#52514e">gff</text>
+<rect x="250" y="296" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="307" font-size="11" fill="#0b0b0b">22</text>
+<text x="242" y="327" font-size="11" text-anchor="end" fill="#52514e">bigInteract</text>
+<rect x="250" y="316" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="327" font-size="11" fill="#0b0b0b">18</text>
+<text x="242" y="347" font-size="11" text-anchor="end" fill="#52514e">csfasta</text>
+<rect x="250" y="336" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="347" font-size="11" fill="#0b0b0b">16</text>
+<text x="242" y="367" font-size="11" text-anchor="end" fill="#52514e">csqual</text>
+<rect x="250" y="356" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="367" font-size="11" fill="#0b0b0b">16</text>
+<text x="242" y="387" font-size="11" text-anchor="end" fill="#52514e">tagAlign</text>
+<rect x="250" y="376" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="387" font-size="11" fill="#0b0b0b">14</text>
+<text x="242" y="407" font-size="11" text-anchor="end" fill="#52514e">pairs</text>
+<rect x="250" y="396" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="407" font-size="11" fill="#0b0b0b">10</text>
+<text x="242" y="427" font-size="11" text-anchor="end" fill="#52514e">idat</text>
+<rect x="250" y="416" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="427" font-size="11" fill="#0b0b0b">6</text>
+<text x="242" y="447" font-size="11" text-anchor="end" fill="#52514e">csv</text>
+<rect x="250" y="436" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="447" font-size="11" fill="#0b0b0b">4</text>
+<text x="242" y="467" font-size="11" text-anchor="end" fill="#52514e">rcc</text>
+<rect x="250" y="456" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="467" font-size="11" fill="#0b0b0b">2</text>
+<text x="242" y="487" font-size="11" text-anchor="end" fill="#52514e">Other (2 more)</text>
+<rect x="250" y="476" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="487" font-size="11" fill="#0b0b0b">3</text>
+<line x1="250" y1="72" x2="250" y2="494" stroke="#d0cfca" stroke-width="1"/>
+</svg>

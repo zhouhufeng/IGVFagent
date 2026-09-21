@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="144" viewBox="0 0 760 144" font-family="Inter, Helvetica, Arial, sans-serif">
+<rect width="760" height="144" fill="#fcfcfb"/>
+<text x="20" y="26" font-size="16" font-weight="700" fill="#0b0b0b">IGVF GM12878 files by format</text>
+<text x="20" y="58" font-size="13" font-weight="600" fill="#0b0b0b">count</text>
+<text x="242" y="87" font-size="11" text-anchor="end" fill="#52514e">fastq</text>
+<rect x="250" y="76" width="420" height="16" rx="3" fill="#eb6834"/>
+<text x="676" y="87" font-size="11" fill="#0b0b0b">7</text>
+<text x="242" y="107" font-size="11" text-anchor="end" fill="#52514e">bed</text>
+<rect x="250" y="96" width="180" height="16" rx="3" fill="#eb6834"/>
+<text x="436" y="107" font-size="11" fill="#0b0b0b">3</text>
+<text x="242" y="127" font-size="11" text-anchor="end" fill="#52514e">tsv</text>
+<rect x="250" y="116" width="60" height="16" rx="3" fill="#eb6834"/>
+<text x="316" y="127" font-size="11" fill="#0b0b0b">1</text>
+<line x1="250" y1="72" x2="250" y2="134" stroke="#d0cfca" stroke-width="1"/>
+</svg>

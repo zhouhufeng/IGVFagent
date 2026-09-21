@@ -1,0 +1,2 @@
+accession,@type,preferred_assay_titles,assay_titles,file_set_type,lab.title,status,release_timestamp,summary,content_type,file_format,assembly,file_size,file_set.@id,classifications,sample_terms.term_id,samples.sample_terms.term_id
+IGVFDS6949GFBF,CuratedSet,,,functional effect,"ENCODE Project, NHGRI",released,2025-09-22T22:17:43.835159+00:00,Homo sapiens GRCh38 functional effect,,,,,,,,

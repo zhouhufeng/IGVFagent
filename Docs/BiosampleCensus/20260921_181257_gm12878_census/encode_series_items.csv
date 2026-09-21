@@ -1,0 +1,10 @@
+accession,@type,lab.title,status,description
+ENCSR392PEL,AggregateSeries,"Erez Aiden, Baylor",released,
+ENCSR675VLJ,AggregateSeries,"Erez Aiden, Baylor",released,
+ENCSR397IWE,AggregateSeries,"Erez Aiden, Baylor",released,
+ENCSR779QHO,AggregateSeries,"Erez Aiden, Baylor",released,
+ENCSR666ZGW,AggregateSeries,"Erez Aiden, Baylor",released,
+ENCSR667MTP,PulseChaseTimeSeries,"Mats Ljungman, UMichigan",released,
+ENCSR194SMN,FunctionalCharacterizationSeries,"Jesse Engreitz, Stanford",released,
+ENCSR447YYN,ReferenceEpigenome,ENCODE Consortium,released,Reference epigenome for human GM12878 cell line
+ENCSR218XPB,ReplicationTimingSeries,"John Stamatoyannopoulos, UW",released,Replication timing series in GM12878

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" font-family="Inter, Helvetica, Arial, sans-serif">
+<rect width="760" height="324" fill="#fcfcfb"/>
+<text x="20" y="26" font-size="16" font-weight="700" fill="#0b0b0b">ENCODE GM12878 annotations by type</text>
+<text x="20" y="58" font-size="13" font-weight="600" fill="#0b0b0b">count</text>
+<text x="242" y="87" font-size="11" text-anchor="end" fill="#52514e">footprints</text>
+<rect x="250" y="76" width="420" height="16" rx="3" fill="#2a78d6"/>
+<text x="676" y="87" font-size="11" fill="#0b0b0b">2,486</text>
+<text x="242" y="107" font-size="11" text-anchor="end" fill="#52514e">imputation</text>
+<rect x="250" y="96" width="67" height="16" rx="3" fill="#2a78d6"/>
+<text x="323" y="107" font-size="11" fill="#0b0b0b">402</text>
+<text x="242" y="127" font-size="11" text-anchor="end" fill="#52514e">gkm-SVM-model</text>
+<rect x="250" y="116" width="31" height="16" rx="3" fill="#2a78d6"/>
+<text x="287" y="127" font-size="11" fill="#0b0b0b">187</text>
+<text x="242" y="147" font-size="11" text-anchor="end" fill="#52514e">BPNet-model</text>
+<rect x="250" y="136" width="23" height="16" rx="3" fill="#2a78d6"/>
+<text x="279" y="147" font-size="11" fill="#0b0b0b">141</text>
+<text x="242" y="167" font-size="11" text-anchor="end" fill="#52514e">BPNet-control</text>
+<rect x="250" y="156" width="5" height="16" rx="3" fill="#2a78d6"/>
+<text x="261" y="167" font-size="11" fill="#0b0b0b">32</text>
+<text x="242" y="187" font-size="11" text-anchor="end" fill="#52514e">candidate Cis-Regulatory Elements</text>
+<rect x="250" y="176" width="2" height="16" rx="3" fill="#2a78d6"/>
+<text x="258" y="187" font-size="11" fill="#0b0b0b">14</text>
+<text x="242" y="207" font-size="11" text-anchor="end" fill="#52514e">element gene regulatory interaction pr</text>
+<rect x="250" y="196" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="207" font-size="11" fill="#0b0b0b">9</text>
+<text x="242" y="227" font-size="11" text-anchor="end" fill="#52514e">chromatin state</text>
+<rect x="250" y="216" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="227" font-size="11" fill="#0b0b0b">8</text>
+<text x="242" y="247" font-size="11" text-anchor="end" fill="#52514e">ChromBPNet-model</text>
+<rect x="250" y="236" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="247" font-size="11" fill="#0b0b0b">5</text>
+<text x="242" y="267" font-size="11" text-anchor="end" fill="#52514e">ChromBPNet-bias-model</text>
+<rect x="250" y="256" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="267" font-size="11" fill="#0b0b0b">1</text>
+<text x="242" y="287" font-size="11" text-anchor="end" fill="#52514e">curated SNVs</text>
+<rect x="250" y="276" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="287" font-size="11" fill="#0b0b0b">1</text>
+<text x="242" y="307" font-size="11" text-anchor="end" fill="#52514e">overlap</text>
+<rect x="250" y="296" width="1" height="16" rx="3" fill="#2a78d6"/>
+<text x="257" y="307" font-size="11" fill="#0b0b0b">1</text>
+<line x1="250" y1="72" x2="250" y2="314" stroke="#d0cfca" stroke-width="1"/>
+</svg>

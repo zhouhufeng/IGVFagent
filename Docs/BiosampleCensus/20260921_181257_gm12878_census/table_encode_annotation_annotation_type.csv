@@ -1,0 +1,13 @@
+term,count
+footprints,2486
+imputation,402
+gkm-SVM-model,187
+BPNet-model,141
+BPNet-control,32
+candidate Cis-Regulatory Elements,14
+element gene regulatory interaction predictions,9
+chromatin state,8
+ChromBPNet-model,5
+ChromBPNet-bias-model,1
+curated SNVs,1
+overlap,1

@@ -443,6 +443,9 @@ _TOOLS: "list[Tool]" = [
                                 '"properties":{"gene":{"type":"string"}}}'},
                 "positional":  {**_S_STRING, "description":
                                 "space-separated params passed positionally."},
+                "force":       {**_S_BOOLEAN, "description":
+                                "Author even if the duplication guard says a "
+                                "core tool already covers it."},
             },
             "required": ["name", "description"],
         },
@@ -450,6 +453,7 @@ _TOOLS: "list[Tool]" = [
         flag_map={"name": "--name", "description": "--description",
                    "cli": "--cli", "command": "--command",
                    "parameters": "--parameters", "positional": "--positional"},
+        bool_flags={"force"},
     ),
 
     _T(
@@ -479,6 +483,11 @@ _TOOLS: "list[Tool]" = [
                                 'tool, e.g. {"type":"object","properties":'
                                 '{"variants":{"type":"string"}}}. Without it '
                                 "the new tool takes no arguments."},
+                "force":       {**_S_BOOLEAN, "description":
+                                "Author even if the duplication guard says a "
+                                "core tool already covers it. Re-authoring "
+                                "your OWN extension under the same name never "
+                                "needs this: that is an update and is allowed."},
             },
             "required": ["name", "description"],
         },
@@ -486,6 +495,7 @@ _TOOLS: "list[Tool]" = [
         flag_map={"name": "--name", "description": "--description",
                    "source": "--source", "source_file": "--source-file",
                    "tool_parameters": "--tool-parameters"},
+        bool_flags={"force"},
     ),
 
     _T(
@@ -674,7 +684,9 @@ _TOOLS: "list[Tool]" = [
         "ENCODE and not file payloads; geo_download only accepts a GSE "
         "series -- neither can fetch an ENCFF file, and NEVER author a "
         "script to do it. Files land under Data/Interpreted/Downloads/ and "
-        "each one's download_status is reported.",
+        "each one's download_status is reported. For \"all the data for cell "
+        "line X\" use biosample_portal_census instead of a search URL: a "
+        "search that matches nothing answers 404 here.",
         {
             "type": "object",
             "properties": {
@@ -2034,6 +2046,46 @@ _TOOLS: "list[Tool]" = [
     ),
 
     # ---- ENCODE pipeline tools (step 6) ----
+
+    _T(
+        "biosample_portal_census",
+        "★ SYSTEMATIC SUMMARY OF EVERYTHING ENCODE **AND** IGVF HOLD FOR ONE "
+        "BIOSAMPLE / CELL LINE ★ (GM12878, K562, HepG2, WTC11, liver, ...). "
+        "THE tool for \"summarise all ENCODE and IGVF data for X with tables "
+        "and plots\": one call counts every object type on both portals via "
+        "their structured sample-term filters (never free text, which on the "
+        "IGVF Portal matches thousands of unrelated sets), tabulates assays, "
+        "ChIP targets, labs, annotation types, file formats and release years, "
+        "and writes report.md + CSV tables + SVG/PNG figures. Do NOT use "
+        "explain_dataset on a search URL, encode_retrieve per assay, or author "
+        "a new skill for this question. A zero-hit 404 from a portal is "
+        "recorded as 0, not treated as an error.",
+        {
+            "type": "object",
+            "properties": {
+                "biosample": {**_S_STRING,
+                    "description": "Cell line or tissue term as the portals "
+                                    "spell it (case-insensitive; resolved to "
+                                    "the ontology term)."},
+                "label":     {**_S_STRING},
+                "portal":    {**_S_STRING,
+                    "description": "both (default), encode, or igvf."},
+                "status":    {**_S_STRING,
+                    "description": "Status filter for item tables: released "
+                                    "(default) or all."},
+                "max_items": {**_S_INTEGER, "default": 5000},
+                "top":       {**_S_INTEGER, "default": 20,
+                    "description": "Top-N terms per table and figure."},
+                "no_plots":  {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["biosample"],
+        },
+        cli=["biosample-census"],
+        flag_map={"biosample": "--biosample", "label": "--label",
+                   "portal": "--portal", "status": "--status",
+                   "max_items": "--max-items", "top": "--top"},
+        bool_flags={"no_plots"},
+    ),
 
     _T(
         "encode_retrieve",
@@ -7217,6 +7269,11 @@ _BY_NAME = {t.name: t for t in _TOOLS}
 # --------------------------- User-extension tools ----------------------------
 
 
+# Names that came from user manifests, so a refresh can tell "re-authored
+# extension" (replace) from "manifest shadowing a built-in" (skip).
+_USER_TOOL_NAMES: "set[str]" = set()
+
+
 def _merge_user_tools() -> None:
     """Absorb user-defined tools into the registry at import time.
 
@@ -7238,9 +7295,20 @@ def _merge_user_tools() -> None:
         logger.warning("user-extension tool discovery failed: %s", exc)
         return
     for spec in specs:
-        if spec["name"] in _BY_NAME:
-            logger.warning("user tool `%s` (%s) shadows an existing tool; "
-                           "skipped", spec["name"], spec.get("source"))
+        if spec["name"] in _BY_NAME and spec["name"] not in _USER_TOOL_NAMES:
+            # Recorded for `igvfagent extensions`, logged at INFO. As a
+            # WARNING it reached stderr of EVERY tool subprocess (no handler
+            # is configured at import time, so Python's last-resort handler
+            # printed it), and the agent's failure banner then showed this
+            # line instead of the tool's own error.
+            msg = (f"{spec.get('source')}: user tool `{spec['name']}` shadows "
+                   f"a built-in tool of the same name; skipped (remove the "
+                   f"manifest -- the built-in already does this)")
+            logger.info(msg)
+            try:
+                _userext._note(msg)
+            except Exception:
+                pass
             continue
         tool = Tool(
             name=spec["name"], description=spec["description"],
@@ -7251,8 +7319,15 @@ def _merge_user_tools() -> None:
             bool_flags=set(spec["bool_flags"]),
             command=list(spec["command"]),
         )
-        _TOOLS.append(tool)
+        if tool.name in _USER_TOOL_NAMES:
+            # Re-authored extension: replace the stale manifest in place so a
+            # long-lived process (the Streamlit UI) sees the new parameters.
+            # Built-ins are never replaced -- the check above skips them.
+            _TOOLS[:] = [t if t.name != tool.name else tool for t in _TOOLS]
+        else:
+            _TOOLS.append(tool)
         _BY_NAME[tool.name] = tool
+        _USER_TOOL_NAMES.add(tool.name)
 
 
 _merge_user_tools()
@@ -7263,7 +7338,8 @@ def refresh_user_tools() -> int:
 
     For long-lived processes (the Streamlit UI) where the import-time
     merge already happened: call after a manifest is added on disk.
-    Existing names are never redefined. Returns the number of tools added.
+    Built-in names are never redefined; a user tool whose manifest was
+    re-authored is replaced in place. Returns the number of tools added.
     """
     before = len(_TOOLS)
     _merge_user_tools()

@@ -1,0 +1,64 @@
+term,count
+bigWig,7655
+bam,4082
+bed narrowPeak,3040
+bigBed narrowPeak,3023
+fastq,2984
+bed bed3+,1962
+tar,1334
+hic,1157
+bed idr_ranked_peak,812
+tsv,769
+bed bed12,742
+bed broadPeak,192
+txt,192
+bigBed broadPeak,178
+bed bed3,154
+bigBed bed3,152
+bigBed bed6+,136
+bigBed bed3+,113
+gtf,91
+bedpe,75
+bigWig bed3+,48
+bed bed9+,40
+bigBed bed9,37
+bed bed9,30
+bed bedRnaElements,26
+bigBed bedRnaElements,26
+bed tss_peak,22
+bigBed tss_peak,22
+gff gff3,22
+csfasta,16
+csqual,16
+bigInteract,15
+bed element enrichments,14
+bigBed element enrichments,14
+tagAlign,14
+bed bedMethyl,11
+bigBed bedMethyl,11
+pairs,10
+bigBed bed9+,9
+bed idr_peak,8
+bigBed idr_peak,8
+bed bedGraph,7
+bed peptideMapping,6
+bigBed peptideMapping,6
+idat,6
+bed modPepMap,4
+bed pepMap,4
+bigBed bed12,4
+bigBed modPepMap,4
+bigBed pepMap,4
+csv,4
+bedpe bed3+,3
+bigInteract bed3+,3
+bed bed6+,2
+bed bedLogR,2
+bigBed bedLogR,2
+bigBed shortFrags,2
+rcc,2
+starch,2
+bed openChromCombinedPeaks,1
+bed unknown,1
+bigBed openChromCombinedPeaks,1
+vcf,1

@@ -1,0 +1,341 @@
+{
+  "biosample": "GM12878",
+  "terms": {
+    "encode": {
+      "term_name": "GM12878",
+      "term_id": "EFO:0002784",
+      "classification": "cell line",
+      "resolved": true
+    },
+    "igvf": {
+      "term_name": "GM12878",
+      "term_id": "EFO:0002784",
+      "classification": "",
+      "resolved": true
+    }
+  },
+  "status_filter": "released",
+  "totals": [
+    {
+      "portal": "encode",
+      "type": "Experiment",
+      "total": 490,
+      "released": 437,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=Experiment&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "FunctionalCharacterizationExperiment",
+      "total": 17,
+      "released": 17,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=FunctionalCharacterizationExperiment&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "Annotation",
+      "total": 3287,
+      "released": 2512,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=Annotation&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "ReferenceEpigenome",
+      "total": 2,
+      "released": 1,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=ReferenceEpigenome&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "Series",
+      "total": 11,
+      "released": 0,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=Series&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "Biosample",
+      "total": 421,
+      "released": 417,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=Biosample&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "encode",
+      "type": "File",
+      "total": 29333,
+      "released": 24328,
+      "http_status": 200,
+      "filter_field": "biosample_ontology.term_name",
+      "url": "https://www.encodeproject.org/search/?type=File&biosample_ontology.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "MeasurementSet",
+      "total": 5,
+      "released": 5,
+      "http_status": 200,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=MeasurementSet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "AnalysisSet",
+      "total": 0,
+      "released": 0,
+      "http_status": 404,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=AnalysisSet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "AuxiliarySet",
+      "total": 0,
+      "released": 0,
+      "http_status": 404,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=AuxiliarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "PredictionSet",
+      "total": 1,
+      "released": 1,
+      "http_status": 200,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=PredictionSet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "ConstructLibrarySet",
+      "total": 1,
+      "released": 1,
+      "http_status": 200,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=ConstructLibrarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "ModelSet",
+      "total": 0,
+      "released": 0,
+      "http_status": 404,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=ModelSet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "CuratedSet",
+      "total": 3,
+      "released": 1,
+      "http_status": 200,
+      "filter_field": "samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=CuratedSet&samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "Sample",
+      "total": 2,
+      "released": 2,
+      "http_status": 200,
+      "filter_field": "sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=Sample&sample_terms.term_name=GM12878&format=json&limit=0"
+    },
+    {
+      "portal": "igvf",
+      "type": "File",
+      "total": 11,
+      "released": 10,
+      "http_status": 200,
+      "filter_field": "file_set.samples.sample_terms.term_name",
+      "url": "https://api.data.igvf.org/search/?type=File&file_set.samples.sample_terms.term_name=GM12878&format=json&limit=0"
+    }
+  ],
+  "stats": {
+    "File.file_size": {
+      "count": 11,
+      "min": 3708698.0,
+      "max": 75588004082.0,
+      "avg": 13233356812.181818,
+      "sum": 145566924934.0
+    }
+  },
+  "requests": {
+    "encode": [
+      {
+        "url": "https://www.encodeproject.org/search/?type=BiosampleType&term_name=GM12878&format=json&limit=50&field=term_name&field=term_id&field=classification",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Experiment&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 490
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Experiment&biosample_ontology.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=assay_title&field=assay_term_name&field=target.label&field=lab.title&field=status&field=date_released&field=assembly&field=award.rfa&field=biosample_ontology.term_id&field=replicates.library.biosample.treatments.treatment_term_name&field=description",
+        "status": 200,
+        "total": 437
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=FunctionalCharacterizationExperiment&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 17
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=FunctionalCharacterizationExperiment&biosample_ontology.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=assay_title&field=assay_term_name&field=lab.title&field=status&field=date_released&field=assembly&field=description",
+        "status": 200,
+        "total": 17
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Annotation&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 3287
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Annotation&biosample_ontology.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=annotation_type&field=lab.title&field=status&field=date_released&field=assembly&field=encyclopedia_version&field=description",
+        "status": 200,
+        "total": 2512
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=ReferenceEpigenome&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 2
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=ReferenceEpigenome&biosample_ontology.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=lab.title&field=status&field=description",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Series&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 11
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Series&biosample_ontology.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=lab.title&field=status&field=description",
+        "status": 200,
+        "total": 9
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=Biosample&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 421
+      },
+      {
+        "url": "https://www.encodeproject.org/search/?type=File&biosample_ontology.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 29333
+      }
+    ],
+    "igvf": [
+      {
+        "url": "https://api.data.igvf.org/search/?type=SampleTerm&term_name=GM12878&format=json&limit=50&field=term_name&field=term_id&field=classification",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=MeasurementSet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 5
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=MeasurementSet&samples.sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 5
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=AnalysisSet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 404,
+        "total": 0
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=AuxiliarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 404,
+        "total": 0
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=PredictionSet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=PredictionSet&samples.sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=ConstructLibrarySet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=ConstructLibrarySet&samples.sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=ModelSet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 404,
+        "total": 0
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=CuratedSet&samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 3
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=CuratedSet&samples.sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 1
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=Sample&sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 2
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=Sample&sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 2
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=File&file_set.samples.sample_terms.term_name=GM12878&format=json&limit=0",
+        "status": 200,
+        "total": 11
+      },
+      {
+        "url": "https://api.data.igvf.org/search/?type=File&file_set.samples.sample_terms.term_name=GM12878&format=json&status=released&limit=5000&field=accession&field=%40type&field=preferred_assay_titles&field=assay_titles&field=file_set_type&field=lab.title&field=status&field=release_timestamp&field=summary&field=content_type&field=file_format&field=assembly&field=file_size&field=file_set.%40id&field=classifications&field=sample_terms.term_id&field=samples.sample_terms.term_id",
+        "status": 200,
+        "total": 10
+      }
+    ]
+  },
+  "n_items": {
+    "encode": {
+      "Experiment": 437,
+      "FunctionalCharacterizationExperiment": 17,
+      "Annotation": 2512,
+      "ReferenceEpigenome": 1,
+      "Series": 9
+    },
+    "igvf": {
+      "MeasurementSet": 5,
+      "PredictionSet": 1,
+      "ConstructLibrarySet": 1,
+      "CuratedSet": 1,
+      "Sample": 2,
+      "File": 10
+    }
+  }
+}

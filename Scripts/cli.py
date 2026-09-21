@@ -197,6 +197,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "MaveDB scoreset → genomic coords (chr/pos/ref/alt)"),
     "encode":           ("igvfagent.encode_pipeline",
                           "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline"),
+    "biosample-census": ("igvfagent.biosample_census_skill",
+                          "Systematic ENCODE + IGVF census of one biosample "
+                          "(GM12878, K562, ...) with tables and plots"),
     "se-targets":       ("igvfagent.se_target_pipeline",
                           "Super-enhancer → target-gene pipeline (ENCODE)"),
     "geo":              ("igvfagent.geo_retrieval_skill",

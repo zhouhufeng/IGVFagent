@@ -1,0 +1,438 @@
+accession,assay_title,assay_term_name,target.label,lab.title,status,date_released,assembly,award.rfa,biosample_ontology.term_id,replicates.library.biosample.treatments.treatment_term_name,description
+ENCSR839BHJ,polyA plus RNA-seq,polyA plus RNA-seq,,"Erez Aiden, Baylor",released,2025-09-22,,ENCODE4,EFO:0002784,,GM12878 RNA Seq
+ENCSR016TMB,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c dnase ultima crosslinking trials 10min FA, followed by DSG 30min"""
+ENCSR581CCT,DNase-seq,DNase-seq,,"John Stamatoyannopoulos, UW",released,2025-09-19,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR507IEF,DNase-seq,DNase-seq,,"John Stamatoyannopoulos, UW",released,2025-09-20,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR910MAP,DNase-seq,DNase-seq,,"John Stamatoyannopoulos, UW",released,2025-10-13,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR978JTT,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 28"
+ENCSR679JCT,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 27"
+ENCSR679YNF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 26"
+ENCSR052PIZ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 23"
+ENCSR228WEF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 22"
+ENCSR676XGF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 21"
+ENCSR242QRN,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 20"
+ENCSR650VXO,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 19"
+ENCSR777EJY,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicates 16, 17, 18, 24, and 25"
+ENCSR949NFX,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c quadRE illumina
+ENCSR681CTQ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 14"
+ENCSR766QFA,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 13"
+ENCSR232HRQ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 12"
+ENCSR616RFU,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 11"
+ENCSR422FME,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 10"
+ENCSR586HVN,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 9"
+ENCSR822UMS,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 8"
+ENCSR099MHJ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 7"
+ENCSR091EQY,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 6"
+ENCSR976LNK,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 5"
+ENCSR015UUA,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 4"
+ENCSR289OXM,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 3"
+ENCSR207NWF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"GM12878 intact hi-c mnase illumina, replicate 2"
+ENCSR563XDR,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking titration FA 120min
+ENCSR128KHA,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking titration FA 60min
+ENCSR569BUO,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking titration FA 30min
+ENCSR364FEY,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking titration FA 10min
+ENCSR315SIN,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking titration FA 120min
+ENCSR473AIP,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking titration FA 60min
+ENCSR658QYX,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking titration FA 30min
+ENCSR262JVB,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking titration FA 10min
+ENCSR390EUC,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA-DSG 30min dnase 45min
+ENCSR368YYF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA-DSG 30min dnase 25min
+ENCSR087DYW,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA-DSG 10min dnase 45min
+ENCSR350BOO,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA-DSG 10min dnase 25min
+ENCSR946UPU,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA 30min dnase 45min
+ENCSR908KAJ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA 30min dnase 25min
+ENCSR973HHW,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA 10min dnase 45min
+ENCSR459YFH,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact dnase hi-c ultima crosslinking vs cutting FA 10min dnase 25min
+ENCSR056AFM,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA_DSG 10x Mnase
+ENCSR795QGK,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA 30min 10x Mnase
+ENCSR035EWC,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA 10min 10x Mnase
+ENCSR965OVH,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA_DSG 1x Mnase
+ENCSR286NST,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA 30min 1x Mnase
+ENCSR005UEQ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c ultima crosslinking vs cutting FA 10min 1x Mnase
+ENCSR355CTR,ChIA-PET,ChIA-PET,RAD21,Charles Lee,released,2023-12-18,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR764VXA,ChIA-PET,ChIA-PET,SMC1A,Charles Lee,released,2023-12-18,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR235JCF,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,,ENCODE4,EFO:0002784,,GM12878 In-Situ no crosslinking mbol restriction enzyme
+ENCSR034JTD,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dnase ultima crosslinking trials 30min FA and DSG together
+ENCSR830NVY,Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c dnase ultima crosslinking trials 10min FA, then DSG 30min"""
+ENCSR980PML,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dnase ultima crosslinking trials 20min FA
+ENCSR820ASA,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c mnase ultima crosslinking trials 10min FA, then EGS 30min"""
+ENCSR071RZI,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c mnase ultima crosslinking trials EGS 30min, then 10min FA"""
+ENCSR838ZWD,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c mnase ultima crosslinking trials DSG 30min, then 10min FA"""
+ENCSR252RDH,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c mnase ultima crosslinking trials 30min FA and EGS together
+ENCSR769ILO,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c mnase ultima crosslinking trials 30min FA and DSG together
+ENCSR159DGN,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,"""GM12878 intact hi-c mnase ultima crosslinking trials 10min FA, then DSG 30min"""
+ENCSR664TYD,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c mnase ultima crosslinking trials FA only control
+ENCSR565RFU,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c benzonase 1U ultima
+ENCSR888TPP,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c benzonase 0.5U ultima
+ENCSR143KKT,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c benzonase 0.1U ultima
+ENCSR532KZF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c CviJI 50U ultima
+ENCSR834PNQ,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-30,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c CviJI 20U ultima
+ENCSR214UOB,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c CviJI 10U ultima
+ENCSR649URB,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dsDNA fragmentase ultima
+ENCSR781VZX,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dnase ultima batch 2
+ENCSR653JLK,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dnase ultima batch 1
+ENCSR946AKI,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c mnase ultima
+ENCSR332BBE,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c dnase illumina
+ENCSR312GVF,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2025-09-22,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact hi-c mnase illumina
+ENCSR916MFV,intact Hi-C,HiC,,"Erez Aiden, Baylor",released,2022-11-08,GRCh38,ENCODE4,EFO:0002784,,GM12878 intact mnase hi-c
+ENCSR521SWL,GRO-cap,GRO-cap,,"John Lis, Cornell",released,2022-05-12,GRCh38,ENCODE4,EFO:0002784,,GM12878 GRO-cap control
+ENCSR719WNF,GRO-cap,GRO-cap,,"John Lis, Cornell",released,2022-05-12,GRCh38,ENCODE4,EFO:0002784,,GM12878 GRO-cap
+ENCSR446IEV,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2022-03-22,GRCh38,ENCODE4,EFO:0002784,,ChIP-seq on human GM12878
+ENCSR368UNC,long read RNA-seq,long read RNA-seq,,"Ali Mortazavi, UCI",released,2022-03-08,GRCh38,ENCODE4,EFO:0002784,,ONT dRNA of GM12878
+ENCSR275KDL,PAS-seq,PAS-seq,,"Ali Mortazavi, UCI",released,2021-12-18,GRCh38,ENCODE4,EFO:0002784,,GM12878 QuantSeq
+ENCSR680NPV,snATAC-seq,single-nucleus ATAC-seq,,"Michael Snyder, Stanford",released,2022-03-16,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR962BVU,long read RNA-seq,long read RNA-seq,,"Ali Mortazavi, UCI",released,2021-02-20,GRCh38,ENCODE4,EFO:0002784,,GM12878 Ljungman
+ENCSR279VWA,Control ChIP-seq,ChIP-seq,,"Yijun Ruan, JAX",released,2020-09-28,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR408AMO,Bru-seq,Bru-seq,,"Mats Ljungman, UMichigan",released,2021-01-14,GRCh38,ENCODE4,EFO:0002784,irradiation,
+ENCSR872EBO,BruUV-seq,BruUV-seq,,"Mats Ljungman, UMichigan",released,2021-01-14,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR993ASV,BruChase-seq,BruChase-seq,,"Mats Ljungman, UMichigan",released,2021-01-14,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR685SOS,BruChase-seq,BruChase-seq,,"Mats Ljungman, UMichigan",released,2021-01-14,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR267RPG,Bru-seq,Bru-seq,,"Mats Ljungman, UMichigan",released,2021-01-14,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR095QNB,ATAC-seq,ATAC-seq,,"Michael Snyder, Stanford",released,2020-08-05,GRCh38,ENCODE4,EFO:0002784,,
+ENCSR820PHH,total RNA-seq,RNA-seq,,"Barbara Wold, Caltech",released,2021-01-04,GRCh38,ENCODE4,EFO:0002784,,GM12878
+ENCSR151NGC,total RNA-seq,RNA-seq,,"Barbara Wold, Caltech",released,2021-01-04,GRCh38,ENCODE4,EFO:0002784,,GM12878_rep2
+ENCSR466AZX,microRNA-seq,microRNA-seq,,"Ali Mortazavi, UCI",released,2020-06-11,GRCh38,ENCODE4,EFO:0002784,,RNA Evaluation GM12878 microRNA-seq from Mortazavi
+ENCSR371ZNU,snATAC-seq,single-nucleus ATAC-seq,,"Michael Snyder, Stanford",released,2022-03-16,GRCh38,ENCODE4,EFO:0002784,,scATAC-seq on human cell line GM12878
+ENCSR635OKA,snATAC-seq,single-nucleus ATAC-seq,,"Michael Snyder, Stanford",released,2022-03-16,GRCh38,ENCODE4,EFO:0002784,,scATAC-seq on human cell line GM12878
+ENCSR838WFC,long read RNA-seq,long read RNA-seq,,"Ali Mortazavi, UCI",released,2020-03-20,GRCh38,ENCODE4,EFO:0002784,,Homo sapiens GM12878 immortalized cell line
+ENCSR905HWW,ChIA-PET,ChIA-PET,POLR2A,"Yijun Ruan, JAX",released,2021-09-09,GRCh38,community,EFO:0002784,,RNAPII ChIA-PET in GM12878
+ENCSR184YZV,ChIA-PET,ChIA-PET,CTCF,"Yijun Ruan, JAX",released,2021-09-09,GRCh38,community,EFO:0002784,,CTCF ChIA-PET in GM12878
+ENCSR637XSC,ATAC-seq,ATAC-seq,,"Michael Snyder, Stanford",released,2020-08-05,GRCh38,ENCODE4,EFO:0002784,,ATAC-seq on human cell line GM12878
+ENCSR423SYP,dilution Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-29,hg19; GRCh38,ENCODE4,EFO:0002784,,GM12878 dilution Hi-C experiment NcoI
+ENCSR770HBF,microRNA-seq,microRNA-seq,,"Ali Mortazavi, UCI",released,2018-09-20,GRCh38,ENCODE4,EFO:0002784,,"RNA Evaluation GM12878 microRNA-seq from Mortazavi, using 5' adaptor set 1 and 2 for reps 1 and 2."
+ENCSR968KAY,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-29,hg19; GRCh38,ENCODE4,EFO:0002784,,DpnII in situ GM12878 experiment
+ENCSR730CER,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-29,hg19; GRCh38,ENCODE4,EFO:0002784,,supernatant GM12878 MboI experiment
+ENCSR742SAT,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-30,hg19; GRCh38,ENCODE4,EFO:0002784,,pellet GM12878 MboI experiment
+ENCSR382RFU,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-29,hg19; GRCh38,ENCODE4,EFO:0002784,,in-situ agar GM12878 MboI experiment
+ENCSR046XXF,dilution Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-29,hg19; GRCh38,ENCODE4,EFO:0002784,,GM12878 dilution Hi-C experiment
+ENCSR706ANY,long read RNA-seq,long read RNA-seq,,"Ali Mortazavi, UCI",released,2019-06-28,GRCh38,ENCODE4,EFO:0002784,,Homo sapiens GM12878 immortalized cell line
+ENCSR691IQB,TF ChIP-seq,ChIP-seq,ZBTB4,"Michael Snyder, Stanford",released,2022-01-20,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-ZBTB4 fusion protein.
+ENCSR748SQL,TF ChIP-seq,ChIP-seq,PRDM15,"Michael Snyder, Stanford",released,2020-08-03,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-PRDM15 fusion protein.
+ENCSR903MVU,TF ChIP-seq,ChIP-seq,MAZ,"Michael Snyder, Stanford",released,2020-08-03,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-MAZ fusion protein.
+ENCSR422KXZ,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2020-08-03,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-ZBTB17 fusion protein.
+ENCSR919BBP,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2022-01-20,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-ZBTB4 fusion protein.
+ENCSR413QNG,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2022-01-20,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-PRDM15 fusion protein.
+ENCSR583RUC,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2022-01-20,GRCh38,ENCODE4,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-MAZ fusion protein.
+ENCSR410MDC,in situ Hi-C,HiC,,"Erez Aiden, Baylor",released,2018-10-30,hg19; GRCh38,ENCODE4,EFO:0002784,,MboI primary+replicate GM12878 experiment
+ENCSR052BBY,icSHAPE,icSHAPE,,"Rob Spitale, UCI",released,2019-05-13,GRCh38,ENCODE4,EFO:0002784,dimethyl sulfoxide,icSHAPE control (DMSO) on GM12878 immortalized cell line
+ENCSR836VQU,icSHAPE,icSHAPE,,"Rob Spitale, UCI",released,2019-05-13,GRCh38,ENCODE4,EFO:0002784,NAI-N3,icSHAPE (NAi-N3) on GM12878 immortalized cell line
+ENCSR859FDL,TF ChIP-seq,ChIP-seq,ZNF687,"Michael Snyder, Stanford",released,2017-06-26,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF687 ChIP-seq on human GM12878
+ENCSR173ZVL,TF ChIP-seq,ChIP-seq,ZNF592,"Michael Snyder, Stanford",released,2017-06-26,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF592 ChIP-seq on human GM12878
+ENCSR841NDX,TF ChIP-seq,ChIP-seq,ELF1,"Michael Snyder, Stanford",released,2017-06-26,hg19; GRCh38,ENCODE3,EFO:0002784,,ELF1 ChIP-seq on human GM12878
+ENCSR072PWP,TF ChIP-seq,ChIP-seq,ZNF24,"Michael Snyder, Stanford",released,2017-06-26,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF24 ChIP-seq on human GM12878
+ENCSR706YUH,TF ChIP-seq,ChIP-seq,SMARCA5,"Michael Snyder, Stanford",released,2017-06-07,hg19; GRCh38,ENCODE3,EFO:0002784,,SMARCA5 ChIP-seq on human GM12878
+ENCSR764CZW,TF ChIP-seq,ChIP-seq,ZNF217,"Michael Snyder, Stanford",released,2017-06-07,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF217 ChIP-seq on human GM12878
+ENCSR725VFL,TF ChIP-seq,ChIP-seq,TCF12,"Michael Snyder, Stanford",released,2017-06-07,hg19; GRCh38,ENCODE3,EFO:0002784,,TCF12 ChIP-seq on human GM12878
+ENCSR784VIQ,TF ChIP-seq,ChIP-seq,NR2C1,"Michael Snyder, Stanford",released,2017-06-07,hg19; GRCh38,ENCODE3,EFO:0002784,,NR2C1 ChIP-seq on human GM12878
+ENCSR732PJX,TF ChIP-seq,ChIP-seq,NKRF,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,NKRF ChIP-seq on human GM12878
+ENCSR441VHN,TF ChIP-seq,ChIP-seq,IKZF1,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,IKZF1 ChIP-seq on human GM12878
+ENCSR657PEW,TF ChIP-seq,ChIP-seq,LARP7,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,LARP7 ChIP-seq on human GM12878
+ENCSR412YGM,TF ChIP-seq,ChIP-seq,ZSCAN29,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,ZSCAN29 ChIP-seq on human GM12878
+ENCSR746XEG,TF ChIP-seq,ChIP-seq,NFXL1,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,NFXL1 ChIP-seq on human GM12878
+ENCSR813DCK,TF ChIP-seq,ChIP-seq,SMAD1,"Michael Snyder, Stanford",released,2018-01-26,hg19; GRCh38,ENCODE3,EFO:0002784,,SMAD1 ChIP-seq on human GM12878
+ENCSR057DTZ,TF ChIP-seq,ChIP-seq,ZBTB11,"Michael Snyder, Stanford",released,2022-06-10,GRCh38,ENCODE3,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-ZBTB11 fusion protein.
+ENCSR161EAA,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2022-07-28,GRCh38,ENCODE3,EFO:0002784,,GM12878 immortalized cell line stably expressing C-terminal eGFP-ZBTB11 fusion protein.
+ENCSR828NCB,TF ChIP-seq,ChIP-seq,GATAD2B,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,GATAD2B ChIP-seq on human GM12878
+ENCSR509FWH,TF ChIP-seq,ChIP-seq,DPF2,"Michael Snyder, Stanford",released,2017-05-17,hg19; GRCh38,ENCODE3,EFO:0002784,,DPF2 ChIP-seq on human GM12878
+ENCSR342THD,TF ChIP-seq,ChIP-seq,BCLAF1,"Michael Snyder, Stanford",released,2017-04-14,hg19; GRCh38,ENCODE3,EFO:0002784,,BCLAF1 ChIP-seq on human GM12878
+ENCSR514VYD,TF ChIP-seq,ChIP-seq,NR2F1,"Michael Snyder, Stanford",released,2017-04-14,hg19; GRCh38,ENCODE3,EFO:0002784,,NR2F1 ChIP-seq on human GM12878
+ENCSR785OKZ,TF ChIP-seq,ChIP-seq,RB1,"Michael Snyder, Stanford",released,2017-06-07,hg19; GRCh38,ENCODE3,EFO:0002784,,RB1 ChIP-seq on human GM12878
+ENCSR778UBR,TF ChIP-seq,ChIP-seq,ARID3A,"Michael Snyder, Stanford",released,2017-01-31,hg19; GRCh38,ENCODE3,EFO:0002784,,ARID3A ChIP-seq on human GM12878
+ENCSR636MKU,TF ChIP-seq,ChIP-seq,BACH1,"Michael Snyder, Stanford",released,2017-01-31,hg19; GRCh38,ENCODE3,EFO:0002784,,BACH1 ChIP-seq on human GM12878
+ENCSR987MTA,TF ChIP-seq,ChIP-seq,BHLHE40,"Michael Snyder, Stanford",released,2017-01-31,hg19; GRCh38,ENCODE3,EFO:0002784,,BHLHE40 ChIP-seq on human GM12878
+ENCSR861JUQ,TF ChIP-seq,ChIP-seq,FOXK2,"Michael Snyder, Stanford",released,2017-01-27,hg19; GRCh38,ENCODE3,EFO:0002784,,FOXK2 ChIP-seq on human GM12878
+ENCSR711XNY,TF ChIP-seq,ChIP-seq,PKNOX1,"Michael Snyder, Stanford",released,2016-11-17,hg19; GRCh38,ENCODE3,EFO:0002784,,PKNOX1 ChIP-seq on human GM12878
+ENCSR542FLV,TF ChIP-seq,ChIP-seq,ZBTB33,"Michael Snyder, Stanford",released,2017-11-13,hg19; GRCh38,ENCODE3,EFO:0002784,,ZBTB33 ChIP-seq on human GM12878
+ENCSR469WII,TF ChIP-seq,ChIP-seq,BMI1,"Michael Snyder, Stanford",released,2016-11-18,hg19; GRCh38,ENCODE3,EFO:0002784,,BMI1 ChIP-seq on human GM12878
+ENCSR956WYO,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2016-09-20,hg19; GRCh38,ENCODE3,EFO:0002784,,ChIP-seq on human GM12878
+ENCSR135FMA,DNAme array,DNA methylation profiling by array assay,,"Richard Myers, HAIB",released,2017-06-15,,ENCODE3,EFO:0002784,,HudsonAlpha human GM12878 DNA Methylation Array
+ENCSR058WAE,genotyping array,comparative genomic hybridization by array,,"Richard Myers, HAIB",released,2016-08-05,,ENCODE3,EFO:0002784,,HudsonAlpha human GM12878 Genotype
+ENCSR075FNZ,TF ChIP-seq,ChIP-seq,ZNF622,"Michael Snyder, Stanford",released,2017-11-13,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF622 ChIP-seq on human GM12878
+ENCSR205SKQ,TF ChIP-seq,ChIP-seq,YBX1,"Michael Snyder, Stanford",released,2016-08-24,hg19; GRCh38,ENCODE3,EFO:0002784,,YBX1 ChIP-seq on human GM12878
+ENCSR387QUV,TF ChIP-seq,ChIP-seq,RELB,"Michael Snyder, Stanford",released,2017-02-21,hg19; GRCh38,ENCODE3,EFO:0002784,,RELB ChIP-seq on human GM12878
+ENCSR278SQL,TF ChIP-seq,ChIP-seq,NBN,"Michael Snyder, Stanford",released,2016-08-24,hg19; GRCh38,ENCODE3,EFO:0002784,,NBN ChIP-seq on human GM12878
+ENCSR552XSN,TF ChIP-seq,ChIP-seq,MLLT1,"Michael Snyder, Stanford",released,2016-08-24,hg19; GRCh38,ENCODE3,EFO:0002784,,MLLT1 ChIP-seq on human GM12878
+ENCSR976TBC,TF ChIP-seq,ChIP-seq,IRF5,"Michael Snyder, Stanford",released,2017-02-21,hg19; GRCh38,ENCODE3,EFO:0002784,,IRF5 ChIP-seq on human GM12878
+ENCSR356PFJ,Control ChIP-seq,ChIP-seq,,"Vishwanath Iyer, UTA",released,2016-06-28,GRCh38,ENCODE2,EFO:0002784,,
+ENCSR145XQO,TF ChIP-seq,ChIP-seq,HDGF,"Michael Snyder, Stanford",released,2016-08-24,hg19; GRCh38,ENCODE3,EFO:0002784,,HDGF ChIP-seq on human GM12878
+ENCSR439WAF,TF ChIP-seq,ChIP-seq,E4F1,"Michael Snyder, Stanford",released,2018-01-26,hg19; GRCh38,ENCODE3,EFO:0002784,,E4F1 ChIP-seq on human GM12878
+ENCSR793HVL,TF ChIP-seq,ChIP-seq,E2F8,"Michael Snyder, Stanford",released,2018-01-26,hg19; GRCh38,ENCODE3,EFO:0002784,,E2F8 ChIP-seq on human GM12878
+ENCSR874AFU,TF ChIP-seq,ChIP-seq,IKZF1,"Michael Snyder, Stanford",released,2016-09-20,hg19; GRCh38,ENCODE3,EFO:0002784,,IKZF1 ChIP-seq on human GM12878
+ENCSR189YYK,TF ChIP-seq,ChIP-seq,ZBTB40,"Michael Snyder, Stanford",released,2016-09-20,hg19; GRCh38,ENCODE3,EFO:0002784,,ZBTB40 ChIP-seq on human GM12878
+ENCSR041XML,TF ChIP-seq,ChIP-seq,SRF,"Michael Snyder, Stanford",released,2018-01-26,hg19; GRCh38,ENCODE3,EFO:0002784,,SRF ChIP-seq on human GM12878
+ENCSR192AFN,TF ChIP-seq,ChIP-seq,PAX8,"Michael Snyder, Stanford",released,2017-11-30,hg19; GRCh38,ENCODE3,EFO:0002784,,PAX8 ChIP-seq on human GM12878
+ENCSR293QAR,TF ChIP-seq,ChIP-seq,MTA2,"Michael Snyder, Stanford",released,2016-09-20,hg19; GRCh38,ENCODE3,EFO:0002784,,MTA2 ChIP-seq on human GM12878
+ENCSR177VFS,TF ChIP-seq,ChIP-seq,MEF2B,"Michael Snyder, Stanford",released,2018-02-13,hg19; GRCh38,ENCODE3,EFO:0002784,,MEF2B ChIP-seq on human GM12878
+ENCSR822AHX,TF ChIP-seq,ChIP-seq,IKZF2,"Michael Snyder, Stanford",released,2017-06-23,hg19; GRCh38,ENCODE3,EFO:0002784,,IKZF2 ChIP-seq on human GM12878
+ENCSR680UQE,TF ChIP-seq,ChIP-seq,IKZF2,"Michael Snyder, Stanford",released,2017-02-21,hg19; GRCh38,ENCODE3,EFO:0002784,,IKZF2 ChIP-seq on human GM12878
+ENCSR961PPA,TF ChIP-seq,ChIP-seq,ATF2,"Michael Snyder, Stanford",released,2016-10-26,hg19; GRCh38,ENCODE3,EFO:0002784,,ATF2 ChIP-seq on human GM12878
+ENCSR590KEQ,TF ChIP-seq,ChIP-seq,ARNT,"Michael Snyder, Stanford",released,2017-11-14,hg19; GRCh38,ENCODE3,EFO:0002784,,ARNT ChIP-seq on human GM12878
+ENCSR142REC,Control ChIP-seq,ChIP-seq,,"Bradley Bernstein, Broad",released,2016-10-27,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR933EYC,TF ChIP-seq,ChIP-seq,HDAC6,"Bradley Bernstein, Broad",released,2017-12-14,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR091BOQ,TF ChIP-seq,ChIP-seq,SUZ12,"Bradley Bernstein, Broad",released,2018-01-17,GRCh38,ENCODE3,EFO:0002784,,
+ENCSR549NPZ,TF ChIP-seq,ChIP-seq,CBX3,"Bradley Bernstein, Broad",released,2016-11-23,GRCh38,ENCODE3,EFO:0002784,,
+ENCSR843RJV,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2016-06-13,hg19; GRCh38,ENCODE3,EFO:0002784,,PolyA RNA-Seq from oligo-dT primed Total RNA on bulk prep (100 pg) from the GM12878 cell line
+ENCSR889TRN,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2016-06-13,hg19; GRCh38,ENCODE3,EFO:0002784,,PolyA RNA-Seq from oligo-dT primed Total RNA on bulk prep (10 pg) from the GM12878 cell line
+ENCSR897MMC,TF ChIP-seq,ChIP-seq,JUNB,"Richard Myers, HAIB",released,2016-06-13,hg19; GRCh38,ENCODE3,EFO:0002784,,Chip-Seq on GM12878
+ENCSR981FNA,ChIA-PET,ChIA-PET,RAD21,"Michael Snyder, Stanford",released,2016-10-10,,ENCODE3,EFO:0002784,,RAD21 ChIA-PET in GM12878
+ENCSR751CJG,TF ChIP-seq,ChIP-seq,CHD4,"Bradley Bernstein, Broad",released,2016-11-23,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR330EXS,TF ChIP-seq,ChIP-seq,RBBP5,"Bradley Bernstein, Broad",released,2016-11-23,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR849WCQ,TF ChIP-seq,ChIP-seq,ASH2L,"Bradley Bernstein, Broad",released,2017-01-08,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR391IWM,TF ChIP-seq,ChIP-seq,KDM1A,"Bradley Bernstein, Broad",released,2016-11-24,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR330OEO,TF ChIP-seq,ChIP-seq,HDAC2,"Bradley Bernstein, Broad",released,2017-08-12,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR890UQO,WGBS,whole-genome shotgun bisulfite sequencing,,"Richard Myers, HAIB",released,2016-02-23,GRCh38,ENCODE3,EFO:0002784,,HAIB Whole Genome Bisulfite Sequencing GM12878
+ENCSR207PFI,TF ChIP-seq,ChIP-seq,ZBED1,"Richard Myers, HAIB",released,2016-02-05,hg19; GRCh38,ENCODE3,EFO:0002784,,Chip-Seq on GM12878
+ENCSR251OVJ,TF ChIP-seq,ChIP-seq,SMAD5,"Richard Myers, HAIB",released,2016-02-02,hg19; GRCh38,ENCODE3,EFO:0002784,,Chip-Seq on GM12878
+ENCSR860UHK,TF ChIP-seq,ChIP-seq,CBFB,"Richard Myers, HAIB",released,2016-06-13,hg19; GRCh38,ENCODE3,EFO:0002784,,Chip-Seq on GM12878
+ENCSR785WMC,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-01-14,hg19; GRCh38,ENCODE3,EFO:0002784,,Chip-Seq on GM12878-human (fragmentation date:2014-10-13)
+ENCSR551YTL,RIP-seq,RIP-seq,SUZ12,"John Rinn, Broad",released,2016-05-04,hg19,ENCODE3,EFO:0002784,,
+ENCSR593SOD,RIP-seq,RIP-seq,CTCF,"John Rinn, Broad",released,2016-05-04,hg19,ENCODE3,EFO:0002784,,
+ENCSR477ECC,RIP-seq,RIP-seq,,"John Rinn, Broad",released,2016-05-04,hg19,ENCODE3,EFO:0002784,,
+ENCSR835XKS,TF ChIP-seq,ChIP-seq,TRIM22,"Michael Snyder, Stanford",released,2016-07-28,hg19; GRCh38,ENCODE3,EFO:0002784,,TRIM22 ChIP-seq on human GM12878
+ENCSR412QBS,TF ChIP-seq,ChIP-seq,TARDBP,"Michael Snyder, Stanford",released,2016-04-22,hg19; GRCh38,ENCODE3,EFO:0002784,,TARDBP ChIP-seq on human GM12878
+ENCSR212YKD,TF ChIP-seq,ChIP-seq,SKIL,"Michael Snyder, Stanford",released,2017-07-24,hg19; GRCh38,ENCODE3,EFO:0002784,,SKIL ChIP-seq on human GM12878
+ENCSR482TWQ,TF ChIP-seq,ChIP-seq,RAD51,"Michael Snyder, Stanford",released,2016-11-17,hg19; GRCh38,ENCODE3,EFO:0002784,,RAD51 ChIP-seq on human GM12878
+ENCSR437GBJ,TF ChIP-seq,ChIP-seq,NFATC3,"Michael Snyder, Stanford",released,2018-01-26,hg19; GRCh38,ENCODE3,EFO:0002784,,NFATC3 ChIP-seq on human GM12878
+ENCSR739IHN,TF ChIP-seq,ChIP-seq,TBX21,"Michael Snyder, Stanford",released,2016-06-14,hg19; GRCh38,ENCODE3,EFO:0002784,,TBX21 ChIP-seq on human GM12878
+ENCSR014YCR,TF ChIP-seq,ChIP-seq,ATF7,"Michael Snyder, Stanford",released,2016-07-08,GRCh38,ENCODE3,EFO:0002784,,ATF7 ChIP-seq on human GM12878
+ENCSR347NOB,TF ChIP-seq,ChIP-seq,CEBPZ,"Michael Snyder, Stanford",released,2016-03-02,hg19; GRCh38,ENCODE3,EFO:0002784,,CEBPZ ChIP-seq on human GM12878
+ENCSR372GIN,TF ChIP-seq,ChIP-seq,CBX5,"Richard Myers, HAIB",released,2016-10-27,hg19; GRCh38,ENCODE3,EFO:0002784,,ChIP-Seq on GM12878-human
+ENCSR199WXF,TF ChIP-seq,ChIP-seq,EED,"Richard Myers, HAIB",released,2016-03-30,hg19; GRCh38,ENCODE3,EFO:0002784,,ChIP-Seq on GM12878-human
+ENCSR713ONE,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-01-08,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 11-12-12)
+ENCSR136WQZ,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-01-08,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 02-20-14)
+ENCSR890ZMI,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-01-08,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 02-19-14)
+ENCSR436QMA,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-01-08,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 01-30-14)
+ENCSR360XQV,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 04-19-13)
+ENCSR237VSG,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2016-06-13,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 08-23-13)
+ENCSR057BWO,Histone ChIP-seq,ChIP-seq,H3K4me3,"Bradley Bernstein, Broad",released,2016-11-14,hg19; GRCh38,ENCODE3,EFO:0002784,,
+ENCSR459FTB,TF ChIP-seq,ChIP-seq,UBTF,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,UBTF ChIP-seq on human GM12878
+ENCSR332EYT,TF ChIP-seq,ChIP-seq,STAT1,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,STAT1 ChIP-seq on human GM12878
+ENCSR664POU,TF ChIP-seq,ChIP-seq,RELA,"Michael Snyder, Stanford",released,2014-07-07,GRCh38,ENCODE3,EFO:0002784,,RELA ChIP-seq on human GM12878
+ENCSR974OFJ,TF ChIP-seq,ChIP-seq,KLF5,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,KLF5 ChIP-seq on human GM12878
+ENCSR408JQO,TF ChIP-seq,ChIP-seq,IRF3,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,IRF3 ChIP-seq on human GM12878
+ENCSR597VGC,TF ChIP-seq,ChIP-seq,ETV6,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,ETV6 ChIP-seq on human GM12878
+ENCSR900XDB,TF ChIP-seq,ChIP-seq,ZFP36,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,ZFP36 ChIP-seq on human GM12878
+ENCSR009MBP,TF ChIP-seq,ChIP-seq,HSF1,"Michael Snyder, Stanford",released,2014-07-07,GRCh38,ENCODE3,EFO:0002784,,HSF1 ChIP-seq on human GM12878
+ENCSR514VAY,TF ChIP-seq,ChIP-seq,HCFC1,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,HCFC1 ChIP-seq on human GM12878
+ENCSR819ATC,TF ChIP-seq,ChIP-seq,MYB,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,MYB ChIP-seq on human GM12878
+ENCSR681NOM,TF ChIP-seq,ChIP-seq,CEBPB,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,CEBPB ChIP-seq on human GM12878
+ENCSR553NUG,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR331HPA,TF ChIP-seq,ChIP-seq,GABPA,"Richard Myers, HAIB",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,GABPA ChIP-seq on human GM12878
+ENCSR752QCX,ChIA-PET,ChIA-PET,RAD21,"Michael Snyder, Stanford",released,2014-07-07,,ENCODE3,EFO:0002784,,RAD21 ChIA-PET in GM12878
+ENCSR117KWH,TF ChIP-seq,ChIP-seq,ZNF207,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,ZNF207 ChIP-seq on human GM12878
+ENCSR637QAM,TF ChIP-seq,ChIP-seq,TRIM22,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,TRIM22 ChIP-seq on human GM12878
+ENCSR398JTO,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR549JXX,MeDIP-seq,MeDIP-seq,Methylcytidine,"Michael Snyder, Stanford",released,2014-05-09,hg19,ENCODE2,EFO:0002784,,
+ENCSR398TCH,MRE-seq,MRE-seq,,"Michael Snyder, Stanford",released,2014-05-09,hg19,ENCODE2,EFO:0002784,,
+ENCSR016UEH,TF ChIP-seq,ChIP-seq,TARDBP,"Richard Myers, HAIB",released,2016-11-08,hg19; GRCh38,ENCODE3,EFO:0002784,,TARDBP ChIP-seq on human GM12878
+ENCSR501DKS,TF ChIP-seq,ChIP-seq,TCF7,"Richard Myers, HAIB",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,TCF7 ChIP-seq on human GM12878
+ENCSR626VUC,TF ChIP-seq,ChIP-seq,ETV6,"Richard Myers, HAIB",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,ETV6 ChIP-seq on human GM12878
+ENCSR839XZU,TF ChIP-seq,ChIP-seq,CREM,"Richard Myers, HAIB",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,CREM ChIP-seq on human GM12878
+ENCSR596QDC,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,Reverse Crosslink Control ChIP-seq on human GM12878 (fragmentation date 11-12-13)
+ENCSR000CVO,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2012-07-09,hg19; GRCh38,ENCODE2,EFO:0002784,,"The libraries contained in this experiment come from nucleolar extracts from independent growths of cell line, GM12878. They are stranded SE101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size that was pre-treated with TAP prior to cloning."
+ENCSR000CVE,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2012-07-09,hg19; GRCh38,ENCODE2,EFO:0002784,,"The libraries contained in this experiment come from chromatin extracts from independent growths of cell line, GM12878. They are stranded S101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size that was pre-treated with TAP prior to cloning."
+ENCSR000BZT,polyA plus RNA-seq,polyA plus RNA-seq,,"Yijun Ruan, JAX",released,2010-11-17,hg19,ENCODE2,EFO:0002784,,RNA-seq on human GM12878 cytosol long polyadenalated RNA
+ENCSR000AWO,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-07-06,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 whole cell long total RNA
+ENCSR000AWK,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-07-06,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 cytosol long polyA- RNA
+ENCSR000AWB,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-07-06,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 nucleus long polyA- RNA
+ENCSR000AWA,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-07-06,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 cytosol long polyA+ RNA
+ENCSR000AWY,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-10-02,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 nucleolus long total RNA
+ENCSR000AWP,RNA microarray,transcription profiling by array assay,,"Thomas Gingeras, CSHL",released,2009-07-06,hg19,ENCODE2,EFO:0002784,,Affy RNA Array on human GM12878 nucleus long polyA+ RNA
+ENCSR000CRE,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2012-02-22,hg19; GRCh38,ENCODE2,EFO:0002784,,"The libraries contained in this experiment come from whole cell extracts from independent growths of cell line, GM12878. They are stranded SE36 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size that was pre-treated with TAP prior to cloning."
+ENCSR000BCA,RNA-PET,RNA-PET,,"Yijun Ruan, JAX",released,2011-10-17,hg19,ENCODE2,EFO:0002784,,RNA-PET on human GM12878 cytosol long polyadenalated RNA
+ENCSR000BCB,RNA-PET,RNA-PET,,"Yijun Ruan, JAX",released,2011-10-17,hg19,ENCODE2,EFO:0002784,,RNA-PET on human GM12878 nucleus long polyadenalated RNA
+ENCSR000CQW,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2012-02-22,hg19; GRCh38,ENCODE2,EFO:0002784,,"The libraries contained in this experiment come from nuclear extracts from independent growths of cell line, GM12878. They are stranded SE36 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size that was pre-treated with TAP prior to cloning."
+ENCSR000CQV,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2012-02-22,hg19; GRCh38,ENCODE2,EFO:0002784,,"The libraries contained in this experiment come from cytoplasmic extracts from independent growths of cell line, GM12878. They are stranded SE36 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size that was pre-treated with TAP prior to cloning."
+ENCSR000DNQ,TF ChIP-seq,ChIP-seq,ZZZ3,"Kevin Struhl, HMS",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,ZZZ3 ChIP-seq on human GM12878
+ENCSR000DNP,TF ChIP-seq,ChIP-seq,SUPT20H,"Kevin Struhl, HMS",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,SUPT20H ChIP-seq on human GM12878
+ENCSR000DNM,TF ChIP-seq,ChIP-seq,NFYB,"Kevin Struhl, HMS",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NFYB ChIP-seq on human GM12878
+ENCSR000DNO,TF ChIP-seq,ChIP-seq,KAT2A,"Kevin Struhl, HMS",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,KAT2A ChIP-seq on human GM12878
+ENCSR000DNN,TF ChIP-seq,ChIP-seq,NFYA,"Kevin Struhl, HMS",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NFYA ChIP-seq on human GM12878
+ENCSR000DZC,TF ChIP-seq,ChIP-seq,RCOR1,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,RCOR1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZQ,TF ChIP-seq,ChIP-seq,EBF1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,EBF1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZP,TF ChIP-seq,ChIP-seq,SMC3,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,SMC3 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZS,TF ChIP-seq,ChIP-seq,BRCA1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,BRCA1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZR,TF ChIP-seq,ChIP-seq,CHD2,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,CHD2 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZO,TF ChIP-seq,ChIP-seq,NRF1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NRF1 ChIP-seq on human GM12878
+ENCSR000DZD,TF ChIP-seq,ChIP-seq,EP300,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,EP300 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZG,TF ChIP-seq,ChIP-seq,EP300,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,EP300 ChIP-seq on human GM12878
+ENCSR000DZF,TF ChIP-seq,ChIP-seq,MAX,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,MAX ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZI,TF ChIP-seq,ChIP-seq,MXI1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,MXI1 ChIP-seq on human GM12878
+ENCSR000DZK,TF ChIP-seq,ChIP-seq,POLR2AphosphoS2,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,POLR2AphosphoS2 ChIP-seq on human GM12878
+ENCSR000DYS,TF ChIP-seq,ChIP-seq,JUND,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,JUND ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZJ,TF ChIP-seq,ChIP-seq,BHLHE40,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,BHLHE40 ChIP-seq on human GM12878
+ENCSR000DYT,TF ChIP-seq,ChIP-seq,SREBF2,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,SREBF2 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZH,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2011-10-29,GRCh38,ENCODE2,EFO:0002784,tumor necrosis factor,Control ChIP-seq on human GM12878 treated with TNFa
+ENCSR000DYU,TF ChIP-seq,ChIP-seq,SREBF1,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,SREBF1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000EAA,TF ChIP-seq,ChIP-seq,WRNIP1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,WRNIP1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZU,TF ChIP-seq,ChIP-seq,USF2,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,USF2 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZW,TF ChIP-seq,ChIP-seq,RFX5,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,RFX5 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZX,TF ChIP-seq,ChIP-seq,IRF3,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,IRF3 ChIP-seq on human GM12878
+ENCSR000DZZ,TF ChIP-seq,ChIP-seq,TBP,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,TBP ChIP-seq on human GM12878
+ENCSR000DZA,TF ChIP-seq,ChIP-seq,MAZ,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,MAZ ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZM,TF ChIP-seq,ChIP-seq,STAT1,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,STAT1 ChIP-seq on human GM12878
+ENCSR000DZE,TF ChIP-seq,ChIP-seq,CHD1,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,CHD1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DYX,TF ChIP-seq,ChIP-seq,SIN3A,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,SIN3A ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZN,TF ChIP-seq,ChIP-seq,CTCF,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,CTCF ChIP-seq on human GM12878
+ENCSR000DYY,TF ChIP-seq,ChIP-seq,E2F4,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,E2F4 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000EAD,TF ChIP-seq,ChIP-seq,POLR2A,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,POLR2A ChIP-seq on human GM12878
+ENCSR000EAG,TF ChIP-seq,ChIP-seq,RELA,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,tumor necrosis factor,RELA ChIP-seq on human GM12878 treated with TNFa
+ENCSR000EAF,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR000EAC,TF ChIP-seq,ChIP-seq,RAD21,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,RAD21 ChIP-seq on human GM12878
+ENCSR000EAB,Control ChIP-seq,ChIP-seq,,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DYP,TF ChIP-seq,ChIP-seq,ZNF384,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,ZNF384 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DYQ,TF ChIP-seq,ChIP-seq,ESRRA,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,ESRRA ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DYR,TF ChIP-seq,ChIP-seq,CUX1,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,CUX1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DRW,Histone ChIP-seq,ChIP-seq,H3K36me3,"John Stamatoyannopoulos, UW",released,2011-02-11,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K36me3 ChIP-seq on human GM12878
+ENCSR000DYV,TF ChIP-seq,ChIP-seq,MAFK,"Michael Snyder, Stanford",released,2012-08-20,hg19; GRCh38,ENCODE2,EFO:0002784,,MAFK ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DZV,TF ChIP-seq,ChIP-seq,STAT3,"Michael Snyder, Stanford",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,STAT3 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000EUK,TF ChIP-seq,ChIP-seq,ZNF274,"Peggy Farnham, USC",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,ZNF274 ChIP-seq on human GM12878
+ENCSR000EUJ,TF ChIP-seq,ChIP-seq,IKZF1,"Peggy Farnham, USC",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,IKZF1 ChIP-seq on human GM12878
+ENCSR000EUM,TF ChIP-seq,ChIP-seq,YY1,"Peggy Farnham, USC",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,YY1 ChIP-seq on human GM12878
+ENCSR000EUL,TF ChIP-seq,ChIP-seq,NR2C2,"Peggy Farnham, USC",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NR2C2 ChIP-seq on human GM12878
+ENCSR000DRY,Histone ChIP-seq,ChIP-seq,H3K4me3,"John Stamatoyannopoulos, UW",released,2011-02-11,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K4me3 ChIP-seq on human GM12878
+ENCSR000DRX,Histone ChIP-seq,ChIP-seq,H3K27me3,"John Stamatoyannopoulos, UW",released,2011-02-11,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K27me3 ChIP-seq on human GM12878
+ENCSR000DRZ,TF ChIP-seq,ChIP-seq,CTCF,"John Stamatoyannopoulos, UW",released,2011-03-17,hg19; GRCh38,ENCODE2,EFO:0002784,,CTCF ChIP-seq on human GM12878
+ENCSR000DYZ,TF ChIP-seq,ChIP-seq,TBL1XR1,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,TBL1XR1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000DRV,Control ChIP-seq,ChIP-seq,,"John Stamatoyannopoulos, UW",released,2011-02-11,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR000DZB,TF ChIP-seq,ChIP-seq,ELK1,"Michael Snyder, Stanford",released,2012-05-14,hg19; GRCh38,ENCODE2,EFO:0002784,,ELK1 ChIP-seq on human GM12878 produced by the Snyder lab
+ENCSR000CXW,5C,5C,,"John Stamatoyannopoulos, UW",released,2011-10-10,hg19,ENCODE2,EFO:0002784,,5C on human GM12878 in the Myc region
+ENCSR000CYD,5C,5C,,"Job Dekker, UMass",released,2012-03-22,hg19,ENCODE2,EFO:0002784,,5C on human GM12878
+ENCSR000CXJ,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 G1b phase
+ENCSR958WRL,DNAme array,DNA methylation profiling by array assay,,"Richard Myers, HAIB",released,2011-11-14,,ENCODE2,EFO:0002784,,HudsonAlpha Methyl27 GM12878
+ENCSR077AZT,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2011-02-08,GRCh38,ENCODE2,EFO:0002784,,"RNA-seq on human GM12878 (paired-ended, insert length is 400)"
+ENCSR297UBP,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2011-02-08,hg19; GRCh38,ENCODE2,EFO:0002784,,RNA-seq on human GM12878 (single end)
+ENCSR935KWW,MS-MS,protein sequencing by tandem mass spectrometry assay,,"Morgan Giddings, UNC",released,2011-09-29,hg19,ENCODE2,EFO:0002784,,Proteogenomic mapping of GM12878 nucleus with in-gel protocol
+ENCSR558QVW,MS-MS,protein sequencing by tandem mass spectrometry assay,,"Morgan Giddings, UNC",released,2011-09-30,hg19,ENCODE2,EFO:0002784,,Proteogenomic mapping of GM12878 mitochondria with in-gel protocol
+ENCSR650BMA,MS-MS,protein sequencing by tandem mass spectrometry assay,,"Morgan Giddings, UNC",released,2011-09-30,hg19,ENCODE2,EFO:0002784,,Proteogenomic mapping of GM12878 membrane with in-gel protocol
+ENCSR327BIN,MS-MS,protein sequencing by tandem mass spectrometry assay,,"Morgan Giddings, UNC",released,2012-09-11,hg19,ENCODE2,EFO:0002784,,Proteogenomic mapping of GM12878 cytosol with in-gel protocol
+ENCSR229NJU,MS-MS,protein sequencing by tandem mass spectrometry assay,,"Morgan Giddings, UNC",released,2012-09-11,hg19,ENCODE2,EFO:0002784,,Proteogenomic mapping of GM12878 whole cell with in-gel protocol
+ENCSR703BOK,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 G2 phase
+ENCSR257NBQ,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 S4 phase
+ENCSR214GWY,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 S3 phase
+ENCSR849LEC,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 S2 phase
+ENCSR025TZP,Repli-seq,Repli-seq,,"John Stamatoyannopoulos, UW",released,2012-02-14,hg19,ENCODE2,EFO:0002784,,Repli-seq of GM12878 S1 phase
+ENCSR000DEY,RRBS,RRBS,,"Richard Myers, HAIB",released,2011-09-30,hg19,ENCODE2,EFO:0002784,,RRBS on human GM12878-XiMat
+ENCSR000CVT,total RNA-seq,RNA-seq,,"Thomas Gingeras, CSHL",released,2013-03-29,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the nucleolar fraction of independent growths of cell line GM12878. They are stranded PE101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Total RNA > 200 nucleotides in size.
+ENCSR000COQ,polyA plus RNA-seq,polyA plus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the whole cell fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Poly-A+ RNA > 200 nucleotides in size.
+ENCSR000COS,polyA minus RNA-seq,polyA minus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the whole cell fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted and DSN normalized Poly-A- RNA > 200 nucleotides in size.
+ENCSR000CPO,polyA plus RNA-seq,polyA plus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the nuclear fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Poly-A+ RNA > 200 nucleotides in size.
+ENCSR000COR,polyA plus RNA-seq,polyA plus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the cytoplasmic fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Poly-A+ RNA > 200 nucleotides in size.
+ENCSR000CQF,polyA minus RNA-seq,polyA minus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the nuclear fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted and DSN normalized Poly-A- RNA > 200 nucleotides in size.
+ENCSR000CQE,polyA minus RNA-seq,polyA minus RNA-seq,,"Thomas Gingeras, CSHL",released,2011-10-17,hg19; GRCh38,ENCODE2,EFO:0002784,,The libraries contained in this experiment come from the cytoplasmic fraction of independent growths of cell line GM12878. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted and DSN normalized Poly-A- RNA > 200 nucleotides in size.
+ENCSR000AEJ,small RNA-seq,small RNA-seq,,"Thomas Gingeras, CSHL",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,The libraries contained in this experiment come from independent growths of cell line GM12878.  They are stranded SE101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Total RNA < 200 nucleotides in size.  These data were collected as part of the RNA Evaluation Study.
+ENCSR000AJK,microRNA counts,microRNA counts,,"Ali Mortazavi, UCI",released,2016-02-02,GRCh38,ENCODE3,EFO:0002784,,Irvine Nanostring GM12878
+ENCSR000AEI,RAMPAGE,RAMPAGE,,"Thomas Gingeras, CSHL",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,The libraries contained in this experiment come from independent growths of cell line GM12878.  They are stranded PE101 Illumina Hi-Seq RAMPAGE libraries from rRNA-depleted Total RNA > 200 nucleotides in size.  These data were collected as part of the RNA Evaluation Study.
+ENCSR000AEE,total RNA-seq,RNA-seq,,"Brenton Graveley, UConn",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,RNA Evaluation Gm12878 Long Total from Graveley
+ENCSR000AED,polyA plus RNA-seq,polyA plus RNA-seq,,"Thomas Gingeras, CSHL",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,The libraries contained in this experiment come from independent growths of cell line GM12878.  They are stranded PE101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Poly-A+ RNA > 200 nucleotides in size.  These data were collected as part of the RNA Evaluation Study.
+ENCSR000AEG,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,PolyA RNA-Seq from oligo-dT primed Total RNA on the GM12878 cell line
+ENCSR000AEF,polyA plus RNA-seq,polyA plus RNA-seq,,"Brenton Graveley, UConn",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,RNA Evaluation Gm12878 Long Poly-A+  from Graveley
+ENCSR000AEC,total RNA-seq,RNA-seq,,"Thomas Gingeras, CSHL",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,The libraries contained in this experiment come from independent growths of cell line GM12878.  They are stranded PE101 Illumina Hi-Seq RNA-Seq libraries from rRNA-depleted Total RNA > 200 nucleotides in size.  These data were collected as part of the RNA Evaluation Study.
+ENCSR000AEH,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2014-07-07,hg19; GRCh38,ENCODE3,EFO:0002784,,RNA Evaluation Gm12878 Long Poly-A+ RNA-seq from Wold
+ENCSR000AKB,TF ChIP-seq,ChIP-seq,CTCF,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,CTCF ChIP-seq on human GM12878
+ENCSR000ARD,TF ChIP-seq,ChIP-seq,EZH2,"Bradley Bernstein, Broad",released,2012-03-06,hg19; GRCh38,ENCODE2,EFO:0002784,,ChIP-seq on human GM12878 EZH2
+ENCSR000AKG,Histone ChIP-seq,ChIP-seq,H3K4me2,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K4me2 ChIP-seq on human GM12878
+ENCSR000AKJ,Control ChIP-seq,ChIP-seq,,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR000AKC,Histone ChIP-seq,ChIP-seq,H3K27ac,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K27ac ChIP-seq on human GM12878
+ENCSR000AOW,Histone ChIP-seq,ChIP-seq,H3K79me2,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K79me2 ChIP-seq on human GM12878
+ENCSR000AKE,Histone ChIP-seq,ChIP-seq,H3K36me3,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K36me3 ChIP-seq on human GM12878
+ENCSR000AOV,Histone ChIP-seq,ChIP-seq,H2AFZ,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H2AFZ ChIP-seq on human GM12878
+ENCSR000AKF,Histone ChIP-seq,ChIP-seq,H3K4me1,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K4me1 ChIP-seq on human GM12878
+ENCSR000AKH,Histone ChIP-seq,ChIP-seq,H3K9ac,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K9ac ChIP-seq on human GM12878
+ENCSR000AKA,Histone ChIP-seq,ChIP-seq,H3K4me3,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K4me3 ChIP-seq on human GM12878
+ENCSR000AKD,Histone ChIP-seq,ChIP-seq,H3K27me3,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K27me3 ChIP-seq on human GM12878
+ENCSR000AOX,Histone ChIP-seq,ChIP-seq,H3K9me3,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H3K9me3 ChIP-seq on human GM12878
+ENCSR000AKI,Histone ChIP-seq,ChIP-seq,H4K20me1,"Bradley Bernstein, Broad",released,2011-02-10,hg19; GRCh38,ENCODE2,EFO:0002784,,H4K20me1 ChIP-seq on human GM12878
+ENCSR000ACX,DNAme array,DNA methylation profiling by array assay,,"Richard Myers, HAIB",released,2011-12-01,hg19,ENCODE2,EFO:0002784,,HudsonAlpha  GM12878
+ENCSR000CXP,MNase-seq,MNase-seq,,"Michael Snyder, Stanford",released,2011-07-29,hg19,ENCODE2,EFO:0002784,,MNase-seq on human GM12878
+ENCSR000BBM,genotyping array,comparative genomic hybridization by array,,"Richard Myers, HAIB",released,2011-08-16,hg19,ENCODE2,EFO:0002784,,Genotype of human GM12878
+ENCSR000EYN,polyA plus RNA-seq,polyA plus RNA-seq,,"Barbara Wold, Caltech",released,2012-01-17,GRCh38,ENCODE2,EFO:0002784,,RNA-seq on human GM12878 (paired-ended)
+ENCSR000FAP,DNA-PET,DNA-PET,,"Yijun Ruan, JAX",released,2011-01-12,hg19,ENCODE2,EFO:0002784,,DNA-PET of human GM12878 with a fragment size of 10K
+ENCSR000DKV,TF ChIP-seq,ChIP-seq,CTCF,"Vishwanath Iyer, UTA",released,2011-03-17,hg19; GRCh38,ENCODE2,EFO:0002784,,CTCF ChIP-seq on human GM12878
+ENCSR000FAO,DNA-PET,DNA-PET,,"Yijun Ruan, JAX",released,2011-01-12,hg19,ENCODE2,EFO:0002784,,DNA-PET of human GM12878 with a fragment size of 1K
+ENCSR000FAN,DNA-PET,DNA-PET,,"Yijun Ruan, JAX",released,2011-01-12,hg19,ENCODE2,EFO:0002784,,DNA-PET of human GM12878 with a fragment size of 5K
+ENCSR000DBY,FAIRE-seq,FAIRE-seq,,"Jason Lieb, UNC",released,2011-03-21,hg19,ENCODE2,EFO:0002784,,FAIRE-seq on GM12878
+ENCSR000AYG,RIP-chip,RIP-chip,,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP Array
+ENCSR000BQS,TF ChIP-seq,ChIP-seq,REST,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,REST ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BQT,TF ChIP-seq,ChIP-seq,TCF3,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,TCF3 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000EYV,TF ChIP-seq,ChIP-seq,JUND,"Sherman Weissman, Yale",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,JUND ChIP-seq on human GM12878
+ENCSR000DKW,Control ChIP-seq,ChIP-seq,,"Vishwanath Iyer, UTA",released,2011-03-17,GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR000BRX,TF ChIP-seq,ChIP-seq,CEBPB,"Richard Myers, HAIB",released,2012-09-10,hg19; GRCh38,ENCODE2,EFO:0002784,,CEBPB ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000DFT,RRBS,RRBS,,"Richard Myers, HAIB",released,2011-09-30,hg19,ENCODE2,EFO:0002784,,RRBS on human GM12878
+ENCSR000CKA,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-03-23,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 cellular long polyadenylated RNA
+ENCSR000EYU,TF ChIP-seq,ChIP-seq,POLR3G,"Sherman Weissman, Yale",released,2011-10-29,hg19,ENCODE2,EFO:0002784,,POLR3G ChIP-seq on human GM12878
+ENCSR000CWU,RIP-seq,RIP-seq,,"Scott Tenenbaum, SUNY-Albany",released,2011-08-29,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP-seq
+ENCSR000CWT,RIP-seq,RIP-seq,T7,"Scott Tenenbaum, SUNY-Albany",released,2011-08-29,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP-seq
+ENCSR000CWW,RIP-seq,RIP-seq,ELAVL1,"Scott Tenenbaum, SUNY-Albany",released,2011-08-29,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 ELAVL1 RIP-seq
+ENCSR000CWV,RIP-seq,RIP-seq,PABPC1,"Scott Tenenbaum, SUNY-Albany",released,2011-08-29,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 PABPC1 RIP-seq
+ENCSR000EYI,RIP-chip,RIP-chip,T7,"Scott Tenenbaum, SUNY-Albany",released,2011-02-14,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP Array
+ENCSR000EYH,RIP-chip,RIP-chip,,"Scott Tenenbaum, SUNY-Albany",released,2011-02-14,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP Array
+ENCSR000AYZ,RIP-chip,RIP-chip,PABPC1,"Scott Tenenbaum, SUNY-Albany",released,2011-02-14,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 PABPC1 RIP Array
+ENCSR000BUF,TF ChIP-seq,ChIP-seq,CREB1,"Richard Myers, HAIB",released,2012-09-10,hg19; GRCh38,ENCODE2,EFO:0002784,,CREB1 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BNP,TF ChIP-seq,ChIP-seq,YY1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,YY1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BNQ,TF ChIP-seq,ChIP-seq,BCL3,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,BCL3 ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000BMI,TF ChIP-seq,ChIP-seq,SRF,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,SRF ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000BQM,TF ChIP-seq,ChIP-seq,PML,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,PML ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BQL,TF ChIP-seq,ChIP-seq,NFATC1,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NFATC1 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BQK,TF ChIP-seq,ChIP-seq,ATF2,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,ATF2 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000AYA,RIP-chip,RIP-chip,CELF1,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 CELF1 RIP Array
+ENCSR000BRU,TF ChIP-seq,ChIP-seq,FOXM1,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,FOXM1 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BND,TF ChIP-seq,ChIP-seq,ZEB1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,ZEB1 ChIP-seq protocol v041610.2 on human GM12878
+ENCSR000BNF,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq protocol v041610.2 on human GM12878
+ENCSR000BMY,TF ChIP-seq,ChIP-seq,RAD21,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,RAD21 ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000BNG,TF ChIP-seq,ChIP-seq,MEF2C,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,MEF2C ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000AYF,RIP-chip,RIP-chip,T7,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 Control RIP Array
+ENCSR000BRI,TF ChIP-seq,ChIP-seq,RUNX3,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,RUNX3 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000CJY,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-12-22,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 nucleus long polyadenylated RNA
+ENCSR000CJZ,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-12-22,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 cytosol long polyadenylated RNA
+ENCSR000BQZ,TF ChIP-seq,ChIP-seq,STAT5A,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,STAT5A ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BRH,TF ChIP-seq,ChIP-seq,MTA3,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,MTA3 ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BRG,TF ChIP-seq,ChIP-seq,EGR1,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,EGR1 ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGQ,TF ChIP-seq,ChIP-seq,SPI1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,SPI1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGR,TF ChIP-seq,ChIP-seq,PBX3,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,PBX3 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGP,TF ChIP-seq,ChIP-seq,POU2F2,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,POU2F2 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGS,TF ChIP-seq,ChIP-seq,TAF1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,TAF1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGT,TF ChIP-seq,ChIP-seq,BATF,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,BATF ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BMB,TF ChIP-seq,ChIP-seq,ELF1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,ELF1 ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000AYE,RIP-chip,RIP-chip,SLBP,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 SLBP RIP Array
+ENCSR000BRN,TF ChIP-seq,ChIP-seq,NFIC,"Richard Myers, HAIB",released,2012-02-29,hg19; GRCh38,ENCODE2,EFO:0002784,,NFIC ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000DKT,TF ChIP-seq,ChIP-seq,POLR2A,"Vishwanath Iyer, UTA",released,2011-03-17,hg19; GRCh38,ENCODE2,EFO:0002784,,POLR2A ChIP-seq on human GM12878
+ENCSR000BGJ,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGI,TF ChIP-seq,ChIP-seq,USF1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,USF1 ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGD,TF ChIP-seq,ChIP-seq,POLR2A,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,POLR2A ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGF,TF ChIP-seq,ChIP-seq,REST,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,REST ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGE,TF ChIP-seq,ChIP-seq,SRF,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,SRF ChIP-seq protocol PCR2x on human GM12878
+ENCSR000BGH,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BIF,TF ChIP-seq,ChIP-seq,POLR2AphosphoS5,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,POLR2AphosphoS5 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BJE,TF ChIP-seq,ChIP-seq,SIX5,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,SIX5 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BMQ,TF ChIP-seq,ChIP-seq,EGR1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,EGR1 ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000DKU,TF ChIP-seq,ChIP-seq,MYC,"Vishwanath Iyer, UTA",released,2011-03-17,hg19; GRCh38,ENCODE2,EFO:0002784,,MYC ChIP-seq on human GM12878
+ENCSR000AYY,RIP-chip,RIP-chip,ELAVL1,"Scott Tenenbaum, SUNY-Albany",released,2011-02-14,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 ELAVL1 RIP Array
+ENCSR000BJD,TF ChIP-seq,ChIP-seq,RXRA,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,RXRA ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BHJ,TF ChIP-seq,ChIP-seq,PAX5,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,PAX5 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BHK,TF ChIP-seq,ChIP-seq,SP1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,SP1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000DBG,RNA microarray,transcription profiling by array assay,,"John Stamatoyannopoulos, UW",released,2011-04-01,hg19,ENCODE2,EFO:0002784,,RNA Array on human GM12878
+ENCSR000BMS,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000BHD,TF ChIP-seq,ChIP-seq,PAX5,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,PAX5 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BHC,TF ChIP-seq,ChIP-seq,ZBTB33,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,ZBTB33 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGU,TF ChIP-seq,ChIP-seq,EBF1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,EBF1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BHB,TF ChIP-seq,ChIP-seq,EP300,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,EP300 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BHA,TF ChIP-seq,ChIP-seq,BCL11A,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,BCL11A ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGZ,TF ChIP-seq,ChIP-seq,TCF12,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,TCF12 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BGY,TF ChIP-seq,ChIP-seq,IRF4,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,IRF4 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000EMT,DNase-seq,DNase-seq,,"John Stamatoyannopoulos, UW",released,2011-05-04,hg19; GRCh38,ENCODE2,EFO:0002784,,DNase-seq on human GM12878
+ENCSR000BVP,Control ChIP-seq,ChIP-seq,,"Richard Myers, HAIB",released,2012-09-10,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq protocol v042211.1 on human GM12878
+ENCSR000BKA,TF ChIP-seq,ChIP-seq,ETS1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,ETS1 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BKB,TF ChIP-seq,ChIP-seq,MEF2A,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,MEF2A ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BJY,TF ChIP-seq,ChIP-seq,ATF3,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,ATF3 ChIP-seq protocol PCR1x on human GM12878
+ENCSR000BJZ,TF ChIP-seq,ChIP-seq,BCLAF1,"Richard Myers, HAIB",released,2011-07-18,hg19; GRCh38,ENCODE2,EFO:0002784,,BCLAF1 ChIP-seq protocol v041610.1 on human GM12878
+ENCSR000AYB,RIP-chip,RIP-chip,ELAVL1,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 ELAVL1 RIP Array
+ENCSR000AYC,RIP-chip,RIP-chip,IGF2BP1,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 IGF2BP1 RIP Array
+ENCSR000CIT,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-12-22,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 nucleolus total RNA
+ENCSR000AYD,RIP-chip,RIP-chip,PABPC1,"Scott Tenenbaum, SUNY-Albany",released,2011-04-28,hg19,ENCODE2,EFO:0002784,,SunyAlbany human GM12878 PABPC1 RIP Array
+ENCSR000CIR,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-12-22,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 cytosol long polyA- RNA
+ENCSR000CIS,CAGE,CAGE,,"Piero Carninci, RIKEN",released,2011-03-23,hg19; GRCh38,ENCODE2,EFO:0002784,,CAGE on human GM12878 nucleus long polyA- RNA
+ENCSR000EYZ,TF ChIP-seq,ChIP-seq,FOS,"Sherman Weissman, Yale",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,FOS ChIP-seq on human GM12878
+ENCSR000EYX,Control ChIP-seq,ChIP-seq,,"Sherman Weissman, Yale",released,2011-10-29,hg19; GRCh38,ENCODE2,EFO:0002784,,Control ChIP-seq on human GM12878
+ENCSR000AJG,scRNA-seq,single-cell RNA sequencing assay,,"Barbara Wold, Caltech",released,2014-06-30,hg19; GRCh38,ENCODE3,EFO:0002784,,RNA-seq of a GM12878 10-11 cell pool
+ENCSR000AIZ,scRNA-seq,single-cell RNA sequencing assay,,"Barbara Wold, Caltech",released,2014-09-29,hg19; GRCh38,ENCODE3,EFO:0002784,,RNA-seq of a GM12878 30 cell pool

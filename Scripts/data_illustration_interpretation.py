@@ -135,6 +135,56 @@ def total_from_response(data: Any, rows: list[dict[str, Any]]) -> int:
     return len(rows)
 
 
+# Filter fields that used to exist on the portals (or that a model reaches
+# for by analogy) and the field each portal actually facets on today. A
+# search on an unknown field is not an error on either portal: it simply
+# matches nothing and answers 404, which is how "all GM12878 experiments"
+# came back as "no such data".
+LEGACY_SEARCH_FIELDS: dict[str, dict[str, str]] = {
+    "encode": {
+        "biosample_term_name": "biosample_ontology.term_name",
+        "biosample_ontology.term_name.term_name": "biosample_ontology.term_name",
+        "biosample_type": "biosample_ontology.classification",
+        "biosample_ontology.classification.term_name": "biosample_ontology.classification",
+        "organ_slims": "biosample_ontology.organ_slims",
+        "target.name": "target.label",
+        "lab.name": "lab.title",
+    },
+    "igvf": {
+        "biosample_ontology.term_name": "samples.sample_terms.term_name",
+        "samples.summary": "samples.sample_terms.term_name",
+        "sample_summary": "samples.sample_terms.term_name",
+        "samples.sample_terms": "samples.sample_terms.term_name",
+        "lab.name": "lab.title",
+    },
+}
+
+# Notes produced while normalising the most recent search URL; printed by
+# run_explain so the user sees what was rewritten.
+_QUERY_NOTES: list[str] = []
+
+
+def normalize_search_query(source: str, pairs: "list[tuple[str, str]]"
+                           ) -> "tuple[list[tuple[str, str]], list[str]]":
+    """Rewrite legacy filter fields to the ones the portal facets on."""
+    table = LEGACY_SEARCH_FIELDS.get(source, {})
+    out: list[tuple[str, str]] = []
+    notes: list[str] = []
+    for key, value in pairs:
+        bare, neg = (key[:-1], "!") if key.endswith("!") else (key, "")
+        if bare in table:
+            notes.append(f"rewrote legacy filter `{key}` -> `{table[bare]}{neg}`")
+            key = table[bare] + neg
+        out.append((key, value))
+    return out, notes
+
+
+def is_search_url(target: str) -> bool:
+    parsed = urllib.parse.urlparse(target.strip())
+    return bool(parsed.scheme and parsed.netloc) and (
+        "/search" in parsed.path or "/report" in parsed.path or "/matrix" in parsed.path)
+
+
 def build_json_url(target: str) -> tuple[str, str, str]:
     """Return source, normalized URL, and label seed."""
     parsed = urllib.parse.urlparse(target)
@@ -147,10 +197,16 @@ def build_json_url(target: str) -> tuple[str, str, str]:
         else:
             path = parsed.path if parsed.path else "/"
             base = ENCODE_BASE
+        # /report/ and /matrix/ are browser views of the same query; the JSON
+        # API that carries @graph + facets is /search/.
+        if path.rstrip("/") in ("/report", "/matrix"):
+            path = "/search/"
         query_pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
-        query = dict(query_pairs)
-        query["format"] = "json"
-        url = f"{base}{path}?{urllib.parse.urlencode(query, doseq=True, quote_via=urllib.parse.quote)}"
+        query_pairs = [(k, v) for k, v in query_pairs if k != "format"]
+        query_pairs, notes = normalize_search_query(source, query_pairs)
+        _QUERY_NOTES[:] = notes
+        query_pairs.append(("format", "json"))
+        url = f"{base}{path}?{urllib.parse.urlencode(query_pairs, doseq=True, quote_via=urllib.parse.quote)}"
         label = safe_label(path.strip("/") or "home")
         return source, url, label
 
@@ -198,6 +254,10 @@ def fetch_json_with_fallback(source: str, url: str,
     # download driven off the manifest fetched files belonging to other
     # datasets.
     if ok and "accession=" in url and rows_from_response(data):
+        return status, data, url
+    if "://" in accession or "/search" in url or "@graph" in (data if isinstance(data, dict) else {}):
+        # The target already IS a search. Re-running it as
+        # `searchTerm=<the whole URL>` can only produce a second miss.
         return status, data, url
     base = ENCODE_BASE if source == "encode" else IGVF_API_BASE
     alt = f"{base}/search/?searchTerm={urllib.parse.quote(accession)}&format=json"
@@ -601,13 +661,101 @@ def response_carries(target: str, data: Any, rows: "list[dict[str, Any]]") -> bo
     return False
 
 
+_QUERY_CONTROL_KEYS = {"type", "searchTerm", "format", "limit", "frame", "field",
+                       "sort", "from", "mode", "advancedQuery", "query"}
+
+
+def diagnose_empty_search(source: str, data: Any) -> list[str]:
+    """Explain a zero-hit search: which filter is wrong, and what is close.
+
+    Both portals answer 404 + ``total: 0`` when nothing matches and echo the
+    applied filters. One extra facet-only request against the bare type tells
+    us which of those filter FIELDS the portal knows and which VALUES exist,
+    so the message can say "`biosample_term_name` is not a field; use
+    `biosample_ontology.term_name`" instead of "no such data".
+    """
+    import difflib
+    lines: list[str] = []
+    filters = data.get("filters") if isinstance(data, dict) else None
+    filters = [f for f in (filters or []) if isinstance(f, dict) and f.get("field")]
+    if not filters:
+        return ["  The portal echoed no filters; the query itself may be malformed."]
+    types = [str(f["term"]) for f in filters if f["field"] == "type"]
+    lines.append("  Filters applied: " + ", ".join(
+        f"{f['field']}={f.get('term', '')}" for f in filters))
+    base = ENCODE_BASE if source == "encode" else IGVF_API_BASE
+    facet_fields: dict[str, list[str]] = {}
+    if types:
+        probe = f"{base}/search/?type={urllib.parse.quote(types[0])}&format=json&limit=0"
+        st, probe_data = fetch_json(source, probe)
+        if isinstance(probe_data, dict):
+            for facet in probe_data.get("facets") or []:
+                if not isinstance(facet, dict) or not facet.get("field"):
+                    continue
+                terms = facet.get("terms")
+                keys: list[str] = []
+                if isinstance(terms, list):
+                    for t in terms:
+                        if isinstance(t, dict) and t.get("key") is not None:
+                            keys.append(str(t.get("key_as_string", t["key"])))
+                facet_fields[str(facet["field"])] = keys
+    legacy = LEGACY_SEARCH_FIELDS.get(source, {})
+    for f in filters:
+        field, term = str(f["field"]), str(f.get("term", ""))
+        bare = field[:-1] if field.endswith("!") else field
+        if bare in _QUERY_CONTROL_KEYS:
+            continue
+        if bare in legacy:
+            lines.append(f"  `{bare}` is a retired field on this portal; use `{legacy[bare]}`.")
+            continue
+        if facet_fields and bare not in facet_fields:
+            close = difflib.get_close_matches(bare, list(facet_fields), n=3, cutoff=0.4)
+            hint = f" Closest facet fields: {', '.join(close)}." if close else ""
+            lines.append(f"  `{bare}` is not a facet on {types[0] if types else 'this type'}, "
+                         f"so it matches nothing.{hint}")
+            continue
+        values = facet_fields.get(bare) or []
+        if values and term not in values:
+            lower = {v.lower(): v for v in values}
+            if term.lower() in lower:
+                lines.append(f"  `{bare}={term}`: the portal spells it `{lower[term.lower()]}` (filters are case-sensitive).")
+            else:
+                close = difflib.get_close_matches(term, values, n=4, cutoff=0.5)
+                hint = f" Closest values: {', '.join(close)}." if close else ""
+                lines.append(f"  No {types[0] if types else 'item'} has `{bare}={term}`.{hint}")
+    if len(lines) == 1:
+        lines.append("  Each filter is valid on its own; the COMBINATION matches nothing. "
+                     "Drop one filter at a time.")
+    lines.append("  For everything a portal holds for one biosample, run "
+                 "`igvfagent biosample-census --biosample <term>` "
+                 "(tool: biosample_portal_census) instead of a search URL.")
+    return lines
+
+
 def run_explain(args: argparse.Namespace) -> int:
     mkdirs()
     source, url, label_seed = build_json_url(args.target)
     label = args.label or label_seed
+    for note in _QUERY_NOTES:
+        print(f"Note: {note}")
     status, data, url = fetch_json_with_fallback(source, url, args.target.strip().strip("/"))
     raw_path = save_raw(label, data)
     rows = rows_from_response(data)
+
+    # An empty search is a diagnosis, not a dataset. Writing a report with
+    # "0 files" and exit 1 -- the old behaviour -- told the agent nothing it
+    # could act on, and it went on to author a replacement tool.
+    if is_search_url(args.target) and isinstance(data, dict) and \
+            status in (200, 404) and total_from_response(data, rows) == 0 and not rows:
+        print(f"Source: {source}")
+        print(f"HTTP status: {status}")
+        print(f"RESOLVED: no — the search matched nothing on the {source.upper()} portal "
+              f"(the portal answers a zero-hit search with 404).")
+        for line in diagnose_empty_search(source, data):
+            print(line)
+        print("  NO report, manifest, or plots were written for an empty result.")
+        print(f"Raw metadata: {raw_path}")
+        return 2
 
     # Refuse to describe the wrong thing. Writing a confident report off a
     # free-text match is worse than writing nothing: the earlier behaviour
@@ -733,6 +881,8 @@ def identity_lines(rows, target: str) -> "list[str]":
         desc = primary.get("description")
         if desc:
             out.append(f"  Description: {str(desc)[:200]}")
+    elif "://" in (target or ""):
+        out.append(f"  Search URL: {len(rows)} matching item(s) retrieved.")
     else:
         out.append(f"  NOTE: no returned record has accession {target!r}; "
                    f"the {len(rows)} item(s) below are related records.")

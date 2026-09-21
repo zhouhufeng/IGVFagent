@@ -276,6 +276,47 @@ def _format_refusal(model: str, refused: bool = True) -> str:
     )
 
 
+# Lines a tool's stderr carries that say nothing about why THIS call failed:
+# import-time log records from the registry and loader, and the frame lines
+# of a traceback. On the deployment a stale agent-authored manifest that
+# duplicates a built-in made every subprocess print "user tool `x` shadows an
+# existing tool; skipped" first, and that line is what the banner showed for
+# a guard refusal whose real message was on stdout.
+_NOISE_RE = re.compile(
+    r"^(?:WARNING|INFO|DEBUG|ERROR)(?::[\w.]+)?:|"
+    r"^\S*\d{2}:\d{2}:\d{2}\S* (?:WARNING|INFO|DEBUG) |"
+    r"shadows an existing tool|shadows a built-in tool|"
+    r"user-extension tool discovery failed|"
+    r"^\s*File \".*\", line \d+|^\s{2,}\S|^Traceback \(most recent call last\)")
+
+
+def _failure_detail(result: dict) -> str:
+    """The one line of a failed tool's output worth putting in the banner.
+
+    Used to be the FIRST line of stderr. For a crashing skill that line is
+    "Traceback (most recent call last):", which names nothing; the exception
+    is the LAST line. So: the last non-noise stderr line when there is a
+    traceback, else the first non-noise stderr line, else the first stdout
+    line that announces a refusal or error, else the first stdout line.
+    """
+    err = str(result.get("stderr") or "")
+    out = str(result.get("stdout") or "")
+    err_lines = [ln.rstrip() for ln in err.splitlines() if ln.strip()]
+    clean = [ln for ln in err_lines if not _NOISE_RE.search(ln)]
+    if clean:
+        pick = clean[-1] if "Traceback (most recent call last)" in err else clean[0]
+        return pick.strip()[:200]
+    out_lines = [ln.rstrip() for ln in out.splitlines() if ln.strip()]
+    for ln in out_lines:
+        if re.match(r"^\s*(?:REFUSING|ERROR|error:|RESOLVED: no|FAILED)", ln):
+            return ln.strip()[:200]
+    if out_lines:
+        return out_lines[0].strip()[:200]
+    if err_lines:
+        return err_lines[-1].strip()[:200]
+    return ""
+
+
 def _failure_preamble(failed: "list[dict]") -> str:
     """A short, factual header naming the tool calls that did not succeed.
 
@@ -879,9 +920,7 @@ def run(
             if rc0 not in (0, 75):
                 failed_calls.append({
                     "name": r["tool"], "exit_code": rc0,
-                    "detail": (str(result.get("stderr") or
-                                    result.get("stdout") or "")
-                               .strip().splitlines() or [""])[0][:200],
+                    "detail": _failure_detail(result),
                 })
             for paths in (result.get("artifacts") or {}).values():
                 artefacts.extend(paths)
@@ -1103,9 +1142,7 @@ def run(
                 if rc != 75:
                     failed_calls.append({
                         "name": tc.name, "exit_code": rc,
-                        "detail": (str(result.get("stderr") or
-                                        result.get("stdout") or "")
-                                   .strip().splitlines() or [""])[0][:200],
+                        "detail": _failure_detail(result),
                     })
             for paths in (result.get("artifacts") or {}).values():
                 artefacts.extend(paths)

@@ -1,0 +1,18 @@
+accession,assay_title,assay_term_name,lab.title,status,date_released,assembly,description
+ENCSR294SOE,pooled clone sequencing,pooled clone sequencing,"Will Greenleaf, Stanford",released,2022-09-17,,
+ENCSR587IBO,MPRA,MPRA,"Ryan Tewhey, JAX",released,2024-04-25,,
+ENCSR812PWW,MPRA,MPRA,"Ryan Tewhey, JAX",released,2021-09-10,hg19,
+ENCSR820VEF,perturbation followed by snATAC-seq,perturbation followed by snATAC-seq,"Will Greenleaf, Stanford",released,2022-09-17,GRCh38,CRISPRi perturbation of GM12878s
+ENCSR505BCW,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR820ANU,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR214PXB,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR745RFL,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR307GDA,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR910LPP,Flow-FISH CRISPR screen,Flow-FISH CRISPR screen,"Jesse Engreitz, Stanford",released,2022-05-07,hg19,
+ENCSR560QIE,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR918IAV,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR410EJE,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR248ZDI,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR015VGW,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR368PIO,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,
+ENCSR645CIP,MPRA,MPRA,"Ryan Tewhey, JAX",released,2023-02-12,hg19; GRCh38,

@@ -1,0 +1,9 @@
+term,count
+Dataset,11
+Series,11
+AggregateSeries,5
+ReferenceEpigenome,2
+FunctionalCharacterizationSeries,1
+PulseChaseTimeSeries,1
+ReplicationTimingSeries,1
+TreatmentConcentrationSeries,1

@@ -1841,6 +1841,33 @@ igvfagent encode browser --region chr19:44903000-44912000 \
   --with-ccre --label apoe_locus
 ```
 
+#### Everything a portal holds for one cell line
+
+"Summarise the ENCODE and IGVF data for GM12878, with tables and plots" is
+one command, not a search URL:
+
+```bash
+igvfagent biosample-census --biosample GM12878          # both portals
+igvfagent biosample-census --biosample K562 --portal encode --status all
+```
+
+It counts every object type on both portals through their **structured
+sample-term filters** (`biosample_ontology.term_name` on ENCODE,
+`samples.sample_terms.term_name` on IGVF), resolves the term case-insensitively
+through the shared ontology id (GM12878 is `EFO:0002784` on both), and writes
+`Docs/BiosampleCensus/<run>/` with `report.md`, `totals_by_type.csv`,
+`facet_counts.csv`, per-type item tables, and SVG (+PNG) figures for assays,
+ChIP targets, labs, annotation types, file formats and release years. Free-text
+search is deliberately not used for counting: `searchTerm=GM12878` on the IGVF
+Portal matches thousands of unrelated sets. A zero-hit search, which both
+portals answer with HTTP 404, is recorded as 0. The agent tool is
+`biosample_portal_census`.
+
+`explain_dataset` on a search URL that matches nothing now says *why* --
+which filter field the portal does not know (legacy names such as
+`biosample_term_name` are rewritten automatically) or which value is
+misspelt (`gm12878` vs `GM12878`) -- instead of writing an empty report.
+
 The agent runtime exposes `encode_retrieve`, `encode_describe`,
 `encode_super_enhancers`, `encode_integrate_ccre`, and `encode_browser`
 as tools, so a single `igvfagent ask` can drive the full pipeline:

@@ -1,0 +1,133 @@
+term,count
+reads,2944
+footprints,2498
+alignments,2464
+signal p-value,2136
+peaks and background as input for IDR,2132
+fold change over control,1794
+unfiltered alignments,1448
+IDR thresholded peaks,1244
+conservative IDR thresholded peaks,1086
+optimal IDR thresholded peaks,922
+peaks,868
+IDR ranked peaks,812
+mapping quality thresholded contact matrix,623
+haplotype-specific contact matrix,472
+haplotype-specific nuclease cleavage frequency,472
+counts sequence contribution scores,292
+profile sequence contribution scores,292
+selected regions for predicted signal and sequence contribution scores,292
+sequence motifs instances,280
+gene quantifications,263
+nuclease cleavage frequency,239
+transcript quantifications,238
+minus strand signal of all reads,225
+plus strand signal of all reads,225
+minus strand signal of unique reads,194
+plus strand signal of unique reads,194
+kmer weights,192
+TF binding prediction model,182
+signal of unique reads,160
+transcriptome alignments,160
+predicted signal profile,151
+sequence motifs,148
+models,146
+sequence motifs report,146
+training and test regions,145
+model performance metrics,144
+normalized observed signal profile (minus strand),141
+normalized observed signal profile (plus strand),141
+normalized predicted signal profile (minus strand),141
+normalized predicted signal profile (plus strand),141
+observed signal profile (minus strand),141
+observed signal profile (plus strand),141
+predicted signal profile (minus strand),141
+predicted signal profile (plus strand),141
+replicated peaks,124
+signal of all reads,122
+hotspots,120
+pseudoreplicated peaks,120
+raw signal,117
+signal,114
+transcription start sites,91
+contact matrix,62
+read-depth normalized signal,62
+loops,54
+guide quantifications,48
+rejected reads,46
+element quantifications,44
+genome compartments,44
+minus strand signal,44
+plus strand signal,44
+observed control profile (minus strand),32
+observed control profile (plus strand),32
+genome subcompartments,30
+merged transcription segment quantifications,30
+transcription segment quantifications,30
+RNA-binding protein associated mRNAs,29
+contact domains,25
+exon quantifications,25
+splice junctions,25
+contigs,24
+thresholded links,22
+FDR cut rate,20
+index reads,18
+methylation state at CpG,18
+candidate Cis-Regulatory Elements,16
+pseudoreplicated IDR thresholded peaks,16
+predicted transcription start sites,14
+transcribed fragments,14
+transcriptome annotations,14
+element gene links,13
+filtered transcribed fragments,12
+semi-automated genome annotation,12
+thresholded element gene links,12
+microRNA quantifications,11
+bias-corrected predicted signal profile,10
+filtered peptide quantification,10
+pairs,10
+preprocessed alignments,10
+unfiltered peptide quantification,10
+candidate enhancers,8
+filtered reads,8
+fragments,8
+gene alignments,8
+genic features quantifications,8
+methylation state at CHG,8
+methylation state at CHH,8
+clusters,7
+variant effect quantifications,7
+UV enriched segment quantifications,6
+elements reference,6
+percentage normalized signal,6
+base overlap signal,5
+chromatin stripes,5
+enhancer prediction model,5
+promoter prediction model,5
+validation,5
+HMM predicted chromatin state,4
+candidate promoters,4
+copy number variation,4
+enrichment,4
+filtered modified peptide quantification,4
+polyA sites,4
+sequence barcodes,4
+transcribed region quantifications,4
+unfiltered modified peptide quantification,4
+idat green channel,3
+idat red channel,3
+normalized bias-corrected predicted signal profile,3
+normalized observed signal profile,3
+normalized predicted signal profile,3
+observed signal profile,3
+CpG sites coverage,2
+minus strand methylation state at CpG,2
+plus strand methylation state at CpG,2
+reporter code counts,2
+bias models,1
+bidirectional peaks,1
+curated SNVs,1
+perturbation signal,1
+phased variant calls,1
+subreads,1
+unidirectional peaks,1

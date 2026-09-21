@@ -1,0 +1,2 @@
+accession,@type,preferred_assay_titles,assay_titles,file_set_type,lab.title,status,release_timestamp,summary,content_type,file_format,assembly,file_size,file_set.@id,classifications,sample_terms.term_id,samples.sample_terms.term_id
+IGVFDS5377ANDH,PredictionSet,,,disease associations,"Kushal Dey, MSKCC",released,2025-07-17T18:00:17.497924+00:00,disease associations prediction on scope of genome-wide using cV2F v1.0.0 in virtual Homo sapiens GM12878 cell line,,,,,,,,
