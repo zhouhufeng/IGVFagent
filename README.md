@@ -65,8 +65,8 @@ what, and reports failed tool calls rather than smoothing them over.
 |---|---|
 | [![Demo 1](https://img.youtube.com/vi/EQVwIEa-gVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=EQVwIEa-gVg) | [![Demo 2](https://img.youtube.com/vi/c-CyIEArEK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=c-CyIEArEK8) |
 | ▶ <https://www.youtube.com/watch?v=EQVwIEa-gVg> | ▶ <https://www.youtube.com/watch?v=c-CyIEArEK8> |
-| [![Demo 3](https://img.youtube.com/vi/DXmzSbrZC7E/maxresdefault.jpg)](https://youtu.be/DXmzSbrZC7E) | |
-| ▶ <https://youtu.be/DXmzSbrZC7E> | |
+| [![Demo 3](https://img.youtube.com/vi/DXmzSbrZC7E/maxresdefault.jpg)](https://youtu.be/DXmzSbrZC7E) | [![Demo 4](https://img.youtube.com/vi/OnZuOhwh4Qc/maxresdefault.jpg)](https://youtu.be/OnZuOhwh4Qc) |
+| ▶ <https://youtu.be/DXmzSbrZC7E> | ▶ <https://youtu.be/OnZuOhwh4Qc> |
 
 ## 🌐 Try it online — no install required
 
