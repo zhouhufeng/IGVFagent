@@ -116,6 +116,16 @@ def safe_label(label: str) -> str:
     return "".join(c if c.isalnum() or c in "-_." else "_" for c in label)[:80]
 
 
+def _anndata_io():
+    """anndata's element reader/writer: `anndata.io` (>= 0.11) or the older
+    `anndata.experimental` home; the hosted image ships 0.12, the laptop 0.10."""
+    try:
+        from anndata.io import read_elem, write_elem  # type: ignore
+    except ImportError:
+        from anndata.experimental import read_elem, write_elem  # type: ignore
+    return read_elem, write_elem
+
+
 def _pd():
     try:
         import pandas as pd  # type: ignore
@@ -199,7 +209,7 @@ def load_mudata_meta(path: Path) -> dict:
         n_cells = m.n_obs
     except ImportError:
         import h5py  # type: ignore
-        from anndata.experimental import read_elem  # type: ignore
+        read_elem, _ = _anndata_io()
         with h5py.File(str(path), "r") as h:
             gene_var = read_elem(h["mod/gene/var"])
             guide_var = read_elem(h["mod/guide/var"])
@@ -1093,7 +1103,7 @@ def make_synthetic(dirpath: Path, seed: int = 7) -> dict:
     try:
         import h5py  # type: ignore
         import scipy.sparse as sp  # type: ignore
-        from anndata.experimental import write_elem  # type: ignore
+        _, write_elem = _anndata_io()
         n_cells = 500
         gene_var = pd.DataFrame({"symbol": symbols, "gene_chr": ["chr" + c for c in gene_chr],
                                  "gene_start": gene_start, "gene_end": gene_end}, index=genes)
