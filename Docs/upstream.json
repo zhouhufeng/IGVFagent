@@ -204,6 +204,26 @@
       "notes": "MIT. Endpoint surface only."
     },
     {
+      "repo": "IGVF/tf_perturb_seq",
+      "skills": [
+        "tf-perturb"
+      ],
+      "modules": [
+        "tf_perturb_seq_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "589f5ff606e7f9d09ad55e938b10727d206d5a60",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-06-11T15:58:39Z",
+        "release": "",
+        "pinned_at": "2026-09-21"
+      },
+      "notes": "No LICENSE file in the repository (GitHub reports none). What was ported is the ANALYSIS of docs/jamborees/2026_UTSW/working_groups/wg3_disease_gwas/perturb_seq_analysis_v4.ipynb -- thresholds, filters, overlap and enrichment definitions -- consulted line by line and rewritten; no notebook code copied. Inputs (calibrated inference TSVs, inference_mudata.h5mu) come from the IGVF CRISPR pipeline runs the consortium shares via Synapse (WG3 folder syn74954083)."
+    },
+    {
       "repo": "inutano/chip-atlas",
       "skills": [
         "chipatlas"

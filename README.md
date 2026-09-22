@@ -108,6 +108,8 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **TF Perturb-seq → disease / GWAS** | New `tf-perturb` skill: port of the IGVF [tf_perturb_seq](https://github.com/IGVF/tf_perturb_seq) WG3 jamboree notebook. Calibrated direct / cis / trans tables → significant effects, top trans regulators, GWAS Catalog overlap with Fisher trait enrichment, scE2G links and GWAS SNPs inside E2G elements, optional ChIP-seq support; report, CSVs, figures. Vectorised overlaps, chunked+cached 22M-row trans filter, `mudata`/`pyBigWig` optional. Self-test plants FOXH1/SOX17 regulators, a T2D SNP block and an enhancer SNP and recovers all of them. |
+| **Biosample census + hosted-agent fixes** | New `biosample-census` (`biosample_portal_census`): one command counts everything ENCODE and IGVF hold for a cell line via structured sample-term filters, with tables and plots. Re-authoring an agent extension under its own name is now an update; `explain_dataset` diagnoses a zero-hit search URL instead of writing an empty report; the failure banner shows the exception line, not the traceback header. |
 | **Single-cell CRISPR DE** | New `sc-crispr-de` skill (method of [Gersbachlab-Bioinformatics/sc-crispr-de](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de), MIT). Every guide tested independently against the cells with **no detected guide**, one negative-binomial GLM per gene, then α-RRA aggregation to gene level calibrated on the non-targeting guides. A port was impossible, not merely inconvenient: upstream is R (`MASS::glm.nb`, brglm2, Seurat) on a SLURM array, and the container has neither. Validated on planted knockdowns — GATA1 ×0.25 (expected log2FC −2.00) recovered at −1.89 / −2.22 / −2.03, HBB ×0.40 (−1.32) at −1.18 / −1.25 / −1.38, 630/630 tests converged, NTCs unperturbed. `--apply-bias-reduction` (brglm2) is **not implemented** rather than approximated, and aggregation is α-RRA not FRACTEL — so the columns are `rra_*`, never `FRACTEL_*`. |
 | **Tiling-screen deconvolution** | New `crispr-surf` skill. In a tiling screen each guide perturbs a **window**, not a point, so one element makes every nearby guide look active and the signal is smeared — `crispr-screen`, `gradient-screen`, `base-editing-screen` and `flowfish` all *score* guides, none deconvolve. Solves `y = A·beta` with an L1 penalty against a perturbation kernel, significance from the screen's own negative controls. Installing the upstream (AGPL-3.0) was tried first and is impossible — not on PyPI, and its source does not parse under Python 3 (`TabError`). Two elements planted in a 320-guide CRISPRi screen and smeared ±250 bp were each localised to **within ~10 bp** of their true centres, correct sign, exactly two regions, no false positives. |
 | **Enhancer–gene prediction, generated** | Two new skills that *compute* links where `enhancer_gene_overview` and `sce2g_kg_pull` only retrieved them. `abc` implements Activity-by-Contact (Fulco 2019 / Nasser 2021, MIT) from candidate elements + bigWigs; Hi-C optional, falling back to the genome-wide power law. `sce2g-predict` adds the single-cell signal ABC cannot see — Kendall correlation between a peak's accessibility and a gene's expression across metacells. Tested on a case that separates them: a true link 50 kb away whose peak co-varies with the gene, against a decoy 2 kb from the TSS that is statistically independent. **ABC alone picks the decoy** (share 0.940 vs 0.051, purely from proximity); the correlation recovers the real link. scE2G's *trained weights* are not reproduced, so the output is labelled features + a transparent score, never "the scE2G score". |
@@ -2423,6 +2425,39 @@ igvfagent humantfs families
 `is-tf` distinguishes *unassessed* from *not a TF* — absence from the
 database is not evidence against. The data is downloaded at build time,
 never vendored; cite Lambert 2018 for derived tables.
+
+### TF Perturb-seq: calibrated effects to disease and GWAS (`tf-perturb`)
+
+Port of the IGVF TF Perturb-seq consortium's Working Group 3 (disease & GWAS)
+jamboree notebook,
+[`perturb_seq_analysis_v4.ipynb`](https://github.com/IGVF/tf_perturb_seq/blob/main/docs/jamborees/2026_UTSW/working_groups/wg3_disease_gwas/perturb_seq_analysis_v4.ipynb),
+as run on the Huangfu-lab HUES8 definitive-endoderm CRISPRi screen (2,161 TF
+targets, 269,491 cells). It starts from the IGVF CRISPR pipeline's *calibrated*
+inference tables, not raw counts:
+
+```bash
+igvfagent tf-perturb selftest                       # synthetic inputs, planted signals
+igvfagent tf-perturb run \
+    --calibrated-prefix data/<run>_calibrated_ \
+    --mudata data/inference_mudata.h5mu \
+    --gwas data/gwas-catalog-associations.tsv \
+    --e2g ESC=data/h7_scE2G.e2g.tsv --e2g DE=data/definitive_endoderm_scE2G.e2g.tsv \
+    --bigwig GSE213394_DED2-SOX17_hg38.bigwig --label huangfu_de
+```
+
+Stages, matching the notebook: guide-library overview; direct-target, cis and
+trans significance (adjusted p < 0.05, |log2FC| > 0.2 cis / 1.0 trans,
+targeting elements only, the 22M-row trans table streamed and cached); top
+trans regulators with their strongest up/down targets; GWAS Catalog SNPs
+within 50 kb of TF elements and of trans target genes with Fisher trait
+enrichment; scE2G links for perturbed TFs and targets, and GWAS SNPs inside
+those E2G elements (flagging assignments that disagree with the catalog's
+nearest gene); optional ChIP-seq bigWig support. Output is
+`Docs/TFPerturbSeq/<run>/` with `report.md`, every table as CSV, and PNG
+figures. Positional overlaps are vectorised, `mudata` and `pyBigWig` are
+optional, and the enrichment counts catalog associations exactly as upstream
+does, with that caveat stated in the report. Agent tools:
+`tf_perturb_seq_analyze`, `tf_perturb_seq_selftest`.
 
 ### Single-cell CRISPR differential expression (`sc-crispr-de`)
 

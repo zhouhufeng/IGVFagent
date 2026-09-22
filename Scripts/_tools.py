@@ -3876,6 +3876,78 @@ _TOOLS: "list[Tool]" = [
 
     # ── Single-cell CRISPR differential expression ────────────────────
     _T(
+        "tf_perturb_seq_analyze",
+        "★ IGVF TF PERTURB-SEQ: CALIBRATED RESULTS -> DISEASE / GWAS OVERLAY ★. "
+        "Port of the IGVF tf_perturb_seq Working Group 3 jamboree notebook. "
+        "Takes the IGVF CRISPR pipeline's CALIBRATED inference tables "
+        "(<prefix>direct_target_results.tsv / cis_results.tsv / "
+        "trans_results.tsv, the 22M-row trans table is streamed and cached) "
+        "and produces: significant direct / cis / trans effects, top trans "
+        "regulators with their up/down targets, GWAS Catalog SNPs near TF "
+        "elements and near trans target genes with Fisher trait enrichment, "
+        "scE2G enhancer-gene links for perturbed TFs and targets, GWAS SNPs "
+        "inside E2G elements (incl. non-nearest-gene assignments), optional "
+        "ChIP-seq bigWig support -- plus report.md, CSV tables and PNG "
+        "figures. Use for 'which TFs regulate disease/GWAS genes in this "
+        "lineage' on a TF Perturb-seq run. NOT for raw counts: that is "
+        "sc_crispr_de_* / crispr_pipeline.",
+        {
+            "type": "object",
+            "properties": {
+                "calibrated_prefix": {**_S_STRING, "description":
+                    "Path prefix of the calibrated TSVs, e.g. "
+                    "data/<run>_calibrated_ (the three files are appended)."},
+                "mudata":     {**_S_STRING, "description":
+                    "inference_mudata.h5mu (guide overview + gene coordinates)."},
+                "gene_coords": {**_S_STRING, "description":
+                    "TSV with gene_id, symbol, chr, start, end when no mudata."},
+                "gwas":       {**_S_STRING, "description":
+                    "GWAS Catalog associations TSV (full download)."},
+                "e2g":        {**_S_ARRAY_S, "description":
+                    "scE2G TSVs as LABEL=PATH, e.g. ['ESC=h7.e2g.tsv', 'DE=de.e2g.tsv']."},
+                "bigwig":     {**_S_ARRAY_S, "description":
+                    "ChIP-seq bigWig paths for the support step (needs pyBigWig)."},
+                "tf_list":    {**_S_STRING},
+                "label":      {**_S_STRING},
+                "padj":       {**_S_NUMBER, "default": 0.05},
+                "lfc_cis":    {**_S_NUMBER, "default": 0.2},
+                "lfc_trans":  {**_S_NUMBER, "default": 1.0},
+                "top_regulators": {**_S_INTEGER, "default": 20},
+                "gwas_window": {**_S_INTEGER, "default": 50000},
+                "e2g_score_min": {**_S_NUMBER, "default": 0.177},
+                "min_hits":   {**_S_INTEGER, "default": 5},
+                "signal_frac": {**_S_NUMBER, "default": 0.1},
+                "no_plots":   {**_S_BOOLEAN, "default": False},
+                "no_cache":   {**_S_BOOLEAN, "default": False},
+            },
+            "required": ["calibrated_prefix"],
+        },
+        cli=["tf-perturb", "run"],
+        flag_map={"calibrated_prefix": "--calibrated-prefix", "mudata": "--mudata",
+                   "gene_coords": "--gene-coords", "gwas": "--gwas", "e2g": "--e2g",
+                   "bigwig": "--bigwig", "tf_list": "--tf-list", "label": "--label",
+                   "padj": "--padj", "lfc_cis": "--lfc-cis", "lfc_trans": "--lfc-trans",
+                   "top_regulators": "--top-regulators", "gwas_window": "--gwas-window",
+                   "e2g_score_min": "--e2g-score-min", "min_hits": "--min-hits",
+                   "signal_frac": "--signal-frac"},
+        flag_repeat={"e2g", "bigwig"},
+        bool_flags={"no_plots", "no_cache"},
+    ),
+
+    _T(
+        "tf_perturb_seq_selftest",
+        "Self-test of tf_perturb_seq_analyze on synthetic calibrated tables, "
+        "a synthetic GWAS catalog and E2G files with planted signals; checks "
+        "the planted regulators, trait and enhancer-SNP are recovered. Run "
+        "this to confirm the environment (pandas/scipy/matplotlib) before a "
+        "real run.",
+        {"type": "object", "properties": {
+            "no_plots": {**_S_BOOLEAN, "default": False}}},
+        cli=["tf-perturb", "selftest"],
+        bool_flags={"no_plots"},
+    ),
+
+    _T(
         "sc_crispr_de_prepare",
         "★ SINGLE-CELL CRISPR SCREEN: STEP 1, PREPARE ★. 10x gene-expression "
         "+ sgRNA matrices -> a filtered checkpoint with each cell's guide "

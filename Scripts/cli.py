@@ -150,6 +150,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "crispresso":       ("igvfagent.crispresso_skill",
                           "CRISPResso2 — genome-editing outcomes from amplicon "
                           "reads (indels, substitutions, base-editing)"),
+    "tf-perturb":       ("igvfagent.tf_perturb_seq_skill",
+                          "IGVF TF Perturb-seq calibrated cis/trans results -> "
+                          "disease & GWAS overlay (port of tf_perturb_seq WG3 "
+                          "notebook)"),
     "sc-crispr-de":     ("igvfagent.sc_crispr_de_skill",
                           "Single-cell CRISPR differential expression: "
                           "per-guide negative-binomial GLM against no-guide "
