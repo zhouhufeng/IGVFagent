@@ -231,12 +231,12 @@ Access to [AlphaGenome](https://github.com/google-deepmind/alphagenome), Google 
 
 **Access.** An API key is required ([get one](https://alphagenome.google/api); free for non-commercial use). Set `ALPHAGENOME_API_KEY`, or save it to `Docs/Secret/ALPHAGENOME_API_KEY.txt`; it is never printed. Outputs are for non-commercial research only, must not be used to train other models, and are not for clinical use ([terms](https://alphagenome.google/terms)). The SDK needs Python 3.10 or newer: on a 3.9 install, `igvfagent alphagenome setup --install` creates a separate environment once, and every AlphaGenome command then runs there automatically. The hosted container (Python 3.11) has the SDK built in.
 
-Coordinates follow the SDK: intervals are 0-based and half-open (like BED); variant positions are 1-based. A prediction window is 16 KB, 100 KB, 500 KB or 1 MB (default), centred on the region or variant.
+Coordinates follow the SDK: intervals are 0-based and half-open (like BED); variant positions are 1-based. In a shell, quote the `chr:pos:ref>alt` form (`'chr22:36201698:A>C'`) or use `chr22-36201698-A-C`: an unquoted `>` is a redirect. A prediction window is 16 KB, 100 KB, 500 KB or 1 MB (default), centred on the region or variant.
 
 ```bash
 igvfagent alphagenome setup --install --ping           # SDK environment + key check
 igvfagent alphagenome metadata --search heart          # tracks and ontology CURIEs
-igvfagent alphagenome score-variants --variants rs429358 chr22:36201698:A>C --ontology UBERON:0000948
+igvfagent alphagenome score-variants --variants rs429358 chr22-36201698-A-C --ontology UBERON:0000948
 igvfagent alphagenome predict-variant --variant rs429358 --outputs RNA_SEQ DNASE --ontology UBERON:0000948
 igvfagent alphagenome predict-interval --gene APOE --outputs RNA_SEQ --ontology UBERON:0002107
 igvfagent alphagenome ism --ism-interval chr19:44908670-44908700 --scorer DNASE --ontology UBERON:0000948

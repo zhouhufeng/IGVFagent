@@ -64,7 +64,7 @@ Subcommands
 Usage:
     igvfagent alphagenome setup --install --ping
     igvfagent alphagenome metadata --search heart
-    igvfagent alphagenome score-variants --variants rs429358 chr22:36201698:A>C --ontology UBERON:0000948
+    igvfagent alphagenome score-variants --variants rs429358 chr22-36201698-A-C --ontology UBERON:0000948
     igvfagent alphagenome predict-variant --variant rs429358 --outputs RNA_SEQ DNASE --ontology UBERON:0000948
     igvfagent alphagenome predict-interval --gene APOE --outputs RNA_SEQ --ontology UBERON:0002107
     igvfagent alphagenome ism --ism-interval chr19:44908670-44908700 --scorer DNASE --ontology UBERON:0000948
@@ -94,6 +94,9 @@ CACHE_DIR = ROOT / "Data" / "Cache" / "alphagenome"
 
 KEY_ENV = ("ALPHAGENOME_API_KEY",)
 KEY_FILE = ROOT / "Docs" / "Secret" / "ALPHAGENOME_API_KEY.txt"
+# Also accepted, in this order after KEY_FILE: the name the project's key was
+# first saved under. Both live in the gitignored Docs/Secret/.
+KEY_FILES_EXTRA = (ROOT / "Docs" / "Secret" / "AlphaGenome-API.txt",)
 PY_ENV = "IGVF_ALPHAGENOME_PYTHON"
 VENV = Path(os.environ.get("IGVF_ALPHAGENOME_VENV")
             or Path.home() / ".igvfagent" / "alphagenome-venv")
@@ -143,18 +146,22 @@ def api_key() -> Optional[str]:
         v = (os.environ.get(k) or "").strip()
         if v:
             return v
-    try:
-        v = KEY_FILE.read_text().strip()
-        return v or None
-    except OSError:
-        return None
+    for f in (KEY_FILE, *KEY_FILES_EXTRA):
+        try:
+            v = f.read_text().strip()
+        except OSError:
+            continue
+        if v:
+            return v
+    return None
 
 
 def key_help() -> str:
     return ("No AlphaGenome API key. Get one (free for non-commercial use) at "
             "https://alphagenome.google/api, then either `export "
             "ALPHAGENOME_API_KEY=...` or save it to "
-            "Docs/Secret/ALPHAGENOME_API_KEY.txt (gitignored). On the hosted "
+            "Docs/Secret/ALPHAGENOME_API_KEY.txt or Docs/Secret/AlphaGenome-API.txt "
+            "(gitignored). On the hosted "
             "deployment the operator adds ALPHAGENOME_API_KEY to Deploy/.env.prod.")
 
 
@@ -192,6 +199,10 @@ def reexec(argv: Sequence[str]) -> int:
         return 2
     env = dict(os.environ)
     env[REEXEC_FLAG] = "1"
+    # gRPC logs a fork-handler warning per call when run under a parent that
+    # forks; it is noise, not a problem.
+    env.setdefault("GRPC_VERBOSITY", "ERROR")
+    env.setdefault("GRPC_ENABLE_FORK_SUPPORT", "0")
     env["IGVF_PROJECT_ROOT"] = str(ROOT)
     env["PYTHONPATH"] = str(Path(__file__).resolve().parent) + os.pathsep + env.get("PYTHONPATH", "")
     return subprocess.call([py, str(Path(__file__).resolve()), *argv], env=env)
@@ -439,19 +450,27 @@ class SdkBackend:
                                         [self._variant(v) for v in variants],
                                         variant_scorers=self._scorers(scorers, organism),
                                         organism=self._org(organism), progress_bar=False)
-        return vs.tidy_scores(res)
+        return plain(vs.tidy_scores(res))
 
     def score_interval(self, c, s, e, organism):
         from alphagenome.models import variant_scorers as vs  # type: ignore
         res = self.model.score_interval(self._interval(c, s, e), organism=self._org(organism))
-        return vs.tidy_scores(res)
+        return plain(vs.tidy_scores(res))
 
     def ism(self, win, ism_iv, scorers, organism):
         from alphagenome.models import variant_scorers as vs  # type: ignore
+        chosen = self._scorers(scorers, organism)
         res = self.model.score_ism_variants(self._interval(*win), self._interval(*ism_iv),
-                                            variant_scorers=self._scorers(scorers, organism),
+                                            variant_scorers=chosen,
                                             organism=self._org(organism), progress_bar=False)
-        return vs.tidy_scores(res)
+        # Unlike score_variant, the SDK's ISM path (0.9.0) does not record which
+        # scorer produced each AnnData, and tidy_scores refuses them without it.
+        # Each variant's list holds one result per scorer, in request order
+        # (checked against the live API: 305 DNase tracks, then 371 RNA-seq).
+        for per_variant in res:
+            for scorer, ad in zip(chosen, per_variant):
+                ad.uns.setdefault("variant_scorer", scorer)
+        return plain(vs.tidy_scores(res))
 
     def atlas_scorers(self):
         import pandas as pd
@@ -473,6 +492,20 @@ class SdkBackend:
                                         ontology_terms=list(ontology) or None,
                                         gene_names=list(genes) or None, progress_bar=False)
         return flatten_atlas(res)
+
+
+def plain(df):
+    """SDK tidy tables hold genome.Variant / Interval objects in some columns
+    (variant_id, scored_interval); make every such column plain text so the
+    table can be grouped, sorted and written."""
+    if df is None or not len(df):
+        return df
+    for c in df.columns:
+        if df[c].dtype == object:
+            sample = next((x for x in df[c] if x is not None), None)
+            if sample is not None and not isinstance(sample, (str, int, float, bool)):
+                df[c] = df[c].map(lambda x: None if x is None else str(x))
+    return df
 
 
 def flatten_atlas(res) -> "Any":
@@ -500,7 +533,7 @@ def flatten_atlas(res) -> "Any":
             if Q is not None:
                 f["quantile_score"] = Q[:, j]
             frames.append(f)
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    return plain(pd.concat(frames, ignore_index=True)) if frames else pd.DataFrame()
 
 
 def get_backend(offline: bool = False):
@@ -533,11 +566,15 @@ def md_table(df, n: int = 15) -> List[str]:
     df = df.head(n)
     cols = list(df.columns)
     out = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-    for _, r in df.iterrows():
+    for row in df.itertuples(index=False):      # itertuples keeps each column's dtype
         cells = []
-        for c in cols:
-            v = r[c]
-            cells.append(f"{v:.4g}" if isinstance(v, float) else str(v))
+        for v in row:
+            if isinstance(v, float) and v.is_integer() and abs(v) >= 1e4:
+                cells.append(f"{int(v)}")            # genomic positions, counts
+            elif isinstance(v, float):
+                cells.append(f"{v:.4g}")
+            else:
+                cells.append(str(v))
         out.append("| " + " | ".join(cells) + " |")
     return out
 
@@ -616,7 +653,8 @@ def plot_tracks(tracks: Dict[str, dict], win_start: int, lo: int, hi: int, path:
         ax.tick_params(labelsize=6)
     if alt:
         axes[0, 0].legend(fontsize=6, loc="upper right")
-    axes[-1, 0].set_xlabel("position (bp)", fontsize=7)
+    axes[-1, 0].ticklabel_format(axis="x", style="plain", useOffset=False)
+    axes[-1, 0].set_xlabel("genomic position (bp)", fontsize=7)
     fig.suptitle(title, fontsize=9)
     fig.tight_layout()
     fig.savefig(path, dpi=130)
@@ -1042,10 +1080,11 @@ def cmd_selftest(args) -> int:
         if not cond:
             fails.append(name)
 
-    global OUT_ROOT, CACHE_DIR, KEY_FILE
+    global OUT_ROOT, CACHE_DIR, KEY_FILE, KEY_FILES_EXTRA
     os.environ["IGVF_ALPHAGENOME_QUIET"] = "1"     # no log files from the selftest
     tmp = Path(tempfile.mkdtemp(prefix="alphagenome_selftest_"))
     OUT_ROOT, CACHE_DIR, KEY_FILE = tmp / "out", tmp / "cache", tmp / "Secret" / "KEY.txt"
+    KEY_FILES_EXTRA = ()
     fake_rsid = lambda t: {"raw": t, "chrom": "chr19", "position": 44908684, "ref": "T",
                            "alt": "C", "rsid": t}
 
