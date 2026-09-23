@@ -21,6 +21,26 @@
       "notes": "MIT. MaveDB coordinate-mapping conventions."
     },
     {
+      "repo": "broadinstitute/ABC-Enhancer-Gene-Prediction",
+      "skills": [
+        "abc-pipeline"
+      ],
+      "modules": [
+        "abc_pipeline_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "92ac50360231a6bcfd654f3147839d078be445d9",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-24T15:54:56Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported: every Snakemake rule (macs2, sort, candidate regions, neighborhoods, predictions, filter, QC) and every workflow/scripts file (makeCandidateRegions/peaks, run.neighborhoods/neighborhoods, predict/predictor/hic, filter_predictions, getVariantOverlap, metrics/grabMetrics, compute_powerlaw_fit_from_hic, makeAverageHiC, extract_avg_hic, juicebox_dump, make_bedgraph_from_HiC), the biosample-config validation and threshold lookup, and the tests' comparison as `compare`. Verified identical to upstream's expected chr22 outputs (tagAlign/ATAC power law and BAM DNase+H3K27ac: candidate regions, counts, GeneList, EnhancerList, all ABC/powerlaw scores, thresholded file, gene stats). bedtools/pyranges/tabix were replaced by numpy interval code. macs2 and juicer_tools stay optional binaries, and pysam/pyBigWig/hicstraw optional imports. Not verified: the .hic streaming path against a real ENCODE .hic (hicstraw not installed; it is checked on synthetic records against the juicebox path). The Python peak caller is a MACS-like approximation used only without macs2. Deviations kept behind --upstream-compat: headered ubiquitous-gene list, avg->avg_hic threshold lookup, and power-law fit distance for avg. Crash/dead-code fixes: non-separate qnorm, interpolate_nan, the hic_is_doubly_stochastic flag, and the missing HiC class."
+    },
+    {
       "repo": "broadinstitute/epi-SHARE-seq-pipeline",
       "skills": [
         "share"
@@ -103,25 +123,47 @@
     {
       "repo": "EngreitzLab/CRISPRi-FlowFISH",
       "skills": [
-        "flowfish"
+        "flowfish",
+        "flowfish-pipeline"
       ],
       "modules": [
-        "flowfish_crispr_skill.py"
+        "flowfish_crispr_skill.py",
+        "flowfish_pipeline_skill.py"
       ],
       "license": "MIT",
-      "relationship": "clean-room",
+      "relationship": "port",
       "pinned": {
         "ref": "44008b8842b1ffd82874fc9df669dfb8bb70b2de",
         "kind": "commit",
         "branch": "main",
         "upstream_date": "2025-07-25T18:30:32Z",
-        "release": "v0.1.0",
-        "pinned_at": "2026-09-17"
+        "release": "",
+        "pinned_at": "2026-09-23"
       },
-      "notes": "MIT. RENAMED upstream: was CRISPRi-FlowFISH-pipeline, now CRISPRi-FlowFISH \u2014 found 2026-09-17 because the old name 404'd. Clean-room; nothing copied.",
+      "notes": "Ported every rule and script: common.smk (sample sheet validation, fastq discovery, experiment keys), map_reads/count_reads/aggregate_alignment_stats (bowtie optional; exact Python mapper fallback), make_count_tables.smk, plotReplicateCorrelations.R, estimate_effect_sizes.R (all four sort-params loaders, rescale, weighted average with A/F edge rule, EM seventh bin + L-BFGS-B MLE with R optim numerics and stats4 solve(hessian) fallback), convert_to_real_space.py, CalculateTilingStatistic.R (window 10, span 750), FlowFISHtssKD.py, normalize_flowfish_to_qpcr.py, collapse (bedtools map in pandas), ScoreEnhancers.py (scipy-1.5 legacy one-sided Mann-Whitney default, Student t, BH), the dead POWER block (indentation bug fixed), format_data/ScreenData, PlotGuideCounts.R (adapted from allele to guide counts; the edited-allele stacked barplot has no guide-count analogue and is omitted). Reconstructed, not ported: calculateSlidingWindowStatistic and FormatCRISPRiScreensForPredictions.R live in the private LanderLab-EP-Prediction repo (window mean-minus-control definition inferred from FlowFISHtssKD.py; KnownEnhancers columns approximate, without the CRISPRi 3' extension / model-element collapsing). Corrected by default, reproduced with --upstream-compat: R 3.6 factor-code sort.params$Count[Bin] indexing and positional bin/gate pairing. create_bowtie2_index is replaced by build-index (bowtie-build, matching the bowtie1 mapper).",
       "former_names": [
         "EngreitzLab/CRISPRi-FlowFISH-pipeline"
       ]
+    },
+    {
+      "repo": "EngreitzLab/ENCODE_rE2G",
+      "skills": [
+        "encode-re2g"
+      ],
+      "modules": [
+        "encode_re2g_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "d039062b7092de338ed10a77ea208b3d5b06e89c",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-07-14T20:05:29Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported: every rule and script of workflow/Snakefile and workflow/Snakefile_training (utils.smk model selection; gen_new_features.py; activity_only_features.R; merge_external_features.R; gen_final_features.R; get_fill_values.R; combine_feature_tables(_apply).R; format_external_features_config.R; run_e2g.py; threshold_e2g_predictions.py; process_model_output.py; get_stats.py; generate_plots.py; compare_plots.py; overlap_features_with_crispr_data.R; process_crispr_data.R; get_params.py; train_model.py; training_functions.py; forward/backward sequential selection; permutation_feature_importance.py; compare_all_feature_sets.py; compare_all_models.py; plot_sffs/sbfs/pfi/model_comparison.R as matplotlib PNGs). The nine models/<name> pickles are embedded as coef/intercept/feature table/threshold; verified identical to the pickles and against tests/expected_output (K562 chr22). Upstream bug fixed by default, reproduced with --upstream-compat: log_loss written into AUROC_test_full of the pooled row. Kept faithful and documented: the no-op '| sort -u' in the nearby-enhancer count (pretrained models learned the duplicated count; --dedupe-nearby applies the intent) and ABC.Denominator = ABC.Score/ABC.Numerator. Not ported: running ABC itself (the ABC submodule; use the abc skills), the commented-out SHAP and 10 kb window code, and compare_plots.py's lab-specific directory matching (generalised to an accession regex). Bootstrap and permutation steps are seeded; sklearn verbose is forced off."
     },
     {
       "repo": "EngreitzLab/eQTLEnrichment",
@@ -144,24 +186,46 @@
       "notes": "Snakemake + R + bedtools pipeline (ENCODE-rE2G / scE2G papers' eQTL benchmark). Every rule re-derived in pandas/numpy/scipy in eqtl_enrichment_skill.py: distal-noncoding filter via the hg38 partition, PIP filter, TSS-distance bins, gene universe, quantile threshold span, count matrices, enrichment (log-RR CI, hypergeometric p, Bonferroni), recall total/linking, all_matches aggregation, enrichment-recall curves, enrichment at recall with pairwise z-tests, enhancer set sizes, heatmaps. Resource files fetched from this commit by `setup`. Two upstream quirks (SE formula parenthesisation; unthresholded by-distance background / all-bin counts) are corrected by default and reproducible with --upstream-compat."
     },
     {
-      "repo": "EngreitzLab/scE2G",
+      "repo": "EngreitzLab/GWAS_E2G_benchmarking",
       "skills": [
-        "sce2g"
+        "gwas-e2g"
       ],
       "modules": [
+        "gwas_e2g_benchmark_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "c43bee694c6abfa1cf54477fc433ba8e370ded18",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-10-27T19:23:46Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every rule and R script: process_variants (PIP > thresholdPIP, chrSizes, distal-noncoding partition, trait groups + ALL merged/deduplicated, background SNP filter), process_predictions (gene universe, inverse scores, thresholding, biosample groups concatenated for linking and merged for overlap), background overlap + enhancer set size, calculate_thresholded_enrichment_recall, generate_quantile_threshold_span, calculate_enrichment_recall_curve, helpful_math.R (enrichment SE/CI/phyper/Bonferroni with dplyr group semantics, Agresti-Coull recall/precision CIs), evaluate_gene_linking (top numPredGenes, rank ties 'min', PoPS intersection), evaluate_baseline_predictors (PoPS, distanceToTSS), save_config, color_palette, gather_metric_ranges, heatmaps (hclust ward.D2 on dist(1-cor)), enrichment-recall curves and thresholded performance comparison (tables + PNG figures), utils.smk validation. Corrected by default, reproduced with --upstream-compat: SE sqrt(a)+b; threshold-span quantiles over distinct scores (group_by(-c(predScore))); single-biosample linking on unthresholded predictions; gene-universe filter overwritten in evaluate_gene_linking.R; ALL comparison double-counting group rows. Always corrected: the no-op group/trait name-clash checks. Not reproduced: the PDF/ggplot layouts (the margin bar plots, egg/cowplot arrangements); figures are PNG, and each method's six heatmaps are drawn as two panels (overlap, linking). Snakemake memory/scratch plumbing and conda env are replaced by in-memory pandas. setup fetches the variant key, gene prioritisation table, partition, TSS and chrom sizes (plus optional per-trait variant lists) from raw.githubusercontent at the pinned commit; background SNPs come from Synapse syn52264319. resources/variant.list.all.tsv (57 MB) is not fetched because it is not used by the workflow."
+    },
+    {
+      "repo": "EngreitzLab/scE2G",
+      "skills": [
+        "sce2g",
+        "sce2g-pipeline"
+      ],
+      "modules": [
+        "sce2g_pipeline_skill.py",
         "sce2g_workbench_skill.py"
       ],
       "license": "MIT",
-      "relationship": "wraps-binary",
+      "relationship": "port",
       "pinned": {
         "ref": "7cb2af750fb96006f5d2b7c5475dcff30ea0e6c9",
         "kind": "commit",
         "branch": "main",
         "upstream_date": "2026-08-13T01:37:47Z",
-        "release": "v1.3",
-        "pinned_at": "2026-09-22"
+        "release": "",
+        "pinned_at": "2026-09-23"
       },
-      "notes": "Not reimplemented: scE2G is Snakemake + R + Python in a Singularity container and its asset is the trained model. `igvfagent sce2g` prepares a checkout per the group's crowdsourced-features walkthrough (default branch fix/dag-staleness-integration @ 4e2b673, which stops needless rule re-runs), writes config_cell_clusters.tsv / config_models.tsv / external_features_config in upstream's column order, checks paths, and runs snakemake. sce2g_predict_skill (older) is a clean-room feature computation, separately declared."
+      "notes": "Ported every scE2G rule/script: frag_to_tagAlign (+process_fragment_file, get_cell_barcodes, bigWig), make_kendall_pairs, generate_atac_matrix (Signac FeatureMatrix semantics), compute_kendall (+compute_kendall.py/fast_kendall_sc tau-b in closed form, LogNormalize, GTF->TSS500 gene mapping), compute_arc_e2g, format_external_features_config_sc, run_e2g_cv and run_e2g_cv_qnormref, thresholds and bedpe, generate_element_gene_lists, get_stats_per_cluster, plot_all_qc_stats + qc_report warnings/reference comparison (PNG/TSV, not plotly HTML), merge_features_with_crispr_data_apply + get_fill_values, benchmark_performance + training_functions, and Snakefile_training via the ENCODE_rE2G submodule (pinned 5930e746: combine_feature_tables_apply, gen_num_* features, activity_only_features, merge_external_features, gen_final_features, overlap_features_with_crispr_data, process_crispr_data, get_params, train_model). The four v3 models are embedded: feature tables, score/TPM thresholds, weights of model.pkl and the 23 cv_models. qnorm references stay data (setup downloads them). Not ported: the ABC stage (MACS2, candidate regions, neighbourhoods, ABC predictions; input via --abc-dir), ENCODE_rE2G feature selection/permutation importance (off by default upstream) and the plotly HTML report. Validated: upstream chr22 Pairs.Kendall fixture reproduced to 5e-16; IGVF K562 v1.2 release (11,519,202 pairs) Score and Score.ignoreTPM reproduced to 7e-16."
     },
     {
       "repo": "Gartner-Lab/deMULTIplex2",
@@ -244,6 +308,246 @@
       "notes": "NO LICENCE DECLARED upstream, so default copyright applies and nothing may be copied. Reimplemented from the paper."
     },
     {
+      "repo": "IGVF-CRISPR/bulk_crispr_pipeline",
+      "skills": [
+        "bulk-crispr"
+      ],
+      "modules": [
+        "bulk_crispr_pipeline_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "6f4ae09fa7f7dffc1d98b3dc4dc33e73c8ff48ac",
+        "kind": "commit",
+        "branch": "master",
+        "upstream_date": "2023-10-25T20:36:39Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Not a bulk screen pipeline: a single-cell Perturb-seq Nextflow pipeline (pipeline_perturbseq_like). Ported: every main.nf process (compositionREADS, guidePreprocessing, creatingGuideRef/mappingGuide as a Python kite-equivalent, downloadReference/mappingscRNA as kb wrappers, preprocessing, concact_prefiltering incl. a built-in Scrublet, moun_raw_creation, merge_bin_and_muon, preprocess_bar_multiseq/MultiSeq as a deMULTIplex port, select_final_muon, PerturbLoaderGeneration, runSceptre (Python SCEPTRE-style engine + the upstream R script when Rscript is present), create_anndata_from_sceptre); rename_and_symlink.py; the unused filtering_and_lane_merging.py is covered by the same functions (it differs only in the biomart mito list). Jamboree tasks: Task1 assay specs, Task2 MuData inspection, Task3 alternative DE (Mann-Whitney), Task4 tracks, guide-assign (Poisson mixture), cellranger inputs. Left out: barTSNE plot, the streamlit mock-up (Untitled1.ipynb), perturbvi (Task3 stub), dataset download notebooks. MuData is written as a directory of h5ad per modality (+ .h5mu when mudata is installed); .h5mu is readable without mudata. Seven upstream bugs corrected by default, reproduced with --upstream-compat. The run_jamboree_v2 notebook contains a Nextflow Tower token; it was not copied."
+    },
+    {
+      "repo": "IGVF-CRISPR/CRISPR-JAMBOREE",
+      "skills": [
+        "crispr-jamboree2"
+      ],
+      "modules": [
+        "crispr_jamboree2_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "56d31fd4bc56966500c30b51b1c9b3923cf5e1b0",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-07-12T20:30:30Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every analysis under single-cell/: counting-guides (CountGuides.ipynb, seqSpecExtract.ipynb, parsing_guide_medata.py, soloOutGuideParsing.py, the starSolo Nextflow processes -> guide-reference, count-guides with a pure-Python counter, seqspec-index), guide-assignment (igvf_guide_assignment.py umi-threshold + CLEANSER, both Stan models re-implemented as MAP fits; sceptre mixture), inference (wilcoxon-test.R, negative-binomial.R, run_scanpy_test.py with 3 methods, sceptre demo/Nextflow, run-perturbo.py wrapper), simulation (1-3 R scripts incl. a DESeq2 poscounts + parametric dispersion port) and evaluation (eval_setup, eval_and_clustergram, volcano_and_igv, network notebooks, evaluation.py). Validated on the upstream Gasperini MuDatas: scanpy p/log2FC identical, glm.nb within 3e-5, wilcoxon identical with side=left; DESeq2 size factors / baseMean identical and dispersions within 0.3% for mean >= 1 (low-count genes differ: upstream trend fit not reproduced). Corrected with --upstream-compat to reproduce: negative-binomial.R l2fc = exp(b1); 3_simulate_count_data.R writes the unsimulated object; eval notebook scores by raw p. Not ported: PerTurbo's pyro model (runs only if the package is installed), the sceptre R package itself (re-implemented, not bit-identical), STAR/bed2gtf binaries (optional). The bulk/ tree holds only empty placeholders. Large files not vendored: example .h5mu files (~70 MB) and counting-guides example_data/data.tar.gz (30 MB)."
+    },
+    {
+      "repo": "IGVF-CRISPR/CRISPR-jamboree3",
+      "skills": [
+        "crispr-jamboree3"
+      ],
+      "modules": [
+        "crispr_jamboree3_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "fea0857ff461889bbf855d61c529977fe8bc71cc",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-10-03T19:18:42Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported all IGVF_Workflows/bin scripts and their Nextflow processes: parse_interface_configuration / parse_covariate / prepare_formula / process_batches / process_reads (configure; byte-identical config on the upstream example), seqSpecCheck, parsing_guide_metadata + extract_parsed_seqspec (seqspec-check / seqspec-parse), guide_table / hashing_table + kb ref/count processes (map, commands run only with kb), anndata_concat / hashing_concat, preprocess_adata (calculate_qc_metrics port, checked against scanpy), create_mdata(_HASHING) (own GTF reader; GTFProcessing.py is missing upstream), doublets(_HASHING) (Scrublet port; v-score gene filter approximated by a mean-adjusted Fano factor), GMM-Demux + demultiplex_prepare/filter + filter_hashing (per-HTO 2-component GMM), cleanser.py + both Stan models (MAP), assign_grnas_sceptre.R + add_guide_assignment, create_pairs_to_test + prepare_inference, inference_sceptre.R incl. identify_non_redundant_covariates (sceptre re-implemented), perturbo_inference.py (wrapper), add_guide_inference, volcano_plot / select_nodes / network_plot(_undefined) / igv, create_dashboard_plots / create_dashboard_df / process_json / create_dashboard(_HASHING) (self-contained HTML instead of the JS/CSS template). Notebooks: mudata exploration (hashing/test_results views covered by inspect-style outputs of create-mudata / dashboard) and the seqspec tutorial (seqspec-parse). Upstream bugs corrected (reproduced with --upstream-compat): pooled CLEANSER fit indexed by within-guide position, positional metadata assignment after merge, targeting 'TRUE' for all guides, symbols instead of Ensembl ids in GTF pairs, unused mouse 'Mt-' prefix; dashboard direct-targeting percentage reported with both denominators. Not vendored: 737K-august-2016.txt whitelist (12 MB), example xlsx sheets, compiled cmdstan binaries, perturbo wheel, web-form HTML/JS."
+    },
+    {
+      "repo": "IGVF-CRISPR/CRISPR-Jamboree_2025",
+      "skills": [
+        "crispr-jamboree4"
+      ],
+      "modules": [
+        "crispr_jamboree4_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "ca56b3249373cba508c32f8269d884fb16c768b7",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-02-21T15:30:01Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "The repo holds README, Setup.ipynb (downloads jamboree_task.zip from Dropbox + installs the PerTurbo wheel) and RunTask.ipynb (nextflow run main.nf -c input_h9.config / input_wtc11.config, then evaluation_curve.py -i pipeline_outputs/inference_mudata.h5mu). The Dropbox bundle is deleted (checked 2026-09-22), so the pipeline steps were ported from IGVF/CRISPR_Pipeline@1bb2ac2 (2025-02-21): prepare_user_guide_inference + prepare_inference.py (prepare), inference_sceptre.R (sceptre re-implemented) + perturbo_inference.py (wrapper) (infer), mergedResults / export_output_multiple.py / export_output_single.py (merge); evaluation_curve.py was reconstructed clean-room from the notebook's printed log and 2x2 PR/ROC figure (AUPRC 0.991 / AUROC 0.917 sceptre, 0.972 / 0.807 PerTurbo on H9) and the jamboree-2 perform_binary_evaluation. Corrected with --upstream-compat to reproduce: per-element output grouped by gene_id only. Added: glm.nb comparator and multi-dataset evaluation. Not available: H9 / WTC11 MuDatas and pairs sheets (Dropbox bundle deleted; Google Sheets not public), the PerTurbo pyro model (runs only if installed)."
+    },
+    {
+      "repo": "IGVF-CRISPR/CRISPR-SeqSpec",
+      "skills": [
+        "crispr-seqspec"
+      ],
+      "modules": [
+        "crispr_seqspec_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "890435311b0c36859c97f6afbceb3c61910f63b2",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-07-12T16:49:26Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "The upstream is data only (4 seqspec YAMLs, 1k-read FASTQs, onlists, a readme of authoring guidelines). Ported: seqspec check rules (C01-C16), seqspec index projection with kb / chromap (plus STARsolo, tab) formatting, seqspec onlist, seqspec print-like info, the README's per-modality FASTQ submission rule as check-reads. Embedded: a compact derived JSON index of the specs (no raw files copied, no licence); the original files are fetched from the pinned commit on demand. Left out: seqspec init/modify/split/format and md5 regeneration (not used by the repo). The seqspec JSON schema's full region_type vocabulary is approximated by the 0.2 list."
+    },
+    {
+      "repo": "IGVF-CRISPR/CRISPR_FG_JAMBOREE",
+      "skills": [
+        "crispr-fg-jamboree"
+      ],
+      "modules": [
+        "crispr_fg_jamboree_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "af2af8da297464e5aa2883bb81857342b4e3c369",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2023-04-03T15:41:21Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported all 7 notebooks (run_jamboree_v2, Task1 assay spec, task_cellranger_v2, Task2 MuData extension, Task_guide_assign_V4, Task3 differential perturbation v3, Task4 visualization). The tasks are stubs, so their inputs and outputs were taken from the pipeline they extend (LucasSilvaFerreira/pipeline_perturbseq_like @ 60cd461a: filtering_and_lane_merging, muon_creation, guide_table_processing, PerturbLoader_generation, runSceptre, sceptre_anndata_creation) and IGVF-CRISPR/sccrispr-tools calculate_distance @ 59cbab82. Not ported: kallisto/bustools mapping and the Nextflow orchestration (written and launched only as commands), Scrublet (used when installed), biomart mito lookup (MT- prefix or a gene list), seqspec YAML parsing (a built-in assay table instead). The R SCEPTRE engine needs Rscript + sceptre. The notebook's embedded Tower token is not reproduced."
+    },
+    {
+      "repo": "IGVF-CRISPR/crisprdevtools",
+      "skills": [
+        "crisprdevtools"
+      ],
+      "modules": [
+        "crisprdevtools_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "08dd9ae3356dcaf5f2921b729a72e329eedf9f89",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-07-10T16:55:30Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Upstream is a single 57-line function (create_new_module_nextflow) plus setup.py/README. Ported exactly as the 'minimal' template (reproducible byte-for-byte with --upstream-compat). Three upstream bugs are fixed by default: indented conda YAML that fails to parse, process hard-named seqSpecParser, and bin script not chmod +x. Two additions carry out the README's stated purpose ('Tools to help developing modules'): a 'full' template matching IGVF_CRISPR_Pipeline's Modules/<name> layout, and a check-module validator. Run against IGVF_CRISPR_Pipeline Modules/seqSpecParser and mappingscRNA, the validator reports their bin scripts are not executable. Nothing upstream was left out."
+    },
+    {
+      "repo": "IGVF-CRISPR/fishash-table2-reproduction",
+      "skills": [
+        "fishash-table2"
+      ],
+      "modules": [
+        "fishash_table2_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "7d5d9763368682214952719931e86229a075a0be",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-14T01:00:11Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported build_inputs.py, score_table2.R (cohort, binary accuracy + stderr, 5 method specs, published Table 2 + SE, delta/match columns), run_sceptre_table2.R (as the optional R engine) and run_reproduction.sh (as run, with the same caching). CLEANSER 1.2.1 (Gersbachlab-Bioinformatics/CLEANSER @ d28c31b5, MIT) cs/dc Stan models were re-derived: same likelihoods, truncation, priors, bounds, lpf=2 normalisation and median-PZi output, but sampled with adaptive Metropolis on Stan's unconstrained scale instead of NUTS, so posteriors match only up to Monte-Carlo error. SCEPTRE 0.10.3 mixture assignment is a Python approximation (GLM offsets + reduced EM, 5 restarts, 0.8 threshold, backup threshold 5); exact sceptre numbers need --engine r. The GSE272457 data are not downloaded. Sampler-warning counts come from the log only when the real CLEANSER binary is used."
+    },
+    {
+      "repo": "IGVF-CRISPR/IGVF_CRISPR_Pipeline",
+      "skills": [
+        "igvf-crispr-pipeline"
+      ],
+      "modules": [
+        "igvf_crispr_pipeline_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "6704a0f16e4de35185db7e358268aabc75fe5256",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-07-18T20:25:30Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "No LICENSE file; methods re-derived, no code copied. Ported: seqSpecParser (parsing_guide_metadata.py: reads per modality, seqspec index -t kb via an in-module YAML parser + layout rule, onlist path, parsed_seqSpec TSV), extract_parsed_seqspec.py, guide_features.py, process_reads.py, downloadReference/createGuideIndex/downloadGenome/mappingscRNA/mappingGuide (kb ref -d, kb ref kite, wget, kb count command lines; run when binaries are on PATH, else printed), process_anndata preprocess_adata.py and create_mdata.py (MuData via mudata, or h5py+anndata when mudata is absent). Added: pure-Python kite-style guide counter. Deviations: guide names matched by sgRNA_ID (positional with --upstream-compat), RNA barcode order kept, kite -f1 is a mismatch FASTA rather than the downloaded genome (upstream quirk reproducible), cell_barcode treated as barcode (--strict-region-types), percent_top trimmed below 500 genes. Not ported: Nextflow orchestration/conda envs (replaced by the run subcommand); the bundled kallisto binary; empty test.nf files and kallisto_ref.py stub. The upstream Workflows/*/3M-february-2018.txt.gz copies are truncated gzips."
+    },
+    {
+      "repo": "IGVF-CRISPR/perturb-tools",
+      "skills": [
+        "perturb-tools"
+      ],
+      "modules": [
+        "perturb_tools_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "81eaae070be97396a62f87654cf5fc5132474af2",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2023-06-30T18:23:22Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every module of main: screen object (pt.add, AnnData layout), pt.pp (log_norm, log_fold_change, fold_change, log_fold_change_reps, log_fold_change_aggregate), pt.calc.log_fold_change (LogFoldChangeModule sorting-screen delta LFC + t-test), pt.qc (_set_sample_correlation, get_outlier_guides), pt.pl (_G Gini, sample_count_gini, sample_count_dist, sample_count_correlation, sample_lfcs_correlation), pt.io (to_Excel, write_experiment_report_to_Excel, PoolQ reader incl. quality.txt parser, _check_fix_file_extension), guide annotation (_annotate_protospacer, _add_guide_target_metadata, _annotate_guide_position, _add_context_sequence_to_gene_dict, _SequenceManipulation), the three bulk notebooks (as `run`). pt.io.read_csv/write_csv and to_mageck_input are imported by main but missing there; taken from branch fix_import (d0148ce). From branch dev (5fc786b): _experimental_design (PAM scan, protospacer/PAM/context, BsmbI scan, guide biochemistry, GTF exons, overlapping-fragment resolution, widen), plot_rep_consistency_lfc, _plot_guide_enrichment/_plot_gene_exon (matplotlib instead of plotly), and sccrispr_tools.calculate_distance (pair-distance, on tables instead of MuData varp). Left out: empty stubs (annotate_guides NotImplemented, _create_gene_dict, _plot_CDS, _GTF.read, _plot_guide_stats.py empty), _set_matplotlib_rc_params (deletes ~/.cache/matplotlib, sets Arial), _flexible_mkdir, the commented-out pool_sharq/PoolQ runner (PoolQ itself is a Java tool not called by upstream). Fixed with --upstream-compat where runnable: outlier-guide transposed indexing, BsmbI motif at position 0; fixed outright: to_mageck_input layer transpose, write_csv flattening X, DirectPairDict-only target assignment, Excel sheet naming. Validated on TKO HeLa lib1 against the basic_api_demo notebook outputs (exact) and on PoolQ 3.3.2 test output (log-normalisation identical)."
+    },
+    {
+      "repo": "IGVF-CRISPR/Pipeline_Gasperini_2019",
+      "skills": [
+        "gasperini-pipeline"
+      ],
+      "modules": [
+        "gasperini_pipeline_skill.py"
+      ],
+      "license": "none declared",
+      "relationship": "port",
+      "pinned": {
+        "ref": "51b4ced480d312278c8531f4b4710d98448171c4",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-07-15T14:11:07Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "The upstream holds a README (download script, env, Nextflow config), the guide xlsx and the sample pilot h5mu; the analysis code it runs lives in LucasSilvaFerreira/pipeline_perturbseq_like@60cd461 (main.nf + bin/*.py) and Perturb_Loader, which were read and ported: guide_table_processing, fq_composition, concact_and_pre_filtering (QC, scrublet, lane merge), muon_creation, merge_bin_and_muon (binarisation, covariates), PerturbLoader_generation (cis pairs, guide types), runSceptre (per-element inputs; python CRT engine + optional R), sceptre_anndata_creation (BH, Fisher, result MuData), multiseq (deMULTIplex classify port), plus the original Gasperini NB LRT and a GSE120861 comparison. External binaries (kb/kallisto, nextflow, Rscript/SCEPTRE, bamtofastq) are optional: commands are printed when absent. Six upstream quirks corrected by default, reproduced with --upstream-compat. Not ported: the jamboree task notebooks (templates without analyses), Nextflow Tower integration. The Python CRT uses an NB score statistic and a skew-normal null instead of SCEPTRE v0.1's GLM z and skew-t; the built-in doublet scorer is a compact scrublet port used only when scrublet is not installed."
+    },
+    {
+      "repo": "IGVF-CRISPR/sceptreIGVF",
+      "skills": [
+        "sceptre-igvf"
+      ],
+      "modules": [
+        "sceptre_igvf_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "87a35d6736a5ddbf9c2975323d55e4423bd88219",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2024-04-18T19:24:40Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every exported R function (convert_mudata_to_sceptre_object, assign_grnas_sceptre, inference_sceptre, sceptre_object_to_mudata, sceptre_object_to_mudata_inputs_outputs, save_mudata_list) and the testthat assertions. Also ported the CRISPR_Pipeline evolution of the wrapper (greedy collinear-covariate removal, union and singleton analyses into per_element_results / per_guide_results, cis_/trans_ keys). The sceptre R package's statistics are re-implemented in Python as a documented approximation: NB GLM score test, CRT or permutation null, a method-of-moments skew-normal fit with a KS check, and a reduced-EM Poisson mixture. p-values are calibrated and of the same magnitude, but they do not match sceptre digit for digit. Left out: the bundled Gasperini and Papalexi sample .rda data (R-serialised, and the source h5mu paths are private). The real R package runs only through r-runner. The upstream formula_object == 'default' bug (non-short-circuit | on an undefined variable) is sidestepped by treating 'default' as the documented default formula."
+    },
+    {
       "repo": "IGVF-DACC/igvf-catalog-mcp",
       "skills": [
         "catalog"
@@ -282,6 +586,66 @@
         "pinned_at": "2026-09-17"
       },
       "notes": "MIT. Endpoint surface only."
+    },
+    {
+      "repo": "IGVF/atomic-workflows",
+      "skills": [
+        "igvf-sc-pipeline"
+      ],
+      "modules": [
+        "igvf_sc_pipeline_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "4ba588f9c243c5fa18fdd67b3600ae2a39062da0",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-05-23T21:06:40Z",
+        "release": "v1.1",
+        "pinned_at": "2026-09-22"
+      },
+      "notes": "v1.1 (d887318): run_chromap.py / run_kallisto.py consulted for the chromap and kb command strings and subpool post-processing that IGVF/single-cell-pipeline wraps; nothing copied."
+    },
+    {
+      "repo": "IGVF/CRISPR_Pipeline",
+      "skills": [
+        "crispr-jamboree4"
+      ],
+      "modules": [
+        "crispr_jamboree4_skill.py"
+      ],
+      "license": "",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "1bb2ac269bf4b69fdeb8e7e03118fcf0f23ccbee",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-02-21T18:08:44Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "CRISPR_Pipeline revision 1bb2ac2 (2025-02-21), the version the 4th CRISPR jamboree task bundle ran; consulted to rebuild that bundle's steps because the bundle itself (Dropbox) is deleted. The full pipeline is ported separately from pinellolab/CRISPR_Pipeline (crispr-pipeline). The repository now lives at pinellolab/CRISPR_Pipeline; pinned by hand from its git history."
+    },
+    {
+      "repo": "IGVF/single-cell-pipeline",
+      "skills": [
+        "igvf-sc-pipeline"
+      ],
+      "modules": [
+        "igvf_sc_pipeline_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "202a21a9a57fcd94a82cc36c7e657e1885751ed7",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-10-07T13:59:19Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every Python/R script (barcode_revcomp_detect, correct_fastq, trim_fastq, compute_tss_enrichment_bulk, snapatac2 TSSe (optional dep), qc_rna_extract_metrics, write_h5ad_from_mtx, modify_barcode_h5, joint_cell_plotting + density, barcode_rank_functions/atac_qc_plots/rna_qc_plots, plot_insert_size_hist, write_html, IGVF portal download, Synapse manifest/batch upload/annotations) and the WDL tasks (check_inputs, sample_fastqs, 10x barcode mapping, kb count/index, chromap fragments/bam/index, log_atac, genome_tsv read_map, top-level workflow as `pipeline`). The chromap and kb command construction and subpool post-processing come from IGVF/atomic-workflows v1.1 (d887318, run_chromap.py / run_kallisto.py); the binaries run only if they are on PATH. Not ported: monitor_script.sh (Cromwell resource monitor), the Dockerfiles, query_syn (a `synapse show` name lookup) and subwf_check_inputs_synapse (it calls task_seqspec_extract.wdl, which is not in this repo). Corrected upstream bugs (--upstream-compat reproduces the correct_fastq one): the shared r1/r2/r3 barcode set, per-barcode TSS counters that were never filled, the crash on unknown annotation suffixes, and the literal 'none' subpool being appended as '_none'. smooth.spline(spar=1) is re-implemented as the same penalised B-spline; it was not cross-checked against R, because R is unavailable locally."
     },
     {
       "repo": "IGVF/tf_perturb_seq",
@@ -386,6 +750,26 @@
       "notes": "MIT."
     },
     {
+      "repo": "pachterlab/seqspec",
+      "skills": [
+        "crispr-seqspec"
+      ],
+      "modules": [
+        "crispr_seqspec_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "0771046233fdf93542253c28ecda75054b730080",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-03-25T21:26:21Z",
+        "release": "v0.3.0",
+        "pinned_at": "2026-09-22"
+      },
+      "notes": "seqspec schema and `seqspec index/check` behaviour consulted; the skill has its own reader and checks, the binary is used when installed."
+    },
+    {
       "repo": "pinellolab/crispr-bean",
       "skills": [
         "bean"
@@ -404,6 +788,26 @@
         "pinned_at": "2026-09-17"
       },
       "notes": "AGPL-3.0. Installed into its own venv and invoked as a program; no source copied into this repo."
+    },
+    {
+      "repo": "pinellolab/CRISPR_Pipeline",
+      "skills": [
+        "crispr-pipeline"
+      ],
+      "modules": [
+        "crispr_pipeline_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "5c2945402928fe10efdfda1bc497bc5de8ed2cc5",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-19T16:56:46Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "All 63 bin/ scripts (61 Python, 2 R), 48 local modules, 12 subworkflows and the main workflow were read and ported as 27 subcommands: seqspec index -t kb, seqSpecCheck, guide/hashing tables + kite mismatch reference, kb count wrappers + Python guide/hashtag counting, anndata/hashing concat, knee barcode filter + preprocessing, create_mdata with intended_target_key_utils, hashing filter/demultiplex (GMM-demux fallback), scrublet (fallback), SCEPTRE-mixture / CLEANSER-style / threshold guide assignment, mudata_concat gene filter, collapse_guides, create_nt_intended_targets, create_pairs_to_test + prepare_inference, chunk_mudata(_sceptre), SCEPTRE and PerTurbo method ports (NB score + permutation/skew-normal; NB MLE + Wald) with an external engine for the real packages, all merge/export scripts, mapping_gene/mapping_guide/intended_target/trans QC + generate_report, evaluate_controls, igv, volcano, network plots, select_nodes, utlis, tf_benchmark + tf_enrichment, dashboard plots/df/HTML (incl. HASHING variants), portal samplesheet/download/update and parse_interface_configuration. Not reimplemented: kallisto pseudoalignment of the transcriptome (kb required; command printed), PerTurbo's variational guide-efficacy model and SCEPTRE's exact GLM/QC internals (ported as methods, external engine runs the packages), the nf-core email/Slack/MultiQC boilerplate, GCP/Nextflow Tower setup notebooks, and the genome/reference downloads (printed). Upstream bugs corrected with --upstream-compat to reproduce: TF-benchmark TSS (strand compared to 1 -> END for every gene), mitochondrial prefix for non-human references; evaluate_controls no longer crashes with fewer negatives than positives; the portal downloader uses the R1_md5sum column (download_development fix)."
     },
     {
       "repo": "rosstewart/exCALIBR",

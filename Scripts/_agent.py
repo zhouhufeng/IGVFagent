@@ -149,7 +149,12 @@ Workflow:
    Need more of a prior run than the block quotes? history_recall /
    history_show.
 1. Pick the fewest tools that answer the user. Starting points:
-   gene symbol -> kg_gene; IGVF/ENCODE accession or URL -> explain_dataset;
+   gene symbol -> kg_gene; IGVF accession (IGVFDS/IGVFFI/IGVFSM) -> portal_lineage
+   FIRST: the Portal usually already holds the processed results (uniform-
+   pipeline matrices, fragments, cell annotations, predictions) and their QC;
+   answer from those and fetch them with processed_fetch. Download raw reads or
+   run a pipeline ONLY for a product portal_lineage shows does not exist.
+   ENCODE accession or any URL -> explain_dataset;
    discover datasets -> portal_kg_pull / splitseq_retrieve / encode_retrieve;
    prior literature check -> ref_validate; study-design -> ref_design.
 2. Make 1-4 tool calls. Don't fabricate data; every claim must trace to a

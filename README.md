@@ -108,6 +108,26 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **Processed-first IGVF Portal lineage** | New `processed lineage` / `processed fetch` (`portal_lineage`, `processed_fetch`): from any accession, a directed walk of every Portal link. That covers analysis, principal, pseudobulk, model and prediction sets, the multiome partner, auxiliary sets, sample barcode maps, seqspecs and the published QC metrics. It gives a start-here table of processed files per product, with access and the Portal's own QC. The agent now calls it first, and `explain --download` fetches processed results instead of raw reads. |
+| **4th CRISPR Jamboree benchmark** | The 2025 jamboree task: pairs preparation, sceptre / PerTurbo (plus glm.nb) inference, the pipeline's merged per-guide and per-element outputs, and AUPRC / AUROC against the control pairs across datasets. |
+| **3rd CRISPR Jamboree pipeline** | The jamboree-3 IGVF single-cell Perturb-seq pipeline as 14 Python stages (configuration to dashboard) plus an end-to-end `run`, with the upstream quirks fixed and reproducible via `--upstream-compat`. |
+| **2nd CRISPR Jamboree analyses** | Port of the 2024 IGVF CRISPR Jamboree: guide counting, CLEANSER/sceptre guide assignment, the six MuData inference modules (validated against the upstream outputs), the DESeq2 Perturb-seq simulator and the evaluation notebooks. |
+| **IGVF CRISPR Perturb-seq pipeline** | The consortium CRISPR_Pipeline (seqspec to inference_mudata.h5mu, SCEPTRE/PerTurbo cis+trans, QC, evaluation, TF benchmark, dashboard) runs inside IGVFagent, with Python fallbacks for every external tool. |
+| **scE2G pipeline** | scE2G rewritten in Python (`sce2g-pipeline`): Kendall, ARC-E2G, the four embedded v3 models, QC, benchmark and training. It reproduces upstream's chr22 fixture and all 11.5 M released K562 scores exactly. |
+| **ABC pipeline** | Runs the whole ABC Snakemake workflow in Python (peaks through thresholded predictions and QC); its chr22 outputs match upstream's expected test outputs exactly. |
+| **Gasperini 2019 pipeline** | The IGVF single-cell-like CRISPR pipeline on the Gasperini pilot: QC, MuData, guide assignment, cis SCEPTRE-style tests and the original NB test, benchmarked against GEO GSE120861. |
+| **CRISPR SeqSpec** | Catalogue, validate (seqspec check) and index (kb / chromap / STARsolo read formats) the IGVF CRISPR assay seqspecs, and check FASTQs against them. |
+| **Fishash Table 2** | `fishash-table2` reruns the CLEANSER and SCEPTRE barnyard species benchmark in Python, with both callers re-implemented, and scores it against the preprint's Table 2. |
+| **CRISPR-FG jamboree** | All six jamboree notebooks as `crispr-fg-jamboree` subcommands: assay specs through guide calling, SCEPTRE-style cis tests and pyGenomeTracks links. |
+| **CRISPR module dev tools** | Scaffolds IGVF CRISPR Nextflow modules in the pipeline's layout (with the upstream YAML and process-name bugs fixed) and checks existing modules for layout, conda-env and bin-script problems. |
+| **Perturb-seq pipeline (bulk_crispr_pipeline port)** | Runs the IGVF-CRISPR Gasperini-pilot pipeline end to end in Python: kite guide counting, lane QC with doublets, MULTI-seq, cis gene sets, SCEPTRE-style tests, BH/Fisher results and browser tracks. |
+| **ENCODE-rE2G** | Port of EngreitzLab/ENCODE_rE2G: features from ABC outputs, the nine pretrained models as embedded coefficients (upstream chr22 test output reproduced to 1e-15), CRISPR training and feature analysis. |
+| **GWAS E2G benchmark** | Port of EngreitzLab/GWAS_E2G_benchmarking: tests E2G predictions against fine-mapped UK Biobank variants (enrichment, recall, curves) and silver-standard credible-set genes (with PoPS), with no R or bedtools needed. |
+| **IGVF single-cell pipeline** | Ports every step of IGVF's multiome pipeline to Python: SHARE-seq barcode correction, TSS enrichment, kb/chromap wrappers, and RNA/ATAC/joint QC with barcode-rank knees. |
+| **Pooled CRISPR screen toolkit** | `perturb-tools` ports IGVF-CRISPR/perturb-tools end to end (normalisation, replicate and sorting-screen LFC, QC, MAGeCK export, PoolQ reader, sgRNA library design), matching the upstream tutorials to six decimals. |
+| **CRISPRi-FlowFISH pipeline** | Full port of EngreitzLab/crispri-flowfish (mapping, count tables, the R binned-MLE effect sizes, qPCR scaling, windows, peak calling, power), checked by a self-test with planted enhancers. |
+| **SCEPTRE for IGVF MuData** | Port of sceptreIGVF: gRNA assignment plus SCEPTRE calibration, power and discovery tests on IGVF CRISPR MuData, with results written to `uns` under the upstream names, and an optional runner for the real R package. |
+| **IGVF CRISPR Pipeline (early Nextflow)** | Port of IGVF-CRISPR/IGVF_CRISPR_Pipeline: seqspec to kb technology strings, kite guide references, kb mapping wrappers, a pure-Python guide counter, RNA QC and MuData assembly. |
 | **scE2G workbench** | New `sce2g` skill wrapping [EngreitzLab/scE2G](https://github.com/EngreitzLab/scE2G) training with crowdsourced features (setup patches, Synapse feature table → `source_file` + external config + feature table, cluster/model rows, pre-flight `check`, snakemake `run`) and a clean-room [CRISPR_comparison](https://github.com/EngreitzLab/CRISPR_comparison) benchmark (pred_config semantics, AUPRC with bootstrap CI, precision at 70% recall, PR curves; writes the upstream configs too). Eight tools; self-test on a fake checkout plants a good and a random predictor and recovers the ranking. |
 | **TF Perturb-seq → disease / GWAS** | New `tf-perturb` skill: port of the IGVF [tf_perturb_seq](https://github.com/IGVF/tf_perturb_seq) WG3 jamboree notebook. Calibrated direct / cis / trans tables → significant effects, top trans regulators, GWAS Catalog overlap with Fisher trait enrichment, scE2G links and GWAS SNPs inside E2G elements, optional ChIP-seq support; report, CSVs, figures. Vectorised overlaps, chunked+cached 22M-row trans filter, `mudata`/`pyBigWig` optional. Self-test plants FOXH1/SOX17 regulators, a T2D SNP block and an enhancer SNP and recovers all of them. |
 | **Biosample census + hosted-agent fixes** | New `biosample-census` (`biosample_portal_census`): one command counts everything ENCODE and IGVF hold for a cell line via structured sample-term filters, with tables and plots. Re-authoring an agent extension under its own name is now an update; `explain_dataset` diagnoses a zero-hit search URL instead of writing an empty report; the failure banner shows the exception line, not the traceback header. |
@@ -1633,6 +1653,52 @@ python3 Scripts/ccre_linkage_annotation_skills.py write-playbook
 Always run a `*-manifest` command before `*-download`. Full SCREEN cCRE,
 rE2G, and single-cell linkage corpora can be many gigabytes.
 
+### Start from what the IGVF Portal already computed (`processed lineage`)
+
+Given any IGVF accession, IGVFagent now walks the links the Portal records
+around it before it downloads anything. The links are the ones in the Portal's
+data-model diagrams:
+- `input_for` and `input_file_sets`, through intermediate, principal,
+  pseudobulk, model and prediction sets;
+- `related_measurement_sets` (the other modality of a multiome);
+- `auxiliary_sets` (MULTI-seq, hashing, guides);
+- `samples`, then `barcode_map`, then the curated barcode set;
+- `seqspecs`, `onlist_files` and `documents`;
+- `derived_from`, for a model's training data;
+- `large_scale_loci_list`;
+- the `QualityMetric` objects the uniform pipeline published.
+
+The walk is directed. Outputs are followed downward and inputs upward, and
+datasets from the same sample pool are listed but not expanded. So the "start
+here" table only offers files actually built from your accession. Prediction
+sets that apply a model trained on your data to other data are listed
+separately from results of your data.
+
+```bash
+igvfagent processed lineage IGVFDS9875NBZW          # report.md + plan.json + lineage graph + figure
+igvfagent processed fetch IGVFDS9875NBZW --max-gb 20   # the processed files + the Portal's QC, not the reads
+igvfagent explain explain IGVFDS9875NBZW --download    # now fetches processed results first (--include-raw for reads)
+igvfagent processed selftest                           # offline fixture Portal, 28 checks
+```
+
+On IGVFDS9875NBZW, a snRNA-seq 10x multiome with MULTI-seq, the walk finds:
+- the uniform-pipeline h5ad, 3.7 GB, with its QC (74.9% pseudoaligned, 93.4%
+  of reads on the barcode onlist);
+- the public ATAC fragments, 5.6 GB, with 29.3% duplicates;
+- cell annotations from the principal analysis;
+- the MULTI-seq hashing table and the barcode-to-sample map.
+
+That is about 18 GB of processed files, instead of 155 GB of controlled reads
+across the RNA and ATAC measurement sets and the MULTI-seq auxiliary set.
+Starting from the raw K562 multiome IGVFDS3910GBDQ, it reaches the scE2G
+prediction sets IGVFDS5428HHMB and IGVFDS2032HBUP and their model
+IGVFDS6290TXZY. Linked objects the credentials cannot see are reported as
+"not visible (403)" rather than dropped. `raw-pipeline plan` and
+`processed find/plan` now use the same walk.
+
+Agent tools: `portal_lineage` (the agent's first call for any IGVF accession)
+and `processed_fetch`.
+
 ### Data illustration and interpretation
 
 ```bash
@@ -2580,6 +2646,332 @@ log enrichment. The second is the unthresholded background counts in the
 by-distance tables. Agent tools: `eqtl_enrichment_setup`,
 `eqtl_enrichment_prepare_gtex`, `eqtl_enrichment_variants`,
 `eqtl_enrichment_run`, `eqtl_enrichment_selftest`.
+
+### IGVF CRISPR Pipeline, early Nextflow version (`igvf-crispr-pipeline`)
+
+A Python port of [IGVF-CRISPR/IGVF_CRISPR_Pipeline](https://github.com/IGVF-CRISPR/IGVF_CRISPR_Pipeline) (commit 6704a0f, 2024-07-18), the first Nextflow version of the IGVF CRISPR Perturb-seq pipeline. It reads a seqspec YAML directly and derives the kallisto-bustools technology string (`seqspec index -t kb`), the reads of each modality and the barcode onlist. It turns guide libraries into kite `guide_features.txt` and builds the `kb ref` / `kb count` commands, running them when kb is installed and printing them otherwise. It then runs the RNA AnnData QC (min_genes 100, min_cells 3, MT-/Mt- and RPS/RPL flags, scanpy QC metrics, knee/violin/scatter plots) and writes the MuData with `transcripts` and `guides` modalities (`ID|sequence` guide names, `number_of_nonzero_guides`, intersected barcodes).
+
+It also adds a pure-Python kite-style guide counter, so the guide arm runs end to end without kallisto. The counter does exact or unique 1-mismatch protospacer matching, onlist barcode correction and distinct-UMI counts. On the upstream example it assigns 1,356 of 1,500 guide reads (1,213 exact, 164 rescued by one mismatch) to 1,147 barcodes. `--upstream-compat` brings back the upstream's positional guide naming, and its genome-as-`-f1` in kite mode.
+
+```bash
+igvfagent igvf-crispr-pipeline parse-seqspec --yaml guide.yml --modality guide --directory seqspec_dir
+igvfagent igvf-crispr-pipeline guide-features --guide-table gasperini_tss.xlsx
+igvfagent igvf-crispr-pipeline count-features --seqspec guide.yml --guide-table guides.xlsx --fastqs guide_R1.fq guide_R2.fq
+igvfagent igvf-crispr-pipeline preprocess --adata-rna adata_rna.h5ad --gene-names cells_x_genes.genes.names.txt --reference human
+igvfagent igvf-crispr-pipeline create-mdata --adata-rna filtered_anndata.h5ad --adata-guide adata_guide.h5ad --guide-metadata guides.xlsx
+igvfagent igvf-crispr-pipeline run --rna-seqspec rna.yml --guide-seqspec guide.yml --guide-table guides.xlsx --guide-fastqs R1.fq R2.fq --adata-rna adata_rna.h5ad --gene-names genes.txt
+igvfagent igvf-crispr-pipeline selftest --no-plots
+```
+
+Agent tools: `igvf_crispr_parse_seqspec`, `igvf_crispr_guide_features`, `igvf_crispr_kb_ref`, `igvf_crispr_kb_count`, `igvf_crispr_count_features`, `igvf_crispr_preprocess`, `igvf_crispr_create_mdata`, `igvf_crispr_run`.
+
+### SCEPTRE for IGVF MuData (`sceptre-igvf`)
+
+A Python port of [IGVF-CRISPR/sceptreIGVF](https://github.com/IGVF-CRISPR/sceptreIGVF), the R wrapper that runs SCEPTRE on the IGVF CRISPR MuData schema. It converts a MuData (mod/gene counts, mod/guide counts or `guide_assignment` layer, top-level covariates, `pairs_to_test`) into a SCEPTRE analysis, assigns gRNAs (Poisson-mixture EM, thresholding or maximum), runs SCEPTRE's QC, calibration check on non-targeting pairs, power check on positive controls and discovery analysis, and writes results back into MuData `uns`. The column names are the upstream ones: `test_results` for sceptreIGVF, or `per_element_results` / `per_guide_results` (with `cis_` / `trans_` prefixes) for the IGVF CRISPR_Pipeline.
+
+The SCEPTRE statistics are re-implemented in numpy and statsmodels: an NB GLM score test, a conditional-resampling or permutation null reused across genes, and a skew-normal tail fit. This is a documented approximation of sceptre's C++ engine. `r-runner` runs the real R package when Rscript, MuData and sceptreIGVF are installed. `export-mudata` rebuilds the eight benchmark inputs/outputs MuData files.
+
+```bash
+igvfagent sceptre-igvf assign-guides --mudata guide_assignment_input.h5mu --label gasperini
+igvfagent sceptre-igvf inference --mudata inference_input.h5mu --side left
+igvfagent sceptre-igvf inference --mudata inference_input.h5mu --mode pipeline --scope cis
+igvfagent sceptre-igvf run --mudata screen.h5mu --label screen
+igvfagent sceptre-igvf r-runner --step inference --mudata inference_input.h5mu
+igvfagent sceptre-igvf selftest --no-plots
+```
+
+Agent tools: `sceptre_igvf_convert`, `sceptre_igvf_assign_guides`, `sceptre_igvf_qc`, `sceptre_igvf_inference`, `sceptre_igvf_calibration_check`, `sceptre_igvf_power_check`, `sceptre_igvf_run`, `sceptre_igvf_export_mudata`, `sceptre_igvf_r_runner`, `sceptre_igvf_compare_results`.
+
+### CRISPRi-FlowFISH pipeline (`flowfish-pipeline`)
+
+A full port of the Engreitz-lab [crispri-flowfish](https://github.com/EngreitzLab/crispri-flowfish) Snakemake workflow, taking a screen from FASTQs to scored enhancers. The steps are: sample-sheet validation and experiment keys; read mapping (bowtie `-v0 --all`, or an exact-match Python mapper when bowtie is missing); guide counts and count tables per PCR and experimental replicate; replicate correlations; and the four sort-parameter loaders. From there it runs `estimate_effect_sizes.R` (weighted average plus a binned log-normal MLE with an EM seventh bin, using R `optim`/`stats4::mle` numerics), real-space normalisation to negative controls, 10-guide windows, TSS qPCR scaling, and collapse to candidate elements. Elements are scored with a Mann-Whitney test and a Student t-test, BH-corrected. The pipeline also does power analysis and writes ScreenData / KnownEnhancers tables. File names and columns match the upstream `results/` tree.
+
+Two upstream quirks are corrected by default and can be reproduced with `--upstream-compat`. First, under R 3.6, `Count[Bin]` indexes by factor level code rather than by bin name. Second, bins and gates are paired by position. `CalculateTilingStatistic.R` depends on a private helper library, so its window test columns are reconstructed. The same applies to the KnownEnhancers formatter.
+
+```bash
+igvfagent flowfish-pipeline run --sample-sheet SampleSheet.tsv --design design.txt --sortparams-dir sortParams \
+    --fastq-dir fastq --experiment-keycols CellLine --replicate-keycols FlowFISHRep \
+    --qpcr qPCR.txt --genelist GeneList.txt --enhancers EnhancerList.bed --label ppif
+igvfagent flowfish-pipeline estimate-effects --counts K562-Rep1.bin_counts.txt --sort-params B1_S1.txt
+igvfagent flowfish-pipeline score-enhancers --collapsed K562-Rep1.collapse.bed --scaled K562-Rep1.scaled.txt --expt-name K562-Rep1
+igvfagent flowfish-pipeline selftest --no-plots
+```
+
+Agent tools: `flowfish_pipeline_run`, `flowfish_pipeline_estimate_effects`, `flowfish_pipeline_real_space`, `flowfish_pipeline_windows`, `flowfish_pipeline_tss_kd`, `flowfish_pipeline_normalize_qpcr`, `flowfish_pipeline_collapse`, `flowfish_pipeline_score_enhancers`, `flowfish_pipeline_power`, `flowfish_pipeline_format_screen`, `flowfish_pipeline_count_tables`, `flowfish_pipeline_map_reads`, `flowfish_pipeline_samplesheet`, `flowfish_pipeline_guide_count_plots`.
+
+### Pooled CRISPR screen toolkit (`perturb-tools`)
+
+A port of [IGVF-CRISPR/perturb-tools](https://github.com/IGVF-CRISPR/perturb-tools) (MIT), the IGVF CRISPR working group's AnnData-based package for bulk pooled screens. It covers the whole package: the screen object (count table + guide/sample annotation, TKO sample-name parsing, adding technical replicates), log2(RPM + 1) normalisation, sample-vs-sample and per-replicate log fold changes with mean/median/sd aggregation, the sorting-screen delta-LFC with t-test p-values and the guide-enrichment-along-locus plot, the sample quality report (count distribution, Gini, count and LFC correlation, replicate consistency, outlier jackpot guides), MAGeCK / Excel / CSV export, the PoolQ output reader, guide annotation (protospacer, target, genomic position) and, from the dev branch, sgRNA library design (PAM scan of exons, BsmbI filter, GC / homopolymer flags) and feature pair distances.
+
+Numbers match the upstream tutorials on the TKO HeLa screen to six decimals (e.g. A1BG guide 1: A/B/C.18_8.lfc = -0.341628 / -1.623461 / -0.351306), and log_norm reproduces PoolQ 3.3.2's lognormalized-counts to 4e-15. Upstream bugs (transposed outlier-guide indexing, missed BsmbI motif at position 0, untransposed MAGeCK layer export, flattened CSV matrix) are fixed, with `--upstream-compat` where the upstream behaviour runs.
+
+```bash
+igvfagent perturb-tools run --counts readcount-HeLa-lib1 --parse-tko-names --exclude replicate=0 \
+    --cond1 18 --cond2 8 --compare-col time --target-col GENE --pos-ctrl core-essential-genes-sym_HGNCID
+igvfagent perturb-tools sort-lfc --counts sort_counts.tsv --condit-1 high --condit-2 low --control presort --targets enh1 enh2
+igvfagent perturb-tools read-poolq --poolq-dir poolq_out/ --sample-metadata conditions.csv
+igvfagent perturb-tools design-library --fasta hg38.fa --gtf gencode.gtf --gene KMT2C --chrom chr7
+igvfagent perturb-tools selftest --no-plots
+```
+
+Agent tools: `perturb_tools_run`, `perturb_tools_make_screen`, `perturb_tools_lfc_reps`, `perturb_tools_sort_lfc`, `perturb_tools_qc`, `perturb_tools_to_mageck`, `perturb_tools_read_poolq`, `perturb_tools_annotate_guides`, `perturb_tools_design_library`.
+
+### IGVF single-cell pipeline (`igvf-sc-pipeline`)
+
+A Python port of the IGVF uniform single-cell multiome pipeline ([IGVF/single-cell-pipeline](https://github.com/IGVF/single-cell-pipeline), with the chromap and kallisto|bustools wrappers from IGVF/atomic-workflows v1.1). Every step of the WDL is a subcommand: SHARE-seq barcode correction (exact / 1-mismatch / +-1 bp shift, poly-G QC), dovetail trimming, barcode-orientation detection, the 10x multiome ATAC<->RNA barcode map, chromap and kb count command construction with subpool handling, chromap log metrics, bulk and per-barcode (ArchR) TSS enrichment, RNA metrics from kb nac layers, joint RNA x ATAC cell calling, and barcode-rank elbow/knee detection with a re-implementation of R's `smooth.spline(spar=1)`.
+
+chromap and kb are optional: when they are not installed, the tool prints the exact command the pipeline would run and exits 0. Every QC step then runs on the h5ad and fragment files those tools produce. `pipeline` takes a Cromwell inputs JSON and runs the whole plan. The Synapse and IGVF-portal helpers read credentials from the environment only, and do a dry run unless asked to execute.
+
+```bash
+igvfagent igvf-sc-pipeline correct-fastq --read1 R1.fq.gz --read2 R2.fq.gz --whitelist bc24.txt --sample-type ATAC --prefix lib1
+igvfagent igvf-sc-pipeline tss-enrichment --fragments lib1.fragments.tsv.gz --regions tss.bed --prefix lib1
+igvfagent igvf-sc-pipeline rna-qc-metrics --h5ad lib1.rna.h5ad --kb-workflow nac --subpool SP1
+igvfagent igvf-sc-pipeline joint-qc --rna-metrics rna_barcode_metadata.tsv --atac-metrics lib1.tss_enrichment_barcode_stats.tsv --pkr SP1
+igvfagent igvf-sc-pipeline pipeline --inputs-json inputs.json --rna-h5ad lib1.rna.h5ad --fragments lib1.fragments.tsv.gz --tss-bed tss.bed
+igvfagent igvf-sc-pipeline selftest --no-plots
+```
+
+Agent tools: `igvf_sc_barcode_revcomp_detect`, `igvf_sc_correct_fastq`, `igvf_sc_trim_fastq`, `igvf_sc_tss_enrichment`, `igvf_sc_snapatac2_tsse`, `igvf_sc_rna_qc_metrics`, `igvf_sc_mtx_to_h5ad`, `igvf_sc_modify_barcode_h5`, `igvf_sc_joint_qc`, `igvf_sc_barcode_rank`, `igvf_sc_atac_qc_plots`, `igvf_sc_rna_qc_plots`, `igvf_sc_insert_size_hist`, `igvf_sc_tenx_barcode_map`, `igvf_sc_log_atac`, `igvf_sc_kb_count`, `igvf_sc_kb_index`, `igvf_sc_chromap_align`, `igvf_sc_chromap_index`, `igvf_sc_subpool_fragments`, `igvf_sc_genome_tsv`, `igvf_sc_check_inputs`, `igvf_sc_sample_fastqs`, `igvf_sc_portal_download`, `igvf_sc_synapse_manifest`, `igvf_sc_synapse_upload`, `igvf_sc_synapse_annotations`, `igvf_sc_html_report`, `igvf_sc_pipeline`.
+
+### GWAS E2G benchmark (`gwas-e2g`)
+
+A Python port of [EngreitzLab/GWAS_E2G_benchmarking](https://github.com/EngreitzLab/GWAS_E2G_benchmarking), the GWAS benchmark from the scE2G and ENCODE-rE2G papers. It tests enhancer-gene predictions against fine-mapped UK Biobank GWAS variants in two ways. **Variant overlap**: for each trait x biosample, what fraction of the distal-noncoding variants with PIP > 0.1 fall in predicted enhancers (recall), and how enriched they are relative to 1000G common SNPs. This is reported at the method's threshold and across a quantile threshold span (enrichment-recall curves). **Gene linking**: how precisely the top-2 predicted genes of each credible set recover the silver-standard causal gene, alone and intersected with PoPS, with PoPS and distance-to-TSS as baselines.
+
+The port keeps the upstream config format (config.yml, methods / predictions / comparisons tables, biosample and trait groups, ALL), output tables and column names, and runs without bedtools or R. Five upstream quirks are corrected by default and reproduced with `--upstream-compat`: the SE formula, quantiles taken over distinct scores, unthresholded single-biosample linking, the gene-universe filter being dropped, and ALL double counting. `setup` fetches the small resources from the pinned commit. The background SNPs come from Synapse.
+
+```bash
+igvfagent gwas-e2g setup --traits RBC MCV HbA1c Lym --synapse
+igvfagent gwas-e2g validate-config --config config/config.yml
+igvfagent gwas-e2g run --config config/config.yml --label sce2g_blood
+igvfagent gwas-e2g baseline --label ukbb_baselines
+igvfagent gwas-e2g plot --run-dir Docs/GWASE2G/<run> --plot-fixed-scale
+igvfagent gwas-e2g selftest --no-plots
+```
+
+Agent tools: `gwas_e2g_setup`, `gwas_e2g_validate_config`, `gwas_e2g_variants`, `gwas_e2g_baseline`, `gwas_e2g_run`, `gwas_e2g_plot`.
+
+### ENCODE-rE2G (`encode-re2g`)
+
+A Python port of [EngreitzLab/ENCODE_rE2G](https://github.com/EngreitzLab/ENCODE_rE2G), the logistic-regression enhancer-to-gene model of the ENCODE encyclopedia (Gschwind et al. 2026). Both upstream workflows are covered: the apply workflow (model choice from the ABC biosample config, the new features computed from ABC outputs, external features, final features, scoring, thresholding, IGV bedpe, per-prediction stats and QC plots) and the training workflow (CRISPR overlap, leave-one-chromosome-out training, forward/backward feature selection with bootstrap, permutation importance, all feature subsets, model comparison with a distance baseline). bedtools, csvtk and GenomicRanges are replaced by vectorised interval arithmetic, so only pandas and numpy are needed (scikit-learn and scipy are used when present).
+
+The nine pretrained models are embedded as coefficients taken from the upstream pickles, so scoring does not depend on pickle compatibility. `verify-upstream` re-scores the upstream's own K562 chr22 test output: the scores match to 7e-16, the 7,218 thresholded links are identical, and so is the stats table.
+
+```bash
+igvfagent encode-re2g setup                       # TSS universe, chrom sizes, gene classes, CRISPR benchmark
+igvfagent encode-re2g select-model --biosample-config config_biosamples.tsv
+igvfagent encode-re2g features --abc-dir results/K562 --model dhs_intact_hic --biosample K562
+igvfagent encode-re2g apply --features Docs/ENCODErE2G/<run>/K562/genomewide_features.tsv.gz --model dhs_intact_hic
+igvfagent encode-re2g crispr-features --features genomewide_features.tsv.gz --crispr Data/ENCODErE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --model dhs_intact_hic
+igvfagent encode-re2g train --crispr-features for_training.*.tsv.gz --model dhs_intact_hic --label my_model
+igvfagent encode-re2g feature-selection --crispr-features for_training.*.tsv.gz --model dhs_intact_hic --direction forward
+igvfagent encode-re2g selftest --no-plots
+```
+
+Agent tools: `encode_re2g_models`, `encode_re2g_select_model`, `encode_re2g_features`, `encode_re2g_apply`, `encode_re2g_run`, `encode_re2g_stats`, `encode_re2g_qc_plots`, `encode_re2g_crispr_features`, `encode_re2g_train`, `encode_re2g_feature_selection`, `encode_re2g_permutation_importance`, `encode_re2g_all_feature_sets`, `encode_re2g_compare_models`, `encode_re2g_verify_upstream`.
+
+### Perturb-seq pipeline, bulk_crispr_pipeline port (`bulk-crispr`)
+
+A port of [IGVF-CRISPR/bulk_crispr_pipeline](https://github.com/IGVF-CRISPR/bulk_crispr_pipeline). Despite the repository name, it is a single-cell Perturb-seq pipeline: Lucas Silva Ferreira's pipeline_perturbseq_like, the predecessor of IGVF_CRISPR_Pipeline, run on the Gasperini 2019 pilot. Every Nextflow process and jamboree task has a subcommand. Guides are counted from FASTQ the way kallisto kite does (exact and Hamming-1 matches, whitelist correction, UMI collapsing). Each lane then goes through cell QC: the knee, the minimum-genes rule, the mitochondrial fraction and Scrublet doublets. After that come guide binarisation (UMI > 5) with the upstream covariates and deMULTIplex MULTI-seq calls. Each element gets its genes within ±1 Mb, and every guide × gene pair gets a SCEPTRE-style conditional-resampling test. Results are aggregated with BH and Fisher, and BED and pyGenomeTracks links are written.
+
+The binaries (kb, cellranger, Rscript/sceptre, pyGenomeTracks) are optional. Each one runs when it is on PATH; otherwise the exact command is printed. `--upstream-compat` brings back seven upstream bugs that are fixed by default: quality lines leaking into read composition, an ignored gene-filter fraction, `log_total_gene_count = log(n_genes+1)`, a transcript_end typo, random genes assigned to enhancers, `nUMI_total` classified as a hash, and a "Double" filter that keeps doublets.
+
+```bash
+igvfagent bulk-crispr guide-table --guides df_from_gasperini_tss.xlsx
+igvfagent bulk-crispr count-guides --guides guide_features.txt --r1 guide_R1.fastq.gz --r2 guide_R2.fastq.gz --chemistry 10XV2 --whitelist 737K-august-2016.txt --name S1_L1
+igvfagent bulk-crispr run --gtf Homo_sapiens.GRCh38.106.gtf --rna-dirs S1_L1_ks_transcripts_out --guide-dirs S1_L1_ks_guide_out --expected-cell-number 8000 --label gasperini_pilot
+igvfagent bulk-crispr config --config perturb.config
+igvfagent bulk-crispr selftest --no-plots
+```
+
+Agent tools: `bulk_crispr_run`, `bulk_crispr_count_guides`, `bulk_crispr_composition`, `bulk_crispr_guide_table`, `bulk_crispr_prefilter`, `bulk_crispr_multiseq`, `bulk_crispr_perturb_loader`, `bulk_crispr_de`, `bulk_crispr_results`, `bulk_crispr_tracks`, `bulk_crispr_assign_guides`, `bulk_crispr_config`, `bulk_crispr_map_rna`, `bulk_crispr_assay_spec`, `bulk_crispr_cellranger_inputs`, `bulk_crispr_inspect`.
+
+### CRISPR module dev tools (`crisprdevtools`)
+
+A port of [IGVF-CRISPR/crisprdevtools](https://github.com/IGVF-CRISPR/crisprdevtools), the helper used to start new modules of IGVF_CRISPR_Pipeline. Upstream has one function, `create_new_module_nextflow(name)`. `new-module` recreates its layout and file contents exactly: `bin/`, `conda_envs/`, `example_data/`, `processes/`, `test/`, `README.md`, `input.config`, a DSL2 `main.nf`, `bin/<name>.py`, `conda_envs/<name>.yaml` and `processes/<name>.nf`. Three upstream bugs are fixed by default and come back with `--upstream-compat`: the conda YAML is indented so it does not parse, every process is named `seqSpecParser`, and the bin script is not executable.
+
+`--template full` also writes a working include plus workflow, an `input.config` params block, `test/test.nf`, example data and an argparse script skeleton. `check-module` validates any module directory: layout, DSL2 header, processes and includes, conda env files, bin shebangs and executable bits, and the params `main.nf` uses.
+
+```bash
+igvfagent crisprdevtools new-module --name guide_assignment --dest Modules
+igvfagent crisprdevtools new-module --name guide_assignment --template full --dest Modules --force
+igvfagent crisprdevtools check-module --path Modules/seqSpecParser
+igvfagent crisprdevtools selftest
+```
+
+Agent tools: `crisprdevtools_new_module`, `crisprdevtools_check_module`.
+
+### CRISPR-FG scPerturb-seq jamboree (`crispr-fg-jamboree`)
+
+A Python port of the April-2023 IGVF CRISPR-FG jamboree ([IGVF-CRISPR/CRISPR_FG_JAMBOREE](https://github.com/IGVF-CRISPR/CRISPR_FG_JAMBOREE)) together with the pipeline steps its task notebooks plug into ([pipeline_perturbseq_like](https://github.com/LucasSilvaFerreira/pipeline_perturbseq_like)). Every task is a subcommand: assay name to kallisto read format and whitelist (Task 1), Cell Ranger `feature_ref.csv` / `library.csv` from a guide table, the pipeline `perturb.config` and launch command, cell QC into a guides/scRNA MuData, MuData QC with controls, coverage and guide-gene distances (Task 2), guide calling into a `binarized` layer, cis differential perturbation into `mudata_results.h5mu` (Task 3) and BED / links / pyGenomeTracks tracks (Task 4).
+
+The differential module defaults to a SCEPTRE-style NB score test with conditional resampling, and has Mann-Whitney and Welch alternatives. `--engine r` writes the upstream `run_sceptre_high_moi` inputs. External binaries (cellranger, nextflow, Rscript, pyGenomeTracks) are optional: without them the skill prints the exact command. `--upstream-compat` reproduces four upstream quirks (covariate definitions, the overwritten Task 2 filter, random genes for unknown elements).
+
+```bash
+igvfagent crispr-fg-jamboree assay-spec --assay 10xv3
+igvfagent crispr-fg-jamboree preprocess --rna lane1/rna --guides lane1/guides --gene-table Homo_sapiens.GRCh38.106.gtf.gz --expected-cells 5000
+igvfagent crispr-fg-jamboree assign-guides --mudata raw_mudata_guide_and_transcripts.h5mu --method umi
+igvfagent crispr-fg-jamboree differential --mudata mu_with_binary.h5mu --distance 1000000
+igvfagent crispr-fg-jamboree tracks --results mudata_results.h5mu
+igvfagent crispr-fg-jamboree selftest --no-plots
+```
+
+Agent tools: `crispr_fg_assay_spec`, `crispr_fg_cellranger_inputs`, `crispr_fg_pipeline_config`, `crispr_fg_preprocess`, `crispr_fg_mudata_qc`, `crispr_fg_guide_gene_distance`, `crispr_fg_subset`, `crispr_fg_assign_guides`, `crispr_fg_differential`, `crispr_fg_tracks`, `crispr_fg_run`.
+
+### Fishash Table 2 reproduction (`fishash-table2`)
+
+A Python port of [IGVF-CRISPR/fishash-table2-reproduction](https://github.com/IGVF-CRISPR/fishash-table2-reproduction). That repository reproduces the SCEPTRE and CLEANSER rows of the Fishash preprint's Table 2, a species-assignment benchmark on four GSE272457 human/mouse barnyard samples (CROP-seq and direct capture, 0 h and 72 h). The skill builds the per-sample inputs and scores them with the authors' cohort and accuracy/stderr definitions against the published values. It also brings its own guide callers. CLEANSER's zero-truncated cs/dc mixtures are re-implemented from the Stan models, with the same priors, bounds, normalisation and median-posterior output, sampled by adaptive Metropolis. SCEPTRE's mixture assignment is approximated with a Poisson GLM plus a reduced EM.
+
+The real `cleanser` binary and the sceptre 0.10.3 R package are optional engines (`--engine cleanser`, `--engine r`). Without them the skill prints the exact upstream command. `compare` checks a scored table against Table 2 and against the upstream repository's own reproduction.
+
+```bash
+igvfagent fishash-table2 build-inputs --raw-dir GSE272457 --work-dir work
+igvfagent fishash-table2 cleanser --input work/mix0hr_Cropseq_grna_counts.mtx --mode cs --out work/mix0hr_Cropseq_cleanser_cs_posterior.mtx
+igvfagent fishash-table2 sceptre-mixture --work-dir work --sample mix0hr_Cropseq --raw-dir GSE272457
+igvfagent fishash-table2 score --work-dir work --label table2
+igvfagent fishash-table2 run --raw-dir GSE272457 --work-dir work
+igvfagent fishash-table2 selftest --no-plots
+```
+
+Agent tools: `fishash_build_inputs`, `fishash_cleanser`, `fishash_sceptre_mixture`, `fishash_score`, `fishash_compare`, `fishash_run`.
+
+### CRISPR SeqSpec (`crispr-seqspec`)
+
+Port of [IGVF-CRISPR/CRISPR-SeqSpec](https://github.com/IGVF-CRISPR/CRISPR-SeqSpec), the CRISPR focus group's seqspec descriptions of CROP-seq + 10x v3 + MULTI-seq (one spec per modality) and TAP-seq (Schraivogel 2020). The skill carries a compact index of the four specs at the pinned commit and re-implements, without seqspec or PyYAML, what `seqspec check`, `seqspec index -t kb|chromap`, `seqspec onlist` and `seqspec print` do, for both the 0.2.x and legacy 0.0.x schemas.
+
+It also checks submitted FASTQs against a spec (read lengths, fixed sequences at their coordinates, onlist hit rates). On the upstream files this finds that the guide FASTQs are 150 bp while guide.yml declares 26/43 bp reads, that the 26-bp R1 ends inside the 12-bp UMI, and that 88-95% of cell barcodes are on the whitelist.
+
+```bash
+igvfagent crispr-seqspec catalog
+igvfagent crispr-seqspec check --spec guide
+igvfagent crispr-seqspec index --spec tapseq --modality crispr --tool kb
+igvfagent crispr-seqspec fetch && igvfagent crispr-seqspec check-reads --spec guide
+```
+
+Agent tools: crispr_seqspec_catalog, crispr_seqspec_check, crispr_seqspec_index, crispr_seqspec_onlist, crispr_seqspec_info, crispr_seqspec_check_reads, crispr_seqspec_fetch.
+
+### Gasperini 2019 pipeline (`gasperini-pipeline`)
+
+Port of [IGVF-CRISPR/Pipeline_Gasperini_2019](https://github.com/IGVF-CRISPR/Pipeline_Gasperini_2019), the IGVF processing of the Gasperini et al. 2019 CRISPRi pilot with the single-cell-like Nextflow pipeline (LucasSilvaFerreira/pipeline_perturbseq_like). Every stage is re-implemented in Python with the config's thresholds: guide table, read composition, kb commands, per-lane cell QC with doublets, MuData creation, guide assignment at UMI > 3, covariates, 1-Mb cis pairs, a SCEPTRE-style conditional randomisation test (or R SCEPTRE when available), BH/Fisher aggregation into mudata_results.h5mu, MULTI-seq demultiplexing, the original Gasperini NB likelihood-ratio test, and a comparison with GEO GSE120861. Six upstream quirks are corrected by default and reproduced with `--upstream-compat`.
+
+On the sample pilot MuData the run takes about 10 s. Each of the 7 self-TSS positive controls that are in the expression matrix comes out a hit, and every hit at BH < 0.1 is also a hit in the original Gasperini results.
+
+```bash
+igvfagent gasperini-pipeline setup
+igvfagent gasperini-pipeline inspect
+igvfagent gasperini-pipeline run --gasperini-test --compare Data/GasperiniPipeline/GSE120861_all_deg_results.pilot.txt.gz
+igvfagent gasperini-pipeline selftest
+```
+
+Agent tools: gasperini_pipeline_setup, gasperini_pipeline_run, gasperini_pipeline_qc_filter, gasperini_pipeline_mudata, gasperini_pipeline_guide_table, gasperini_pipeline_composition, gasperini_pipeline_multiseq, gasperini_pipeline_compare, gasperini_pipeline_inspect.
+
+### ABC pipeline (`abc-pipeline`)
+
+A full port of [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction) (MIT), pinned at `92ac5036`. It runs the whole Snakemake workflow in Python: MACS2 peaks (the binary is optional; there is also a MACS-like Python fallback), candidate regions (the 150,000 strongest peaks, summit +/-250 bp, blocklist removed, TSS include-list added), neighborhoods (DHS/ATAC/H3K27ac reads from BAM, tagAlign, fragments, bigWig or bedGraph; quantile normalisation to the K562 reference; activity = sqrt(DHS x H3K27ac)), predictions (power law or Hi-C from `.hic`, juicebox, bedpe or average-Hi-C directories), the automatic `abc_thresholds.tsv` threshold, filtering, and QC. It also covers the Hi-C utilities: power-law fit, average Hi-C, juicebox dump, and per-gene Hi-C bedgraphs. Column names and file names match upstream.
+
+It was checked against upstream's own expected test outputs for chr22. On the ATAC tagAlign sample (power law) and the DNase + H3K27ac BAM sample, candidate regions, Counts.bed, GeneList.txt, EnhancerList.txt values, and all 1.9-2.4 M ABC / power-law scores are identical, and so are the thresholded file and GenePredictionStats. The small clean-room model-only scorer `igvfagent abc score` is still available alongside it.
+
+```bash
+igvfagent abc-pipeline setup
+igvfagent abc-pipeline run --biosample K562 --dhs dnase.bam --h3k27ac h3k27ac.bam --hic-file ENCFF621AIY.hic --hic-type hic --hic-resolution 5000 --label k562
+igvfagent abc-pipeline run --biosamples-table config_biosamples.tsv --label batch
+igvfagent abc-pipeline predict --enhancers EnhancerList.txt --genes GeneList.txt --chrom-sizes sizes.tsv --accessibility-feature ATAC
+igvfagent abc-pipeline powerlaw-fit --hic-dir juicebox_dir --hic-type juicebox
+igvfagent abc-pipeline selftest --no-plots
+```
+
+Agent tools: `abc_pipeline_setup`, `abc_pipeline_call_peaks`, `abc_pipeline_fragments_to_tagalign`, `abc_pipeline_candidate_regions`, `abc_pipeline_neighborhoods`, `abc_pipeline_predict`, `abc_pipeline_filter`, `abc_pipeline_variant_overlap`, `abc_pipeline_qc`, `abc_pipeline_powerlaw_fit`, `abc_pipeline_average_hic`, `abc_pipeline_split_avg_hic`, `abc_pipeline_juicebox_dump`, `abc_pipeline_hic_bedgraph`, `abc_pipeline_compare`, `abc_pipeline_run`, `abc_pipeline_selftest`.
+
+### scE2G pipeline (`sce2g-pipeline`)
+
+A Python rewrite of [EngreitzLab/scE2G](https://github.com/EngreitzLab/scE2G) (MIT, pinned at 7cb2af7) that runs without Snakemake, R, Signac, bedtools or fast_kendall_sc. It covers every rule: fragments to tagAlign and counts, Kendall peak-gene pairs, the peak x cell ATAC matrix, the Kendall tau-b between accessibility and expression across cells (exact closed form), RNA pseudobulk TPM and detection, ARC-E2G, the ENCODE_rE2G feature tables scE2G assembles, model application with quantile normalisation and the TPM filter, thresholding, gene and element lists, QC statistics against the Sheth, Qiu 2024 reference clusters, the CRISPR benchmark with bootstrap CIs, and training new models. The four published v3 models ship inside the module (feature tables, thresholds and the logistic-regression weights read from model.pkl and the 23 held-out-chromosome models); `setup` fetches their qnorm references.
+
+It matches upstream outputs exactly. On the upstream chr22 test fixture, the port reproduces all 27,685 Kendall pairs (max difference 5e-16). On the IGVF K562 scE2G v1.2 release, it rebuilds the features from the released files and reproduces all 11.5 M `Score` and `Score.ignoreTPM` values (max difference 7e-16). ABC peak calling and predictions come from the ABC pipeline and are an input here (`--abc-dir`).
+
+```bash
+igvfagent sce2g-pipeline setup --gtf --crispr --example
+igvfagent sce2g-pipeline run --cluster K562 --fragments atac_fragments.tsv.gz --rna-matrix rna.h5ad \
+    --abc-dir ABC/K562 --models multiome_powerlaw_v3 scATAC_powerlaw_v3 --crispr Data/scE2G/pipeline_resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz
+igvfagent sce2g-pipeline predict --features genomewide_features.tsv.gz --models multiome_powerlaw_v3 --cluster K562 --bedpe
+igvfagent sce2g-pipeline validate-example
+igvfagent sce2g-pipeline selftest --no-plots
+```
+
+Agent tools: `sce2g_pipeline_run`, `sce2g_pipeline_kendall`, `sce2g_pipeline_arc`, `sce2g_pipeline_predict`, `sce2g_pipeline_benchmark`, `sce2g_pipeline_train`, `sce2g_pipeline_qc`, plus setup / models / frag-to-tagalign / kendall-pairs / activity-features / features / crispr-features / validate-example / validate-release.
+
+### IGVF CRISPR Perturb-seq pipeline (`crispr-pipeline`)
+
+A Python port of [pinellolab/CRISPR_Pipeline](https://github.com/pinellolab/CRISPR_Pipeline), the IGVF consortium's single-cell CRISPR screen pipeline. Every step of the Nextflow workflow is a subcommand: seqspec parsing to kb technology strings, the seqSpecCheck read scan, guide / hashing feature references, kb count wrappers (with a pure-Python guide/hashtag counter), knee barcode filtering and QC, `inference_mudata.h5mu` creation with the consortium guide.var schema (non-targeting buckets, intended_target_key), SCEPTRE-mixture / CLEANSER / threshold guide assignment, cis pairs within 1 Mb, cis + trans inference, hashing demultiplexing, doublet removal, additional QC, evaluate_controls, IGV tracks, the ENCODE TF benchmark and the HTML dashboard.
+
+External tools (kb/kallisto, seqspec, GMM-demux, cleanser, SCEPTRE in R, PerTurbo) run when installed; otherwise the exact upstream command is printed and a Python implementation of the method runs. Outputs keep the upstream column names and uns keys, and `uns['inference_engine']` records which engine produced them.
+
+```bash
+igvfagent crispr-pipeline seqspec --yaml guide_seqspec.yml --modalities guide --whitelist 737K-august-2016.txt
+igvfagent crispr-pipeline map --modality guide --fastqs g_R1.fastq.gz g_R2.fastq.gz --features guide_metadata.tsv --technology 0,0,16:0,16,28:1,0,0 --barcodes 737K.txt --batch B1 --engine python
+igvfagent crispr-pipeline run --rna B1_ks_transcripts_out B2_ks_transcripts_out --guide B1_ks_guide_out B2_ks_guide_out --guide-metadata guide_metadata.tsv --gtf gencode.v46.gtf.gz --label screen
+igvfagent crispr-pipeline qc --mudata inference_mudata.h5mu
+igvfagent crispr-pipeline tf-benchmark --mudata inference_mudata.h5mu --gtf gencode.v46.gtf.gz --encode-bed-dir Data/CRISPRPipeline/encode_bed_files
+igvfagent crispr-pipeline selftest --no-plots
+```
+
+Agent tools: `crispr_pipeline_run`, `crispr_pipeline_seqspec`, `crispr_pipeline_seqspec_check`, `crispr_pipeline_feature_ref`, `crispr_pipeline_map`, `crispr_pipeline_concat`, `crispr_pipeline_preprocess`, `crispr_pipeline_create_mudata`, `crispr_pipeline_hashing`, `crispr_pipeline_doublets`, `crispr_pipeline_assign_guides`, `crispr_pipeline_pairs`, `crispr_pipeline_inference`, `crispr_pipeline_merge_results`, `crispr_pipeline_qc`, `crispr_pipeline_evaluate`, `crispr_pipeline_expression`, `crispr_pipeline_tf_benchmark`, `crispr_pipeline_dashboard`, `crispr_pipeline_samplesheet`, `crispr_pipeline_portal_samplesheet`, `crispr_pipeline_portal_download`, `crispr_pipeline_chunk`, `crispr_pipeline_nextflow`, `crispr_pipeline_setup`.
+
+### 2nd CRISPR Jamboree analyses (`crispr-jamboree2`)
+
+A port of [IGVF-CRISPR/CRISPR-JAMBOREE](https://github.com/IGVF-CRISPR/CRISPR-JAMBOREE), the 2024 IGVF CRISPR Jamboree. Each of its single-cell notebooks and scripts is a subcommand here. Guide counting (a STARsolo pseudo-genome, or a pure-Python FASTQ counter with whitelist and UMI 1-mismatch correction), seqspec indexing, guide assignment (UMI threshold, CLEANSER Stan mixtures fitted by MAP, sceptre mixture), the six inference modules on the shared MuData format (R wilcoxon, glm.nb, scanpy wilcoxon / t-test / t-test_overestim_var, a sceptre re-implementation, PerTurbo when installed), the DESeq2-based Perturb-seq simulator, and the evaluation notebooks (AUPRC / AUROC / effect-size correlation, clustergram, volcano, IGV tracks, element-gene network).
+
+On the upstream's own Gasperini output MuDatas, the scanpy, glm.nb and wilcoxon ports reproduce the published p-values and fold changes to 1e-5 or better. Three upstream bugs are fixed, and `--upstream-compat` brings each one back: glm.nb stored exp(b1) as `l2fc`, the simulator wrote the unsimulated object, and the evaluation scored pairs by the raw p-value.
+
+```bash
+igvfagent crispr-jamboree2 inspect --mudata gasperini_inference_input.h5mu
+igvfagent crispr-jamboree2 infer --mudata gasperini_inference_input.h5mu --methods scanpy-wilcoxon negbinom sceptre --side left
+igvfagent crispr-jamboree2 simulate --mudata gasperini_inference_input.h5mu --perturb ENSG00000136856:candidate_enh_3:0.5 --n-null-pairs 50
+igvfagent crispr-jamboree2 run --mudata simulation_output.h5mu --label sim
+igvfagent crispr-jamboree2 count-guides --guides guides.xlsx --r1 R1.fastq.gz --r2 R2.fastq.gz --whitelist 737K-august-2016.txt
+igvfagent crispr-jamboree2 selftest --no-plots
+```
+
+Agent tools: `crispr_jamboree2_inspect`, `crispr_jamboree2_guide_reference`, `crispr_jamboree2_count_guides`, `crispr_jamboree2_seqspec_index`, `crispr_jamboree2_assign_guides`, `crispr_jamboree2_infer`, `crispr_jamboree2_simulate`, `crispr_jamboree2_evaluate`, `crispr_jamboree2_volcano`, `crispr_jamboree2_network`, `crispr_jamboree2_run`.
+
+### 3rd CRISPR Jamboree single-cell pipeline (`crispr-jamboree3`)
+
+A stage-by-stage port of [IGVF-CRISPR/CRISPR-jamboree3](https://github.com/IGVF-CRISPR/CRISPR-jamboree3), the September 2024 snapshot of the IGVF single-cell Perturb-seq Nextflow pipeline demonstrated at the third jamboree. Every helper script is a subcommand:
+
+- the configuration-form parser, which writes the shipped `pipeline_input.config` byte for byte;
+- seqspec checks and parsing, and the kb mapping commands;
+- AnnData concatenation and scRNA QC filtering;
+- MuData assembly, Scrublet doublets and GMM hashing demultiplexing;
+- CLEANSER / sceptre guide assignment, pairs-to-test preparation and sceptre inference;
+- the volcano / network / IGV evaluation and the HTML dashboard.
+
+`run` chains them from count matrices. External binaries (kb, GMM-Demux, cmdstan, the sceptre and PerTurbo packages) are re-implemented, or wrapped and run only when installed. Upstream quirks are corrected by default, and `--upstream-compat` reproduces each one: a pooled CLEANSER fit, positionally assigned guide metadata, `targeting` = TRUE for non-targeting guides, gene symbols in the GTF pairs, and the unused mouse mito prefix.
+
+```bash
+igvfagent crispr-jamboree3 configure --config-table configuration.csv
+igvfagent crispr-jamboree3 seqspec-parse --yaml multiseq_guide_utsw.yml --modality guide
+igvfagent crispr-jamboree3 map --modality guide --seqspec-yaml multiseq_guide_utsw.yml --metadata utsw_guide_metadata_new.xlsx --fastqs "batch_a:R1.fastq.gz R2.fastq.gz"
+igvfagent crispr-jamboree3 run --rna rna.h5ad --guide guide.h5ad --hashing hashing.h5ad --guide-metadata utsw_guide_metadata_new.xlsx --gtf gencode.v46.annotation.gtf.gz --pairs user_pairs_to_test.csv
+igvfagent crispr-jamboree3 dashboard --mudata inference_mudata.h5mu --gene-ann rna.h5ad --guide-ann guide.h5ad
+igvfagent crispr-jamboree3 selftest --no-plots
+```
+
+Agent tools: `crispr_jamboree3_configure`, `crispr_jamboree3_seqspec_check`, `crispr_jamboree3_seqspec_parse`, `crispr_jamboree3_map`, `crispr_jamboree3_concat`, `crispr_jamboree3_preprocess`, `crispr_jamboree3_create_mudata`, `crispr_jamboree3_doublets`, `crispr_jamboree3_demultiplex`, `crispr_jamboree3_assign_guides`, `crispr_jamboree3_prepare_inference`, `crispr_jamboree3_infer`, `crispr_jamboree3_evaluate`, `crispr_jamboree3_dashboard`, `crispr_jamboree3_run`.
+
+### 4th CRISPR Jamboree inference benchmark (`crispr-jamboree4`)
+
+A port of [IGVF-CRISPR/CRISPR-Jamboree_2025](https://github.com/IGVF-CRISPR/CRISPR-Jamboree_2025), the 2025 jamboree task. It starts the IGVF CRISPR pipeline from the guide-inference checkpoint, runs sceptre and PerTurbo on a dataset's pairs to test (H9 or WTC11), merges the two methods' results into the pipeline outputs, and scores how well each method separates the control pairs (AUPRC / AUROC, with a precision-recall and ROC grid).
+
+The task bundle on Dropbox has been deleted. The steps were therefore rebuilt from the CRISPR_Pipeline revision the bundle ran (February 2025), and the evaluation script was reconstructed from the notebook's recorded output. A glm.nb comparator is included. PerTurbo runs only when its package is installed.
+
+```bash
+igvfagent crispr-jamboree4 prepare --mudata h9_guide_assignment.h5mu --pairs pairs_to_test_h9.csv
+igvfagent crispr-jamboree4 infer --mudata mudata_inference_input.h5mu --methods sceptre negbinom
+igvfagent crispr-jamboree4 merge --mudata mudata_inference_input.h5mu --sceptre-results test_results.sceptre.tsv --perturbo-results perturbo_test_results.tsv
+igvfagent crispr-jamboree4 evaluate --results H9=h9/inference_mudata.h5mu WTC11=wtc11/inference_mudata.h5mu
+igvfagent crispr-jamboree4 run --mudata h9_guide_assignment.h5mu --pairs pairs_to_test_h9.csv --label h9
+igvfagent crispr-jamboree4 selftest --no-plots
+```
+
+Agent tools: `crispr_jamboree4_prepare`, `crispr_jamboree4_infer`, `crispr_jamboree4_merge`, `crispr_jamboree4_evaluate`, `crispr_jamboree4_run`.
 
 ### Single-cell CRISPR differential expression (`sc-crispr-de`)
 

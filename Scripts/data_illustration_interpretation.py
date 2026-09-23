@@ -858,11 +858,68 @@ def run_explain(args: argparse.Namespace) -> int:
     if hydrated_path:
         print(f"Hydrated item metadata: {hydrated_path}")
     print(f"Manifest: {manifest_path}")
+    lineage_plan = None
+    if source == "igvf" and looks_like_accession(args.target) and not getattr(args, "no_lineage", False):
+        lineage_plan = _lineage_section(args.target.strip().strip("/").split("/")[-1], report_path)
     print(f"Report: {report_path}")
     if args.download:
-        download_results = download_files(source, manifest, label, args.max_download_gb)
-        print(f"Download results: {download_results}")
+        if lineage_plan and lineage_plan.get("verdict") == "processed" and not getattr(args, "include_raw", False):
+            print("Download: the Portal already holds processed results for this accession, so those are "
+                  "fetched instead of the raw reads (pass --include-raw to download the reads too).")
+            try:
+                import processed_first_skill as pf  # noqa: E402
+            except ImportError:
+                from igvfagent import processed_first_skill as pf  # type: ignore
+            pf.main(["fetch", args.target.strip().strip("/").split("/")[-1], "--max-gb", str(args.max_download_gb)])
+        else:
+            download_results = download_files(source, manifest, label, args.max_download_gb)
+            print(f"Download results: {download_results}")
     return 0 if 200 <= status < 400 else 1
+
+
+def _lineage_section(accession: str, report_path: Path) -> "dict | None":
+    """What the Portal already computed from this accession (portal_lineage), printed and appended to the report."""
+    try:
+        import portal_lineage as pl  # noqa: E402
+        g = pl.walk(accession, max_depth=4, max_nodes=200)
+        plan = pl.build_plan(g, have_credentials=bool(_portal_credentials()))
+    except Exception as exc:  # noqa: BLE001
+        logging.info("lineage walk skipped: %s", exc)
+        return None
+    lines = ["", "## Already processed on the IGVF Portal", ""]
+    if plan["verdict"] == "processed":
+        head = (f"PROCESSED RESULTS EXIST for {accession}: use them instead of "
+                f"{plan['raw_gb']:.1f} GB of raw reads.")
+    elif plan["verdict"] == "raw_only":
+        head = f"No processed outputs are linked to {accession} yet; only {plan['raw_gb']:.1f} GB of raw reads."
+    else:
+        head = f"Nothing downloadable is linked to {accession}."
+    print(head)
+    lines += [head, ""]
+    for sh in plan["start_here"]:
+        qc = "; ".join(f"{k} {v}" for k, v in list(sh["qc_headline"].items())[:4])
+        row = (f"{sh['product']}: {sh['accession']} ({sh['file_format']}, {sh['size_gb']:.2f} GB, {sh['access']}) "
+               f"from {sh['file_set']} {sh['file_set_type'] or ''}"
+               + (" [uniform pipeline, completed]" if sh["uniform_pipeline_status"] == "completed" else "")
+               + (f"; Portal QC: {qc}" if qc else ""))
+        print(f"  {row}")
+        lines.append(f"- {row}")
+    for m in plan.get("predictions_and_models") or []:
+        if m.get("relation") != "model_use":
+            row = f"{m['type']} {m['accession']}: {m.get('file_set_type') or ''} {m.get('scope') or m.get('model_name') or ''}"
+            print(f"  {row}")
+            lines.append(f"- {row}")
+    if plan["blocked"]:
+        n = len(plan["blocked"])
+        lines.append(f"- {n} linked object(s) are not visible with the current credentials (HTTP 403 / 404).")
+    lines += ["", f"Full lineage: `igvfagent processed lineage {accession}`; download: "
+              f"`igvfagent processed fetch {accession}`.", ""]
+    try:
+        with open(report_path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+    except OSError:
+        pass
+    return plan
 
 
 def _scalar(value):
@@ -981,6 +1038,9 @@ def main(argv: list[str] | None = None) -> int:
     explain.add_argument("--max-download-gb", type=float, default=_MAX_DL_GB,
                           help="Transfer ceiling in GB. Applies ONLY with --download; nothing is fetched without it.")
     explain.add_argument("--hydrate-limit", type=int, default=25, help="Fetch detail JSON for this many search-result rows.")
+    explain.add_argument("--include-raw", action="store_true",
+                         help="With --download, fetch raw reads even when processed results exist on the Portal.")
+    explain.add_argument("--no-lineage", action="store_true", help="Skip the already-processed lookup.")
 
     subparsers.add_parser("write-playbook", help="Write the data illustration skill document.")
 

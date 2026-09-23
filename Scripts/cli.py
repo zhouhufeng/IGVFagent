@@ -138,6 +138,100 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "fine-mapped eQTLs vs 1000G background, enrichment / "
                           "recall (total, linking) across thresholds and "
                           "distance bins, enrichment-recall curves, heatmaps"),
+    "igvf-crispr-pipeline": ("igvfagent.igvf_crispr_pipeline_skill",
+                          "Port of IGVF-CRISPR/IGVF_CRISPR_Pipeline: seqspec -> "
+                          "kb -x, guide features, kb ref/count, pure-Python "
+                          "guide counting, RNA AnnData QC and MuData assembly."),
+    "sceptre-igvf":   ("igvfagent.sceptre_igvf_skill",
+                          "Port of IGVF-CRISPR/sceptreIGVF: SCEPTRE on IGVF "
+                          "CRISPR MuData - guide assignment, calibration, power "
+                          "and discovery tests, results written back to MuData "
+                          "uns."),
+    "flowfish-pipeline": ("igvfagent.flowfish_pipeline_skill",
+                          "Port of EngreitzLab/crispri-flowfish: "
+                          "CRISPRi-FlowFISH from FASTQs to guide counts, binned "
+                          "MLE effect sizes, qPCR scaling and enhancer calls."),
+    "perturb-tools":  ("igvfagent.perturb_tools_skill",
+                          "Port of IGVF-CRISPR/perturb-tools: pooled CRISPR "
+                          "screen object, RPM normalisation, replicate and "
+                          "sorting-screen LFC, QC, MAGeCK/Excel export, PoolQ "
+                          "reader, guide annotation and design."),
+    "igvf-sc-pipeline": ("igvfagent.igvf_sc_pipeline_skill",
+                          "Port of IGVF/single-cell-pipeline: SHARE-seq/10x "
+                          "multiome barcode correction, trimming, kb/chromap "
+                          "wrappers, TSS enrichment, RNA/ATAC/joint QC, "
+                          "barcode-rank knees, Synapse/portal I/O."),
+    "gwas-e2g":       ("igvfagent.gwas_e2g_benchmark_skill",
+                          "Port of EngreitzLab/GWAS_E2G_benchmarking: "
+                          "fine-mapped GWAS variant enrichment/recall in "
+                          "predicted enhancers vs 1000G SNPs, curves, "
+                          "gene-linking precision/recall vs silver standard + "
+                          "PoPS"),
+    "encode-re2g":    ("igvfagent.encode_re2g_skill",
+                          "Port of EngreitzLab/ENCODE_rE2G: ENCODE-rE2G "
+                          "enhancer-gene features from ABC, 9 embedded "
+                          "pretrained models, thresholds, stats, CRISPR "
+                          "training and feature analysis."),
+    "bulk-crispr":    ("igvfagent.bulk_crispr_pipeline_skill",
+                          "Port of IGVF-CRISPR/bulk_crispr_pipeline: kite guide "
+                          "counting, per-lane cell QC + doublets, MULTI-seq, "
+                          "cis gene sets, SCEPTRE-style tests, BH/Fisher "
+                          "results, tracks."),
+    "crisprdevtools": ("igvfagent.crisprdevtools_skill",
+                          "Port of IGVF-CRISPR/crisprdevtools: scaffold IGVF "
+                          "CRISPR Nextflow modules (main.nf, processes, bin, "
+                          "conda_envs, test, input.config) and check module "
+                          "layouts."),
+    "crispr-fg-jamboree": ("igvfagent.crispr_fg_jamboree_skill",
+                          "Port of IGVF-CRISPR/CRISPR_FG_JAMBOREE: assay specs, "
+                          "Cell Ranger inputs, pipeline config, MuData QC, "
+                          "guide calling, cis differential perturbation, genome "
+                          "tracks."),
+    "fishash-table2": ("igvfagent.fishash_table2_skill",
+                          "Port of IGVF-CRISPR/fishash-table2-reproduction: "
+                          "CLEANSER and SCEPTRE-mixture guide assignment on "
+                          "human/mouse barnyards, scored against Fishash Table "
+                          "2."),
+    "crispr-seqspec": ("igvfagent.crispr_seqspec_skill",
+                          "Port of IGVF-CRISPR/CRISPR-SeqSpec: catalogue the "
+                          "CRISPR assay seqspecs, validate a seqspec (seqspec "
+                          "check), print kb/chromap/STARsolo read formats, list "
+                          "onlists, check FASTQs."),
+    "gasperini-pipeline": ("igvfagent.gasperini_pipeline_skill",
+                          "Port of IGVF-CRISPR/Pipeline_Gasperini_2019: "
+                          "Gasperini 2019 pilot through the IGVF "
+                          "single-cell-like pipeline - QC, MuData, guide "
+                          "assignment, cis SCEPTRE CRT, original NB test, "
+                          "comparison."),
+    "abc-pipeline":   ("igvfagent.abc_pipeline_skill",
+                          "Port of broadinstitute/ABC-Enhancer-Gene-Prediction: "
+                          "full ABC pipeline - peaks, candidate regions, "
+                          "neighborhoods, qnorm, power-law/Hi-C predictions, "
+                          "thresholds, QC, Hi-C utilities."),
+    "sce2g-pipeline": ("igvfagent.sce2g_pipeline_skill",
+                          "Port of EngreitzLab/scE2G: the full single-cell E2G "
+                          "pipeline (Kendall, ARC-E2G, v3 models with qnorm/TPM "
+                          "filter, QC, CRISPR benchmark, training) in Python."),
+    "crispr-pipeline": ("igvfagent.crispr_pipeline_skill",
+                          "Port of pinellolab/CRISPR_Pipeline: IGVF Perturb-seq "
+                          "pipeline - seqspec, mapping, QC, MuData, guide "
+                          "assignment, SCEPTRE/PerTurbo cis+trans inference, "
+                          "evaluation, dashboard."),
+    "crispr-jamboree2": ("igvfagent.crispr_jamboree2_skill",
+                          "Port of IGVF-CRISPR/CRISPR-JAMBOREE (2nd jamboree): "
+                          "guide counting, seqspec, guide assignment, 6 "
+                          "Perturb-seq inference modules, NB simulation, "
+                          "AUPRC/volcano/IGV/network evaluation."),
+    "crispr-jamboree3": ("igvfagent.crispr_jamboree3_skill",
+                          "Port of IGVF-CRISPR/CRISPR-jamboree3: the "
+                          "single-cell Perturb-seq pipeline stage by stage - "
+                          "config, seqspec, kb, QC, MuData, Scrublet, GMM "
+                          "demux, CLEANSER, sceptre, evaluation, dashboard."),
+    "crispr-jamboree4": ("igvfagent.crispr_jamboree4_skill",
+                          "Port of IGVF-CRISPR/CRISPR-Jamboree_2025 (4th "
+                          "jamboree): checkpointed sceptre / PerTurbo "
+                          "inference, mergedResults outputs and the AUPRC/AUROC "
+                          "control-set evaluation."),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "

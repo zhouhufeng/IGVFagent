@@ -31,6 +31,18 @@ between an analysis that runs and one that cannot run at all.
 ``plan`` answers the question that actually matters at the start of a
 workflow: given what I want to do, should I download a processed file or run
 the pipeline?
+
+``lineage`` walks the whole Portal graph around an accession (portal_lineage.py):
+analysis sets through any number of ``input_for`` hops (intermediate ->
+principal -> predictions), the multiome partner, auxiliary sets, the
+multiplexed sample and its barcode map, seqspecs and onlists, documents, the
+QC metric objects the uniform pipeline published, model sets and prediction
+sets, and every linked object the credentials cannot see. It writes a report
+with a "start here" table, the Portal's own QC numbers, a lineage figure and
+the graph as JSON.
+
+    igvfagent processed lineage IGVFDS9875NBZW
+    igvfagent processed fetch IGVFDS9875NBZW --want rna_matrix,fragments --max-gb 20
 """
 from __future__ import annotations
 
@@ -108,7 +120,46 @@ def analysis_sets_for(accession: str) -> "list[dict]":
 
 
 def processed_files(accession: str) -> dict:
-    """Every processed output reachable from this accession."""
+    """Every processed output reachable from this accession.
+
+    Backed by the full graph walk, so analysis sets several ``input_for`` hops
+    away (principal analyses, prediction sets) are included, not only the
+    first hop. Falls back to the one-hop lookup if the walk fails.
+    """
+    try:
+        import portal_lineage as pl  # noqa: E402
+        g = pl.walk(accession, fetch=portal_json, max_depth=4, fetch_qc=False)
+        sets = []
+        for k, n in g.nodes.items():
+            if n.get("kind") == "fileset" and n.get("type") in ("AnalysisSet", "PredictionSet", "ModelSet"):
+                sets.append({"accession": n["accession"], "uniform_pipeline_status": n.get("uniform_pipeline_status") or "",
+                             "status": n.get("status") or "", "aliases": n.get("aliases") or [],
+                             "workflows": [w.get("accession") or w.get("name") for w in n.get("workflows") or []],
+                             "summary": (n.get("summary") or "")[:160], "type": n.get("type"),
+                             "file_set_type": n.get("file_set_type")})
+        by_set = {k: n for k, n in g.nodes.items() if n.get("kind") == "fileset"}
+        files = []
+        for k, f in g.nodes.items():
+            if f.get("kind") != "file" or f.get("product") in ("raw_reads", "seqspec"):
+                continue
+            fs = by_set.get(f.get("file_set") or "")
+            if not fs or fs.get("type") not in ("AnalysisSet", "PredictionSet", "ModelSet"):
+                continue
+            files.append({"accession": f.get("accession"), "content_type": f.get("content_type") or "",
+                          "file_format": f.get("file_format") or "", "file_size": f.get("file_size"),
+                          "controlled_access": f.get("controlled_access"), "href": f.get("href") or "",
+                          "s3_uri": f.get("s3_uri") or "", "from_analysis_set": fs["accession"],
+                          "uniform": fs.get("uniform_pipeline_status") == "completed"})
+        if sets or files:
+            return {"accession": accession, "analysis_sets": sets, "files": files,
+                    "blocked": [{"@id": k, "http_status": v} for k, v in g.blocked.items()]}
+    except Exception as exc:  # pragma: no cover
+        log.debug("graph walk failed, one-hop fallback: %s", exc)
+    return _processed_files_one_hop(accession)
+
+
+def _processed_files_one_hop(accession: str) -> dict:
+    """Every processed output reachable from this accession (one input_for hop)."""
     sets, files = [], []
     for a in analysis_sets_for(accession):
         acc = a.get("accession")
@@ -264,6 +315,149 @@ def cmd_plan(args) -> int:
     return 0
 
 
+def _have_credentials() -> bool:
+    try:
+        from _credentials import portal_credentials  # type: ignore
+        return bool(portal_credentials())
+    except Exception:
+        return False
+
+
+def _run_dir(label: str) -> Path:
+    import time as _t
+    d = OUT_DIR / f"{_t.strftime('%Y%m%d_%H%M%S')}_{label}"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def cmd_lineage(args) -> int:
+    import portal_lineage as pl  # noqa: E402
+    wants = [w.strip() for w in (args.want or "").split(",") if w.strip()] or None
+    g = pl.walk(args.accession, fetch=portal_json, max_depth=args.depth, max_nodes=args.max_nodes,
+                fetch_qc=not args.no_qc, fanout=args.fanout)
+    if not g.nodes or (len(g.nodes) == 1 and g.blocked):
+        code = next(iter(g.blocked.values()), 0) if g.blocked else 0
+        print(f"{args.accession}: the Portal did not return this accession (HTTP {code}).")
+        if code == 403:
+            print("  It exists but is not visible with the current credentials (unreleased or controlled). "
+                  "Run `igvfagent auth-check`.")
+        return 2
+    plan = pl.build_plan(g, wants=wants, have_credentials=_have_credentials())
+    out = _run_dir(f"{args.accession}_lineage")
+    (out / "lineage_graph.json").write_text(json.dumps(g.to_json(), indent=2, default=str))
+    (out / "plan.json").write_text(json.dumps(plan, indent=2, default=str))
+    fig = None if args.no_plots else pl.draw(g, out / "lineage.png")
+    rep = pl.write_report(plan, g, out / "report.md", fig)
+    r = plan["root"]
+    print(f"{r['accession']} ({r.get('type')}): {plan['n_nodes']} linked objects, {plan['n_edges']} links, "
+          f"{len(plan['blocked'])} not visible")
+    if plan.get("node_cap_reached"):
+        print(f"  note: the {args.max_nodes}-object cap was reached; rerun with --max-nodes 600 to see distant links")
+    if plan["verdict"] == "processed":
+        print(f"PROCESSED RESULTS EXIST: start from these instead of {plan['raw_gb']:.1f} GB of raw reads")
+    elif plan["verdict"] == "raw_only":
+        print(f"ONLY RAW DATA: {plan['raw_gb']:.1f} GB of reads; no processed outputs are linked yet")
+    for sh in plan["start_here"]:
+        qc = "; ".join(f"{k} {v}" for k, v in list(sh["qc_headline"].items())[:4])
+        print(f"  {sh['product']:22} {sh['accession']:16} {sh['file_format']:6} {sh['size_gb']:8.2f} GB  "
+              f"{sh['access']:12} from {sh['file_set']} ({sh['file_set_type'] or '-'}"
+              f"{', uniform' if sh['uniform_pipeline_status'] == 'completed' else ''})" + (f"  QC: {qc}" if qc else ""))
+    use = [m for m in plan.get("predictions_and_models") or [] if m.get("relation") == "model_use"]
+    for m in plan.get("predictions_and_models") or []:
+        if m.get("relation") != "model_use":
+            print(f"  {m['type']:14} {m['accession']}  {m.get('file_set_type') or ''}  "
+                  f"{m.get('scope') or m.get('model_name') or ''}  (inputs: {', '.join(m['inputs'][:3])})")
+    if use:
+        print(f"  {len(use)} prediction set(s) apply a model trained on this data to other data: "
+              + ", ".join(m["accession"] for m in use[:8]) + (" ..." if len(use) > 8 else ""))
+    docs = [b for b in plan["blocked"] if b["type"] == "Document"]
+    for b in plan["blocked"]:
+        if b["type"] != "Document":
+            print(f"  NOT VISIBLE    {b['accession']} ({b['type']}, HTTP {b['http_status']}): {b['meaning']}")
+    if docs:
+        print(f"  NOT VISIBLE    {len(docs)} document(s): HTTP 403 (not released)")
+    print(f"Report: {rep}")
+    print(f"JSON: {out / 'plan.json'}")
+    print(f"JSON: {out / 'lineage_graph.json'}")
+    if fig:
+        print(f"Figure: {fig}")
+    ls.record_analysis("processed", subcommand="lineage", label=args.accession, inputs=[args.accession],
+                       outputs=[s["accession"] for s in plan["start_here"]])
+    return 0
+
+
+def cmd_fetch(args) -> int:
+    import portal_lineage as pl  # noqa: E402
+    try:
+        from igvfagent.raw_data_pipeline import portal_download  # type: ignore
+    except Exception:
+        from raw_data_pipeline import portal_download  # type: ignore
+    wants = [w.strip() for w in args.want.split(",") if w.strip()]
+    g = pl.walk(args.accession, fetch=portal_json, max_depth=args.depth, fetch_qc=True)
+    creds = _have_credentials()
+    plan = pl.build_plan(g, wants=wants, have_credentials=creds)
+    dest = ROOT / "Data" / "Processed" / args.accession
+    dest.mkdir(parents=True, exist_ok=True)
+    budget = args.max_gb
+    got, skipped = [], []
+    for sh in plan["start_here"]:
+        name = sh["href"].rsplit("/", 1)[-1] if sh.get("href") else f"{sh['accession']}.{sh['file_format']}"
+        target = dest / name
+        if "controlled" in sh["access"] and not creds:
+            skipped.append((sh, "controlled access and no IGVF credentials configured"))
+            continue
+        if sh["size_gb"] > budget:
+            skipped.append((sh, f"{sh['size_gb']:.1f} GB exceeds the remaining budget {budget:.1f} GB"))
+            continue
+        if not sh.get("href"):
+            skipped.append((sh, "no download href on the file record"))
+            continue
+        if args.dry_run:
+            print(f"  would fetch {sh['product']:18} {sh['accession']} {sh['size_gb']:.2f} GB -> {target}")
+            continue
+        if target.is_file() and target.stat().st_size > 0:
+            print(f"  already here {target}")
+        else:
+            print(f"  fetching {sh['product']} {sh['accession']} ({sh['size_gb']:.2f} GB) ...", flush=True)
+            portal_download(sh["href"], target)
+        budget -= sh["size_gb"]
+        got.append((sh, target))
+        print(f"Wrote: {target}")
+    # the Portal's QC attachments (kb_info.json, barcode summaries ...) are small; take them too
+    qc_saved = []
+    if not args.dry_run and not args.no_qc:
+        for q in (n for n in g.nodes.values() if n.get("kind") == "qc"):
+            (dest / "qc").mkdir(exist_ok=True)
+            base = q["@id"].rstrip("/")
+            (dest / "qc" / f"{q['type']}_{q['accession']}.json").write_text(json.dumps(q, indent=2, default=str))
+            for field, href in (q.get("attachments") or {}).items():
+                t = dest / "qc" / f"{q['accession']}_{href.rsplit('/', 1)[-1]}"
+                try:
+                    portal_download(f"{base}/{href}", t)
+                    qc_saved.append(t)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  QC attachment {href}: {exc}")
+    for sh, why in skipped:
+        print(f"  SKIPPED {sh['product']} {sh['accession']}: {why}")
+    (dest / "fetch_manifest.json").write_text(json.dumps({"accession": args.accession, "fetched": [
+        {"product": sh["product"], "accession": sh["accession"], "path": str(t), "size_gb": sh["size_gb"]} for sh, t in got],
+        "skipped": [{"product": sh["product"], "accession": sh["accession"], "why": why} for sh, why in skipped],
+        "qc": [str(x) for x in qc_saved]}, indent=2))
+    print(f"JSON: {dest / 'fetch_manifest.json'}")
+    return 0 if got or args.dry_run else 1
+
+
+def cmd_selftest(args) -> int:
+    import tempfile
+    import portal_lineage as pl  # noqa: E402
+    checks: "list" = []
+    with tempfile.TemporaryDirectory() as td:
+        pl.selftest(checks, Path(td))
+    ok = all(c for c, _ in checks)
+    print("selftest: all checks pass" if ok else f"selftest: {sum(1 for c, _ in checks if not c)} FAILED")
+    return 0 if ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="igvfagent processed",
@@ -285,6 +479,30 @@ def build_parser() -> argparse.ArgumentParser:
                    choices=sorted(WANTS), help="What the workflow needs.")
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_plan)
+
+    s = sub.add_parser("lineage", help="Walk every Portal link from an accession: processed outputs, QC, "
+                                       "partners, samples, predictions; report + figure + JSON.")
+    s.add_argument("accession")
+    s.add_argument("--want", default="", help="Comma-separated products to list (default: all), e.g. rna_matrix,fragments")
+    s.add_argument("--depth", type=int, default=4)
+    s.add_argument("--max-nodes", type=int, default=300)
+    s.add_argument("--fanout", type=int, default=25, help="Max links followed out of one shared hub object")
+    s.add_argument("--no-qc", action="store_true", help="Skip fetching QualityMetric objects")
+    s.add_argument("--no-plots", action="store_true")
+    s.set_defaults(func=cmd_lineage)
+
+    s = sub.add_parser("fetch", help="Download the best processed file per product (and the Portal QC).")
+    s.add_argument("accession")
+    s.add_argument("--want", default="rna_matrix,atac_matrix,fragments,peaks,cell_annotations,demultiplexing,predictions")
+    s.add_argument("--max-gb", type=float, default=20.0, help="Total download budget in GB")
+    s.add_argument("--depth", type=int, default=4)
+    s.add_argument("--no-qc", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+    s.set_defaults(func=cmd_fetch)
+
+    s = sub.add_parser("selftest", help="Offline test of the graph walk and plan on a fixture Portal.")
+    s.add_argument("--no-plots", action="store_true")
+    s.set_defaults(func=cmd_selftest)
     return p
 
 
