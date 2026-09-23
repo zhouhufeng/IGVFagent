@@ -108,6 +108,7 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **UI regrouped into four tabs** | Chat · Knowledge & networks (Explore, Your networks, and a new Sources view of mirrored vs merged KG collections) · Data viewers (a new run and file browser over all skills and Portal fetches, plus Single-cell and Spatial-ATAC-Hi-C) · Validation. Report a bug moved to the sidebar. |
 | **E2G QC, predictions and IGVF Portal submission** | Port of kaybrand/QC-and-Predictions: cluster QC gate, filtering, portal-format scE2G products, Cell Annotation cache and a dry-run-first eleven-table IGVF Portal submission (sandbox on --execute). |
 | **Principal pseudobulks** | `principal-pseudobulks` ports EngreitzLab/generate-principal-pseudobulks: IGVF accession to QC-filtered per-cluster fragments, RNA matrices and scE2G config, spec-validated. |
 | **Processed-first IGVF Portal lineage** | New `processed lineage` / `processed fetch` (`portal_lineage`, `processed_fetch`): from any accession, a directed walk of every Portal link. That covers analysis, principal, pseudobulk, model and prediction sets, the multiome partner, auxiliary sets, sample barcode maps, seqspecs and the published QC metrics. It gives a start-here table of processed files per product, with access and the Portal's own QC. The agent now calls it first, and `explain --download` fetches processed results instead of raw reads. |
@@ -582,6 +583,16 @@ with an interactive sidebar for backend / model / tool-subset selection,
 a streaming progress trace as the agent plans and calls tools, and inline
 rendering of any artefacts the tools produce.
 
+The page has four tabs, and **🐛 Report a bug** sits in the sidebar so it
+is visible from all of them:
+
+| Tab | Sub-tabs | What it is for |
+|---|---|---|
+| 💬 Chat | | Ask the agent; answers, figures and live jobs. |
+| 🕸 Knowledge & networks | Explore · Your networks · Sources | Search the integrated KG (`Data/KG/local_kg.sqlite`) and walk a node's neighbourhood; view subnetworks inferred from your data (`network viz` runs); **Sources** shows every Catalog collection side by side: mirrored rows vs Catalog documents, and whether a merge step has brought it into the graph (operators and admins can start `kg-integrate` steps from there). |
+| 🔬 Data viewers | Runs and files · Single-cell · Spatial-ATAC-Hi-C | One browser over every run directory (`Docs/<Skill>/<timestamp>_<label>/`) and every Portal fetch (`Data/Processed/<accession>/`), routing `.h5ad` files and Spatial-ATAC-Hi-C / network runs to their viewers. Signed-in users see only runs from their own or shared sessions. |
+| 📊 Validation | | Reproducibility benchmark figures, suite dashboard, and an About panel (build id, upstream pins). |
+
 Supported artefact viewers (rendered directly in the chat, no terminal
 round-trip):
 
@@ -596,8 +607,8 @@ round-trip):
 - Anything else — download button.
 
 When the **Claude Code CLI** backend is selected, the model picker is
-restricted to the three current Claude 4.x tiers (`claude-opus-4-7`,
-`claude-sonnet-4-6`, `claude-haiku-4-5-20251001`) plus a `(custom...)`
+restricted to the current Claude tiers (`claude-opus-5-5`, the default,
+`claude-sonnet-5`, `claude-fable-5-1`) plus a `(custom...)`
 escape hatch — picking a retired model id is no longer possible from
 the dropdown.
 

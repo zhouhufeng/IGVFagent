@@ -102,6 +102,22 @@ except Exception:
         _bmviz = None
 
 
+# Run/file browser and KG sources panel -- stdlib + Streamlit only.
+try:
+    from igvfagent import data_browser as _dbrowse  # type: ignore
+except Exception:
+    try:
+        import data_browser as _dbrowse  # type: ignore
+    except Exception:
+        _dbrowse = None
+try:
+    from igvfagent import kg_sources as _kgsrc  # type: ignore
+except Exception:
+    try:
+        import kg_sources as _kgsrc  # type: ignore
+    except Exception:
+        _kgsrc = None
+
 # --------------------------- Branding ---------------------------------------
 #
 # The logo files live in Docs/Figures/ in the repo, but the container does NOT
@@ -903,7 +919,7 @@ def _sidebar() -> dict:
         st.markdown("## 🧬 IGVFagent")
         # The version, the build hash and the one-line description used to
         # sit here. They are gone at the operator's request -- the build
-        # hash has NOT been lost, it is in the 🐛 Report a bug tab's
+        # hash has NOT been lost, it is in the 🐛 Report a bug expander's
         # copy-paste block, which is the only place it was ever acted on:
         # nobody reads a hash off a sidebar, they paste it into a report.
         #
@@ -911,10 +927,9 @@ def _sidebar() -> dict:
         # someone who hits a wrong answer is looking at Chat, and will not
         # go hunting through tabs for where to say so. Sized as a heading
         # rather than a caption because a caption is what people skip.
-        st.markdown(
-            f"#### 💬 [Discussion on the forum]({DISCUSSION_URL})\n"
-            f"See the **🐛 Report a bug** tab for the details to include."
-        )
+        st.markdown(f"#### 💬 [Discussion on the forum]({DISCUSSION_URL})")
+        with st.expander("🐛 Report a bug", expanded=False):
+            _render_feedback_tab(st)
         st.divider()
 
         st.subheader("Model")
@@ -2660,6 +2675,55 @@ def _jobs_body() -> None:
                    "\u201cstatus of <job id>\u201d for detail.")
 
 
+def _panel(mod, name: str, missing: str, **kwargs) -> None:
+    """Render a sub-panel module, or say why it is unavailable.
+
+    One place for the import-failed warning and the traceback expander that
+    every tab repeated, so a broken panel cannot take the page down with it.
+    """
+    if mod is None:
+        st.warning(f"{name} not available — {missing}")
+        return
+    try:
+        mod.render_streamlit_panel(st, **kwargs)
+    except Exception as exc:  # pylint: disable=broad-except
+        import traceback
+        st.error(f"{name} error: {exc}")
+        with st.expander("Traceback", expanded=False):
+            st.code(traceback.format_exc())
+
+
+def _render_about(st) -> None:
+    """Which build is serving, and where it comes from."""
+    with st.expander("ℹ About this build", expanded=False):
+        try:
+            build = deployed_build_id()
+        except Exception:
+            build = "unknown"
+        try:
+            n_tools = len(_tools.list_tools())
+        except Exception:
+            n_tools = 0
+        st.markdown(
+            f"- **Build:** `{build}`\n"
+            f"- **Agent tools:** {n_tools:,}\n"
+            f"- **Forum:** [{DISCUSSION_URL}]({DISCUSSION_URL})")
+        up = _PROJECT_ROOT / "Docs" / "upstream.json"
+        try:
+            ups = json.loads(up.read_text()).get("upstreams", [])
+        except Exception:
+            ups = []
+        if ups:
+            st.markdown(f"**Upstream projects absorbed or wrapped "
+                        f"({len(ups)})** — pinned commits in "
+                        f"`Docs/upstream.json`:")
+            st.dataframe([{"repository": u.get("repo", ""),
+                           "relationship": u.get("relationship", ""),
+                           "licence": u.get("license", ""),
+                           "pinned": (u.get("pinned") or {}).get("ref", "")[:10]}
+                          for u in ups], hide_index=True)
+
+
 def main() -> None:
     # Before anything reads or writes history: attribute this script run to
     # the signed-in user (a no-op without authentication in front).
@@ -2728,107 +2792,75 @@ def main() -> None:
     st.divider()
 
     # ------------------------------------------------------------------
-    # Five tabs:
-    #   Chat              — the existing LLM-driven flow
-    #   Knowledge Graph   — interactive view of the local SQLite KGs
-    #   Single-cell       — UMAP / t-SNE / cluster / marker viewer over
-    #                       any .h5ad produced by sc-analyze
-    #   Network           — context-specific subnetwork views
-    #   Spatial           — Spatial-ATAC-Hi-C: per-pixel QC, tissue maps,
-    #                       compartments, copy-number clones, loops
-    #   Benchmarks        — every committed reproducibility figure, the
-    #                       suite dashboard, and the latest concordance run
-    # Every tab except Chat is independent of the loaded LLM.
+    # Four tabs, grouped by what the user is doing rather than by which
+    # module draws the page:
+    #   Chat                  -- the LLM-driven flow
+    #   Knowledge & networks  -- Explore the integrated KG, Your networks
+    #                            (subnetworks from your data), Sources (what
+    #                            is mirrored vs merged into the graph)
+    #   Data viewers          -- one browser over every run and Portal
+    #                            fetch, plus the Single-cell and
+    #                            Spatial-ATAC-Hi-C viewers it routes to
+    #   Validation            -- benchmark figures, and About
+    # "Report a bug" moved to the sidebar, where it is visible from every
+    # tab. Every tab except Chat is independent of the loaded LLM.
     # ------------------------------------------------------------------
-    chat_tab, kg_tab, sc_tab, nw_tab, sp_tab, bm_tab, fb_tab = st.tabs(
-        ["💬 Chat", "🕸  Knowledge Graph", "🔬 Single-cell",
-         "🔗 Network", "🧬 Spatial", "📊 Benchmarks", "🐛 Report a bug"]
+    chat_tab, kn_tab, dv_tab, val_tab = st.tabs(
+        ["💬 Chat", "🕸 Knowledge & networks", "🔬 Data viewers",
+         "📊 Validation"]
     )
 
-    with fb_tab:
-        _render_feedback_tab(st)
-
-    with kg_tab:
-        if _kgviz is None:
-            st.warning(
-                "Knowledge Graph visualizer not available — needs "
-                "`matplotlib` + `networkx` in this venv. Install with:\n\n"
-                "```\npip install matplotlib networkx\n```"
-            )
-        else:
+    with kn_tab:
+        ex_sub, nw_sub, src_sub = st.tabs(
+            ["Explore", "Your networks", "Sources"])
+        with ex_sub:
+            _panel(_kgviz, "Knowledge Graph visualizer",
+                   "needs `matplotlib` + `networkx` in this venv:\n\n"
+                   "```\npip install matplotlib networkx\n```")
+        with nw_sub:
+            _panel(_nwviz, "Network visualizer",
+                   "needs `networkx`, `matplotlib`, `pyvis`, and `pandas` in "
+                   "this venv:\n\n"
+                   "```\npip install networkx matplotlib pyvis pandas\n```")
+        with src_sub:
+            user = current_user()
+            allow = bool(user and user.get("admin")) or (
+                user is None and not _public_mode())
             try:
-                _kgviz.render_streamlit_panel(st)
-            except Exception as exc:  # pylint: disable=broad-except
-                import traceback
-                st.error(f"KG visualizer error: {exc}")
-                with st.expander("Traceback", expanded=False):
-                    st.code(traceback.format_exc())
+                argv = _tools._resolve_igvfagent()
+            except Exception:
+                argv = None
+            _panel(_kgsrc, "KG sources panel",
+                   "`Scripts/kg_sources.py` could not be imported.",
+                   allow_merge=allow, cli_argv=argv)
 
-    with sc_tab:
-        if _scviz is None:
-            st.warning(
-                "Single-cell visualizer not available — needs `scanpy` + "
-                "`anndata` + `matplotlib` in this venv. Install with:\n\n"
-                "```\n"
-                "pip install scanpy 'anndata>=0.10' umap-learn leidenalg "
-                "python-igraph matplotlib\n"
-                "```"
-            )
-        else:
-            try:
-                _scviz.render_streamlit_panel(st)
-            except Exception as exc:  # pylint: disable=broad-except
-                import traceback
-                st.error(f"Single-cell visualizer error: {exc}")
-                with st.expander("Traceback", expanded=False):
-                    st.code(traceback.format_exc())
+    with dv_tab:
+        br_sub, sc_sub, sp_sub = st.tabs(
+            ["📂 Runs and files", "Single-cell", "Spatial-ATAC-Hi-C"])
+        with br_sub:
+            user = current_user()
+            _panel(_dbrowse, "Run browser",
+                   "`Scripts/data_browser.py` could not be imported.",
+                   render_file=_render_one,
+                   viewer=user["username"] if user else None,
+                   is_admin=bool(user and user.get("admin")),
+                   history=_history_store(), scviz=_scviz, sphic=_sphic,
+                   nwviz=_nwviz)
+        with sc_sub:
+            _panel(_scviz, "Single-cell visualizer",
+                   "needs `scanpy` + `anndata` + `matplotlib` in this venv:"
+                   "\n\n```\npip install scanpy 'anndata>=0.10' umap-learn "
+                   "leidenalg python-igraph matplotlib\n```")
+        with sp_sub:
+            _panel(_sphic, "Spatial-ATAC-Hi-C browser",
+                   "needs `numpy` and `matplotlib` in this venv:\n\n"
+                   "```\npip install 'igvfagent[analysis]'\n```")
 
-    with nw_tab:
-        if _nwviz is None:
-            st.warning(
-                "Network visualizer not available — needs `networkx`, "
-                "`matplotlib`, `pyvis`, and `pandas` in this venv. Install with:\n\n"
-                "```\npip install networkx matplotlib pyvis pandas\n```"
-            )
-        else:
-            try:
-                _nwviz.render_streamlit_panel(st)
-            except Exception as exc:  # pylint: disable=broad-except
-                import traceback
-                st.error(f"Network visualizer error: {exc}")
-                with st.expander("Traceback", expanded=False):
-                    st.code(traceback.format_exc())
-
-    with sp_tab:
-        if _sphic is None:
-            st.warning(
-                "Spatial-ATAC-Hi-C browser not available — needs `numpy` and "
-                "`matplotlib` in this venv. Install with:\n\n"
-                "```\npip install 'igvfagent[analysis]'\n```"
-            )
-        else:
-            try:
-                _sphic.render_streamlit_panel(st)
-            except Exception as exc:  # pylint: disable=broad-except
-                import traceback
-                st.error(f"Spatial-ATAC-Hi-C browser error: {exc}")
-                with st.expander("Traceback", expanded=False):
-                    st.code(traceback.format_exc())
-
-    with bm_tab:
-        if _bmviz is None:
-            st.warning(
-                "Benchmark visualizer not available — "
-                "`Scripts/benchmark_visualizer.py` could not be imported."
-            )
-        else:
-            try:
-                _bmviz.render_streamlit_panel(st)
-            except Exception as exc:  # pylint: disable=broad-except
-                import traceback
-                st.error(f"Benchmark visualizer error: {exc}")
-                with st.expander("Traceback", expanded=False):
-                    st.code(traceback.format_exc())
+    with val_tab:
+        _panel(_bmviz, "Benchmark visualizer",
+               "`Scripts/benchmark_visualizer.py` could not be imported.")
+        st.divider()
+        _render_about(st)
 
     # ------------------------------------------------------------------
     # Chat tab — history replay + suggestions. Rendered inside a proper
