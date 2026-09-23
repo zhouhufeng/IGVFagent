@@ -28,7 +28,7 @@ with a built-in **Plan → Action → Results → Evaluation** loop.
 [Try it online](#-try-it-online--no-install-required) ·
 [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Skills](#skills) · [Documentation](#documentation) ·
-[What's new](#whats-new) · [Citing and licence](#citing-and-licence)
+[What's new](Docs/Guide/whats-new.md) · [Citing and licence](#citing-and-licence)
 
 ## What IGVF Agent can do
 
@@ -188,20 +188,6 @@ checks ([dashboard](Benchmarks/README.md)).
 | **Provenance** | [References and attribution](Docs/Guide/references.md) · [Pinned upstream projects](Docs/Guide/references.md#pinned-upstream-projects) · [What's new](Docs/Guide/whats-new.md) |
 
 The full index is [`Docs/Guide/README.md`](Docs/Guide/README.md).
-
-## What's new
-
-Most recent first. The complete log is in [What's new](Docs/Guide/whats-new.md).
-
-| Area | Change |
-|---|---|
-| **UI regrouped into four tabs** | Chat · Knowledge & networks (Explore, Your networks, and a new Sources view of mirrored vs merged KG collections) · Data viewers (a new run and file browser over all skills and Portal fetches, plus Single-cell and Spatial-ATAC-Hi-C) · Validation. Report a bug moved to the sidebar. |
-| **E2G QC, predictions and IGVF Portal submission** | Port of kaybrand/QC-and-Predictions: cluster QC gate, filtering, portal-format scE2G products, Cell Annotation cache and a dry-run-first eleven-table IGVF Portal submission (sandbox on --execute). |
-| **Principal pseudobulks** | `principal-pseudobulks` ports EngreitzLab/generate-principal-pseudobulks: IGVF accession to QC-filtered per-cluster fragments, RNA matrices and scE2G config, spec-validated. |
-| **Processed-first IGVF Portal lineage** | New `processed lineage` / `processed fetch` (`portal_lineage`, `processed_fetch`): from any accession, a directed walk of every Portal link. That covers analysis, principal, pseudobulk, model and prediction sets, the multiome partner, auxiliary sets, sample barcode maps, seqspecs and the published QC metrics. It gives a start-here table of processed files per product, with access and the Portal's own QC. The agent now calls it first, and `explain --download` fetches processed results instead of raw reads. |
-| **IGVF CRISPR Perturb-seq pipeline** | The consortium CRISPR_Pipeline (seqspec to inference_mudata.h5mu, SCEPTRE/PerTurbo cis+trans, QC, evaluation, TF benchmark, dashboard) runs inside IGVFagent, with Python fallbacks for every external tool. |
-| **scE2G pipeline** | scE2G rewritten in Python (`sce2g-pipeline`): Kendall, ARC-E2G, the four embedded v3 models, QC, benchmark and training. It reproduces upstream's chr22 fixture and all 11.5 M released K562 scores exactly. |
-| **ABC pipeline** | Runs the whole ABC Snakemake workflow in Python (peaks through thresholded predictions and QC); its chr22 outputs match upstream's expected test outputs exactly. |
 
 ## Citing and licence
 
