@@ -342,6 +342,20 @@ def _filter_error_hint(item_types: list[str] | None,
 
 def _ensure_json(status: int, content: bytes, ct: str, *,
                   context: str, hint: str | None = None) -> Any:
+    if status == 404:
+        # The IGVF Portal answers a search that matches nothing with HTTP 404
+        # and an ordinary, empty Search result. That is an answer (zero
+        # items), not an error; an agent that sees exit 1 reports the query
+        # as failed and the user's answer as incomplete.
+        try:
+            empty = json.loads(content)
+        except Exception:
+            empty = None
+        if (isinstance(empty, dict) and "Search" in (empty.get("@type") or [])
+                and not empty.get("@graph")):
+            logging.info("  404 is the Portal's zero-result search reply")
+            empty.setdefault("total", 0)
+            return empty
     if status < 200 or status >= 300:
         try:
             err = json.loads(content)
@@ -470,6 +484,117 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+_GENERIC = {"cell", "cells", "tissue", "type", "line", "positive", "negative",
+            "human", "mouse", "primary", "sample", "derived"}
+
+
+# Words the Portal's ontology spells differently from how people ask.
+_SYNONYMS = {"cardiac": {"heart"}, "heart": {"cardiac"},
+             "cardiomyocyte": {"cardiac", "heart"},
+             "hepatic": {"liver"}, "liver": {"hepatic"},
+             "renal": {"kidney"}, "kidney": {"renal"},
+             "pulmonary": {"lung"}, "lung": {"pulmonary"},
+             "neuronal": {"neuron"}, "brain": {"cerebral", "cortex"}}
+
+
+def _tokens(text: str) -> "set[str]":
+    import re
+    words = {w for w in re.split(r"[^a-z0-9]+", text.lower())
+             if len(w) >= 4 and w not in _GENERIC}
+    return words
+
+
+def _query_tokens(text: str) -> "set[str]":
+    """The words of a value someone typed, plus their ontology synonyms."""
+    words = _tokens(text)
+    for w in list(words):
+        words |= _SYNONYMS.get(w, set())
+    return words
+
+
+def _closeness(want: "set[str]", term: str) -> int:
+    """Shared words, or shared 5-letter stems (cardiac ~ cardiomyocyte)."""
+    have = _tokens(term)
+    score = 2 * len(want & have)
+    stems = {w[:5] for w in want}
+    score += sum(1 for w in have if w[:5] in stems and w not in want)
+    return score
+
+
+def _suggest_filter_values(item_types, query, field_filters) -> None:
+    """After a zero-result search: for each equality filter, list the values
+    that facet actually has, closest first, so the next call can use a real
+    term instead of guessing again."""
+    for i, (key, value) in enumerate(field_filters):
+        if key.endswith("!"):
+            continue
+        others = field_filters[:i] + field_filters[i + 1:]
+        url = build_search_url(item_types=item_types or None, query=query,
+                               field_filters=others, limit=0)
+        status, content, ct = _request(url, accept="application/json")
+        try:
+            facets = json.loads(content).get("facets", []) or []
+        except Exception:
+            continue
+        facet = next((f for f in facets if f.get("field") == key), None)
+        if facet is None:
+            print(f"  '{key}' is not a facet for this search, so it cannot "
+                  "be checked here; `portal endpoint-params` lists valid fields.")
+            continue
+        want = _query_tokens(value)
+        terms = facet.get("terms", []) or []
+        if len(terms) >= 90:
+            # The Portal caps a facet at about 100 terms, so a rare value can
+            # be missing from it. Count the field over the items instead.
+            counts, _, _ = _count_field_from_items(item_types, query, others,
+                                                   key, cap=10000)
+            terms = [{"key": k, "doc_count": c} for k, c in counts.items()]
+        scored = [(_closeness(want, str(t.get("key", ""))), t) for t in terms]
+        close = [t for sc, t in sorted(scored, key=lambda x: (-x[0], -x[1].get("doc_count", 0)))
+                 if sc > 0]
+        shown = (close or sorted(terms, key=lambda t: -t.get("doc_count", 0)))[:15]
+        label = "closest values" if close else "most common values"
+        print(f"  No match for {key}={value!r}. {label.capitalize()} of that "
+              f"facet under the other filters:")
+        for t in shown:
+            print(f"     {t.get('key')}={t.get('doc_count', 0)}")
+
+
+def _count_field_from_items(item_types, query, field_filters, field,
+                            cap: int = 5000) -> "tuple[dict, int, int]":
+    """Tally one field over the matching items themselves.
+
+    A search spanning several types (e.g. AnalysisSet + PredictionSet) only
+    returns the facets those types share, so a type-specific field such as
+    ``file_set_type`` has no facet there even though every item carries it.
+    """
+    url = build_search_url(item_types=item_types or None, query=query,
+                           field_filters=field_filters, limit=cap)
+    url += "&" + urllib.parse.urlencode([("field", field), ("field", "@type")])
+    status, content, ct = _request(url, accept="application/json")
+    data = _ensure_json(status, content, ct, context="portal facets (items)")
+    items = data.get("@graph", []) or []
+    counts: "dict[str, int]" = {}
+    seen = 0
+    for it in items:
+        level = [it]
+        for part in field.split("."):
+            nxt = []
+            for x in level:
+                y = x.get(part) if isinstance(x, dict) else None
+                if isinstance(y, list):
+                    nxt.extend(y)          # flatten samples[] -> sample_terms[]
+                elif y is not None:
+                    nxt.append(y)
+            level = nxt
+        vals = sorted({str(x) for x in level if not isinstance(x, (dict, list))})
+        if vals:
+            seen += 1
+        for x in vals:
+            counts[str(x)] = counts.get(str(x), 0) + 1
+    return counts, seen, len(items)
+
+
 def cmd_facets(args: argparse.Namespace) -> int:
     """Facets-only call (`limit=0`)."""
     setup_logging()
@@ -492,6 +617,11 @@ def cmd_facets(args: argparse.Namespace) -> int:
     print(f"Facet groups:         {len(facets)}")
     print(f"Saved JSON:           {out_path}")
     print()
+    if not total and field_filters:
+        print("No items match these filters (the Portal returns HTTP 404 for "
+              "an empty search; that is a result, not an error).")
+        _suggest_filter_values(item_types, args.query, field_filters)
+        return 0
 
     # --field: dump EVERY value of one facet, not the top-5 preview. This is
     # how you discover the exact filter term for a rare value (e.g. the
@@ -508,8 +638,21 @@ def cmd_facets(args: argparse.Namespace) -> int:
             if want in (f.get("field") or "").lower()
             or want in (f.get("title") or "").lower()
         ]
+        if not matches and total:
+            counts, seen, n = _count_field_from_items(
+                item_types, args.query, field_filters, args.field)
+            if seen:
+                print(f"  {args.field} [counted from {n:,} matching items; the "
+                      f"Portal returns no facet for it on this search]  "
+                      f"({len(counts)} values)")
+                for k, c in sorted(counts.items(), key=lambda kv: -kv[1]):
+                    print(f"     {k}={c}")
+                if n < total:
+                    print(f"  (first {n:,} of {total:,} items counted)")
+                return 0
         if not matches:
-            print(f"No facet field matched {args.field!r}. Available fields:")
+            print(f"No facet field matched {args.field!r}, and no matching "
+                  "item carries it. Available facet fields:")
             for f in facets:
                 print(f"  {f.get('field', '?')}"
                       f"  (title: {f.get('title', '?')},"
