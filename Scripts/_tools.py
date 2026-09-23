@@ -6430,13 +6430,22 @@ _TOOLS: "list[Tool]" = [
                 "CRISPR_comparison semantics: drop tested pairs whose gene is "
                 "absent from the prediction table instead of scoring them as "
                 "fill_value (raises scE2G K562 AUPRC from 0.531 to 0.551)."},
+            "tss_bed": {**_S_STRING, "description": "TSS universe BED (e.g. CollapsedGeneBounds.hg38.TSS500bp.bed); needed for baselines and distance bins."},
+            "gene_bed": {**_S_STRING, "description": "Gene-body BED for distToGene / nearestGene / within100kbGene."},
+            "expressed_genes": {**_S_STRING, "description": "TSV cell_type, gene, expressed for the *Expr* baselines."},
+            "baselines": {**_S_ARRAY_S, "description": "CRISPR_comparison baseline predictors: distToTSS, distToGene, nearestTSS, nearestGene, within100kbTSS, within100kbGene, nearestExprTSS, nearestExprGene, within100kbExprTSS, within100kbExprGene (validated: distToTSS K562 AUPRC 0.4359 = upstream)."},
+            "filter_pred_tss": {**_S_STRING, "description": "TSS BED: drop predicted elements overlapping a gene TSS (upstream default filter_pred_tss: True)."},
+            "dist_bins_kb": {"type": "array", "items": {"type": "number"}, "description": "Distance-to-TSS bin edges in kb for AUPRC by bin, e.g. [0, 20, 100, 2500]."},
+            "delta": {**_S_ARRAY_S, "description": "PRED1,PRED2 pairs: bootstrap delta AUPRC with CI and p-value on shared pairs."},
             "label": {**_S_STRING}, "no_plots": {**_S_BOOLEAN, "default": False}},
          "required": ["predictions", "crispr"]},
         cli=["sce2g", "benchmark"],
         flag_map={"predictions": "--predictions", "crispr": "--crispr", "pred_config": "--pred-config",
                    "score_col": "--score-col", "cell_type": "--cell-type", "bootstrap": "--bootstrap",
-                   "label": "--label"},
-        flag_repeat={"predictions"}, bool_flags={"no_plots", "all_features", "gene_universe_filter"},
+                   "tss_bed": "--tss-bed", "gene_bed": "--gene-bed", "expressed_genes": "--expressed-genes",
+                   "baselines": "--baselines", "filter_pred_tss": "--filter-pred-tss", "dist_bins_kb": "--dist-bins-kb",
+                   "delta": "--delta", "label": "--label"},
+        flag_repeat={"predictions", "baselines", "dist_bins_kb", "delta"}, bool_flags={"no_plots", "all_features", "gene_universe_filter"},
     ),
 
     _T(

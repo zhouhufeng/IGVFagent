@@ -1029,6 +1029,147 @@ def bootstrap_auprc(labels: "list[bool]", scores: "list[float]", n: int, seed: i
     return vals[int(0.025 * (n - 1))], vals[int(0.975 * (n - 1))]
 
 
+
+# ---------------------------------------------------------------------------
+# CRISPR_comparison extras: baseline predictors, TSS filter, distance bins,
+# delta AUPRC (crisprComparisonSimplePredictors.R, crisprComparisonLoadInputData.R
+# filterPredictionsTSS, crisprComparisonBootstrapFunctions.R bootstrapDeltaPerformance)
+# ---------------------------------------------------------------------------
+
+BASELINES_ALL = ("distToTSS", "distToGene", "nearestTSS", "nearestGene", "within100kbTSS", "within100kbGene",
+                 "nearestExprTSS", "nearestExprGene", "within100kbExprTSS", "within100kbExprGene")
+BASELINE_INVERSE = {"distToTSS", "distToGene"}
+
+
+def read_bed_annot(path: Path) -> "list[tuple[str, int, int, str]]":
+    """chr, start, end, name from a BED(6); header / track lines skipped."""
+    out = []
+    with _open_text(path) as fh:
+        for line in fh:
+            if not line.strip() or line.startswith(("#", "track", "browser", "chr\t")):
+                continue
+            f = line.rstrip("\n").split("\t")
+            if len(f) < 4:
+                continue
+            try:
+                out.append((f[0], int(f[1]), int(f[2]), f[3]))
+            except ValueError:
+                continue
+    return out
+
+
+def _center_1bp(start: int, end: int) -> int:
+    """GenomicRanges::resize(width = 1, fix = "center") on [start, end] read as 1-based closed."""
+    return start + (end - start) // 2
+
+
+def _gr_distance(a0: int, a1: int, b0: int, b1: int) -> int:
+    """GenomicRanges::distance between closed ranges: gap in bp, 0 when overlapping or adjacent."""
+    return max(b0 - a1 - 1, a0 - b1 - 1, 0)
+
+
+def compute_baseline(name: str, truth: "list[dict]", tss: "list[tuple]", genes: "Optional[list[tuple]]",
+                     expressed: "Optional[set]" = None) -> "list[float]":
+    """One value per CRISPR pair, as computeBaselinePreds; NaN when the gene has no annotation."""
+    use_gene = name.endswith("Gene")
+    annot = genes if use_gene else tss
+    if annot is None:
+        raise SystemExit(f"baseline {name} needs --gene-bed")
+    if "Expr" in name:
+        if expressed is None:
+            raise SystemExit(f"baseline {name} needs --expressed-genes")
+        annot = [a for a in annot if a[3] in expressed]
+    by_name: "dict[str, tuple]" = {}
+    for a in annot:
+        by_name.setdefault(a[3], a)
+    by_chr: "dict[str, list]" = {}
+    for a in annot:
+        by_chr.setdefault(a[0], []).append(a)
+    for k in by_chr:
+        by_chr[k].sort(key=lambda a: a[1])
+    out = []
+    for t in truth:
+        chrom = t["chrom"] if str(t["chrom"]).startswith("chr") else f"chr{t['chrom']}"
+        if name.startswith("distTo"):
+            a = by_name.get(t["gene"])
+            if a is None:
+                out.append(float("nan"))
+                continue
+            e = _center_1bp(t["start"], t["end"])
+            if use_gene:
+                out.append(float(_gr_distance(e, e, a[1], a[2])))
+            else:
+                c = _center_1bp(a[1], a[2])
+                out.append(float(_gr_distance(e, e, c, c)))
+        elif name.startswith("nearest"):
+            best, bd = None, None
+            for a in by_chr.get(chrom, []):
+                d = _gr_distance(t["start"], t["end"], a[1], a[2])
+                if bd is None or d < bd:
+                    best, bd = a, d
+            out.append(1.0 if best is not None and best[3] == t["gene"] else 0.0)
+        else:  # within100kb*: CRE resized to 200 kb around its centre, any overlap with the gene's feature
+            c = _center_1bp(t["start"], t["end"])
+            lo, hi = c - 100_000 + 1, c + 100_000
+            hit = any(a[3] == t["gene"] and a[1] <= hi and a[2] >= lo for a in by_chr.get(chrom, []))
+            out.append(1.0 if hit else 0.0)
+    return out
+
+
+def filter_predictions_tss(df, tss: "list[tuple]"):
+    """Drop predicted elements overlapping any TSS window (filterPredictionsTSS, 0-based TSS starts)."""
+    from bisect import bisect_left
+    cc = _coord_cols(df)
+    by_chr: "dict[str, list]" = {}
+    for a in tss:
+        by_chr.setdefault(a[0].replace("chr", ""), []).append((a[1] + 1, a[2]))
+    for k in by_chr:
+        by_chr[k].sort()
+    starts = {k: [x[0] for x in v] for k, v in by_chr.items()}
+    maxlen = {k: max((x[1] - x[0] for x in v), default=0) for k, v in by_chr.items()}
+    keep = []
+    for chrom, st, en in zip(df[cc[0]].astype(str), df[cc[1]], df[cc[2]]):
+        k = chrom.replace("chr", "")
+        ivs = by_chr.get(k)
+        if not ivs:
+            keep.append(True)
+            continue
+        st1, en1 = int(st) + 1, int(en)
+        i = bisect_left(starts[k], st1 - maxlen[k])
+        hit = False
+        while i < len(ivs) and ivs[i][0] <= en1:
+            if ivs[i][1] >= st1:
+                hit = True
+                break
+            i += 1
+        keep.append(not hit)
+    return df[keep]
+
+
+def bootstrap_delta_auprc(labels: "list[bool]", s1: "list[float]", s2: "list[float]", n: int, seed: int = 1
+                          ) -> "tuple[float, float, float, float]":
+    """delta = AUPRC(s1) - AUPRC(s2) on the same resampled pairs; percentile CI and two-sided p-value
+    (smallest alpha whose 1-alpha percentile interval excludes 0, as boot.pval type="perc")."""
+    def auc(lab, sc):
+        return pr_curve(lab, sc)[2]["auprc_crispr_comparison"]
+    d0 = auc(labels, s1) - auc(labels, s2)
+    rng = random.Random(seed)
+    N = len(labels)
+    ds = []
+    for _ in range(n):
+        pick = [rng.randrange(N) for _ in range(N)]
+        lab = [labels[i] for i in pick]
+        ds.append(auc(lab, [s1[i] for i in pick]) - auc(lab, [s2[i] for i in pick]))
+    ds = sorted(x for x in ds if x == x)
+    if not ds:
+        return d0, float("nan"), float("nan"), float("nan")
+    lo, hi = ds[int(0.025 * (len(ds) - 1))], ds[int(0.975 * (len(ds) - 1))]
+    below = sum(1 for x in ds if x <= 0) / len(ds)
+    above = sum(1 for x in ds if x >= 0) / len(ds)
+    p = min(1.0, 2 * min(below, above))
+    return d0, lo, hi, max(p, 1.0 / len(ds))
+
+
 def write_crispr_comparison_configs(out_dir: Path, preds: "list[dict]", pred_paths: "dict[str, Path]",
                                     crispr: Path, name: str) -> "tuple[Path, Path]":
     rows = []
@@ -1088,12 +1229,22 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     else:
         preds = parse_pred_config(Path(args.pred_config) if args.pred_config else None, args.predictions, args.score_col)
     results, curves = [], {}
+    tss_filter = read_bed_annot(Path(args.filter_pred_tss).expanduser()) if getattr(args, "filter_pred_tss", None) else None
+    _tss_cache: "dict[str, Any]" = {}
+    pair_scores: "dict[str, dict]" = {}
     for p in preds:
         path = pred_paths.get(p.get("_table") or p["pred_id"])
         if path is None:
             print(f"WARNING: pred_config row {p['pred_id']} has no matching --predictions LABEL=PATH; skipped")
             continue
         df = load_predictions(path, genes)
+        if tss_filter is not None and len(df):
+            key = str(path)
+            if key not in _tss_cache:
+                before = len(df)
+                _tss_cache[key] = filter_predictions_tss(df, tss_filter)
+                print(f"filter-pred-tss: {path.name}: {before - len(_tss_cache[key]):,} of {before:,} rows overlap a TSS and are dropped")
+            df = _tss_cache[key]
         truth_p, labels_p, n_missing = truth, labels, 0
         if args.gene_universe_filter:
             # CRISPR_comparison's filterExptGeneUniverse(): tested pairs whose
@@ -1122,10 +1273,98 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
                         "precision_at_70_recall": round(p70, 4), "auprc_negated": round(ap_inv, 4),
                         "n_nonmissing_scores": int(sum(1 for x in scores if x != p["fill_value"] and x != -p["fill_value"]))})
         curves[p["pred_id"]] = curve
+        pair_scores[p["pred_id"]] = {f"{t['chrom']}:{t['start']}-{t['end']}|{t['gene']}": sc for t, sc in zip(truth_p, scores)}
         if not args.all_features or args.keep_scored_pairs:
             pd.DataFrame({"pair": [f"{t['chrom']}:{t['start']}-{t['end']}|{t['gene']}" for t in truth_p],
                           "regulated": labels_p, "score": scores}).to_csv(out_dir / f"scored_pairs_{safe_label(p['pred_id'])}.tsv",
                                                                            sep="\t", index=False)
+    # ---- baseline predictors, computed per CRISPR pair (no overlap, no fill)
+    tss_annot = read_bed_annot(Path(args.tss_bed).expanduser()) if getattr(args, "tss_bed", None) else None
+    gene_annot = read_bed_annot(Path(args.gene_bed).expanduser()) if getattr(args, "gene_bed", None) else None
+    expressed = None
+    if getattr(args, "expressed_genes", None):
+        _h, erows = read_tsv_rows(Path(args.expressed_genes).expanduser())
+        expressed = {r.get("gene") for r in erows if str(r.get("expressed", "TRUE")).upper() == "TRUE"
+                     and (not args.cell_type or r.get("cell_type", args.cell_type) == args.cell_type)}
+    key_of = lambda t: f"{t['chrom']}:{t['start']}-{t['end']}|{t['gene']}"
+    for b in (getattr(args, "baselines", None) or []):
+        if b not in BASELINES_ALL:
+            raise SystemExit(f"unknown baseline {b}; choose from {', '.join(BASELINES_ALL)}")
+        if tss_annot is None:
+            raise SystemExit("--baselines needs --tss-bed (the TSS universe, e.g. CollapsedGeneBounds.hg38.TSS500bp.bed)")
+        tss_genes = {a[3] for a in tss_annot}
+        truth_b = [t for t in truth if t["gene"] in tss_genes]        # filterExptGeneUniverse
+        vals = compute_baseline(b, truth_b, tss_annot, gene_annot, expressed)
+        keep = [i for i, v in enumerate(vals) if v == v]
+        truth_b = [truth_b[i] for i in keep]
+        vals = [vals[i] for i in keep]
+        inv = b in BASELINE_INVERSE
+        scores = [-v for v in vals] if inv else vals
+        labels_b = [t["regulated"] for t in truth_b]
+        ap, p70, curve = pr_curve(labels_b, scores)
+        lo, hi = bootstrap_auprc(labels_b, scores, args.bootstrap) if args.bootstrap > 0 else (float("nan"), float("nan"))
+        n_pos = sum(labels_b)
+        pid = f"baseline.{b}"
+        results.append({"pred_id": pid, "pred_col": b, "aggregate": "none", "fill_value": float("nan"), "inverse": inv,
+                        "n_pairs": len(labels_b), "n_positive": int(n_pos), "baseline_precision": round(n_pos / max(1, len(labels_b)), 4),
+                        "n_pairs_dropped_missing_gene": len(truth) - len(truth_b), "pairs_overlapping_prediction": len(truth_b),
+                        "frac_overlapping": 1.0, "auprc": round(ap, 4), "auprc_ci95_low": round(lo, 4), "auprc_ci95_high": round(hi, 4),
+                        "auprc_trapz": round(curve.get("auprc_trapz", float("nan")), 4),
+                        "auprc_crispr_comparison": round(curve.get("auprc_crispr_comparison", float("nan")), 4),
+                        "precision_at_70_recall": round(p70, 4), "auprc_negated": round(pr_curve(labels_b, [-x for x in scores])[0], 4),
+                        "n_nonmissing_scores": len(scores)})
+        curves[pid] = curve
+        pair_scores[pid] = {key_of(t): sc for t, sc in zip(truth_b, scores)}
+        print(f"baseline {b}: {len(truth_b):,} pairs, AUPRC(CRISPR_comparison) {curve.get('auprc_crispr_comparison', float('nan')):.4f}, "
+              f"P@70 {p70:.4f}")
+
+    # ---- AUPRC by distance-to-TSS bin (comparePredictionsToExperiment.Rmd distanceBins)
+    bins_rows = []
+    if getattr(args, "dist_bins_kb", None) is not None and tss_annot is not None:
+        dist = dict(zip((key_of(t) for t in truth), compute_baseline("distToTSS", truth, tss_annot, None)))
+        dvals = [v / 1000.0 for v in dist.values() if v == v]
+        if len(args.dist_bins_kb) == 0:
+            lo_d, hi_d = min(dvals), max(dvals)                        # cut(breaks = 4): 4 equal-width bins
+            edges = [lo_d + (hi_d - lo_d) * k / 4 for k in range(5)]
+            edges[-1] += 1e-9
+        else:
+            edges = [float(x) for x in args.dist_bins_kb]
+        lab_of = {key_of(t): t["regulated"] for t in truth}
+        for a, b in zip(edges[:-1], edges[1:]):
+            in_bin = {k for k, v in dist.items() if v == v and a <= v / 1000.0 < b}
+            for pid, sc in pair_scores.items():
+                ks = [k for k in sc if k in in_bin]
+                if not ks:
+                    continue
+                labs = [lab_of[k] for k in ks]
+                ap_b, p70_b, cv_b = pr_curve(labs, [sc[k] for k in ks])
+                bins_rows.append({"pred_id": pid, "dist_bin_kb": f"[{a:g},{b:g})", "n_pairs": len(ks), "n_positive": sum(labs),
+                                  "auprc": round(ap_b, 4), "auprc_crispr_comparison": round(cv_b.get("auprc_crispr_comparison", float("nan")), 4),
+                                  "precision_at_70_recall": round(p70_b, 4)})
+        if bins_rows:
+            pd.DataFrame(bins_rows).to_csv(out_dir / "auprc_by_distance_bin.tsv", sep="\t", index=False)
+            print(f"CSV: {out_dir / 'auprc_by_distance_bin.tsv'}")
+
+    # ---- delta AUPRC between predictor pairs on their shared CRISPR pairs
+    delta_rows = []
+    for spec in (getattr(args, "delta", None) or []):
+        if ":" not in spec and "," not in spec:
+            raise SystemExit(f"--delta expects PRED1,PRED2 (got {spec})")
+        a_id, b_id = spec.split(",", 1) if "," in spec else spec.split(":", 1)
+        if a_id not in pair_scores or b_id not in pair_scores:
+            print(f"WARNING: --delta {spec}: unknown predictor (have {', '.join(pair_scores)})")
+            continue
+        lab_of = {key_of(t): t["regulated"] for t in truth}
+        ks = sorted(set(pair_scores[a_id]) & set(pair_scores[b_id]))
+        d0, dlo, dhi, pv = bootstrap_delta_auprc([lab_of[k] for k in ks], [pair_scores[a_id][k] for k in ks],
+                                                 [pair_scores[b_id][k] for k in ks], max(args.bootstrap, 100))
+        delta_rows.append({"pred1": a_id, "pred2": b_id, "n_pairs": len(ks), "delta_auprc": round(d0, 4),
+                           "delta_ci95_low": round(dlo, 4), "delta_ci95_high": round(dhi, 4), "pvalue": pv})
+        print(f"delta AUPRC {a_id} - {b_id}: {d0:+.4f} [{dlo:+.4f}, {dhi:+.4f}] p={pv:.3g} ({len(ks):,} shared pairs)")
+    if delta_rows:
+        pd.DataFrame(delta_rows).to_csv(out_dir / "delta_auprc.tsv", sep="\t", index=False)
+        print(f"CSV: {out_dir / 'delta_auprc.tsv'}")
+
     res = pd.DataFrame(results).sort_values("auprc", ascending=False) if results else pd.DataFrame()
     res.to_csv(out_dir / "benchmark_summary.tsv", sep="\t", index=False)
     cc_preds = [dict(p, pred_id=p["pred_id"].replace(":", "_")) for p in preds if (p.get("_table") or p["pred_id"]) in pred_paths]
@@ -1569,6 +1808,23 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         c4 = pr_curve([True, False, True, False], [4, 3, 2, 1])[2]
         # points: (r=.5,p=1) (.5,.5) (1,.667) (1,.5): trapz = 0 + .5*(.5+.667)/2 + 0 = 0.2917
         check(abs(c4["auprc_trapz"] - 0.2916667) < 1e-6, f"trapezoid AUPRC matches hand calculation ({c4['auprc_trapz']:.4f})")
+        # CRISPR_comparison baselines on a toy locus: TSS of G1 at 1000, G2 at 5000; gene bodies 800-2000 / 4800-9000
+        tss_t = [("chr1", 999, 1000, "G1"), ("chr1", 4999, 5000, "G2")]
+        gene_t = [("chr1", 800, 2000, "G1"), ("chr1", 4800, 9000, "G2")]
+        truth_t = [{"chrom": "chr1", "start": 1100, "end": 1300, "gene": "G1", "regulated": True},
+                   {"chrom": "chr1", "start": 1100, "end": 1300, "gene": "G2", "regulated": False},
+                   {"chrom": "chr1", "start": 300000, "end": 300200, "gene": "G1", "regulated": False}]
+        d_tss = compute_baseline("distToTSS", truth_t, tss_t, gene_t)
+        check(d_tss[:2] == [200.0, 3798.0], f"distToTSS: centre-to-centre GenomicRanges distance ({d_tss[:2]})")
+        check(compute_baseline("distToGene", truth_t, tss_t, gene_t)[:2] == [0.0, 3599.0], "distToGene: 0 inside the gene body")
+        check(compute_baseline("nearestTSS", truth_t, tss_t, gene_t) == [1.0, 0.0, 0.0], "nearestTSS: only the closest gene scores 1")
+        check(compute_baseline("within100kbTSS", truth_t, tss_t, gene_t) == [1.0, 1.0, 0.0], "within100kbTSS: +/-100 kb window")
+        pd_ = _pd()
+        pr_t = pd_.DataFrame({"chr": ["chr1", "chr1"], "start": [900, 3000], "end": [1100, 3200], "TargetGene": ["G1", "G1"]})
+        check(len(filter_predictions_tss(pr_t, tss_t)) == 1, "filter-pred-tss drops the element overlapping a TSS")
+        d0, dlo, dhi, pv = bootstrap_delta_auprc([True, False, True, False, True, False] * 5, list(range(30, 0, -1)),
+                                                 [((i * 7) % 11) for i in range(30)], 200)
+        check(d0 > 0 and dlo <= d0 <= dhi and 0 < pv <= 1, f"delta AUPRC bootstrap: {d0:+.3f} [{dlo:+.3f}, {dhi:+.3f}] p={pv:.3g}")
         if not args.keep:
             shutil.rmtree(out_p, ignore_errors=True)
             shutil.rmtree(out_b, ignore_errors=True)
@@ -1660,6 +1916,16 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     s.add_argument("--all-features", action="store_true",
                    help="Benchmark EVERY feature column of each table as its own predictor (crowdsourced-feature benchmark).")
     s.add_argument("--keep-scored-pairs", action="store_true", help="With --all-features, still write per-predictor scored pairs.")
+    s.add_argument("--tss-bed", help="TSS universe BED (CRISPR_comparison tss_universe), needed for --baselines / --dist-bins-kb.")
+    s.add_argument("--gene-bed", help="Gene-body BED (gene_universe), needed for distToGene / nearestGene / within100kbGene.")
+    s.add_argument("--expressed-genes", help="TSV cell_type, gene, expressed (for the *Expr* baselines).")
+    s.add_argument("--baselines", nargs="+", action="extend", choices=list(BASELINES_ALL),
+                   help="CRISPR_comparison baseline predictors to add (e.g. distToTSS nearestTSS within100kbTSS).")
+    s.add_argument("--filter-pred-tss", help="TSS BED: drop predicted elements overlapping a gene TSS (upstream filter_pred_tss: True).")
+    s.add_argument("--dist-bins-kb", nargs="*", action="extend", type=float,
+                   help="AUPRC by distance-to-TSS bin; give bin edges in kb (e.g. 0 20 100 2500) or no values for 4 equal-width bins.")
+    s.add_argument("--delta", action="append", metavar="PRED1,PRED2",
+                   help="Bootstrap delta AUPRC (upstream definition) between two predictors on shared pairs (repeatable).")
     s.add_argument("--label", default="")
     s.add_argument("--no-plots", action="store_true")
     s.set_defaults(func=cmd_benchmark)

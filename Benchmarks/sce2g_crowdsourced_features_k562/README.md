@@ -84,7 +84,14 @@ between IGVFagent's `scored_pairs_*.tsv` and the upstream `expt_pred_merged_anno
 table for the scE2G score. With the upstream's default `filter_pred_tss: True`, which
 removes predictions whose element overlaps a gene TSS (1,533,004 of the 11.5 M
 scE2G rows), its AUPRCs move by at most 0.005 (ABC 0.4845, Pinloop 0.3340, Signac
-0.2287, SCENT 0.1803); IGVFagent does not implement that filter.
+0.2287, SCENT 0.1803). `sce2g benchmark --filter-pred-tss` now implements that
+filter and reproduces the filtered upstream run for scE2G: AUPRC 0.5190 against
+upstream 0.51904, and precision at 70% recall 0.2538 against 0.25385. The
+CRISPR_comparison baseline predictors are also implemented with `--baselines`.
+`distToTSS` gives AUPRC 0.4359 and precision at 70% recall 0.3158, identical to
+the upstream `baseline.distToTSS`. `--dist-bins-kb` and `--delta` add AUPRC by
+distance bin and paired bootstrap delta-AUPRC. On these data, scE2G minus
+distToTSS is +0.107, with a 95% interval of +0.052 to +0.163.
 
 ## Results (K562, vs CRISPR ground truth; random-baseline precision 0.0455)
 
@@ -153,8 +160,9 @@ number (0.634 / 0.543) comes back exactly. On that footing the feature screen sa
   every table; the gold-standard column is `auprc_crispr_comparison`. For a binary
   feature the upstream definition has nothing to integrate and is reported as
   n/a; upstream excludes boolean predictors from its summary for the same reason.
-- **The TSS filter is not implemented.** Upstream's default removes predictions
-  overlapping a gene TSS; the effect on these predictors is at most 0.005 AUPRC.
+- **The TSS filter is off in the tables above.** Upstream's default removes predictions
+  overlapping a gene TSS. The effect on these predictors is at most 0.005 AUPRC.
+  `--filter-pred-tss` reproduces the filtered numbers.
 - **Single-feature AUPRCs are not feature importance inside scE2G.** A feature at
   random here can still help a model that conditions on distance and ATAC; the
   definitive test is the retrained model, which needs the Synapse K562 RNA and
