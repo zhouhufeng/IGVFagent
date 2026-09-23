@@ -156,6 +156,14 @@ python3 Scripts/igvf_data_skills.py encode-overview --limit 5
 python3 Scripts/ccre_linkage_annotation_skills.py screen-manifest
 ```
 
+To run every skill's offline self-test, as the
+[tests workflow](../../.github/workflows/tests.yml) does on each push (network
+blocked, no credentials, a few minutes):
+
+```bash
+python3 Scripts/run_selftests.py          # or --list to see what runs
+```
+
 Expected output locations:
 
 - runtime logs in `Docs/Logs/`

@@ -1,5 +1,16 @@
 <img src="Docs/Figures/logo.png" alt="IGVF Agent" width="460">
 
+[![tests](https://github.com/zhouhufeng/IGVFagent/actions/workflows/tests.yml/badge.svg)](https://github.com/zhouhufeng/IGVFagent/actions/workflows/tests.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python ≥3.9](https://img.shields.io/badge/python-%E2%89%A53.9-blue.svg)](pyproject.toml)
+[![skills](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fzhouhufeng%2FIGVFagent%2Fmain%2FDeploy%2Fauth%2Fstats.json&query=%24.skills&label=skills&color=informational)](Docs/Guide/skills/README.md)
+[![tools](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fzhouhufeng%2FIGVFagent%2Fmain%2FDeploy%2Fauth%2Fstats.json&query=%24.tools&label=tools&color=informational)](Docs/Guide/skills/README.md)
+[![benchmarks](https://img.shields.io/badge/benchmarks-25%2B_papers_reproduced-success)](Benchmarks/README.md)
+[![Try it online](https://img.shields.io/badge/demo-igvfagent.genohub.org-brightgreen)](https://igvfagent.genohub.org)
+[![docs](https://img.shields.io/badge/docs-Guide-informational)](Docs/Guide/README.md)
+[![last commit](https://img.shields.io/github/last-commit/zhouhufeng/IGVFagent)](https://github.com/zhouhufeng/IGVFagent/commits/main)
+[![IGVF](https://img.shields.io/badge/consortium-IGVF-8A2BE2)](https://igvf.org/)
+
 An **auditable, local-execution** AI agent for discovering, retrieving and
 analysing data from the [IGVF](https://igvf.org/) ecosystem (Portal, Catalog,
 Knowledge Graph) and related public resources (ENCODE, GEO, FAVOR and more),

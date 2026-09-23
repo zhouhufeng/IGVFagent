@@ -75,6 +75,13 @@ analysis = [
     # Manuscript ingestion: `igvfagent document` extracts text from
     # uploaded PDFs so a paper can be turned into a reproduction plan.
     "pypdf>=4.0,<7",
+    # Tabix-indexed outputs (fragments, tagAlign, E2G .bedpe.gz + .tbi) are
+    # part of the IGVF Portal file format; e2g-qc-predictions and
+    # principal-pseudobulks write them. Also BAM reading in abc-pipeline.
+    "pysam>=0.21,<1",
+    # Guide and enhancer tables arrive as .xlsx (igvf-crispr-pipeline,
+    # enhancer-annot); pandas needs openpyxl to read and write them.
+    "openpyxl>=3.1,<4",
 ]
 # Raw-read processing: FASTQ -> count matrix. kb-python bundles the
 # kallisto and bustools binaries per-platform, so no compiler, no conda,
