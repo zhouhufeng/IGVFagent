@@ -86,7 +86,7 @@ Access is gated by a shared password. Email
 |---|---|---|
 | Setup | none | `pip install -e '.[all]'` |
 | LLM cost | paid by the project | your own API key, or free via Ollama |
-| Model | Claude Sonnet 5 by default; Haiku 4.5 / Opus 5 / Fable 5 selectable | any backend — Anthropic, OpenAI, Ollama, vLLM, TGI, … |
+| Model | Claude Opus 5.5 by default; Sonnet 5 / Haiku 4.5 / Fable 5.1 selectable | any backend — Anthropic, OpenAI, Ollama, vLLM, TGI, … |
 | Run length | capped (iterations and tokens per turn) | uncapped |
 | Workspace | **shared with other users** — see below | private to you |
 | Your own data | not for anything sensitive | stays on your machine |
@@ -826,9 +826,9 @@ For higher-quality answers, point the agent at Anthropic Claude or OpenAI:
 
 ```bash
 export ANTHROPIC_API_KEY=...
-igvfagent ask --backend anthropic --model claude-sonnet-5 \
+igvfagent ask --backend anthropic --model claude-opus-5-5 \
    "Compare DRD1 and DRD2 striatal MSN evidence in the local KG."
-# Other current Claude ids: claude-opus-5, claude-fable-5, claude-haiku-4-5
+# Other current Claude ids: claude-opus-5-5, claude-sonnet-5, claude-fable-5-1, claude-haiku-4-5
 
 export OPENAI_API_KEY=...
 igvfagent ask --backend openai --model gpt-4o-mini "..."

@@ -75,7 +75,7 @@ class Message:
 
 
 _DEFAULT_MODELS = {
-    "anthropic":  "claude-opus-5",
+    "anthropic":  "claude-opus-5-5",
     "openai":     "gpt-4o-mini",
     "codex":      "gpt-5-codex",
     "ollama":     "qwen3:8b",
@@ -256,6 +256,7 @@ _NO_SAMPLING_PARAM_MODELS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
     "claude-opus-5",
+    "claude-opus-5-5",
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
@@ -1416,7 +1417,9 @@ OLLAMA_LIBRARY = [
 # makes it the cheap tier for high-volume runs. Earlier generations are
 # reachable through the picker's "(custom...)" field for comparison runs.
 ANTHROPIC_MODELS = [
-    "claude-opus-5",
+    # Opus 5.5 replaces Opus 5 (id from GET /v1/models, 2026-09-23); the
+    # older id still works if pinned through "(custom...)".
+    "claude-opus-5-5",
     "claude-sonnet-5",
     # Fable 5.1 replaces Fable 5 in the picker. The id was read from
     # GET /v1/models rather than guessed -- it returns

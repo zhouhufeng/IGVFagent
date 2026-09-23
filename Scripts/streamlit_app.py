@@ -455,7 +455,7 @@ def _sidebar_claude_cli_picker() -> "tuple[str, str]":
     # users do not pick a retired/superseded model id. Older ids still
     # work via "(custom...)" if you need to pin one.
     _CLAUDE_CLI_MODELS = (
-        "claude-opus-5",
+        "claude-opus-5-5",
         "claude-sonnet-5",
         "claude-fable-5-1",
     )
@@ -800,13 +800,17 @@ def _env_int(name: str, default: int) -> int:
 # with the id as their label, so a new model can be enabled without a code
 # change). Prices are per million tokens, input/output, for the operator's
 # own cost awareness — the visitor is spending someone else's money.
-# Ordered cheapest-first so the default sits at the top and the premium
-# models are a deliberate scroll, not an accidental click — on a shared key
-# the difference between Sonnet 5 and Fable 5 is ~3.3x per token.
+# Opus 5.5 is the default (IGVF_LLM_MODEL) and sits at the top; the cheaper
+# tiers follow, and Fable 5.1 stays a deliberate scroll at the bottom. Opus 5.5
+# replaces Opus 5 (id confirmed against GET /v1/models on 2026-09-23:
+# "claude-opus-5-5" / "Claude Opus 5.5"); claude-opus-5 still works if pinned
+# through the operator's IGVF_PUBLIC_MODELS, it is simply not offered. Its
+# per-token price is left out for the same reason as Fable 5.1's: the models
+# endpoint does not publish pricing and a wrong number here is worse than none.
 _PUBLIC_MODEL_CATALOG = {
-    "claude-sonnet-5":  ("Sonnet 5 — default, fast",      "$3 / $15 per Mtok · 1M context"),
+    "claude-opus-5-5":  ("Opus 5.5 — default, most capable", "1M context · premium"),
+    "claude-sonnet-5":  ("Sonnet 5 — fast",               "$3 / $15 per Mtok · 1M context"),
     "claude-haiku-4-5": ("Haiku 4.5 — fastest, cheapest", "$1 / $5 per Mtok · 200K context"),
-    "claude-opus-5":    ("Opus 5 — more capable",         "$5 / $25 per Mtok · 1M context · premium"),
     # Fable 5.1, id confirmed against GET /v1/models. The per-token price is
     # deliberately NOT copied over from Fable 5's $10/$50: the models endpoint
     # does not publish pricing and a wrong number here is worse than none,
