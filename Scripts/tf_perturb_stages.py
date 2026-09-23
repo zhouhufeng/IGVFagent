@@ -519,6 +519,14 @@ def evaluation_table(trans, guide_var, pvalue_col: str, non_targeting_label: str
     return ev.rename(columns={pvalue_col: "p_value"})
 
 
+def _trapz(y, x):
+    """Trapezoid integral on NumPy 1.x (np.trapz) and 2.x (np.trapezoid;
+    np.trapz is gone from 2.4, which the hosted container runs)."""
+    import numpy as np  # type: ignore
+    f = getattr(np, "trapezoid", None) or np.trapz
+    return f(y, x)
+
+
 def roc_pr(labels, scores) -> "tuple[float, float, dict]":
     """AUROC and AUPRC (trapezoid, sklearn convention) with tie-aware thresholds."""
     np = _np()
@@ -534,12 +542,12 @@ def roc_pr(labels, scores) -> "tuple[float, float, dict]":
     fps = np.cumsum(~y)[distinct]
     tpr = np.r_[0, tps / P]
     fpr = np.r_[0, fps / N]
-    auroc = float(np.trapz(tpr, fpr))
+    auroc = float(_trapz(tpr, fpr))
     prec = tps / (tps + fps)
     rec = tps / P
     prec = np.r_[1.0, prec]
     rec = np.r_[0.0, rec]
-    auprc = float(np.trapz(prec, rec))
+    auprc = float(_trapz(prec, rec))
     return auroc, auprc, {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "precision": prec.tolist(), "recall": rec.tolist()}
 
 

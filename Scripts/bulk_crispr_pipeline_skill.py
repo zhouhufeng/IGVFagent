@@ -2680,7 +2680,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
             print("\nstatistics helpers")
             check(local_maxima([1, 3, 2, 5, 4]) == [1, 3] and local_maxima([2, 2, 1, 3, 1]) == [3], "local_maxima: deMULTIplex rle semantics")
             gx, dx = bkde_normal(np.random.default_rng(1).normal(size=500))
-            check(abs(np.trapz(dx, gx) - 1) < 0.02, "bkde_normal: density integrates to 1")
+            check(abs((getattr(np, "trapezoid", None) or np.trapz)(dx, gx) - 1) < 0.02, "bkde_normal: density integrates to 1")
             bim = np.r_[np.random.default_rng(2).normal(0, 1, 2000), np.random.default_rng(3).normal(8, 1, 2000)]
             th = threshold_minimum(bim)
             check(2 < th < 6, f"threshold_minimum: {th:.2f} between the modes")
