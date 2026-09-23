@@ -2,7 +2,7 @@
 
 Copy-paste-ready templates for plugging your own **tools** and **skills**
 into IGVFagent — no core-code edits, no re-install. Full tutorial:
-[README.md → Extending IGVFagent](../../../README.md#extending-igvfagent).
+[Extending IGVFagent](../../Guide/extending.md).
 
 ## Install
 
