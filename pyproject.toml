@@ -144,8 +144,14 @@ dev = [
     "ruff>=0.5",
     "build>=1.0",
 ]
+# AlphaGenome API client (google-deepmind/alphagenome). The SDK needs
+# Python >= 3.10; on 3.9 `igvfagent alphagenome setup --install` builds a
+# separate environment and the skill re-runs itself there.
+alphagenome = [
+    "alphagenome>=0.9,<1; python_version >= '3.10'",
+]
 all = [
-    "igvfagent[analysis,align,ui,llm,hic,motif,warehouse,network]",
+    "igvfagent[analysis,align,ui,llm,hic,motif,warehouse,network,alphagenome]",
 ]
 
 [project.urls]

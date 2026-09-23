@@ -241,6 +241,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "gate, filtering, scE2G output reformatting, QC "
                           "stats, Cell Annotation cache and dry-run-first IGVF "
                           "Portal submission."),
+    "alphagenome":    ("igvfagent.alphagenome_skill",
+                          "AlphaGenome (google-deepmind/alphagenome): "
+                          "predictions, variant scores, ISM and Atlas scores, "
+                          "with IGVF Catalog rsID/gene resolution"),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "

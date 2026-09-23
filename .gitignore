@@ -208,3 +208,4 @@ Scripts/_make_overview_slides.py
 
 # transient run logs (Claude Code sessions)
 scratch_*.log
+Docs/AlphaGenome/2*

@@ -61,6 +61,8 @@ RELATIONSHIPS = (
     "port",            # their algorithm translated, source consulted
     "vendored",        # their code copied in
     "wraps-binary",    # we shell out to their installed program
+    "wraps-sdk",       # we call their published library / hosted API as a
+                       # dependency; none of their code is in this repo
     "reference",       # consulted for data formats or conventions only
     "unclassified",
 )
@@ -186,7 +188,7 @@ def cmd_scan(args) -> int:
               f"`igvfagent upstream pin <repo>`")
     if uncls:
         print(f"  {len(uncls)} unclassified — set relationship "
-              f"({', '.join(RELATIONSHIPS[:5])}) in the manifest")
+              f"({', '.join(RELATIONSHIPS[:-1])}) in the manifest")
     return 0
 
 

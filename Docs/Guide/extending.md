@@ -8,7 +8,7 @@ Add your own tools, skills, prompt skills and playbooks without editing the core
 - [Add a custom skill (Python subcommand)](#add-a-custom-skill-python-subcommand)
 - [Add a prompt skill or playbook](#add-a-prompt-skill-or-playbook)
 
-IGVFagent is **expandable by design**: the 115 built-in skills and 580
+IGVFagent is **expandable by design**: the 116 built-in skills and 591
 registered tools are a starting point, not a ceiling. A user-extension
 framework absorbs **your own skills and tools** at startup — no core-code
 edits, no re-install, no registration step. Anything you drop into an

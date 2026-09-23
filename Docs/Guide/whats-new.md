@@ -7,6 +7,7 @@ benchmark suite or a worked example in these docs.
 
 | Area | Change |
 |---|---|
+| **AlphaGenome** | New `alphagenome` skill (11 agent tools): AlphaGenome track predictions, REF/ALT variant predictions, recommended variant and interval scores, in silico mutagenesis and pre-computed Atlas scores (including AVI), with rsIDs and genes resolved through the IGVF Catalog. Needs an API key; runs itself under Python 3.10+ when the install is 3.9. |
 | **UI regrouped into four tabs** | Chat · Knowledge & networks (Explore, Your networks, and a new Sources view of mirrored vs merged KG collections) · Data viewers (a new run and file browser over all skills and Portal fetches, plus Single-cell and Spatial-ATAC-Hi-C) · Validation. Report a bug moved to the sidebar. |
 | **E2G QC, predictions and IGVF Portal submission** | Port of kaybrand/QC-and-Predictions: cluster QC gate, filtering, portal-format scE2G products, Cell Annotation cache and a dry-run-first eleven-table IGVF Portal submission (sandbox on --execute). |
 | **Principal pseudobulks** | `principal-pseudobulks` ports EngreitzLab/generate-principal-pseudobulks: IGVF accession to QC-filtered per-cluster fragments, RNA matrices and scE2G config, spec-validated. |

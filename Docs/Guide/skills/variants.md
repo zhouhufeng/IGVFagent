@@ -225,6 +225,26 @@ everything in this folder except the README and the example CSV.
 
 **Do not commit confidential or pre-publication variant lists.**
 
+## AlphaGenome predictions and Atlas scores (`alphagenome`)
+
+Access to [AlphaGenome](https://github.com/google-deepmind/alphagenome), Google DeepMind's sequence-to-function model, from inside IGVFagent. You can predict expression, accessibility, histone and TF binding, splicing and 3D contacts over a region or gene. You can compare REF and ALT for a variant, score variant effects with the recommended scorers, run in silico mutagenesis, or look up the pre-computed **AlphaGenome Atlas** scores (including the AlphaGenome Variant Impact score) without running the model. Variants can be rsIDs, SPDI, `chr-pos-ref-alt` or `chr:pos:ref>alt`; rsIDs and gene symbols are resolved through the IGVF Catalog, and tissues are chosen by ontology CURIE (`alphagenome metadata --search heart` lists them).
+
+**Access.** An API key is required ([get one](https://alphagenome.google/api); free for non-commercial use). Set `ALPHAGENOME_API_KEY`, or save it to `Docs/Secret/ALPHAGENOME_API_KEY.txt`; it is never printed. Outputs are for non-commercial research only, must not be used to train other models, and are not for clinical use ([terms](https://alphagenome.google/terms)). The SDK needs Python 3.10 or newer: on a 3.9 install, `igvfagent alphagenome setup --install` creates a separate environment once, and every AlphaGenome command then runs there automatically. The hosted container (Python 3.11) has the SDK built in.
+
+Coordinates follow the SDK: intervals are 0-based and half-open (like BED); variant positions are 1-based. A prediction window is 16 KB, 100 KB, 500 KB or 1 MB (default), centred on the region or variant.
+
+```bash
+igvfagent alphagenome setup --install --ping           # SDK environment + key check
+igvfagent alphagenome metadata --search heart          # tracks and ontology CURIEs
+igvfagent alphagenome score-variants --variants rs429358 chr22:36201698:A>C --ontology UBERON:0000948
+igvfagent alphagenome predict-variant --variant rs429358 --outputs RNA_SEQ DNASE --ontology UBERON:0000948
+igvfagent alphagenome predict-interval --gene APOE --outputs RNA_SEQ --ontology UBERON:0002107
+igvfagent alphagenome ism --ism-interval chr19:44908670-44908700 --scorer DNASE --ontology UBERON:0000948
+igvfagent alphagenome atlas-variants --variants rs429358 --genes APOE
+```
+
+Agent tools: `alphagenome_setup`, `alphagenome_metadata`, `alphagenome_predict_interval`, `alphagenome_predict_variant`, `alphagenome_score_variants`, `alphagenome_score_interval`, `alphagenome_ism`, `alphagenome_atlas_scorers`, `alphagenome_atlas_variants`, `alphagenome_atlas_interval`, `alphagenome_selftest`.
+
 ---
 
 [← Documentation index](../README.md) · [Project README](../../../README.md)

@@ -139,7 +139,7 @@ cannot support — not a substitute for the upstream model.
 
 ## Pinned upstream projects
 
-All 44 upstream repositories IGVFagent ports, wraps or references, each pinned to the commit it was absorbed from. Generated from [`Docs/upstream.json`](../upstream.json); `igvfagent upstream scan` reports which have moved on since.
+All 45 upstream repositories IGVFagent ports, wraps or references, each pinned to the commit it was absorbed from. Generated from [`Docs/upstream.json`](../upstream.json); `igvfagent upstream scan` reports which have moved on since.
 
 | Repository | Skills | Relationship | Licence | Pinned commit |
 |---|---|---|---|---|
@@ -158,6 +158,7 @@ All 44 upstream repositories IGVFagent ports, wraps or references, each pinned t
 | [Gartner-Lab/deMULTIplex2](https://github.com/Gartner-Lab/deMULTIplex2) | `multiseq` | clean-room | CC-BY-4.0 | [`de48333b89`](https://github.com/Gartner-Lab/deMULTIplex2/tree/de48333b89f60447bc037237f6cb45985ffb33f4) |
 | [Genentech/sceps](https://github.com/Genentech/sceps) | `sceps` | reference | MIT | [`3a07fda29e`](https://github.com/Genentech/sceps/tree/3a07fda29ead41e3872ab08a9fee34bed0ed963e) |
 | [Gersbachlab-Bioinformatics/sc-crispr-de](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de) | `sc-crispr-de` | clean-room | MIT | [`ce5598ed7f`](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de/tree/ce5598ed7fb4f2a91c0c8b30e9dea69b91690aba) |
+| [google-deepmind/alphagenome](https://github.com/google-deepmind/alphagenome) | `alphagenome` | wraps-sdk | Apache-2.0 | [`b9fb2a179e`](https://github.com/google-deepmind/alphagenome/tree/b9fb2a179efb8ed7013d4ffc6d00d26a9ed444e4) |
 | [hbliu/Open4Gene](https://github.com/hbliu/Open4Gene) | `open4gene` | clean-room |  | [`6e7f36aa80`](https://github.com/hbliu/Open4Gene/tree/6e7f36aa80e6ff778737fc25978337342394cc68) |
 | [IGVF-CRISPR/bulk_crispr_pipeline](https://github.com/IGVF-CRISPR/bulk_crispr_pipeline) | `bulk-crispr` | port | none declared | [`6f4ae09fa7`](https://github.com/IGVF-CRISPR/bulk_crispr_pipeline/tree/6f4ae09fa7f7dffc1d98b3dc4dc33e73c8ff48ac) |
 | [IGVF-CRISPR/CRISPR-JAMBOREE](https://github.com/IGVF-CRISPR/CRISPR-JAMBOREE) | `crispr-jamboree2` | port | none declared | [`56d31fd4bc`](https://github.com/IGVF-CRISPR/CRISPR-JAMBOREE/tree/56d31fd4bc56966500c30b51b1c9b3923cf5e1b0) |

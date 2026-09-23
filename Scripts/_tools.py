@@ -11235,6 +11235,162 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "alphagenome_setup",
+        "Checks that AlphaGenome can be used here: whether the SDK is importable (it needs Python 3.10+), whether a 3.10+ interpreter with the SDK exists, and whether an API key is configured (never printed). install=true creates that environment; ping=true makes one API call. Run this first when an AlphaGenome tool reports the SDK or key missing.",
+        {"type": "object", "properties": {
+            "install": {**_S_BOOLEAN, "description": "Create a Python 3.10+ environment with the SDK if missing."},
+            "ping": {**_S_BOOLEAN, "description": "Call the API once to confirm the key works."}}},
+        cli=["alphagenome", "setup"],
+        bool_flags={'install', 'ping'},
+    ),
+
+    _T(
+        "alphagenome_metadata",
+        "Lists every track AlphaGenome predicts (output type, assay, ontology CURIE, biosample) so you can pick ontology terms for the other AlphaGenome tools. search filters by tissue/cell-type text (e.g. 'heart', 'hepatocyte'). Writes tracks.tsv, biosamples.tsv and a report.",
+        {"type": "object", "properties": {
+            "search": {**_S_STRING, "description": "Substring of biosample name, CURIE or track name."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "output_type": {**_S_ARRAY_S, "description": "Restrict to output types (RNA_SEQ, DNASE, ATAC, CAGE, CHIP_HISTONE, CHIP_TF, SPLICE_*, CONTACT_MAPS, PROCAP)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "metadata"],
+        flag_map={"output_type": "--output-type"},
+        flag_repeat={'output_type', 'ontology'},
+    ),
+
+    _T(
+        "alphagenome_predict_interval",
+        "Predicts AlphaGenome tracks (expression, accessibility, histone and TF ChIP, splicing, contact maps) over a region or gene, in chosen tissues/cell types. The region is centred in a supported window. Writes a per-track summary TSV (mean/max/sum over the region), a track figure and a report. ontology is required unless all_tracks.",
+        {"type": "object", "properties": {
+            "interval": {**_S_STRING, "description": "Region chr:start-end, 0-based half-open (BED convention)."},
+            "gene": {**_S_STRING, "description": "Gene symbol instead of an interval; coordinates come from the IGVF Catalog."},
+            "outputs": {**_S_ARRAY_S, "description": "Output types to predict, e.g. RNA_SEQ, DNASE."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "length": {**_S_STRING, "default": "1MB", "description": "Prediction window: 16KB, 100KB, 500KB or 1MB (default 1MB, the model's full context)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "all_tracks": {**_S_BOOLEAN, "description": "Return every tissue (large)."},
+            "label": {**_S_STRING, "description": "Short run label."}},
+         "required": ["outputs"]},
+        cli=["alphagenome", "predict-interval"],
+        flag_map={"all_tracks": "--all-tracks"},
+        flag_repeat={'outputs', 'ontology'},
+        bool_flags={'all_tracks'},
+    ),
+
+    _T(
+        "alphagenome_predict_variant",
+        "Predicts REF and ALT tracks for one variant (rsID, SPDI, chr-pos-ref-alt or chr:pos:ref>alt; rsIDs resolved through the IGVF Catalog) and ranks tracks by the ALT vs REF change near the variant. Writes ref_alt_summary.tsv, a REF/ALT overlay figure and a report.",
+        {"type": "object", "properties": {
+            "variant": {**_S_STRING, "description": "The variant, any notation."},
+            "outputs": {**_S_ARRAY_S, "description": "Output types, e.g. RNA_SEQ, DNASE, SPLICE_SITES."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "radius": {**_S_INTEGER, "default": 1000, "description": "Summarise within +/- this many bp of the variant (default 1000)."},
+            "length": {**_S_STRING, "default": "1MB", "description": "Prediction window: 16KB, 100KB, 500KB or 1MB (default 1MB, the model's full context)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "label": {**_S_STRING, "description": "Short run label."}},
+         "required": ["variant", "outputs"]},
+        cli=["alphagenome", "predict-variant"],
+        flag_repeat={'outputs', 'ontology'},
+    ),
+
+    _T(
+        "alphagenome_score_variants",
+        "Scores variant effects with AlphaGenome's recommended variant scorers (or chosen ones: DNASE, ATAC, CHIP_TF, CHIP_HISTONE, CAGE, PROCAP, RNA_SEQ, SPLICE_SITES, SPLICE_SITE_USAGE, SPLICE_JUNCTIONS, POLYADENYLATION, CONTACT_MAPS and *_ACTIVE). Variants in any notation, or a file/VCF; rsIDs resolved through the IGVF Catalog. Writes the tidy score table (raw and quantile scores per track and gene), a per-variant summary and a report of the strongest effects. Use ontology or search to focus on a tissue.",
+        {"type": "object", "properties": {
+            "variants": {**_S_ARRAY_S, "description": "Variants, any notation."},
+            "input": {**_S_STRING, "description": "Path to a file of variants or a VCF."},
+            "scorers": {**_S_ARRAY_S, "description": "Scorer names; default the recommended set."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "search": {**_S_STRING, "description": "Keep rows whose biosample/track/tissue contains this text."},
+            "length": {**_S_STRING, "default": "1MB", "description": "Prediction window: 16KB, 100KB, 500KB or 1MB (default 1MB, the model's full context)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "max_variants": {**_S_INTEGER, "default": 1000, "description": "Safety cap (default 1000)."},
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "score-variants"],
+        flag_map={"max_variants": "--max-variants"},
+        flag_repeat={'ontology', 'scorers', 'variants'},
+    ),
+
+    _T(
+        "alphagenome_score_interval",
+        "Scores a region or gene with AlphaGenome's recommended interval scorers (gene-level expression and other summaries), optionally focused on tissues. Writes interval_scores.tsv and a report.",
+        {"type": "object", "properties": {
+            "interval": {**_S_STRING, "description": "Region chr:start-end, 0-based half-open (BED convention)."},
+            "gene": {**_S_STRING, "description": "Gene symbol instead of an interval; coordinates come from the IGVF Catalog."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "search": {**_S_STRING, "description": "Tissue/biosample text filter."},
+            "length": {**_S_STRING, "default": "1MB", "description": "Prediction window: 16KB, 100KB, 500KB or 1MB (default 1MB, the model's full context)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "score-interval"],
+        flag_repeat={'ontology'},
+    ),
+
+    _T(
+        "alphagenome_ism",
+        "In silico mutagenesis: scores every alternative base at every position of a short interval (3 variants per bp, capped at max_bp) with AlphaGenome and reports the most sensitive positions. Writes ism_scores.tsv, a position x base matrix, a heatmap and a report.",
+        {"type": "object", "properties": {
+            "ism_interval": {**_S_STRING, "description": "chr:start-end to mutate, 0-based half-open (keep it short)."},
+            "scorer": {**_S_ARRAY_S, "description": "Scorer name(s), e.g. DNASE; default recommended set."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "search": {**_S_STRING, "description": "Tissue text filter."},
+            "length": {**_S_STRING, "default": "1MB", "description": "Prediction window: 16KB, 100KB, 500KB or 1MB (default 1MB, the model's full context)."},
+            "max_bp": {**_S_INTEGER, "default": 100, "description": "Width cap (default 100 bp)."},
+            "organism": {**_S_STRING, "default": "HOMO_SAPIENS", "description": "HOMO_SAPIENS (hg38, default) or MUS_MUSCULUS (mm10)."},
+            "label": {**_S_STRING, "description": "Short run label."}},
+         "required": ["ism_interval"]},
+        cli=["alphagenome", "ism"],
+        flag_map={"ism_interval": "--ism-interval", "max_bp": "--max-bp"},
+        flag_repeat={'scorer', 'ontology'},
+    ),
+
+    _T(
+        "alphagenome_atlas_scorers",
+        "Lists the scorers available in the AlphaGenome Atlas, the pre-computed genome-wide variant-effect resource (including the AlphaGenome Variant Impact score).",
+        {"type": "object", "properties": {
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "atlas-scorers"],
+    ),
+
+    _T(
+        "alphagenome_atlas_variants",
+        "Looks up pre-computed AlphaGenome Atlas scores (including AVI) for variants in any notation, without running the model, so it is faster and suits more variants than score_variants. Optional scorer, ontology and gene filters. Writes atlas_scores.tsv and a report.",
+        {"type": "object", "properties": {
+            "variants": {**_S_ARRAY_S, "description": "Variants, any notation."},
+            "input": {**_S_STRING, "description": "File of variants or VCF."},
+            "scorers": {**_S_ARRAY_S, "description": "Atlas scorer names; default all (see alphagenome_atlas_scorers)."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "genes": {**_S_ARRAY_S, "description": "Restrict gene-level scores to these gene symbols."},
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "atlas-variants"],
+        flag_repeat={'ontology', 'genes', 'scorers', 'variants'},
+    ),
+
+    _T(
+        "alphagenome_atlas_interval",
+        "Retrieves pre-computed AlphaGenome Atlas scores for every possible variant in a region or gene (3 per bp, capped at max_bp). Writes atlas_scores.tsv and a report of the strongest effects.",
+        {"type": "object", "properties": {
+            "interval": {**_S_STRING, "description": "Region chr:start-end, 0-based half-open (BED convention)."},
+            "gene": {**_S_STRING, "description": "Gene symbol instead of an interval; coordinates come from the IGVF Catalog."},
+            "scorers": {**_S_ARRAY_S, "description": "Atlas scorer names; default all."},
+            "ontology": {**_S_ARRAY_S, "description": "Ontology CURIEs to restrict tracks, e.g. UBERON:0000948 (heart), UBERON:0002107 (liver), CL:0000746 (cardiac muscle cell). Find them with alphagenome_metadata."},
+            "genes": {**_S_ARRAY_S, "description": "Gene symbols for gene-level scores."},
+            "max_bp": {**_S_INTEGER, "default": 20000, "description": "Width cap (default 20000 bp)."},
+            "label": {**_S_STRING, "description": "Short run label."}}},
+        cli=["alphagenome", "atlas-interval"],
+        flag_map={"max_bp": "--max-bp"},
+        flag_repeat={'genes', 'scorers', 'ontology'},
+    ),
+
+    _T(
+        "alphagenome_selftest",
+        "Runs the AlphaGenome skill's offline self-test (notation parsing, coordinates, credentials handling and every subcommand against a fake backend). Needs no key and no network.",
+        {"type": "object", "properties": {
+}},
+        cli=["alphagenome", "selftest"],
+    ),
+
+    _T(
         "sce2g_selftest",
         "Self-test of the scE2G workbench on a fake checkout and synthetic "
         "feature / prediction / CRISPR files: patches, config rows, checks and "

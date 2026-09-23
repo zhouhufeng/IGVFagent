@@ -308,6 +308,26 @@
       "notes": "MIT. NB GLM + alpha-RRA reimplemented from the method description."
     },
     {
+      "repo": "google-deepmind/alphagenome",
+      "skills": [
+        "alphagenome"
+      ],
+      "modules": [
+        "alphagenome_skill.py"
+      ],
+      "license": "Apache-2.0",
+      "relationship": "wraps-sdk",
+      "pinned": {
+        "ref": "b9fb2a179efb8ed7013d4ffc6d00d26a9ed444e4",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-09-18T09:46:58Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Wraps the official AlphaGenome API client (alphagenome 0.9.0): dna_client predict_interval/predict_variant/score_variants/score_interval/score_ism_variants/output_metadata and the Atlas client (query_variants/query_interval/scorer_metadata). Nothing is reimplemented; the model runs on Google's service under the AlphaGenome Terms (non-commercial, no training on outputs, no clinical use). IGVF-side: rsID and gene resolution through the IGVF Catalog, notation parsing, window centring, tidy TSVs, reports and figures. Visualization and the colab tutorials are not wrapped."
+    },
+    {
       "repo": "hbliu/Open4Gene",
       "skills": [
         "open4gene"

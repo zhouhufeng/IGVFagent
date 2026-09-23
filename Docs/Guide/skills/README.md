@@ -1,6 +1,6 @@
 # Skills
 
-IGVFagent has 115 skills exposing 580 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
+IGVFagent has 116 skills exposing 591 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
 
 **On this page**
 
@@ -99,7 +99,7 @@ Direct `python3 Scripts/<module>.py` invocations are listed in [`Scripts/README.
 
 ## All skills
 
-All 115 `igvfagent` skills, generated from the `SKILLS` registry in [`Scripts/cli.py`](../../../Scripts/cli.py). Run `igvfagent <skill> --help` for its subcommands and options, or `igvfagent tools` for the typed tools the agent calls.
+All 116 `igvfagent` skills, generated from the `SKILLS` registry in [`Scripts/cli.py`](../../../Scripts/cli.py). Run `igvfagent <skill> --help` for its subcommands and options, or `igvfagent tools` for the typed tools the agent calls.
 
 ### Finding and retrieving data
 
@@ -130,6 +130,7 @@ All 115 `igvfagent` skills, generated from the `SKILLS` registry in [`Scripts/cl
 
 | Skill | What it does | Documented in | Module |
 |---|---|---|---|
+| `alphagenome` | AlphaGenome (google-deepmind/alphagenome): predictions, variant scores, ISM and Atlas scores, with IGVF Catalog rsID/gene resolution | [AlphaGenome predictions and Atlas scores (`alphagenome`)](variants.md#alphagenome-predictions-and-atlas-scores-alphagenome) | [`alphagenome_skill.py`](../../../Scripts/alphagenome_skill.py) |
 | `advanced-variant` | Integrated variant scoring + logistic + report | [Advanced variant analysis](variants.md#advanced-variant-analysis) | [`advanced_variant_analysis.py`](../../../Scripts/advanced_variant_analysis.py) |
 | `calibrate` | Functional-assay calibration to ACMG/AMP evidence — clean-room reimpl of rosstewart/exCALIBR (Zeiberg et al. bioRxiv 2025). Bootstrap constrained skew-normal mixture EM + Bayesian (Tavtigian) calibration turns MAVE / VAMP-seq / SGE scores into PS3 / BS3 evidence strengths. Subcommands: thresholds, prepare, run, assign, selftest. | [Assay calibration → ACMG/AMP evidence (exCALIBR)](variants.md#assay-calibration--acmgamp-evidence-excalibr) | [`excalibr_skill.py`](../../../Scripts/excalibr_skill.py) |
 | `ccre` | cCRE / FAVOR / linkage annotations (variant-level) | [cCRE, FAVOR, IGV-style browser views](variants.md#ccre-favor-igv-style-browser-views) | [`ccre_linkage_annotation_skills.py`](../../../Scripts/ccre_linkage_annotation_skills.py) |
