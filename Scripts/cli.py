@@ -236,6 +236,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Port of EngreitzLab/generate-principal-pseudobulks: "
                           "IGVF multiome QC guide, filtered fragments, "
                           "gene-symbol RNA matrix and scE2G config per cluster."),
+    "e2g-qc-predictions": ("igvfagent.e2g_qc_predictions_skill",
+                          "Port of kaybrand/QC-and-Predictions: E2G cluster QC "
+                          "gate, filtering, scE2G output reformatting, QC "
+                          "stats, Cell Annotation cache and dry-run-first IGVF "
+                          "Portal submission."),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "

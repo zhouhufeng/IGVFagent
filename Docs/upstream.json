@@ -710,14 +710,23 @@
     },
     {
       "repo": "kaybrand/QC-and-Predictions",
-      "skills": [],
+      "skills": [
+        "e2g-qc-predictions"
+      ],
       "modules": [
         "e2g_qc_predictions_skill.py"
       ],
-      "license": "",
-      "relationship": "unclassified",
-      "pinned": null,
-      "notes": ""
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "c647bdbb9b6843f07034683fb2c10034f9c4dfc0",
+        "kind": "commit",
+        "branch": "igvf-portal-submission",
+        "upstream_date": "2026-08-29T03:49:06Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "All workflow rules, Python/R scripts, configs and igvf_cell_annotation_report of igvf-portal-submission ported; CATlas-predictions (e5e2799c: atac_frag_file prefiltered clusters, prefiltered metrics, WashU report / fragment verification / Cell Annotation seed, scATAC list reformatting, distance-vs-depth figures) and synapse-submission (92968bb2: legacy SampleSummaryShort format, implicit stats source, lenient/--clean ATAC filter, first-match Synapse keys) as flags. scE2G itself is sce2g-pipeline (not re-run here); Snakemake orchestration, Slurm/sbatch, flock/Lustre workarounds and the SQLite WAL snapshot mechanics are replaced by the Python driver; iu_register.py calls are replaced by direct REST POST/PATCH (dry-run default, sandbox target); Synapse sync needs synapseclient."
     },
     {
       "repo": "kaybrand/scE2G",

@@ -108,6 +108,7 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **E2G QC, predictions and IGVF Portal submission** | Port of kaybrand/QC-and-Predictions: cluster QC gate, filtering, portal-format scE2G products, Cell Annotation cache and a dry-run-first eleven-table IGVF Portal submission (sandbox on --execute). |
 | **Principal pseudobulks** | `principal-pseudobulks` ports EngreitzLab/generate-principal-pseudobulks: IGVF accession to QC-filtered per-cluster fragments, RNA matrices and scE2G config, spec-validated. |
 | **Processed-first IGVF Portal lineage** | New `processed lineage` / `processed fetch` (`portal_lineage`, `processed_fetch`): from any accession, a directed walk of every Portal link. That covers analysis, principal, pseudobulk, model and prediction sets, the multiome partner, auxiliary sets, sample barcode maps, seqspecs and the published QC metrics. It gives a start-here table of processed files per product, with access and the Portal's own QC. The agent now calls it first, and `explain --download` fetches processed results instead of raw reads. |
 | **4th CRISPR Jamboree benchmark** | The 2025 jamboree task: pairs preparation, sceptre / PerTurbo (plus glm.nb) inference, the pipeline's merged per-guide and per-element outputs, and AUPRC / AUROC against the control pairs across datasets. |
@@ -2989,6 +2990,23 @@ igvfagent sce2g-pipeline run --cluster-config multiome_data/config/tables/igvf1_
 ```
 
 Agent tools: `principal_pseudobulks_fetch`, `principal_pseudobulks_build`, `principal_pseudobulks_qc_datatable`, `principal_pseudobulks_explore`, `principal_pseudobulks_qc_filter`, `principal_pseudobulks_filter_atac`, `principal_pseudobulks_filter_rna`, `principal_pseudobulks_package_rna`, `principal_pseudobulks_config_table`, `principal_pseudobulks_run`, `principal_pseudobulks_validate`, `principal_pseudobulks_sce2g_prep`, `principal_pseudobulks_selftest`.
+
+### E2G QC, predictions and IGVF Portal submission (`e2g-qc-predictions`)
+
+Port of [kaybrand/QC-and-Predictions](https://github.com/kaybrand/QC-and-Predictions) (MIT), the IGVF E2G Pillar pipeline that takes QC-filtered pseudobulk clusters to shareable scE2G enhancer-gene products. Every step is rewritten in Python: the parse-time quality gate (100 cells, 2e6 fragments, 1e6 UMIs; merged, prefiltered and CATlas clusters), ATAC / RNA filtering with full-barcode matching and GTF symbol collapse, scE2G configs, portal-format reformatting (metadata header, consortium column order, element BED and bedpe with bgzip + tabix), candidate and feature tables, dataset-wide QC aggregation and plots, the IGVF Portal Cell Annotation cache and cell annotation report, file discovery and archive comparison, Synapse manifests, and the CATlas distance-vs-depth analysis. scE2G itself runs through `sce2g-pipeline`, whose QC statistics and figures are reused.
+
+The IGVF submission builds all eleven metadata tables (fifteen files per cluster: principal pseudobulk set, prediction set, filtered barcode list, ATAC fragments and index, RNA matrix, five prediction tabular files, ATAC bigWig, two index files, QC document) with the upstream aliases, links and controlled vocabulary, orders them in dependency rounds, validates required fields, resolves external references against the Portal graph, and writes iu_register TSVs, REST payloads and `upload_plan.json`. It is a dry run by default; `--execute` POSTs / PATCHes in round order to the IGVF sandbox (`--production` for the real Portal) with `IGVF_ACCESS_KEY` / `IGVF_SECRET_ACCESS_KEY` from the environment. The `synapse-submission` and `CATlas-predictions` branch variants are available as flags.
+
+```bash
+igvfagent e2g-qc-predictions resolve-exclusions --config igvf0_pipeline_config.yaml
+igvfagent e2g-qc-predictions cell-metadata --config igvf0_pipeline_config.yaml
+igvfagent e2g-qc-predictions run --config igvf0_pipeline_config.yaml --label igvf0
+igvfagent e2g-qc-predictions manifest --config igvf0_pipeline_config.yaml --cluster-keys igvf0 --lineage
+igvfagent e2g-qc-predictions manifest --config igvf0_pipeline_config.yaml --cluster-keys igvf0 --execute   # sandbox
+igvfagent e2g-qc-predictions selftest --no-plots
+```
+
+Agent tools: `e2g_qc_resolve_exclusions`, `e2g_qc_merge_metrics`, `e2g_qc_prefiltered_metrics`, `e2g_qc_build_qc_datatables`, `e2g_qc_filter_atac`, `e2g_qc_filter_rna`, `e2g_qc_package_rna`, `e2g_qc_sce2g_config`, `e2g_qc_reformat`, `e2g_qc_candidates`, `e2g_qc_features`, `e2g_qc_aggregate_qc`, `e2g_qc_stale_reformats`, `e2g_qc_cell_metadata`, `e2g_qc_cell_annotation_report`, `e2g_qc_dataset_accessions`, `e2g_qc_washu_report`, `e2g_qc_verify_fragments`, `e2g_qc_portal_files`, `e2g_qc_compare_archive`, `e2g_qc_manifest`, `e2g_qc_patch_submitter_comment`, `e2g_qc_report`, `e2g_qc_synapse_manifest`, `e2g_qc_synapse_orphans`, `e2g_qc_distance_depth`, `e2g_qc_run`, `e2g_qc_selftest`.
 
 ### Single-cell CRISPR differential expression (`sc-crispr-de`)
 
