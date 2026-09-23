@@ -108,6 +108,7 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **Principal pseudobulks** | `principal-pseudobulks` ports EngreitzLab/generate-principal-pseudobulks: IGVF accession to QC-filtered per-cluster fragments, RNA matrices and scE2G config, spec-validated. |
 | **Processed-first IGVF Portal lineage** | New `processed lineage` / `processed fetch` (`portal_lineage`, `processed_fetch`): from any accession, a directed walk of every Portal link. That covers analysis, principal, pseudobulk, model and prediction sets, the multiome partner, auxiliary sets, sample barcode maps, seqspecs and the published QC metrics. It gives a start-here table of processed files per product, with access and the Portal's own QC. The agent now calls it first, and `explain --download` fetches processed results instead of raw reads. |
 | **4th CRISPR Jamboree benchmark** | The 2025 jamboree task: pairs preparation, sceptre / PerTurbo (plus glm.nb) inference, the pipeline's merged per-guide and per-element outputs, and AUPRC / AUROC against the control pairs across datasets. |
 | **3rd CRISPR Jamboree pipeline** | The jamboree-3 IGVF single-cell Perturb-seq pipeline as 14 Python stages (configuration to dashboard) plus an end-to-end `run`, with the upstream quirks fixed and reproducible via `--upstream-compat`. |
@@ -2972,6 +2973,22 @@ igvfagent crispr-jamboree4 selftest --no-plots
 ```
 
 Agent tools: `crispr_jamboree4_prepare`, `crispr_jamboree4_infer`, `crispr_jamboree4_merge`, `crispr_jamboree4_evaluate`, `crispr_jamboree4_run`.
+
+### Principal pseudobulks (`principal-pseudobulks`)
+
+A Python port of [EngreitzLab/generate-principal-pseudobulks](https://github.com/EngreitzLab/generate-principal-pseudobulks) (MIT, pinned at 80222cc), the pipeline that turns IGVF multiome primary pseudobulks into released principal pseudobulks. It covers every step: the per-cell QC datatable, threshold exploration (cells dropped per threshold in total and alone), the final QC filter with its QC guide, threshold record, per-subsample metrics and PNG QC figures, ATAC fragment filtering (sorted, bgzip + tabix), the gene-symbol RNA count matrix (GENCODE 43 GTF, standard chromosomes, duplicate symbols summed, hard failure on unmatched IDs), the per-dataset config table, and the Snakefile driver. It runs without Snakemake, R, bedops or htslib. `validate` checks outputs against both upstream file specs.
+
+It starts from an IGVF accession rather than prebuilt directories. `fetch` walks the Portal lineage, processed-first, to the principal analysis set's cell annotations and each uniform-pipeline lane's fragments and h5ad, within a download budget. `build-pseudobulks` then builds the primary pseudobulk layout, with lane-suffixed barcodes, ATAC-to-RNA multiome barcode translation and per-cell QC. The per-dataset config table feeds `sce2g-pipeline run --cluster-config` directly, and `sce2g-prep` adds the tagAlign and RNA pseudobulk TPM.
+
+```bash
+igvfagent principal-pseudobulks fetch --accession IGVFDS1244UUGQ --dry-run --max-gb 20
+igvfagent principal-pseudobulks build-pseudobulks --annotations cells.tsv --manifest portal_manifest.tsv --dataset igvf1 --tss tss.bed --peaks peaks.bed
+igvfagent principal-pseudobulks explore --meta k562_per_cell_qc.tsv --sets "--tss-min 3" "--tss-min 5 --pct-mt-max 20" --show-subsamples
+igvfagent principal-pseudobulks run --config config_QC_pseudobulks.yaml --auto-qc
+igvfagent sce2g-pipeline run --cluster-config multiome_data/config/tables/igvf1_config.tsv
+```
+
+Agent tools: `principal_pseudobulks_fetch`, `principal_pseudobulks_build`, `principal_pseudobulks_qc_datatable`, `principal_pseudobulks_explore`, `principal_pseudobulks_qc_filter`, `principal_pseudobulks_filter_atac`, `principal_pseudobulks_filter_rna`, `principal_pseudobulks_package_rna`, `principal_pseudobulks_config_table`, `principal_pseudobulks_run`, `principal_pseudobulks_validate`, `principal_pseudobulks_sce2g_prep`, `principal_pseudobulks_selftest`.
 
 ### Single-cell CRISPR differential expression (`sc-crispr-de`)
 

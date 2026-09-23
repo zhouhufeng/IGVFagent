@@ -186,6 +186,26 @@
       "notes": "Snakemake + R + bedtools pipeline (ENCODE-rE2G / scE2G papers' eQTL benchmark). Every rule re-derived in pandas/numpy/scipy in eqtl_enrichment_skill.py: distal-noncoding filter via the hg38 partition, PIP filter, TSS-distance bins, gene universe, quantile threshold span, count matrices, enrichment (log-RR CI, hypergeometric p, Bonferroni), recall total/linking, all_matches aggregation, enrichment-recall curves, enrichment at recall with pairwise z-tests, enhancer set sizes, heatmaps. Resource files fetched from this commit by `setup`. Two upstream quirks (SE formula parenthesisation; unthresholded by-distance background / all-bin counts) are corrected by default and reproducible with --upstream-compat."
     },
     {
+      "repo": "EngreitzLab/generate-principal-pseudobulks",
+      "skills": [
+        "principal-pseudobulks"
+      ],
+      "modules": [
+        "principal_pseudobulks_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "80222ccfc026af86fe346f2d2a5992efb1e68cdd",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-18T02:42:22Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Ported every file: build_per_cell_qc_datatable.py (qc-datatable), explore_qc_thresholds.R (explore: >=/<= semantics, Total/Alone, always-shown thresholds, --sets, per-subsample table), plot_per_cell_qc.R (qc-filter: strict inequalities, gene_min default 0, QC guide / qc_thresholds.tsv / filtered_cell_subsample_metrics.tsv, all 20 ggplot panels + 3 bar charts as PNG), filter_atac_fragments.py (full-barcode match, 5-field check, missing-barcode error, chrom-sizes drop + order, sort-bed order, bgzip/tabix via pysam), filter_rna_counts.py (GTF exact versioned mapping, conflicts, unmatched hard failure, standard chromosomes, symbol collapse, sanity checks, csv/h5ad/mtx, mapping log), Snakefile (run, determine_mem_mb, make_config_table), config template (YAML parser without pyyaml), reference chrom sizes (embedded), both FILE_SPECs (validate, package-rna). Added: processed-first Portal fetch via portal_lineage + portal_download, build-pseudobulks from Portal files (lane-suffixed barcodes, ATAC->RNA map, Seurat/Signac-style per-cell QC; clean-room since upstream takes primary pseudobulks as given), sce2g-prep reusing sce2g_pipeline_skill. Deviations: integer MatrixMarket field per spec (--upstream-compat: real), config model_dir uses embedded sce2g model names (--upstream-compat: models/ paths), README-only --clean flag implemented, all-NA metric columns skipped (--upstream-compat: drop all). Not ported: conda env files (dependencies only)."
+    },
+    {
       "repo": "EngreitzLab/GWAS_E2G_benchmarking",
       "skills": [
         "gwas-e2g"
@@ -687,6 +707,17 @@
         "pinned_at": "2026-09-17"
       },
       "notes": "MIT upstream MCP server; wire contract re-derived to stay stdlib-only."
+    },
+    {
+      "repo": "kaybrand/QC-and-Predictions",
+      "skills": [],
+      "modules": [
+        "e2g_qc_predictions_skill.py"
+      ],
+      "license": "",
+      "relationship": "unclassified",
+      "pinned": null,
+      "notes": ""
     },
     {
       "repo": "kaybrand/scE2G",

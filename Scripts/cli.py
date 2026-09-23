@@ -232,6 +232,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "jamboree): checkpointed sceptre / PerTurbo "
                           "inference, mergedResults outputs and the AUPRC/AUROC "
                           "control-set evaluation."),
+    "principal-pseudobulks": ("igvfagent.principal_pseudobulks_skill",
+                          "Port of EngreitzLab/generate-principal-pseudobulks: "
+                          "IGVF multiome QC guide, filtered fragments, "
+                          "gene-symbol RNA matrix and scE2G config per cluster."),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "

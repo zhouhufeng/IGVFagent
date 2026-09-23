@@ -602,7 +602,8 @@ def build_plan(g: Graph, wants: "Optional[list[str]]" = None, have_credentials: 
             r.pop("_product", None)
         ranked[p] = lst
     raw = [f for f in files.values() if f.get("product") == "raw_reads"
-           and (sets.get(f.get("file_set") or "", {}).get("relation") in ("root", "family"))]
+           and (sets.get(f.get("file_set") or "", {}).get("relation") in ("root", "family", "up"))
+           and sets.get(f.get("file_set") or "", {}).get("type") in ("MeasurementSet", "AuxiliarySet")]
     raw_by_set: "dict[str, dict]" = defaultdict(lambda: {"n": 0, "gb": 0.0, "controlled": 0})
     for f in raw:
         k = sets.get(f.get("file_set") or "", {}).get("accession") or _acc(f.get("file_set") or "")
