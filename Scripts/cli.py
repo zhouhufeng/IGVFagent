@@ -132,6 +132,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "scnt-seq":         ("igvfagent.scnt_seq_skill",
                           "scNT-seq: split new from old RNA by 4sU T>C "
                           "metabolic-labelling conversions"),
+    "eqtl-enrich":      ("igvfagent.eqtl_enrichment_skill",
+                          "eQTL enrichment benchmark for E2G predictors (port "
+                          "of EngreitzLab/eQTLEnrichment): distal-noncoding "
+                          "fine-mapped eQTLs vs 1000G background, enrichment / "
+                          "recall (total, linking) across thresholds and "
+                          "distance bins, enrichment-recall curves, heatmaps"),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "
@@ -155,9 +161,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "CRISPResso2 — genome-editing outcomes from amplicon "
                           "reads (indels, substitutions, base-editing)"),
     "tf-perturb":       ("igvfagent.tf_perturb_seq_skill",
-                          "IGVF TF Perturb-seq calibrated cis/trans results -> "
-                          "disease & GWAS overlay (port of tf_perturb_seq WG3 "
-                          "notebook)"),
+                          "IGVF TF Perturb-seq core (port of IGVF/tf_perturb_seq): "
+                          "Stage-3 QC, DEG calibration, pathways, cell/guide "
+                          "filters, energy-distance pipeline, cNMF export, "
+                          "cross-dataset summaries, WG3 disease & GWAS overlay"),
     "sc-crispr-de":     ("igvfagent.sc_crispr_de_skill",
                           "Single-cell CRISPR differential expression: "
                           "per-guide negative-binomial GLM against no-guide "

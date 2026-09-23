@@ -2516,6 +2516,71 @@ optional, and the enrichment counts catalog associations exactly as upstream
 does, with that caveat stated in the report. Agent tools:
 `tf_perturb_seq_analyze`, `tf_perturb_seq_selftest`.
 
+The rest of the [tf_perturb_seq](https://github.com/IGVF/tf_perturb_seq) package is
+ported as stage subcommands of the same CLI, so a screen can be taken from the
+IGVF CRISPR pipeline's `inference_mudata.h5mu` to calibrated tables without the
+consortium's Synapse/Slurm wrappers:
+
+```bash
+igvfagent tf-perturb qc-gene   --mudata inference_mudata.h5mu       # Stage-3 gene-mapping QC
+igvfagent tf-perturb qc-guide  --mudata inference_mudata.h5mu       # guide capture / guides per cell
+igvfagent tf-perturb qc-target --mudata inference_mudata.h5mu       # knockdown, AUROC/AUPRC vs non-targeting
+igvfagent tf-perturb calibrate --trans-results perturbo_trans_per_element_output.tsv \
+    --mudata inference_mudata.h5mu --prefix run1 --method t-fit     # empirical p, BH, cis/trans tables
+igvfagent tf-perturb pathways  --calibrated run1_calibrated_trans_results.tsv --gmt h.all.gmt --prefix run1
+igvfagent tf-perturb filter-cells --mudata in.h5mu --out out.h5mu --max-guides 15
+igvfagent tf-perturb edist-prep --mudata in.h5mu --out-dir edist/   # energy distance: PCA + guide dict
+igvfagent tf-perturb edist-filter --prep-dir edist/                 # DISCO / hypergeometric / K-means outliers
+igvfagent tf-perturb edist --prep-dir edist/                        # per-target E-distance vs NT backgrounds
+igvfagent tf-perturb filter-guides --mudata in.h5mu --out out.h5mu \
+    --targeting-outliers edist/targeting_outlier_table.csv --non-targeting-outliers edist/non_targeting_outlier_table.csv
+igvfagent tf-perturb cnmf-export --mudata in.h5mu --out-h5ad perturbnmf.h5ad
+igvfagent tf-perturb selftest --no-plots                            # WG3 + every stage on a planted h5mu
+```
+
+The energy-distance stages are a CPU rewrite of
+[Chikara-Takeuchi/energy_dist_pipeline](https://github.com/Chikara-Takeuchi/energy_dist_pipeline)
+that writes the same `pval_edist_full.csv` schema; `edist-validate`,
+`edist-summary`, `cnmf-validate` and `pipeline-summary` check and roll up
+outputs from either implementation. The self-test builds a 600-cell h5mu with a
+planted TF knockdown and a shifted non-targeting guide, and every stage
+recovers them. Agent tools: `tf_perturb_qc_gene`, `tf_perturb_qc_guide`,
+`tf_perturb_qc_target`, `tf_perturb_calibrate`, `tf_perturb_pathways`,
+`tf_perturb_filter_cells`, `tf_perturb_filter_guides`, `tf_perturb_edist_prep`,
+`tf_perturb_edist_filter`, `tf_perturb_edist`, `tf_perturb_edist_summary`,
+`tf_perturb_edist_validate`, `tf_perturb_cnmf_export`,
+`tf_perturb_cnmf_validate`, `tf_perturb_pipeline_summary`.
+
+### eQTL enrichment benchmark for enhancer-gene predictors (`eqtl-enrich`)
+
+Port of [EngreitzLab/eQTLEnrichment](https://github.com/EngreitzLab/eQTLEnrichment),
+the eQTL benchmark of the ENCODE-rE2G and scE2G papers. It asks whether a
+predictor's enhancers are enriched for fine-mapped eQTL variants against 1000G
+SNPs, and whether they link those variants to the right eGene. Every rule is
+re-derived in pandas/numpy/scipy with no bedtools dependency. Variants and
+background SNPs are restricted to distal noncoding regions. Enrichment has
+log risk-ratio CIs and hypergeometric p-values. Recall is reported both as
+total and as linking to the eGene, across a quantile threshold span and by
+eVariant-eGene distance bin. The run also writes aggregated all-matches
+curves, enrichment at target recalls with pairwise tests, enhancer set sizes
+and heatmaps.
+
+```bash
+igvfagent eqtl-enrich setup --synapse            # resources + background SNPs + GTEx SuSiE release
+igvfagent eqtl-enrich prepare-gtex --raw GTEx_30tissues_release1.tsv.gz \
+    --expression GTEx_median_tpm.gct.gz --out gtex.eqtl.tsv.gz
+igvfagent eqtl-enrich run --methods-table methods.tsv --predictions-table predictions.tsv \
+    --eqtl gtex.eqtl.tsv.gz --bg-variants all.bg.SNPs.hg38.baseline.v1.1.bed.sorted --label k562_blood
+igvfagent eqtl-enrich selftest
+```
+
+Two upstream quirks are fixed by default and reproducible with
+`--upstream-compat`. The first is the misplaced square root in the SE of the
+log enrichment. The second is the unthresholded background counts in the
+by-distance tables. Agent tools: `eqtl_enrichment_setup`,
+`eqtl_enrichment_prepare_gtex`, `eqtl_enrichment_variants`,
+`eqtl_enrichment_run`, `eqtl_enrichment_selftest`.
+
 ### Single-cell CRISPR differential expression (`sc-crispr-de`)
 
 Per-guide differential expression for **Perturb-seq / single-cell CRISPRi

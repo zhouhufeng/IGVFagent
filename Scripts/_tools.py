@@ -3935,6 +3935,261 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "tf_perturb_qc_gene",
+        "★ TF PERTURB-SEQ STAGE 3 QC: GENE MAPPING ★ on inference_mudata.h5mu "
+        "(IGVF CRISPR pipeline output): per-cell UMIs, genes detected and mito % "
+        "(median / mean / sd / quartiles), overall and per batch; histograms and knee "
+        "plot. Port of tf_perturb_seq/qc/mapping_gene.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "batch_col": {**_S_STRING, "default": 'batch'},
+            "prefix": {**_S_STRING, "default": 'gene'},
+            "label": {**_S_STRING},
+            "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ['mudata']},
+        cli=['tf-perturb', 'qc-gene'],
+        flag_map={"mudata": "--mudata", "batch_col": "--batch-col", "prefix": "--prefix", "label": "--label"},
+        bool_flags={'no_plots'},
+    ),
+
+    _T(
+        "tf_perturb_qc_guide",
+        "★ TF PERTURB-SEQ STAGE 3 QC: GUIDE MAPPING ★: guide UMIs per cell, guides "
+        "assigned per cell, cells per guide, fraction of cells with a guide, and a "
+        "per-guide capture table (detected / assigned cells, UMI stats). Port of "
+        "tf_perturb_seq/qc/mapping_guide.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "batch_col": {**_S_STRING, "default": 'batch'},
+            "prefix": {**_S_STRING, "default": 'guide'},
+            "label": {**_S_STRING},
+            "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ['mudata']},
+        cli=['tf-perturb', 'qc-guide'],
+        flag_map={"mudata": "--mudata", "batch_col": "--batch-col", "prefix": "--prefix", "label": "--label"},
+        bool_flags={'no_plots'},
+    ),
+
+    _T(
+        "tf_perturb_qc_target",
+        "★ TF PERTURB-SEQ STAGE 3 QC: INTENDED-TARGET KNOCKDOWN ★ from the pipeline's "
+        "trans_per_guide_results: strong knockdowns (fold change <= 0.4), significant "
+        "tests, median log2FC, and the AUROC / AUPRC of targeting-vs-non-targeting "
+        "guides on a balanced evaluation table (CRISPR_Pipeline evaluate_controls "
+        "convention). Volcano + ROC/PR plots. Port of qc/intended_target.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "results_key": {**_S_STRING, "default": 'trans_per_guide_results'},
+            "fc_threshold": {**_S_NUMBER, "default": 0.4},
+            "pval_threshold": {**_S_NUMBER, "default": 0.05},
+            "prefix": {**_S_STRING, "default": 'intended_target'},
+            "label": {**_S_STRING},
+            "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ['mudata']},
+        cli=['tf-perturb', 'qc-target'],
+        flag_map={"mudata": "--mudata", "results_key": "--results-key", "fc_threshold": "--fc-threshold", "pval_threshold": "--pval-threshold", "prefix": "--prefix", "label": "--label"},
+        bool_flags={'no_plots'},
+    ),
+
+    _T(
+        "tf_perturb_calibrate",
+        "★ TF PERTURB-SEQ DEG CALIBRATION ★: empirical p-values for PerTurbo per-element "
+        "results (perturbo_trans_per_element_output.tsv) against the non-targeting "
+        "null -- z = log2FC / SE, eCDF or t-fit -- BH on targeting tests only, cis "
+        "(same chromosome within --cis-window) and direct-target annotation, then the "
+        "four calibrated tables (all / direct_target / cis / trans) that "
+        "tf_perturb_seq_analyze reads. Port of tf_perturb_seq/inference/calibrate.py.",
+        {"type": "object", "properties": {
+            "trans_results": {**_S_STRING, "description": 'perturbo_trans_per_element_output.tsv(.gz)'},
+            "mudata": {**_S_STRING},
+            "prefix": {**_S_STRING, "description": 'output prefix, e.g. <dataset>_<run>'},
+            "method": {**_S_STRING, "default": 't-fit', "description": 'ecdf or t-fit'},
+            "cis_window": {**_S_INTEGER, "default": 100000},
+            "label": {**_S_STRING}},
+         "required": ['trans_results', 'mudata', 'prefix']},
+        cli=['tf-perturb', 'calibrate'],
+        flag_map={"trans_results": "--trans-results", "mudata": "--mudata", "prefix": "--prefix", "method": "--method", "cis_window": "--cis-window", "label": "--label"},
+    ),
+
+    _T(
+        "tf_perturb_pathways",
+        "★ TF PERTURB-SEQ PATHWAYS ★: per perturbed element, Fisher over-representation of "
+        "its significant DEGs (calibrated FDR < --fdr) in GMT gene sets (MSigDB, GO, "
+        "KEGG), BH per element. Port of tf_perturb_seq/inference/pathways.py.",
+        {"type": "object", "properties": {
+            "calibrated": {**_S_STRING, "description": '<prefix>_calibrated_trans_results.tsv or all_results'},
+            "gmt": {**_S_STRING},
+            "prefix": {**_S_STRING},
+            "fdr": {**_S_NUMBER, "default": 0.1},
+            "min_genes": {**_S_INTEGER, "default": 3},
+            "label": {**_S_STRING}},
+         "required": ['calibrated', 'gmt', 'prefix']},
+        cli=['tf-perturb', 'pathways'],
+        flag_map={"calibrated": "--calibrated", "gmt": "--gmt", "prefix": "--prefix", "fdr": "--fdr", "min_genes": "--min-genes", "label": "--label"},
+    ),
+
+    _T(
+        "tf_perturb_filter_cells",
+        "Drop cells carrying more than N assigned guides from an inference_mudata.h5mu "
+        "(reads the assignment layer directly from HDF5). Port of "
+        "scripts/filter_mudata_by_sgrna_count.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "out": {**_S_STRING, "description": 'output .h5mu'},
+            "max_guides": {**_S_INTEGER, "default": 15}},
+         "required": ['mudata', 'out']},
+        cli=['tf-perturb', 'filter-cells'],
+        flag_map={"mudata": "--mudata", "out": "--out", "max_guides": "--max-guides"},
+    ),
+
+    _T(
+        "tf_perturb_filter_guides",
+        "Drop outlier guides (BH on the energy-distance outlier tables' pval_outlier) and "
+        "every cell that received one, recomputing per-cell guide counts. Port of "
+        "scripts/filter_outlier_guides.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "out": {**_S_STRING},
+            "targeting_outliers": {**_S_STRING},
+            "non_targeting_outliers": {**_S_STRING},
+            "fdr": {**_S_NUMBER, "default": 0.05}},
+         "required": ['mudata', 'out', 'targeting_outliers', 'non_targeting_outliers']},
+        cli=['tf-perturb', 'filter-guides'],
+        flag_map={"mudata": "--mudata", "out": "--out", "targeting_outliers": "--targeting-outliers", "non_targeting_outliers": "--non-targeting-outliers", "fdr": "--fdr"},
+    ),
+
+    _T(
+        "tf_perturb_edist_prep",
+        "★ TF PERTURB-SEQ ENERGY DISTANCE, STEP 0 ★: normalise / log1p / scale / PCA(50) "
+        "on the gene modality, guide -> cells dictionary, annotation table with "
+        "<ENSG>|chr:start-end target labels. Writes the folder edist-filter and edist read.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "out_dir": {**_S_STRING},
+            "n_comps": {**_S_INTEGER, "default": 50},
+            "label": {**_S_STRING}},
+         "required": ['mudata']},
+        cli=['tf-perturb', 'edist-prep'],
+        flag_map={"mudata": "--mudata", "out_dir": "--out-dir", "n_comps": "--n-comps", "label": "--label"},
+    ),
+
+    _T(
+        "tf_perturb_edist_filter",
+        "★ ENERGY DISTANCE STEP 1: OUTLIER GUIDES ★: DISCO permutation test among sibling "
+        "guides of each target, hypergeometric outlier ranking on intra-target energy "
+        "distances, K-means (k=2) outliers among non-targeting guides. Writes "
+        "targeting_outlier_table.csv / non_targeting_outlier_table.csv (pval_outlier). "
+        "Clean-room CPU rewrite of Chikara-Takeuchi/energy_dist_pipeline step 1.",
+        {"type": "object", "properties": {
+            "prep_dir": {**_S_STRING},
+            "out_dir": {**_S_STRING},
+            "min_cells": {**_S_INTEGER, "default": 20},
+            "disco_permutations": {**_S_INTEGER, "default": 200},
+            "fdr": {**_S_NUMBER, "default": 0.05},
+            "seed": {**_S_INTEGER, "default": 0}},
+         "required": ['prep_dir']},
+        cli=['tf-perturb', 'edist-filter'],
+        flag_map={"prep_dir": "--prep-dir", "out_dir": "--out-dir", "min_cells": "--min-cells", "disco_permutations": "--disco-permutations", "fdr": "--fdr", "seed": "--seed"},
+    ),
+
+    _T(
+        "tf_perturb_edist",
+        "★ ENERGY DISTANCE STEP 2: PER-TARGET E-DISTANCE VS NON-TARGETING ★ with "
+        "permutation p-values: num_bg random backgrounds of non_target_pick NT cells, "
+        "permutations label shuffles each; distance_i / pval_i per background, "
+        "distance_mean, pval_mean, pval_mean_log, distance_mean_log, cell_count, type "
+        "-> pval_edist_full.csv (the upstream schema). Outlier guides from edist-filter "
+        "are excluded. Clean-room CPU rewrite; use the upstream GPU container for "
+        "hundreds of thousands of cells.",
+        {"type": "object", "properties": {
+            "prep_dir": {**_S_STRING},
+            "out_dir": {**_S_STRING},
+            "num_bg": {**_S_INTEGER, "default": 20},
+            "permutations": {**_S_INTEGER, "default": 1000},
+            "non_target_pick": {**_S_INTEGER, "default": 2000},
+            "target_cell_max": {**_S_INTEGER, "default": 2000},
+            "min_cells": {**_S_INTEGER, "default": 20},
+            "keep_outliers": {**_S_BOOLEAN, "default": False},
+            "seed": {**_S_INTEGER, "default": 0}},
+         "required": ['prep_dir']},
+        cli=['tf-perturb', 'edist'],
+        flag_map={"prep_dir": "--prep-dir", "out_dir": "--out-dir", "num_bg": "--num-bg", "permutations": "--permutations", "non_target_pick": "--non-target-pick", "target_cell_max": "--target-cell-max", "min_cells": "--min-cells", "seed": "--seed"},
+        bool_flags={'keep_outliers'},
+    ),
+
+    _T(
+        "tf_perturb_edist_summary",
+        "Cross-dataset roll-up of energy-distance results: per dataset the target counts by "
+        "type, median distance_mean by type, targets above the negative-control maximum "
+        "(the calibration-robust significance proxy), pval_mean == 0 and < 0.05 counts. "
+        "Port of energy_dist/cross_dataset_edistance_summary.py, on local files.",
+        {"type": "object", "properties": {
+            "inputs": {**_S_ARRAY_S, "description": 'NAME=dir-or-pval_edist_full.csv entries'},
+            "label": {**_S_STRING}},
+         "required": ['inputs']},
+        cli=['tf-perturb', 'edist-summary'],
+        flag_map={"inputs": "--inputs", "label": "--label"},
+        flag_repeat={'inputs'},
+    ),
+
+    _T(
+        "tf_perturb_edist_validate",
+        "Schema and value-range checks on an energy-distance output folder "
+        "(pval_edist_full.csv required columns, per-background columns, cell_count > 0, "
+        "pval_mean in [0,1], known type values; outlier tables' pval_outlier).",
+        {"type": "object", "properties": {
+            "dir": {**_S_STRING}},
+         "required": ['dir']},
+        cli=['tf-perturb', 'edist-validate'],
+        flag_map={"dir": "--dir"},
+    ),
+
+    _T(
+        "tf_perturb_cnmf_export",
+        "★ TF PERTURB-SEQ STAGE 5 INPUT ★: inference_mudata.h5mu -> PerturbNMF / torch-cNMF "
+        "single-modality .h5ad (gene symbols as var_names, guide_assignment in obsm, "
+        "guide_names / guide_targets in uns, cells with zero counts in the HVG set "
+        "dropped). Port of cnmf/h5mu_to_perturbnmf_h5ad.py.",
+        {"type": "object", "properties": {
+            "mudata": {**_S_STRING},
+            "out_h5ad": {**_S_STRING},
+            "num_highvar_genes": {**_S_INTEGER, "default": 2000},
+            "no_hvg_filter": {**_S_BOOLEAN, "default": False}},
+         "required": ['mudata', 'out_h5ad']},
+        cli=['tf-perturb', 'cnmf-export'],
+        flag_map={"mudata": "--mudata", "out_h5ad": "--out-h5ad", "num_highvar_genes": "--num-highvar-genes"},
+        bool_flags={'no_hvg_filter'},
+    ),
+
+    _T(
+        "tf_perturb_cnmf_validate",
+        "File / shape / value checks on a torch-cNMF run folder for the selected k: "
+        "gene_spectra_score is k x genes, usages is cells x k and non-negative, no NaNs; "
+        "lists the k values present. Port of cnmf/validate_cnmf_outputs.py layers 1-3.",
+        {"type": "object", "properties": {
+            "dir": {**_S_STRING},
+            "selected_k": {**_S_INTEGER}},
+         "required": ['dir', 'selected_k']},
+        cli=['tf-perturb', 'cnmf-validate'],
+        flag_map={"dir": "--dir", "selected_k": "--selected-k"},
+    ),
+
+    _T(
+        "tf_perturb_pipeline_summary",
+        "One row per dataset from the Stage 3 QC metric tables (cells, median UMIs, "
+        "mito %, guide UMIs, guides per cell, fraction with guide, intended-target "
+        "significance and AUROC / AUPRC). Port of "
+        "crispr_pipeline/cross_dataset_pipeline_summary.py, on local folders.",
+        {"type": "object", "properties": {
+            "datasets": {**_S_ARRAY_S, "description": 'NAME=folder entries (folders holding *_metrics.tsv)'},
+            "label": {**_S_STRING}},
+         "required": ['datasets']},
+        cli=['tf-perturb', 'pipeline-summary'],
+        flag_map={"datasets": "--datasets", "label": "--label"},
+        flag_repeat={'datasets'},
+    ),
+
+    _T(
         "tf_perturb_seq_selftest",
         "Self-test of tf_perturb_seq_analyze on synthetic calibrated tables, "
         "a synthetic GWAS catalog and E2G files with planted signals; checks "
@@ -6214,6 +6469,103 @@ _TOOLS: "list[Tool]" = [
         cli=["sce2g", "merge"],
         flag_map={"runs": "--runs", "top": "--top", "label": "--label"},
         flag_repeat={"runs"}, bool_flags={"no_plots"},
+    ),
+
+    _T(
+        "eqtl_enrichment_setup",
+        "Fetch the EngreitzLab/eQTLEnrichment resource files (hg38 partition, TSS "
+        "reference / gene universe, gene bounds, chromosome sizes) into "
+        "Data/eQTLEnrichment/resources; with synapse=true also the 1000G "
+        "background SNPs (syn52264319) and the GTEx SuSiE fine-mapping release "
+        "(syn52264297) via the synapse skill (needs SYNAPSE_AUTH_TOKEN).",
+        {"type": "object", "properties": {
+            "synapse": {**_S_BOOLEAN, "default": False},
+            "force": {**_S_BOOLEAN, "default": False}}},
+        cli=["eqtl-enrich", "setup"], bool_flags={"synapse", "force"},
+    ),
+
+    _T(
+        "eqtl_enrichment_prepare_gtex",
+        "Raw GTEx fine-mapping table (19 columns: GTEx_30tissues_release1.tsv.gz) -> "
+        "the 7-column eQTL input for eqtl_enrichment_run: SUSIE rows in a credible "
+        "set, Ensembl -> HGNC through the gene bounds table, and (with expression) "
+        "eGene median TPM > tpm in its tissue from the GTEx .gct.",
+        {"type": "object", "properties": {
+            "raw": _S_STRING, "out": _S_STRING, "method": {**_S_STRING, "default": "SUSIE"},
+            "expression": {**_S_STRING, "description": "GTEx median-TPM .gct(.gz)"},
+            "tpm": {**_S_NUMBER, "default": 1.0}, "keep_all_cs": {**_S_BOOLEAN, "default": False}},
+         "required": ["raw", "out"]},
+        cli=["eqtl-enrich", "prepare-gtex"],
+        flag_map={"raw": "--raw", "out": "--out", "method": "--method", "expression": "--expression", "tpm": "--tpm"},
+        bool_flags={"keep_all_cs"},
+    ),
+
+    _T(
+        "eqtl_enrichment_variants",
+        "Filter fine-mapped eQTL variants (PIP >= threshold, distal noncoding via the "
+        "hg38 partition, eGene in the gene universe, eVariant-eGene TSS distance bins) "
+        "and the background SNPs (distal noncoding) once, writing a variants dir that "
+        "eqtl_enrichment_run reuses with variants_dir.",
+        {"type": "object", "properties": {
+            "eqtl": {**_S_STRING, "description": "chr,start,end,varID_hg38,gene_hgnc,tissue,pip"},
+            "bg_variants": {**_S_STRING, "description": "1000G SNP bed: chr,start,end,rsid"},
+            "threshold_pip": {**_S_NUMBER, "default": 0.5},
+            "distances": {"type": "array", "items": _S_INTEGER, "description": "distance bin edges in kb (default 10 100 250 1000)"},
+            "label": _S_STRING},
+         "required": ["eqtl", "bg_variants"]},
+        cli=["eqtl-enrich", "variants"],
+        flag_map={"eqtl": "--eqtl", "bg_variants": "--bg-variants", "threshold_pip": "--threshold-pip",
+                  "distances": "--distances", "label": "--label"},
+        flag_repeat={"distances"},
+    ),
+
+    _T(
+        "eqtl_enrichment_run",
+        "★ eQTL ENRICHMENT BENCHMARK OF ENHANCER-GENE PREDICTIONS ★ (port of "
+        "EngreitzLab/eQTLEnrichment, the ENCODE-rE2G / scE2G papers' eQTL "
+        "benchmark). Inputs: a methods table (method, boolean, inverse_predictor, "
+        "pred_name_long, threshold, score_col, color) and a predictions table "
+        "(biosample, one column per method with the prediction file, GTExTissue = "
+        "comma-separated matched eQTL tissues); prediction files need chr, start, end, "
+        "TargetGene and the score column. Computes, per method and (eQTL tissue x "
+        "prediction biosample): enrichment of PIP-filtered distal-noncoding eQTL "
+        "variants in predicted enhancers vs 1000G SNPs (log-RR CI, hypergeometric "
+        "p, Bonferroni), recall (total) and recall (linking to the eGene) across a "
+        "quantile threshold span and by eVariant-eGene distance bin, aggregated "
+        "all_matches rows, enrichment-recall curves, enrichment at target recalls "
+        "with pairwise z-tests, enhancer set sizes, heatmap matrices, figures, "
+        "report.md and summary.json. Two upstream quirks (SE formula; unthresholded "
+        "by-distance background counts) are corrected unless upstream_compat.",
+        {"type": "object", "properties": {
+            "methods_table": _S_STRING, "predictions_table": _S_STRING,
+            "methods": {**_S_ARRAY_S, "description": "subset of methods to run"},
+            "eqtl": _S_STRING, "bg_variants": _S_STRING,
+            "variants_dir": {**_S_STRING, "description": "output dir of eqtl_enrichment_variants (skips variant filtering)"},
+            "threshold_pip": {**_S_NUMBER, "default": 0.5},
+            "distances": {"type": "array", "items": _S_INTEGER},
+            "recalls": {"type": "array", "items": _S_NUMBER, "description": "target recall (linking) values, default 0.03 0.05 0.1"},
+            "threshold_pval": {**_S_NUMBER, "default": 0.05},
+            "n_threshold_steps": {**_S_INTEGER, "default": 50},
+            "upstream_compat": {**_S_BOOLEAN, "default": False},
+            "no_plots": {**_S_BOOLEAN, "default": False},
+            "label": _S_STRING},
+         "required": ["methods_table", "predictions_table"]},
+        cli=["eqtl-enrich", "run"],
+        flag_map={"methods_table": "--methods-table", "predictions_table": "--predictions-table", "methods": "--methods",
+                  "eqtl": "--eqtl", "bg_variants": "--bg-variants", "variants_dir": "--variants-dir",
+                  "threshold_pip": "--threshold-pip", "distances": "--distances", "recalls": "--recalls",
+                  "threshold_pval": "--threshold-pval", "n_threshold_steps": "--n-threshold-steps", "label": "--label"},
+        flag_repeat={"methods", "distances", "recalls"}, bool_flags={"upstream_compat", "no_plots"},
+    ),
+
+    _T(
+        "eqtl_enrichment_selftest",
+        "Self-test of the eQTL enrichment benchmark on a synthetic genome with planted "
+        "enhancers, eQTLs and background SNPs: overlap engine, statistics, prepare-gtex, "
+        "variants and a four-predictor run (good, random, inverse distance, binary) "
+        "all asserted.",
+        {"type": "object", "properties": {"no_plots": {**_S_BOOLEAN, "default": False}}},
+        cli=["eqtl-enrich", "selftest"], bool_flags={"no_plots"},
     ),
 
     _T(

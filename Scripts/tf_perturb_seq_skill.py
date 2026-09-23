@@ -50,6 +50,14 @@ WHERE THIS DIFFERS FROM THE NOTEBOOK, so nobody mistakes the two:
     it is not installed. ``pyBigWig`` is optional and only needed for the
     ChIP step.
 
+The five-stage consortium pipeline (QC, calibration, pathways, MuData filters,
+energy distance, cNMF export/validation, cross-dataset summaries) is rewritten
+in ``tf_perturb_stages.py`` and attached to this CLI as further subcommands
+(`igvfagent tf-perturb qc-gene | qc-guide | qc-target | calibrate | pathways |
+filter-cells | filter-guides | edist-prep | edist-filter | edist | edist-summary |
+edist-validate | cnmf-export | cnmf-validate | pipeline-summary`). `calibrate`
+produces the calibrated tables that `run` consumes.
+
     igvfagent tf-perturb run --calibrated-prefix <dir>/<run>_calibrated_ \\
         [--mudata inference_mudata.h5mu] [--gwas gwas_catalog_associations.tsv] \\
         [--e2g ESC=<h7.e2g.tsv> --e2g DE=<de.e2g.tsv>] [--bigwig <a.bigwig> ...] \\
@@ -1134,6 +1142,13 @@ def make_synthetic(dirpath: Path, seed: int = 7) -> dict:
 
 def selftest(args: argparse.Namespace) -> int:
     pd = _pd()
+    if getattr(args, "stages_only", False):
+        from tf_perturb_stages import stages_selftest  # noqa: E402
+        return stages_selftest(no_plots=args.no_plots)
+    if not getattr(args, "wg3_only", False):
+        from tf_perturb_stages import stages_selftest  # noqa: E402
+        if stages_selftest(no_plots=args.no_plots) != 0:
+            return 1
     with tempfile.TemporaryDirectory() as td:
         syn = make_synthetic(Path(td))
         ns = argparse.Namespace(calibrated_prefix=syn["prefix"], mudata=syn["mudata"], gwas=syn["gwas"],
@@ -1225,7 +1240,13 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     s = sub.add_parser("selftest", help="Synthetic inputs with planted signals; checks they are recovered.")
     s.add_argument("--no-plots", action="store_true")
     s.add_argument("--keep", action="store_true", help="Keep the selftest output directory.")
+    s.add_argument("--stages-only", action="store_true", help="Only the pipeline-stage checks (QC, calibrate, edist, ...).")
+    s.add_argument("--wg3-only", action="store_true", help="Only the disease/GWAS `run` checks.")
     s.set_defaults(func=selftest)
+    # The pipeline stages (QC, calibration, pathways, filters, energy distance,
+    # cNMF export) live in tf_perturb_stages and attach here.
+    from tf_perturb_stages import add_stage_parsers  # noqa: E402
+    add_stage_parsers(sub)
     args = p.parse_args(argv)
     return args.func(args)
 

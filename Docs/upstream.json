@@ -41,6 +41,26 @@
       "notes": "MIT. Route implemented against the tools actually installed here."
     },
     {
+      "repo": "Chikara-Takeuchi/energy_dist_pipeline",
+      "skills": [
+        "tf-perturb"
+      ],
+      "modules": [
+        "tf_perturb_stages.py"
+      ],
+      "license": "none declared",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "5821450a1eacfddb3c83be8c69fd593eaf76a61c",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-04-29T16:34:37Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "No LICENSE file. The GPU energy-distance pipeline the IGVF TF Perturb-seq consortium runs (step 0 PCA + guide dictionary; step 1 outlier guides via DISCO, hypergeometric ranking and K-means on non-targeting guides; step 2 per-target energy distance vs num_bg random non-targeting backgrounds with permutation p-values -> pval_edist_full.csv). IGVFagent's tf-perturb edist-prep / edist-filter / edist re-derive the statistics on CPU with numpy/scipy (E = 2*mean cross - within - within; pval_mean_log = -log10(pval_mean + 0.1/(perm*bg))) and write the same column schema, defaults num_bg 20, permutations 1000, non_target_pick 2000, target max 2000. For 10^5-cell screens run the upstream container and hand its folder to edist-validate / edist-summary."
+    },
+    {
       "repo": "czbiohub-sf/tabula-sapiens",
       "skills": [
         "tabula"
@@ -102,6 +122,26 @@
       "former_names": [
         "EngreitzLab/CRISPRi-FlowFISH-pipeline"
       ]
+    },
+    {
+      "repo": "EngreitzLab/eQTLEnrichment",
+      "skills": [
+        "eqtl-enrich"
+      ],
+      "modules": [
+        "eqtl_enrichment_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "b04a2a1aaf4c5a2a811347289981e217579d239b",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2025-10-27T19:17:59Z",
+        "release": "",
+        "pinned_at": "2026-09-23"
+      },
+      "notes": "Snakemake + R + bedtools pipeline (ENCODE-rE2G / scE2G papers' eQTL benchmark). Every rule re-derived in pandas/numpy/scipy in eqtl_enrichment_skill.py: distal-noncoding filter via the hg38 partition, PIP filter, TSS-distance bins, gene universe, quantile threshold span, count matrices, enrichment (log-RR CI, hypergeometric p, Bonferroni), recall total/linking, all_matches aggregation, enrichment-recall curves, enrichment at recall with pairwise z-tests, enhancer set sizes, heatmaps. Resource files fetched from this commit by `setup`. Two upstream quirks (SE formula parenthesisation; unthresholded by-distance background / all-bin counts) are corrected by default and reproducible with --upstream-compat."
     },
     {
       "repo": "EngreitzLab/scE2G",
@@ -249,7 +289,8 @@
         "tf-perturb"
       ],
       "modules": [
-        "tf_perturb_seq_skill.py"
+        "tf_perturb_seq_skill.py",
+        "tf_perturb_stages.py"
       ],
       "license": "none declared",
       "relationship": "port",
@@ -259,9 +300,9 @@
         "branch": "main",
         "upstream_date": "2026-06-11T15:58:39Z",
         "release": "",
-        "pinned_at": "2026-09-21"
+        "pinned_at": "2026-09-23"
       },
-      "notes": "No LICENSE file in the repository (GitHub reports none). What was ported is the ANALYSIS of docs/jamborees/2026_UTSW/working_groups/wg3_disease_gwas/perturb_seq_analysis_v4.ipynb -- thresholds, filters, overlap and enrichment definitions -- consulted line by line and rewritten; no notebook code copied. Inputs (calibrated inference TSVs, inference_mudata.h5mu) come from the IGVF CRISPR pipeline runs the consortium shares via Synapse (WG3 folder syn74954083)."
+      "notes": "No LICENSE file in the repository (GitHub reports none). Clean-room port of the analysis PACKAGE, not just the WG3 notebook: qc/mapping_gene.py, qc/mapping_guide.py, qc/intended_target.py (Stage-3 QC), inference/calibrate.py (eCDF / t-fit empirical p-values vs the non-targeting null, BH on targeting tests, cis window, direct/cis/trans tables), inference/pathways.py (Fisher over GMT sets), scripts/filter_mudata_by_sgrna_count.py, scripts/filter_outlier_guides.py, cnmf/h5mu_to_perturbnmf_h5ad.py, cnmf/validate_cnmf_outputs.py, energy_dist/cross_dataset_edistance_summary.py, crispr_pipeline/cross_dataset_pipeline_summary.py, and the WG3 disease & GWAS notebook. Definitions (thresholds, column names, output schemas) were read and rewritten; no code copied. Synapse-side wrappers (synapseclient downloads, Nextflow/Slurm launchers) are out of scope: IGVFagent runs on local files. The energy-distance computation itself comes from Chikara-Takeuchi/energy_dist_pipeline."
     },
     {
       "repo": "inutano/chip-atlas",
