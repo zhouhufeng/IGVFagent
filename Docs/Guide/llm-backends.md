@@ -173,6 +173,39 @@ igvfagent kg gene APOE --depth 2
 igvfagent tools --json > tools.json              # schemas for your own runner
 ```
 
+### Recipes by agent
+
+**Codex.** Give it this repository as the workspace root, with a runtime
+instruction such as:
+
+```text
+Use /path/to/IGVFagent as the project root. Put scripts in Scripts, data in
+Data, and logs/reports in Docs/Logs or Docs. Use the local CLI skills
+before writing new one-off code.
+```
+
+**Claude API with your own tool runner.** Expose shell commands inside the
+repository, restrict file access to the IGVFagent folder, and call the skills
+as tools. Sample tool targets:
+
+```bash
+python3 Scripts/igvf_client.py check
+python3 Scripts/annotate_variant_list.py --max-rows 10
+python3 Scripts/advanced_variant_analysis.py run --input <csv> --label <run-id>
+python3 Scripts/ccre_linkage_annotation_skills.py screen-manifest
+```
+
+**Ollama with another local agent runner.** Pull a coding model and point the
+runner at the Ollama endpoint. Qwen-class coding models are useful for command
+planning and report drafting; the Python skills do the deterministic data
+access and annotation.
+
+```bash
+ollama pull qwen3
+ollama pull llama3.1
+ollama serve     # starts http://localhost:11434
+```
+
 ---
 
 [← Documentation index](README.md) · [Project README](../../README.md)

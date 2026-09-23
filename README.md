@@ -26,27 +26,39 @@ working.** 115 skills and 580 typed tools, hosted or installed locally.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
-- **Find and explain IGVF data.** Search the Portal and Catalog by assay,
-  tissue, gene or accession, and see what a dataset contains before downloading
-  it. Given an accession, it first walks the Portal's links to the processed
-  results and QC that already exist, and only goes back to raw reads when they
+- **Find and explain IGVF data** — search the Portal and Catalog by assay,
+  tissue, gene or accession; say what a dataset actually contains before you
+  download it; pull ENCODE, GEO, FAVOR, ChIP-Atlas, Synapse and Figshare too.
+  Given an accession, it first walks the Portal's links to the processed
+  results and QC that already exist, and returns to raw reads only when they
   are missing.
-- **Analyse raw sequencing end to end.** FASTQ → counts → result, with the
-  aligner and reference chosen from the dataset's own metadata.
-- **CRISPR screens and Perturb-seq.** Two-tail FACS, lettered-bin, saturation
-  genome editing, CRISPRi, Flow-FISH and base-editing screens, plus Python
-  ports of the IGVF-CRISPR and pinellolab Perturb-seq pipelines.
-- **Variants → function.** Annotate variant lists, reach FAVOR and MaveDB, run
-  MPRA and STARR-seq pipelines, and calibrate assay scores to ACMG/AMP evidence.
-- **Enhancer–gene linkage.** ABC, ENCODE-rE2G and scE2G, benchmarked against
-  CRISPR, eQTL and GWAS gold standards, with QC and Portal submission.
-- **Single-cell, multiome and spatial.** QC, clustering, cell typing,
-  SPLiT-seq, SHARE-seq, multiome and Spatial-ATAC-Hi-C.
-- **One growing knowledge graph.** The IGVF Catalog mirror, a protein-interaction
-  compendium and everything a session learns, merged onto the same vertices
-  with per-edge provenance.
-- **Say when it cannot.** An unsupported assay or a missing input is reported
-  with the reason, not smoothed over.
+- **Analyse raw sequencing end to end** — FASTQ → counts → result, with the
+  aligner and reference chosen from the dataset's own metadata rather than
+  assumed.
+- **CRISPR screens, routed by design not by title** — two-tail FACS screens,
+  lettered-bin (A–F) screens, saturation genome editing, CRISPRi, FlowFISH,
+  and **base-editing screens** via [crispr-bean](https://github.com/pinellolab/crispr-bean)'s
+  masked matching (which recovers **62.5%** of reads where exact matching gets
+  36.7%), handing off to the real `bean` binary for its Bayesian model.
+- **Variants → function** — annotate lists, reach FAVOR and MaveDB, run
+  MPRA/STARR-seq pipelines, link variants to genes through eQTL and enhancer
+  evidence, and verify every claim against the record it came from.
+- **Single-cell and multiome** — QC, clustering, cell typing, perturb-seq,
+  SPLiT-seq, multiome, scE2G enhancer–gene links, spatial ATAC + Hi-C.
+- **Enhancer–gene linkage** — ABC, ENCODE-rE2G and scE2G, benchmarked
+  against CRISPR, eQTL and GWAS gold standards, with QC and Portal submission.
+- **Regulatory networks** — GRN inference and a clean-room MILP
+  reimplementation of CORNETO over the local warehouses.
+- **One growing knowledge graph** — the IGVF Catalog mirror, a
+  BioGRID/IntAct protein-interaction compendium and everything a session
+  learns, merged onto the **same** vertices with per-edge provenance:
+  about **2M edges** on the hosted instance and counting.
+- **Help you submit to the Portal** — preflight your prediction sets and
+  curated sets against the checks the monthly DACC meetings keep raising,
+  before the meeting does.
+- **Say when it cannot** — an unsupported assay, a revoked input, a model
+  that needs a field IGVF does not publish. Refusing with a reason is treated
+  as a result, not a failure.
 
 Every run writes its files to the project folder, records which tool produced
 what, and reports failed tool calls.
@@ -81,6 +93,7 @@ needs approval, so email
 | Run length | capped per turn | uncapped |
 | Chat history | private to your account | private to you |
 | Knowledge graph | shared: grows from everyone's work | yours |
+| Your own data | not for anything unpublished or sensitive | stays on your machine |
 
 > 🔒 **Your chat history is private to your account.** Only you can see,
 > search or recall your past questions and answers, and the data viewers show
@@ -92,6 +105,11 @@ needs approval, so email
 > file-reading tool is not yet limited per account, so do not upload
 > unpublished or sensitive data; install locally for private work. Details:
 > [The browser UI, accounts and history](Docs/Guide/web-ui.md#projects-and-permanent-history).
+
+Heavy or long-running analyses (full multiome pipelines, large downloads) are
+better run locally; see [Quick start](#quick-start). Operators: deployment
+details are in [`Deploy/README.md`](Deploy/README.md) and
+[Operating the hosted deployment](Docs/Guide/deployment.md).
 
 ## Quick start
 
