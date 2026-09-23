@@ -80,8 +80,30 @@ def _q(con, sql: str, default: Any) -> Any:
         return default
 
 
+_CACHE: "dict[str, Any]" = {}
+CACHE_SECONDS = 60
+
+
 def graph_status() -> "dict[str, Any]":
-    """Node/edge counts, edges by source, merge history. Never writes."""
+    """Node/edge counts, edges by source, merge history. Never writes.
+
+    Cached for a minute (and until the database file changes): the counts
+    take ~1 s on the deployed 2M-edge graph, and Streamlit runs every tab's
+    body on every interaction, including a chat message.
+    """
+    try:
+        stamp = KG_DB.stat().st_mtime
+    except OSError:
+        stamp = None
+    hit = _CACHE.get("graph")
+    if hit and hit[0] == stamp and time.time() - hit[1] < CACHE_SECONDS:
+        return hit[2]
+    out = _graph_status()
+    _CACHE["graph"] = (stamp, time.time(), out)
+    return out
+
+
+def _graph_status() -> "dict[str, Any]":
     con = _ro(KG_DB)
     if con is None:
         return {"exists": False}

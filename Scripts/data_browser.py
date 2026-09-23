@@ -135,7 +135,9 @@ def _describe(d: Path) -> "dict[str, Any]":
 def run_files(run: Path) -> "list[Path]":
     """Viewable files in a run, reports first, capped at MAX_FILES."""
     out: "list[Path]" = []
-    for p in sorted(run.rglob("*")):
+    # Unsorted walk with an early stop: a run that holds a pipeline's full
+    # output tree must not be enumerated in full on every page render.
+    for p in run.rglob("*"):
         if len(out) >= MAX_FILES:
             break
         if p.is_file() and _pathguard.is_safe_artifact(p):
