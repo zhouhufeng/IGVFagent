@@ -1,0 +1,4 @@
+pred_id	file	removed_elements	removed_predictions
+rE2G_base	inputs/ENCODE-rE2G_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz.tsv.gz	2	4
+rE2G_ext	inputs/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz	2	4
+rE2G_ext_noEP300	inputs/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz	2	4

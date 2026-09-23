@@ -1,0 +1,5 @@
+pred_id	pred_col	aggregate	fill_value	inverse	n_pairs	n_positive	baseline_precision	n_pairs_dropped_missing_gene	pairs_overlapping_prediction	frac_overlapping	auprc	auprc_ci95_low	auprc_ci95_high	precision_at_70_recall	auprc_negated	n_nonmissing_scores
+scE2G_ignoreTPM	Score.ignoreTPM	max	0.0	False	10280	452	0.044	76	9225	0.8974	0.612	0.5697	0.6581	0.5113	0.025	9225
+scE2G	Score	max	0.0	False	10280	452	0.044	76	9225	0.8974	0.5508	0.503	0.592	0.3087	0.0357	8377
+ARC_E2G	ARC.E2G.Score	max	0.0	False	10280	452	0.044	76	9225	0.8974	0.5141	0.4605	0.5617	0.3756	0.0251	9225
+ABC	ABC.Score	max	0.0	False	10280	452	0.044	76	9225	0.8974	0.5097	0.4575	0.5574	0.3675	0.0252	9225

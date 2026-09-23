@@ -1,0 +1,11 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+baseline_E2G_Distance	E2G_Distance	FALSE		max	0.0	TRUE	E2G_Distance	#2a78d6
+ENCODEstats_std	std	FALSE		max	0.0	FALSE	std	#eb6834
+ENCODEstats_mean	mean	FALSE		max	0.0	FALSE	mean	#1baf7a
+ENCODEstats_disp	disp	FALSE		max	0.0	FALSE	disp	#eda100
+phastCons_mean_phastCons	mean_phastCons	FALSE		max	0.0	FALSE	mean_phastCons	#eb6834
+phyloP_min_phyloP	min_phyloP	FALSE		max	0.0	FALSE	min_phyloP	#eb6834
+phyloP_max_phyloP	max_phyloP	FALSE		max	0.0	FALSE	max_phyloP	#1baf7a
+Pinloop_Pinloop	Pinloop	FALSE		max	0.0	FALSE	Pinloop	#eb6834
+pLI_LOEUF_pLI	pLI	FALSE		max	0.0	FALSE	pLI	#eb6834
+pLI_LOEUF_LOEUF	LOEUF	FALSE		max	0.0	TRUE	LOEUF	#1baf7a

@@ -1,0 +1,23 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+baseline_E2G_Distance	E2G_Distance	FALSE		max	0.0	TRUE	E2G_Distance	#2a78d6
+ChromHMM_CrhmmBool-Acetylated_Regions	CrhmmBool-Acetylated_Regions	FALSE		max	0.0	FALSE	CrhmmBool-Acetylated_Regions	#eb6834
+ChromHMM_CrhmmBool-Promoter_Bivalent	CrhmmBool-Promoter_Bivalent	FALSE		max	0.0	FALSE	CrhmmBool-Promoter_Bivalent	#1baf7a
+ChromHMM_CrhmmBool-Other	CrhmmBool-Other	FALSE		max	0.0	FALSE	CrhmmBool-Other	#eda100
+ChromHMM_CrhmmBool-Enh_Mesenchyme	CrhmmBool-Enh_Mesenchyme	FALSE		max	0.0	FALSE	CrhmmBool-Enh_Mesenchyme	#e87ba4
+ChromHMM_CrhmmBool-Enh_Strong	CrhmmBool-Enh_Strong	FALSE		max	0.0	FALSE	CrhmmBool-Enh_Strong	#008300
+ChromHMM_CrhmmBool-Enh_ESC	CrhmmBool-Enh_ESC	FALSE		max	0.0	FALSE	CrhmmBool-Enh_ESC	#4a3aa7
+ChromHMM_CrhmmBool-Enh_Weak	CrhmmBool-Enh_Weak	FALSE		max	0.0	FALSE	CrhmmBool-Enh_Weak	#e34948
+ChromHMM_CrhmmBool-Heterochromatin_Regions	CrhmmBool-Heterochromatin_Regions	FALSE		max	0.0	FALSE	CrhmmBool-Heterochromatin_Regions	#2a78d6
+ChromHMM_CrhmmBool-Promoter_Active	CrhmmBool-Promoter_Active	FALSE		max	0.0	FALSE	CrhmmBool-Promoter_Active	#eb6834
+ChromHMM_CrhmmBool-Quiescent_Regions	CrhmmBool-Quiescent_Regions	FALSE		max	0.0	FALSE	CrhmmBool-Quiescent_Regions	#1baf7a
+ChromHMM_CrhmmBool-RepressivePolycomb_Regions	CrhmmBool-RepressivePolycomb_Regions	FALSE		max	0.0	FALSE	CrhmmBool-RepressivePolycomb_Regions	#eda100
+ChromHMM_CrhmmBool-TSS	CrhmmBool-TSS	FALSE		max	0.0	FALSE	CrhmmBool-TSS	#e87ba4
+ChromHMM_CrhmmBool-Transcribed_Region	CrhmmBool-Transcribed_Region	FALSE		max	0.0	FALSE	CrhmmBool-Transcribed_Region	#008300
+ChromHMM_CrhmmBool-Enh_Transcribed	CrhmmBool-Enh_Transcribed	FALSE		max	0.0	FALSE	CrhmmBool-Enh_Transcribed	#4a3aa7
+ArchR_ArchR_Score	ArchR_Score	FALSE		max	0.0	FALSE	ArchR_Score	#eb6834
+ArchR_ArchR_FDR	ArchR_FDR	FALSE		max	0.0	TRUE	ArchR_FDR	#1baf7a
+Cicero_Cicero_Score	Cicero_Score	FALSE		max	0.0	FALSE	Cicero_Score	#eb6834
+SCENT_SCENT_Score	SCENT_Score	FALSE		max	0.0	FALSE	SCENT_Score	#eb6834
+SCENT_SCENT_beta	SCENT_beta	FALSE		max	0.0	FALSE	SCENT_beta	#1baf7a
+Signac_Signac_Score	Signac_Score	FALSE		max	0.0	FALSE	Signac_Score	#eb6834
+Signac_Signac_pvalue	Signac_pvalue	FALSE		max	0.0	TRUE	Signac_pvalue	#1baf7a

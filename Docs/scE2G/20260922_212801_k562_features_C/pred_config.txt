@@ -1,0 +1,13 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+baseline_E2G_Distance	E2G_Distance	FALSE		max	0.0	TRUE	E2G_Distance	#2a78d6
+sHet_genebayes_shet	genebayes_shet	FALSE		max	0.0	FALSE	genebayes_shet	#eb6834
+TFgene_is_tf	is_tf	FALSE		max	0.0	FALSE	is_tf	#eb6834
+Alu_OverlapsAlu	OverlapsAlu	FALSE		max	0.0	FALSE	OverlapsAlu	#eb6834
+Alu_OverlapsAluJ	OverlapsAluJ	FALSE		max	0.0	FALSE	OverlapsAluJ	#1baf7a
+Alu_OverlapsAluS	OverlapsAluS	FALSE		max	0.0	FALSE	OverlapsAluS	#eda100
+Alu_OverlapsAluY	OverlapsAluY	FALSE		max	0.0	FALSE	OverlapsAluY	#e87ba4
+Motif_MotifDensityJaspar2026	MotifDensityJaspar2026	FALSE		max	0.0	FALSE	MotifDensityJaspar2026	#eb6834
+Motif_MotifCountsJaspar2026	MotifCountsJaspar2026	FALSE		max	0.0	FALSE	MotifCountsJaspar2026	#1baf7a
+Motif_UniqueMotifDensityJaspar2026	UniqueMotifDensityJaspar2026	FALSE		max	0.0	FALSE	UniqueMotifDensityJaspar2026	#eda100
+Motif_UniqueMotifCountsJaspar2026	UniqueMotifCountsJaspar2026	FALSE		max	0.0	FALSE	UniqueMotifCountsJaspar2026	#e87ba4
+Motif_CTCFMotifHitJaspar2026	CTCFMotifHitJaspar2026	FALSE		max	0.0	FALSE	CTCFMotifHitJaspar2026	#008300

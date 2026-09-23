@@ -1,0 +1,138 @@
+file	feature	clean_name	missing_fraction
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	E2G_Distance	E2G_Distance	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Acetylated_Regions	CrhmmBool-Acetylated_Regions	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Promoter_Bivalent	CrhmmBool-Promoter_Bivalent	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Other	CrhmmBool-Other	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Enh_Mesenchyme	CrhmmBool-Enh_Mesenchyme	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Enh_Strong	CrhmmBool-Enh_Strong	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Enh_ESC	CrhmmBool-Enh_ESC	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Enh_Weak	CrhmmBool-Enh_Weak	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Heterochromatin_Regions	CrhmmBool-Heterochromatin_Regions	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Promoter_Active	CrhmmBool-Promoter_Active	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Quiescent_Regions	CrhmmBool-Quiescent_Regions	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-RepressivePolycomb_Regions	CrhmmBool-RepressivePolycomb_Regions	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-TSS	CrhmmBool-TSS	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Transcribed_Region	CrhmmBool-Transcribed_Region	0.0
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	CrhmmBool-Enh_Transcribed	CrhmmBool-Enh_Transcribed	0.0
+K562_ERR9847049_Multiome_K562_ArchR.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_ArchR.tsv.gz	ArchR_Score	ArchR_Score	0.8576
+K562_ERR9847049_Multiome_K562_ArchR.tsv.gz	ArchR_FDR	ArchR_FDR	0.8576
+K562_ERR9847049_Multiome_K562_Cicero.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_Cicero.tsv.gz	Cicero_Score	Cicero_Score	0.8424
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	EP300 signal at E	EP300_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K27me3 signal at E	H3K27me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K9ac signal at E	H3K9ac_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me1 signal at E	H3K4me1_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K27ac signal at E	H3K27ac_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K36me3 signal at E	H3K36me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H2AFZ signal at E	H2AFZ_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me3 signal at E	H3K4me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K9me3 signal at E	H3K9me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me2 signal at E	H3K4me2_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H4K20me1 signal at E	H4K20me1_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K79me2 signal at E	H3K79me2_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	EP300 signal at P	EP300_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K27me3 signal at P	H3K27me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K9ac signal at P	H3K9ac_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me1 signal at P	H3K4me1_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K27ac signal at P	H3K27ac_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K36me3 signal at P	H3K36me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H2AFZ signal at P	H2AFZ_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me3 signal at P	H3K4me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K9me3 signal at P	H3K9me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K4me2 signal at P	H3K4me2_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H4K20me1 signal at P	H4K20me1_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	H3K79me2 signal at P	H3K79me2_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	Bru-seq signal at E	Bru-seq_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	RNA-seq signal at E	RNA-seq_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	NET-CAGE forward signal at E	NET-CAGE_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	NET-CAGE reverse signal at E	NET-CAGE_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	Bru-seq signal at P	Bru-seq_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	RNA-seq signal at P	RNA-seq_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	NET-CAGE forward signal at P	NET-CAGE_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	NET-CAGE reverse signal at P	NET-CAGE_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-seq forward signal at E	GRO-seq_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-seq reverse signal at E	GRO-seq_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-cap forward signal at E	GRO-cap_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-cap reverse signal at E	GRO-cap_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-seq forward signal at P	GRO-seq_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-seq reverse signal at P	GRO-seq_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-cap forward signal at P	GRO-cap_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	GRO-cap reverse signal at P	GRO-cap_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	EP300 signal at E	EP300_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K27me3 signal at E	H3K27me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K9ac signal at E	H3K9ac_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me1 signal at E	H3K4me1_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K27ac signal at E	H3K27ac_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K36me3 signal at E	H3K36me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H2AFZ signal at E	H2AFZ_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me3 signal at E	H3K4me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K9me3 signal at E	H3K9me3_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me2 signal at E	H3K4me2_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H4K20me1 signal at E	H4K20me1_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K79me2 signal at E	H3K79me2_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	EP300 signal at P	EP300_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K27me3 signal at P	H3K27me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K9ac signal at P	H3K9ac_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me1 signal at P	H3K4me1_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K27ac signal at P	H3K27ac_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K36me3 signal at P	H3K36me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H2AFZ signal at P	H2AFZ_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me3 signal at P	H3K4me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K9me3 signal at P	H3K9me3_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K4me2 signal at P	H3K4me2_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H4K20me1 signal at P	H4K20me1_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	H3K79me2 signal at P	H3K79me2_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	Bru-seq signal at E	Bru-seq_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	RNA-seq signal at E	RNA-seq_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	NET-CAGE forward signal at E	NET-CAGE_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	NET-CAGE reverse signal at E	NET-CAGE_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	Bru-seq signal at P	Bru-seq_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	RNA-seq signal at P	RNA-seq_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	NET-CAGE forward signal at P	NET-CAGE_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	NET-CAGE reverse signal at P	NET-CAGE_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-seq forward signal at E	GRO-seq_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-seq reverse signal at E	GRO-seq_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-cap forward signal at E	GRO-cap_forward_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-cap reverse signal at E	GRO-cap_reverse_signal_at_E	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-seq forward signal at P	GRO-seq_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-seq reverse signal at P	GRO-seq_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-cap forward signal at P	GRO-cap_forward_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	GRO-cap reverse signal at P	GRO-cap_reverse_signal_at_P	0.0
+K562_ERR9847049_Multiome_K562_SCENT.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_SCENT.tsv.gz	SCENT_Score	SCENT_Score	0.9605
+K562_ERR9847049_Multiome_K562_SCENT.tsv.gz	SCENT_beta	SCENT_beta	0.9605
+K562_ERR9847049_Multiome_K562_Signac.tsv.gz	E2G_Distance	E2G_Distance	0.0
+K562_ERR9847049_Multiome_K562_Signac.tsv.gz	Signac_Score	Signac_Score	0.8304
+K562_ERR9847049_Multiome_K562_Signac.tsv.gz	Signac_pvalue	Signac_pvalue	0.8304
+uniformly_processed_K562.Alu_features.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562.Alu_features.tsv.gz	OverlapsAlu	OverlapsAlu	0.0
+uniformly_processed_K562.Alu_features.tsv.gz	OverlapsAluJ	OverlapsAluJ	0.0
+uniformly_processed_K562.Alu_features.tsv.gz	OverlapsAluS	OverlapsAluS	0.0
+uniformly_processed_K562.Alu_features.tsv.gz	OverlapsAluY	OverlapsAluY	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	MotifDensityJaspar2026	MotifDensityJaspar2026	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	MotifCountsJaspar2026	MotifCountsJaspar2026	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	UniqueMotifDensityJaspar2026	UniqueMotifDensityJaspar2026	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	UniqueMotifCountsJaspar2026	UniqueMotifCountsJaspar2026	0.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	CTCFMotifHitJaspar2026	CTCFMotifHitJaspar2026	0.0
+uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz	std	std	0.0
+uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz	mean	mean	0.0
+uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz	disp	disp	0.0
+uniformly_processed_K562_candidate_e2g_pairs_phastcons.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_phastcons.tsv.gz	mean_phastCons	mean_phastCons	0.0
+uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz	min_phyloP	min_phyloP	0.0
+uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz	max_phyloP	max_phyloP	0.0
+uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz	Pinloop	Pinloop	0.0
+uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz	pLI	pLI	0.0
+uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz	LOEUF	LOEUF	0.0
+uniformly_processed_K562_candidate_e2g_pairs_shet.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_shet.tsv.gz	genebayes_shet	genebayes_shet	0.0
+uniformly_processed_K562_candidate_e2g_pairs_tf_genes_marked.tsv.gz	E2G_Distance	E2G_Distance	0.0
+uniformly_processed_K562_candidate_e2g_pairs_tf_genes_marked.tsv.gz	is_tf	is_tf	0.0

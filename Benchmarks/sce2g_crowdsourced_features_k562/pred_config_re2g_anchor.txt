@@ -1,0 +1,4 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+rE2G_base	Full.Score	FALSE	0.2	max	0	FALSE	ENCODE-rE2G base (cross-validated)	red
+rE2G_ext	FullModel.Score	FALSE	0.2	max	0	FALSE	ENCODE-rE2G extended (cross-validated)	purple
+rE2G_ext_noEP300	FullModel_minus_EP300.Score	FALSE	0.2	max	0	FALSE	ENCODE-rE2G extended minus EP300	violet

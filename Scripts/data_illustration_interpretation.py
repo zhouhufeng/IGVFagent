@@ -587,6 +587,33 @@ def write_report(
     return path
 
 
+class _AuthStrippingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Drop credentials when a redirect leaves the portal's host.
+
+    Portal downloads are a 307 to a pre-signed S3 URL. urllib re-sends every
+    original header on the redirect, including `Authorization: Basic ...`,
+    and S3 answers 400 ("only one auth mechanism allowed") because the
+    pre-signed query string is already an auth mechanism. Every download in
+    a --download run failed that way on 2026-09-22 while anonymous curl,
+    which drops auth on cross-host redirects by default, fetched the same
+    files fine. Same-host redirects keep their headers.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        old_host = urllib.parse.urlparse(req.full_url).netloc.lower()
+        new_host = urllib.parse.urlparse(newurl).netloc.lower()
+        if old_host != new_host:
+            for h in ("Authorization", "Cookie"):
+                new.remove_header(h)
+        return new
+
+
+_DOWNLOAD_OPENER = urllib.request.build_opener(_AuthStrippingRedirectHandler())
+
+
 def download_files(source: str, manifest: list[dict[str, str]], label: str, max_download_gb: float) -> Path:
     destination = DOWNLOAD_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_{safe_label(label)}"
     destination.mkdir(parents=True, exist_ok=True)
@@ -613,9 +640,11 @@ def download_files(source: str, manifest: list[dict[str, str]], label: str, max_
         filename = Path(urllib.parse.urlparse(url).path).name or row.get("accession") or "downloaded_file"
         local_path = destination / safe_label(filename)
         logging.info("Downloading %s to %s", url, local_path)
-        request = urllib.request.Request(url, headers=request_headers(source), method="GET")
+        headers = request_headers(source)
+        headers["Accept"] = "*/*"          # a file, not JSON
+        request = urllib.request.Request(url, headers=headers, method="GET")
         try:
-            with urllib.request.urlopen(request, timeout=180) as response, local_path.open("wb") as handle:
+            with _DOWNLOAD_OPENER.open(request, timeout=180) as response, local_path.open("wb") as handle:
                 while True:
                     chunk = response.read(1024 * 1024)
                     if not chunk:

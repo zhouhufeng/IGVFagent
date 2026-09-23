@@ -1,0 +1,4 @@
+pred_id	pred_col	aggregate	fill_value	inverse	n_pairs	n_positive	baseline_precision	n_pairs_dropped_missing_gene	pairs_overlapping_prediction	frac_overlapping	auprc	auprc_ci95_low	auprc_ci95_high	auprc_trapz	auprc_crispr_comparison	precision_at_70_recall	auprc_negated	n_nonmissing_scores
+rE2G_ext	FullModel.Score	max	0.0	False	10356	471	0.0455	0	10356	1.0	0.7581	0.7249	0.7959	0.7558	0.7558	0.6992	0.0234	10356
+rE2G_ext_noEP300	FullModel_minus_EP300.Score	max	0.0	False	10356	471	0.0455	0	10356	1.0	0.7303	0.6923	0.7704	0.7279	0.7279	0.6721	0.0234	10356
+rE2G_base	Full.Score	max	0.0	False	10356	471	0.0455	0	10356	1.0	0.6341	0.5924	0.6894	0.6326	0.6326	0.5428	0.0235	10356

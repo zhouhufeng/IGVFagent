@@ -1,0 +1,17 @@
+file	rows	columns	features	feature_names	sampled_pair_overlap_vs_first	size_mb
+K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz	3000000	25	15	E2G_Distance; CrhmmBool-Acetylated_Regions; CrhmmBool-Promoter_Bivalent; CrhmmBool-Other; CrhmmBool-Enh_Mesenchyme; CrhmmBool-Enh_Strong; CrhmmBool-Enh_ESC; CrhmmBool-Enh_Weak; CrhmmBool-Heterochromatin_Regions; CrhmmBool-Promoter_Active; CrhmmBool-Quiescent_Regions; CrhmmBool-RepressivePolycomb_Reg	reference	97.1
+K562_ERR9847049_Multiome_K562_ArchR.tsv.gz	3000000	13	3	E2G_Distance; ArchR_Score; ArchR_FDR	1.000	126.3
+K562_ERR9847049_Multiome_K562_Cicero.tsv.gz	3000000	12	2	E2G_Distance; Cicero_Score	1.000	103.5
+K562_ERR9847049_Multiome_K562_EPCOT.tsv.gz	3000000	51	41	E2G_Distance; EP300 signal at E; H3K27me3 signal at E; H3K9ac signal at E; H3K4me1 signal at E; H3K27ac signal at E; H3K36me3 signal at E; H2AFZ signal at E; H3K4me3 signal at E; H3K9me3 signal at E; H3K4me2 signal at E; H4K20me1 signal at E; H3K79me2 signal at E; EP300 signal at P; H3K27me3 signal 	1.000	2083.3
+K562_ERR9847049_Multiome_K562_EPCOT_wok562.tsv.gz	3000000	51	41	E2G_Distance; EP300 signal at E; H3K27me3 signal at E; H3K9ac signal at E; H3K4me1 signal at E; H3K27ac signal at E; H3K36me3 signal at E; H2AFZ signal at E; H3K4me3 signal at E; H3K9me3 signal at E; H3K4me2 signal at E; H4K20me1 signal at E; H3K79me2 signal at E; EP300 signal at P; H3K27me3 signal 	1.000	2055.5
+K562_ERR9847049_Multiome_K562_SCENT.tsv.gz	3000000	13	3	E2G_Distance; SCENT_Score; SCENT_beta	1.000	92.6
+K562_ERR9847049_Multiome_K562_Signac.tsv.gz	3000000	13	3	E2G_Distance; Signac_Score; Signac_pvalue	1.000	130.4
+uniformly_processed_K562.Alu_features.tsv.gz	3000000	15	5	E2G_Distance; OverlapsAlu; OverlapsAluJ; OverlapsAluS; OverlapsAluY	0.007	90.0
+uniformly_processed_K562.MotifDensityFeatures.tsv.gz	3000000	16	6	E2G_Distance; MotifDensityJaspar2026; MotifCountsJaspar2026; UniqueMotifDensityJaspar2026; UniqueMotifCountsJaspar2026; CTCFMotifHitJaspar2026	1.000	105.4
+uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz	3000000	14	4	E2G_Distance; std; mean; disp	1.000	198.8
+uniformly_processed_K562_candidate_e2g_pairs_phastcons.tsv.gz	3000000	12	2	E2G_Distance; mean_phastCons	1.000	92.4
+uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz	3000000	13	3	E2G_Distance; min_phyloP; max_phyloP	1.000	103.0
+uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz	3000000	12	2	E2G_Distance; Pinloop	1.000	97.9
+uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz	3000000	13	3	E2G_Distance; pLI; LOEUF	0.322	127.3
+uniformly_processed_K562_candidate_e2g_pairs_shet.tsv.gz	3000000	12	2	E2G_Distance; genebayes_shet	1.000	123.1
+uniformly_processed_K562_candidate_e2g_pairs_tf_genes_marked.tsv.gz	3000000	12	2	E2G_Distance; is_tf	1.000	86.2

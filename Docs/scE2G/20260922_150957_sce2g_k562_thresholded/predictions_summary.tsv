@@ -1,0 +1,2 @@
+table	links	genes	elements	score_col	score_min	score_median	score_max	links_ge_0.177	links_per_gene_median
+thresholded	59116	11107	46695	Score	0.177006238686301	0.4085135437048655	0.999996647524567	59116	3.0

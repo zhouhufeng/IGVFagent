@@ -164,6 +164,18 @@ def main() -> int:
     no_filters = explain.diagnose_empty_search("encode", {"total": 0})
     check(any("no filters" in ln for ln in no_filters), "handles a body without filters")
 
+    print("\ndownload redirects drop credentials only when they leave the host")
+    import urllib.request
+    h = explain._AuthStrippingRedirectHandler()
+    req = urllib.request.Request("https://api.data.igvf.org/tabular-files/X/@@download/X.tsv.gz",
+                                 headers={"Authorization": "Basic abc", "Cookie": "c=1", "User-Agent": "t"})
+    cross = h.redirect_request(req, None, 307, "Temporary Redirect", {},
+                               "https://igvf-public.s3.amazonaws.com/x.tsv.gz?X-Amz-Signature=1")
+    same = h.redirect_request(req, None, 307, "Temporary Redirect", {}, "https://api.data.igvf.org/other/")
+    check(cross is not None and not cross.has_header("Authorization") and not cross.has_header("Cookie")
+          and cross.has_header("User-agent"), "S3 redirect: Authorization and Cookie removed, other headers kept")
+    check(same is not None and same.has_header("Authorization"), "same-host redirect keeps Authorization")
+
     print("\nextension re-authoring is an update, not a duplicate")
     import ext_author_skill as ext  # noqa: E402
     with tempfile.TemporaryDirectory() as td:

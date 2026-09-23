@@ -1,0 +1,82 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+baseline_E2G_Distance	E2G_Distance	FALSE		max	0.0	TRUE	E2G_Distance	#2a78d6
+EPCOT_EP300 signal at E	EP300 signal at E	FALSE		max	0.0	FALSE	EP300 signal at E	#eb6834
+EPCOT_H3K27me3 signal at E	H3K27me3 signal at E	FALSE		max	0.0	FALSE	H3K27me3 signal at E	#1baf7a
+EPCOT_H3K9ac signal at E	H3K9ac signal at E	FALSE		max	0.0	FALSE	H3K9ac signal at E	#eda100
+EPCOT_H3K4me1 signal at E	H3K4me1 signal at E	FALSE		max	0.0	FALSE	H3K4me1 signal at E	#e87ba4
+EPCOT_H3K27ac signal at E	H3K27ac signal at E	FALSE		max	0.0	FALSE	H3K27ac signal at E	#008300
+EPCOT_H3K36me3 signal at E	H3K36me3 signal at E	FALSE		max	0.0	FALSE	H3K36me3 signal at E	#4a3aa7
+EPCOT_H2AFZ signal at E	H2AFZ signal at E	FALSE		max	0.0	FALSE	H2AFZ signal at E	#e34948
+EPCOT_H3K4me3 signal at E	H3K4me3 signal at E	FALSE		max	0.0	FALSE	H3K4me3 signal at E	#2a78d6
+EPCOT_H3K9me3 signal at E	H3K9me3 signal at E	FALSE		max	0.0	FALSE	H3K9me3 signal at E	#eb6834
+EPCOT_H3K4me2 signal at E	H3K4me2 signal at E	FALSE		max	0.0	FALSE	H3K4me2 signal at E	#1baf7a
+EPCOT_H4K20me1 signal at E	H4K20me1 signal at E	FALSE		max	0.0	FALSE	H4K20me1 signal at E	#eda100
+EPCOT_H3K79me2 signal at E	H3K79me2 signal at E	FALSE		max	0.0	FALSE	H3K79me2 signal at E	#e87ba4
+EPCOT_EP300 signal at P	EP300 signal at P	FALSE		max	0.0	FALSE	EP300 signal at P	#008300
+EPCOT_H3K27me3 signal at P	H3K27me3 signal at P	FALSE		max	0.0	FALSE	H3K27me3 signal at P	#4a3aa7
+EPCOT_H3K9ac signal at P	H3K9ac signal at P	FALSE		max	0.0	FALSE	H3K9ac signal at P	#e34948
+EPCOT_H3K4me1 signal at P	H3K4me1 signal at P	FALSE		max	0.0	FALSE	H3K4me1 signal at P	#2a78d6
+EPCOT_H3K27ac signal at P	H3K27ac signal at P	FALSE		max	0.0	FALSE	H3K27ac signal at P	#eb6834
+EPCOT_H3K36me3 signal at P	H3K36me3 signal at P	FALSE		max	0.0	FALSE	H3K36me3 signal at P	#1baf7a
+EPCOT_H2AFZ signal at P	H2AFZ signal at P	FALSE		max	0.0	FALSE	H2AFZ signal at P	#eda100
+EPCOT_H3K4me3 signal at P	H3K4me3 signal at P	FALSE		max	0.0	FALSE	H3K4me3 signal at P	#e87ba4
+EPCOT_H3K9me3 signal at P	H3K9me3 signal at P	FALSE		max	0.0	FALSE	H3K9me3 signal at P	#008300
+EPCOT_H3K4me2 signal at P	H3K4me2 signal at P	FALSE		max	0.0	FALSE	H3K4me2 signal at P	#4a3aa7
+EPCOT_H4K20me1 signal at P	H4K20me1 signal at P	FALSE		max	0.0	FALSE	H4K20me1 signal at P	#e34948
+EPCOT_H3K79me2 signal at P	H3K79me2 signal at P	FALSE		max	0.0	FALSE	H3K79me2 signal at P	#2a78d6
+EPCOT_Bru-seq signal at E	Bru-seq signal at E	FALSE		max	0.0	FALSE	Bru-seq signal at E	#eb6834
+EPCOT_RNA-seq signal at E	RNA-seq signal at E	FALSE		max	0.0	FALSE	RNA-seq signal at E	#1baf7a
+EPCOT_NET-CAGE forward signal at E	NET-CAGE forward signal at E	FALSE		max	0.0	FALSE	NET-CAGE forward signal at E	#eda100
+EPCOT_NET-CAGE reverse signal at E	NET-CAGE reverse signal at E	FALSE		max	0.0	FALSE	NET-CAGE reverse signal at E	#e87ba4
+EPCOT_Bru-seq signal at P	Bru-seq signal at P	FALSE		max	0.0	FALSE	Bru-seq signal at P	#008300
+EPCOT_RNA-seq signal at P	RNA-seq signal at P	FALSE		max	0.0	FALSE	RNA-seq signal at P	#4a3aa7
+EPCOT_NET-CAGE forward signal at P	NET-CAGE forward signal at P	FALSE		max	0.0	FALSE	NET-CAGE forward signal at P	#e34948
+EPCOT_NET-CAGE reverse signal at P	NET-CAGE reverse signal at P	FALSE		max	0.0	FALSE	NET-CAGE reverse signal at P	#2a78d6
+EPCOT_GRO-seq forward signal at E	GRO-seq forward signal at E	FALSE		max	0.0	FALSE	GRO-seq forward signal at E	#eb6834
+EPCOT_GRO-seq reverse signal at E	GRO-seq reverse signal at E	FALSE		max	0.0	FALSE	GRO-seq reverse signal at E	#1baf7a
+EPCOT_GRO-cap forward signal at E	GRO-cap forward signal at E	FALSE		max	0.0	FALSE	GRO-cap forward signal at E	#eda100
+EPCOT_GRO-cap reverse signal at E	GRO-cap reverse signal at E	FALSE		max	0.0	FALSE	GRO-cap reverse signal at E	#e87ba4
+EPCOT_GRO-seq forward signal at P	GRO-seq forward signal at P	FALSE		max	0.0	FALSE	GRO-seq forward signal at P	#008300
+EPCOT_GRO-seq reverse signal at P	GRO-seq reverse signal at P	FALSE		max	0.0	FALSE	GRO-seq reverse signal at P	#4a3aa7
+EPCOT_GRO-cap forward signal at P	GRO-cap forward signal at P	FALSE		max	0.0	FALSE	GRO-cap forward signal at P	#e34948
+EPCOT_GRO-cap reverse signal at P	GRO-cap reverse signal at P	FALSE		max	0.0	FALSE	GRO-cap reverse signal at P	#2a78d6
+EPCOT_woK562_EP300 signal at E	EP300 signal at E	FALSE		max	0.0	FALSE	EP300 signal at E	#eb6834
+EPCOT_woK562_H3K27me3 signal at E	H3K27me3 signal at E	FALSE		max	0.0	FALSE	H3K27me3 signal at E	#1baf7a
+EPCOT_woK562_H3K9ac signal at E	H3K9ac signal at E	FALSE		max	0.0	FALSE	H3K9ac signal at E	#eda100
+EPCOT_woK562_H3K4me1 signal at E	H3K4me1 signal at E	FALSE		max	0.0	FALSE	H3K4me1 signal at E	#e87ba4
+EPCOT_woK562_H3K27ac signal at E	H3K27ac signal at E	FALSE		max	0.0	FALSE	H3K27ac signal at E	#008300
+EPCOT_woK562_H3K36me3 signal at E	H3K36me3 signal at E	FALSE		max	0.0	FALSE	H3K36me3 signal at E	#4a3aa7
+EPCOT_woK562_H2AFZ signal at E	H2AFZ signal at E	FALSE		max	0.0	FALSE	H2AFZ signal at E	#e34948
+EPCOT_woK562_H3K4me3 signal at E	H3K4me3 signal at E	FALSE		max	0.0	FALSE	H3K4me3 signal at E	#2a78d6
+EPCOT_woK562_H3K9me3 signal at E	H3K9me3 signal at E	FALSE		max	0.0	FALSE	H3K9me3 signal at E	#eb6834
+EPCOT_woK562_H3K4me2 signal at E	H3K4me2 signal at E	FALSE		max	0.0	FALSE	H3K4me2 signal at E	#1baf7a
+EPCOT_woK562_H4K20me1 signal at E	H4K20me1 signal at E	FALSE		max	0.0	FALSE	H4K20me1 signal at E	#eda100
+EPCOT_woK562_H3K79me2 signal at E	H3K79me2 signal at E	FALSE		max	0.0	FALSE	H3K79me2 signal at E	#e87ba4
+EPCOT_woK562_EP300 signal at P	EP300 signal at P	FALSE		max	0.0	FALSE	EP300 signal at P	#008300
+EPCOT_woK562_H3K27me3 signal at P	H3K27me3 signal at P	FALSE		max	0.0	FALSE	H3K27me3 signal at P	#4a3aa7
+EPCOT_woK562_H3K9ac signal at P	H3K9ac signal at P	FALSE		max	0.0	FALSE	H3K9ac signal at P	#e34948
+EPCOT_woK562_H3K4me1 signal at P	H3K4me1 signal at P	FALSE		max	0.0	FALSE	H3K4me1 signal at P	#2a78d6
+EPCOT_woK562_H3K27ac signal at P	H3K27ac signal at P	FALSE		max	0.0	FALSE	H3K27ac signal at P	#eb6834
+EPCOT_woK562_H3K36me3 signal at P	H3K36me3 signal at P	FALSE		max	0.0	FALSE	H3K36me3 signal at P	#1baf7a
+EPCOT_woK562_H2AFZ signal at P	H2AFZ signal at P	FALSE		max	0.0	FALSE	H2AFZ signal at P	#eda100
+EPCOT_woK562_H3K4me3 signal at P	H3K4me3 signal at P	FALSE		max	0.0	FALSE	H3K4me3 signal at P	#e87ba4
+EPCOT_woK562_H3K9me3 signal at P	H3K9me3 signal at P	FALSE		max	0.0	FALSE	H3K9me3 signal at P	#008300
+EPCOT_woK562_H3K4me2 signal at P	H3K4me2 signal at P	FALSE		max	0.0	FALSE	H3K4me2 signal at P	#4a3aa7
+EPCOT_woK562_H4K20me1 signal at P	H4K20me1 signal at P	FALSE		max	0.0	FALSE	H4K20me1 signal at P	#e34948
+EPCOT_woK562_H3K79me2 signal at P	H3K79me2 signal at P	FALSE		max	0.0	FALSE	H3K79me2 signal at P	#2a78d6
+EPCOT_woK562_Bru-seq signal at E	Bru-seq signal at E	FALSE		max	0.0	FALSE	Bru-seq signal at E	#eb6834
+EPCOT_woK562_RNA-seq signal at E	RNA-seq signal at E	FALSE		max	0.0	FALSE	RNA-seq signal at E	#1baf7a
+EPCOT_woK562_NET-CAGE forward signal at E	NET-CAGE forward signal at E	FALSE		max	0.0	FALSE	NET-CAGE forward signal at E	#eda100
+EPCOT_woK562_NET-CAGE reverse signal at E	NET-CAGE reverse signal at E	FALSE		max	0.0	FALSE	NET-CAGE reverse signal at E	#e87ba4
+EPCOT_woK562_Bru-seq signal at P	Bru-seq signal at P	FALSE		max	0.0	FALSE	Bru-seq signal at P	#008300
+EPCOT_woK562_RNA-seq signal at P	RNA-seq signal at P	FALSE		max	0.0	FALSE	RNA-seq signal at P	#4a3aa7
+EPCOT_woK562_NET-CAGE forward signal at P	NET-CAGE forward signal at P	FALSE		max	0.0	FALSE	NET-CAGE forward signal at P	#e34948
+EPCOT_woK562_NET-CAGE reverse signal at P	NET-CAGE reverse signal at P	FALSE		max	0.0	FALSE	NET-CAGE reverse signal at P	#2a78d6
+EPCOT_woK562_GRO-seq forward signal at E	GRO-seq forward signal at E	FALSE		max	0.0	FALSE	GRO-seq forward signal at E	#eb6834
+EPCOT_woK562_GRO-seq reverse signal at E	GRO-seq reverse signal at E	FALSE		max	0.0	FALSE	GRO-seq reverse signal at E	#1baf7a
+EPCOT_woK562_GRO-cap forward signal at E	GRO-cap forward signal at E	FALSE		max	0.0	FALSE	GRO-cap forward signal at E	#eda100
+EPCOT_woK562_GRO-cap reverse signal at E	GRO-cap reverse signal at E	FALSE		max	0.0	FALSE	GRO-cap reverse signal at E	#e87ba4
+EPCOT_woK562_GRO-seq forward signal at P	GRO-seq forward signal at P	FALSE		max	0.0	FALSE	GRO-seq forward signal at P	#008300
+EPCOT_woK562_GRO-seq reverse signal at P	GRO-seq reverse signal at P	FALSE		max	0.0	FALSE	GRO-seq reverse signal at P	#4a3aa7
+EPCOT_woK562_GRO-cap forward signal at P	GRO-cap forward signal at P	FALSE		max	0.0	FALSE	GRO-cap forward signal at P	#e34948
+EPCOT_woK562_GRO-cap reverse signal at P	GRO-cap reverse signal at P	FALSE		max	0.0	FALSE	GRO-cap reverse signal at P	#2a78d6

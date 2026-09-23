@@ -1,0 +1,1317 @@
+{
+  "label": "k562_crowdsourced_feature_benchmark",
+  "runs": [
+    "20260922_212801_k562_features_A",
+    "20260922_212801_k562_features_B",
+    "20260922_212801_k562_features_C",
+    "20260922_212801_k562_features_D_epcot",
+    "20260922_212801_k562_re2g_published_anchor",
+    "20260922_212801_k562_sce2g_reference"
+  ],
+  "n_pairs": 10356,
+  "n_positive": 471,
+  "baseline_precision": 0.04548,
+  "n_predictors": 129,
+  "n_single_features": 121,
+  "best_single_feature": {
+    "pred_id": "Pinloop:Pinloop",
+    "auprc": 0.3569
+  },
+  "best_reference": {
+    "pred_id": "rE2G_ext",
+    "auprc": 0.7581
+  },
+  "n_features_above_distance_baseline": 0,
+  "predictors": {
+    "rE2G_ext": {
+      "auprc": 0.7581,
+      "auprc_ci95_low": 0.7249,
+      "auprc_ci95_high": 0.7959,
+      "auprc_trapz": 0.7558,
+      "auprc_crispr_comparison": 0.7558,
+      "precision_at_70_recall": 0.6992,
+      "auprc_negated": 0.0234,
+      "frac_overlapping": 1.0
+    },
+    "rE2G_ext_noEP300": {
+      "auprc": 0.7303,
+      "auprc_ci95_low": 0.6923,
+      "auprc_ci95_high": 0.7704,
+      "auprc_trapz": 0.7279,
+      "auprc_crispr_comparison": 0.7279,
+      "precision_at_70_recall": 0.6721,
+      "auprc_negated": 0.0234,
+      "frac_overlapping": 1.0
+    },
+    "rE2G_base": {
+      "auprc": 0.6341,
+      "auprc_ci95_low": 0.5924,
+      "auprc_ci95_high": 0.6894,
+      "auprc_trapz": 0.6326,
+      "auprc_crispr_comparison": 0.6326,
+      "precision_at_70_recall": 0.5428,
+      "auprc_negated": 0.0235,
+      "frac_overlapping": 1.0
+    },
+    "scE2G_ignoreTPM": {
+      "auprc": 0.5891,
+      "auprc_ci95_low": 0.5423,
+      "auprc_ci95_high": 0.6352,
+      "auprc_trapz": 0.5866,
+      "auprc_crispr_comparison": 0.5822,
+      "precision_at_70_recall": 0.4729,
+      "auprc_negated": 0.0275,
+      "frac_overlapping": 0.8908
+    },
+    "scE2G": {
+      "auprc": 0.5304,
+      "auprc_ci95_low": 0.4861,
+      "auprc_ci95_high": 0.5767,
+      "auprc_trapz": 0.5278,
+      "auprc_crispr_comparison": 0.519,
+      "precision_at_70_recall": 0.2537,
+      "auprc_negated": 0.0321,
+      "frac_overlapping": 0.8908
+    },
+    "ARC_E2G": {
+      "auprc": 0.4952,
+      "auprc_ci95_low": 0.454,
+      "auprc_ci95_high": 0.5482,
+      "auprc_trapz": 0.4925,
+      "auprc_crispr_comparison": 0.4881,
+      "precision_at_70_recall": 0.3357,
+      "auprc_negated": 0.0276,
+      "frac_overlapping": 0.8908
+    },
+    "ABC": {
+      "auprc": 0.491,
+      "auprc_ci95_low": 0.4503,
+      "auprc_ci95_high": 0.5446,
+      "auprc_trapz": 0.4883,
+      "auprc_crispr_comparison": 0.4839,
+      "precision_at_70_recall": 0.3518,
+      "auprc_negated": 0.0276,
+      "frac_overlapping": 0.8908
+    },
+    "baseline:E2G_Distance": {
+      "auprc": 0.4181,
+      "auprc_ci95_low": 0.376,
+      "auprc_ci95_high": 0.47,
+      "auprc_trapz": 0.4164,
+      "auprc_crispr_comparison": 0.4117,
+      "precision_at_70_recall": 0.273,
+      "auprc_negated": 0.0278,
+      "frac_overlapping": 0.8614
+    },
+    "Pinloop:Pinloop": {
+      "auprc": 0.3569,
+      "auprc_ci95_low": 0.3079,
+      "auprc_ci95_high": 0.4038,
+      "auprc_trapz": 0.3388,
+      "auprc_crispr_comparison": 0.3311,
+      "precision_at_70_recall": 0.1969,
+      "auprc_negated": 0.0274,
+      "frac_overlapping": 0.8614
+    },
+    "Signac:Signac_Score": {
+      "auprc": 0.2267,
+      "auprc_ci95_low": 0.1869,
+      "auprc_ci95_high": 0.2674,
+      "auprc_trapz": 0.2242,
+      "auprc_crispr_comparison": 0.2242,
+      "precision_at_70_recall": 0.0813,
+      "auprc_negated": 0.0286,
+      "frac_overlapping": 0.7991
+    },
+    "Signac:Signac_pvalue": {
+      "auprc": 0.2121,
+      "auprc_ci95_low": 0.1705,
+      "auprc_ci95_high": 0.252,
+      "auprc_trapz": 0.2094,
+      "auprc_crispr_comparison": 0.2037,
+      "precision_at_70_recall": 0.069,
+      "auprc_negated": 0.0312,
+      "frac_overlapping": 0.7991
+    },
+    "SCENT:SCENT_beta": {
+      "auprc": 0.1746,
+      "auprc_ci95_low": 0.1479,
+      "auprc_ci95_high": 0.205,
+      "auprc_trapz": 0.1773,
+      "auprc_crispr_comparison": 0.1772,
+      "precision_at_70_recall": 0.047,
+      "auprc_negated": 0.0366,
+      "frac_overlapping": 0.4489
+    },
+    "EPCOT:EP300 signal at E": {
+      "auprc": 0.1585,
+      "auprc_ci95_low": 0.1348,
+      "auprc_ci95_high": 0.1899,
+      "auprc_trapz": 0.1573,
+      "auprc_crispr_comparison": 0.1573,
+      "precision_at_70_recall": 0.0963,
+      "auprc_negated": 0.0289,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:EP300 signal at E": {
+      "auprc": 0.1383,
+      "auprc_ci95_low": 0.1181,
+      "auprc_ci95_high": 0.1664,
+      "auprc_trapz": 0.1373,
+      "auprc_crispr_comparison": 0.1373,
+      "precision_at_70_recall": 0.0864,
+      "auprc_negated": 0.0289,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K4me1 signal at E": {
+      "auprc": 0.1095,
+      "auprc_ci95_low": 0.0933,
+      "auprc_ci95_high": 0.1331,
+      "auprc_trapz": 0.1081,
+      "auprc_crispr_comparison": 0.1081,
+      "precision_at_70_recall": 0.0869,
+      "auprc_negated": 0.0299,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K27ac signal at E": {
+      "auprc": 0.1084,
+      "auprc_ci95_low": 0.0935,
+      "auprc_ci95_high": 0.13,
+      "auprc_trapz": 0.1076,
+      "auprc_crispr_comparison": 0.1076,
+      "precision_at_70_recall": 0.0868,
+      "auprc_negated": 0.0288,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K4me1 signal at E": {
+      "auprc": 0.0933,
+      "auprc_ci95_low": 0.0804,
+      "auprc_ci95_high": 0.1092,
+      "auprc_trapz": 0.0914,
+      "auprc_crispr_comparison": 0.0914,
+      "precision_at_70_recall": 0.0827,
+      "auprc_negated": 0.0304,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K27ac signal at E": {
+      "auprc": 0.091,
+      "auprc_ci95_low": 0.0798,
+      "auprc_ci95_high": 0.1076,
+      "auprc_trapz": 0.0906,
+      "auprc_crispr_comparison": 0.0905,
+      "precision_at_70_recall": 0.0842,
+      "auprc_negated": 0.0314,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K4me1 signal at P": {
+      "auprc": 0.0795,
+      "auprc_ci95_low": 0.0644,
+      "auprc_ci95_high": 0.1009,
+      "auprc_trapz": 0.0779,
+      "auprc_crispr_comparison": 0.0779,
+      "precision_at_70_recall": 0.0492,
+      "auprc_negated": 0.037,
+      "frac_overlapping": 0.8614
+    },
+    "Cicero:Cicero_Score": {
+      "auprc": 0.0767,
+      "auprc_ci95_low": 0.0662,
+      "auprc_ci95_high": 0.0902,
+      "auprc_trapz": 0.0814,
+      "auprc_crispr_comparison": 0.0814,
+      "precision_at_70_recall": 0.046,
+      "auprc_negated": 0.0358,
+      "frac_overlapping": 0.529
+    },
+    "EPCOT_woK562:H3K4me1 signal at P": {
+      "auprc": 0.0738,
+      "auprc_ci95_low": 0.0615,
+      "auprc_ci95_high": 0.0896,
+      "auprc_trapz": 0.0729,
+      "auprc_crispr_comparison": 0.0729,
+      "precision_at_70_recall": 0.0557,
+      "auprc_negated": 0.0337,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-seq reverse signal at E": {
+      "auprc": 0.0727,
+      "auprc_ci95_low": 0.066,
+      "auprc_ci95_high": 0.0829,
+      "auprc_trapz": 0.0724,
+      "auprc_crispr_comparison": 0.0674,
+      "precision_at_70_recall": 0.0758,
+      "auprc_negated": 0.0316,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-seq forward signal at E": {
+      "auprc": 0.0699,
+      "auprc_ci95_low": 0.0629,
+      "auprc_ci95_high": 0.0801,
+      "auprc_trapz": 0.0697,
+      "auprc_crispr_comparison": 0.0646,
+      "precision_at_70_recall": 0.0722,
+      "auprc_negated": 0.0327,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K9ac signal at E": {
+      "auprc": 0.0685,
+      "auprc_ci95_low": 0.0606,
+      "auprc_ci95_high": 0.0783,
+      "auprc_trapz": 0.0681,
+      "auprc_crispr_comparison": 0.0681,
+      "precision_at_70_recall": 0.0699,
+      "auprc_negated": 0.0373,
+      "frac_overlapping": 0.8614
+    },
+    "ENCODEstats:disp": {
+      "auprc": 0.0683,
+      "auprc_ci95_low": 0.0537,
+      "auprc_ci95_high": 0.0847,
+      "auprc_trapz": 0.0626,
+      "auprc_crispr_comparison": 0.0578,
+      "precision_at_70_recall": 0.0434,
+      "auprc_negated": 0.0463,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-cap reverse signal at E": {
+      "auprc": 0.0674,
+      "auprc_ci95_low": 0.0613,
+      "auprc_ci95_high": 0.0761,
+      "auprc_trapz": 0.0683,
+      "auprc_crispr_comparison": 0.0598,
+      "precision_at_70_recall": 0.0749,
+      "auprc_negated": 0.0314,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K4me2 signal at E": {
+      "auprc": 0.0674,
+      "auprc_ci95_low": 0.0597,
+      "auprc_ci95_high": 0.0756,
+      "auprc_trapz": 0.0671,
+      "auprc_crispr_comparison": 0.0671,
+      "precision_at_70_recall": 0.0726,
+      "auprc_negated": 0.0364,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:Bru-seq signal at E": {
+      "auprc": 0.0658,
+      "auprc_ci95_low": 0.0581,
+      "auprc_ci95_high": 0.0757,
+      "auprc_trapz": 0.0653,
+      "auprc_crispr_comparison": 0.0606,
+      "precision_at_70_recall": 0.0664,
+      "auprc_negated": 0.0342,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:NET-CAGE reverse signal at E": {
+      "auprc": 0.0657,
+      "auprc_ci95_low": 0.0591,
+      "auprc_ci95_high": 0.0742,
+      "auprc_trapz": 0.0655,
+      "auprc_crispr_comparison": 0.0602,
+      "precision_at_70_recall": 0.0713,
+      "auprc_negated": 0.0333,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-cap reverse signal at E": {
+      "auprc": 0.0653,
+      "auprc_ci95_low": 0.059,
+      "auprc_ci95_high": 0.0733,
+      "auprc_trapz": 0.0651,
+      "auprc_crispr_comparison": 0.0586,
+      "precision_at_70_recall": 0.0716,
+      "auprc_negated": 0.0342,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K4me2 signal at E": {
+      "auprc": 0.0648,
+      "auprc_ci95_low": 0.0577,
+      "auprc_ci95_high": 0.0732,
+      "auprc_trapz": 0.0646,
+      "auprc_crispr_comparison": 0.0646,
+      "precision_at_70_recall": 0.0721,
+      "auprc_negated": 0.0325,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-cap forward signal at E": {
+      "auprc": 0.0638,
+      "auprc_ci95_low": 0.0577,
+      "auprc_ci95_high": 0.0722,
+      "auprc_trapz": 0.0636,
+      "auprc_crispr_comparison": 0.0577,
+      "precision_at_70_recall": 0.0704,
+      "auprc_negated": 0.0342,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:NET-CAGE forward signal at E": {
+      "auprc": 0.0638,
+      "auprc_ci95_low": 0.0569,
+      "auprc_ci95_high": 0.0718,
+      "auprc_trapz": 0.0634,
+      "auprc_crispr_comparison": 0.0584,
+      "precision_at_70_recall": 0.071,
+      "auprc_negated": 0.0339,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-seq reverse signal at E": {
+      "auprc": 0.0633,
+      "auprc_ci95_low": 0.0576,
+      "auprc_ci95_high": 0.0718,
+      "auprc_trapz": 0.063,
+      "auprc_crispr_comparison": 0.0578,
+      "precision_at_70_recall": 0.0674,
+      "auprc_negated": 0.0342,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H2AFZ signal at E": {
+      "auprc": 0.063,
+      "auprc_ci95_low": 0.0547,
+      "auprc_ci95_high": 0.0726,
+      "auprc_trapz": 0.0626,
+      "auprc_crispr_comparison": 0.0626,
+      "precision_at_70_recall": 0.0654,
+      "auprc_negated": 0.0356,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-cap forward signal at E": {
+      "auprc": 0.0622,
+      "auprc_ci95_low": 0.056,
+      "auprc_ci95_high": 0.0712,
+      "auprc_trapz": 0.0625,
+      "auprc_crispr_comparison": 0.0519,
+      "precision_at_70_recall": 0.0657,
+      "auprc_negated": 0.0349,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K27me3 signal at P": {
+      "auprc": 0.0611,
+      "auprc_ci95_low": 0.0504,
+      "auprc_ci95_high": 0.0747,
+      "auprc_trapz": 0.0586,
+      "auprc_crispr_comparison": 0.0586,
+      "precision_at_70_recall": 0.0477,
+      "auprc_negated": 0.0429,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:NET-CAGE reverse signal at E": {
+      "auprc": 0.0607,
+      "auprc_ci95_low": 0.0543,
+      "auprc_ci95_high": 0.0693,
+      "auprc_trapz": 0.0604,
+      "auprc_crispr_comparison": 0.0542,
+      "precision_at_70_recall": 0.0607,
+      "auprc_negated": 0.0361,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K79me2 signal at E": {
+      "auprc": 0.0604,
+      "auprc_ci95_low": 0.0544,
+      "auprc_ci95_high": 0.0686,
+      "auprc_trapz": 0.0605,
+      "auprc_crispr_comparison": 0.0605,
+      "precision_at_70_recall": 0.0588,
+      "auprc_negated": 0.0381,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K9me3 signal at E": {
+      "auprc": 0.0601,
+      "auprc_ci95_low": 0.0515,
+      "auprc_ci95_high": 0.0733,
+      "auprc_trapz": 0.06,
+      "auprc_crispr_comparison": 0.06,
+      "precision_at_70_recall": 0.0501,
+      "auprc_negated": 0.0462,
+      "frac_overlapping": 0.8614
+    },
+    "SCENT:SCENT_Score": {
+      "auprc": 0.0599,
+      "auprc_ci95_low": 0.053,
+      "auprc_ci95_high": 0.0682,
+      "auprc_trapz": 0.0615,
+      "auprc_crispr_comparison": 0.0493,
+      "precision_at_70_recall": 0.082,
+      "auprc_negated": 0.0339,
+      "frac_overlapping": 0.4489
+    },
+    "EPCOT_woK562:H2AFZ signal at E": {
+      "auprc": 0.0595,
+      "auprc_ci95_low": 0.0527,
+      "auprc_ci95_high": 0.067,
+      "auprc_trapz": 0.0592,
+      "auprc_crispr_comparison": 0.0592,
+      "precision_at_70_recall": 0.0597,
+      "auprc_negated": 0.0376,
+      "frac_overlapping": 0.8614
+    },
+    "ArchR:ArchR_FDR": {
+      "auprc": 0.0582,
+      "auprc_ci95_low": 0.0486,
+      "auprc_ci95_high": 0.0735,
+      "auprc_trapz": 0.0579,
+      "auprc_crispr_comparison": 0.0415,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0414,
+      "frac_overlapping": 0.6018
+    },
+    "EPCOT:GRO-seq forward signal at E": {
+      "auprc": 0.0577,
+      "auprc_ci95_low": 0.0526,
+      "auprc_ci95_high": 0.065,
+      "auprc_trapz": 0.0575,
+      "auprc_crispr_comparison": 0.0527,
+      "precision_at_70_recall": 0.062,
+      "auprc_negated": 0.0353,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K36me3 signal at P": {
+      "auprc": 0.0577,
+      "auprc_ci95_low": 0.0455,
+      "auprc_ci95_high": 0.0749,
+      "auprc_trapz": 0.0555,
+      "auprc_crispr_comparison": 0.0555,
+      "precision_at_70_recall": 0.047,
+      "auprc_negated": 0.043,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K36me3 signal at P": {
+      "auprc": 0.0571,
+      "auprc_ci95_low": 0.0479,
+      "auprc_ci95_high": 0.072,
+      "auprc_trapz": 0.0563,
+      "auprc_crispr_comparison": 0.0563,
+      "precision_at_70_recall": 0.0485,
+      "auprc_negated": 0.0419,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K9me3 signal at P": {
+      "auprc": 0.0568,
+      "auprc_ci95_low": 0.0503,
+      "auprc_ci95_high": 0.0656,
+      "auprc_trapz": 0.0579,
+      "auprc_crispr_comparison": 0.0579,
+      "precision_at_70_recall": 0.0548,
+      "auprc_negated": 0.0366,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Enh_Strong": {
+      "auprc": 0.0567,
+      "auprc_ci95_low": 0.0511,
+      "auprc_ci95_high": 0.0626,
+      "auprc_trapz": 0.0196,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0401,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K4me2 signal at P": {
+      "auprc": 0.0554,
+      "auprc_ci95_low": 0.048,
+      "auprc_ci95_high": 0.0643,
+      "auprc_trapz": 0.0547,
+      "auprc_crispr_comparison": 0.0547,
+      "precision_at_70_recall": 0.0458,
+      "auprc_negated": 0.0443,
+      "frac_overlapping": 0.8614
+    },
+    "ArchR:ArchR_Score": {
+      "auprc": 0.055,
+      "auprc_ci95_low": 0.0463,
+      "auprc_ci95_high": 0.0672,
+      "auprc_trapz": 0.0553,
+      "auprc_crispr_comparison": 0.0552,
+      "precision_at_70_recall": 0.0454,
+      "auprc_negated": 0.0483,
+      "frac_overlapping": 0.6018
+    },
+    "EPCOT:H3K4me3 signal at E": {
+      "auprc": 0.0547,
+      "auprc_ci95_low": 0.0494,
+      "auprc_ci95_high": 0.0619,
+      "auprc_trapz": 0.0547,
+      "auprc_crispr_comparison": 0.0547,
+      "precision_at_70_recall": 0.0549,
+      "auprc_negated": 0.0434,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K9ac signal at E": {
+      "auprc": 0.0546,
+      "auprc_ci95_low": 0.0489,
+      "auprc_ci95_high": 0.0624,
+      "auprc_trapz": 0.0541,
+      "auprc_crispr_comparison": 0.054,
+      "precision_at_70_recall": 0.0512,
+      "auprc_negated": 0.0427,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:NET-CAGE forward signal at E": {
+      "auprc": 0.0545,
+      "auprc_ci95_low": 0.0496,
+      "auprc_ci95_high": 0.0612,
+      "auprc_trapz": 0.0544,
+      "auprc_crispr_comparison": 0.0489,
+      "precision_at_70_recall": 0.0617,
+      "auprc_negated": 0.0363,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K79me2 signal at E": {
+      "auprc": 0.0517,
+      "auprc_ci95_low": 0.0466,
+      "auprc_ci95_high": 0.0591,
+      "auprc_trapz": 0.0518,
+      "auprc_crispr_comparison": 0.0518,
+      "precision_at_70_recall": 0.0454,
+      "auprc_negated": 0.0475,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K4me3 signal at E": {
+      "auprc": 0.0517,
+      "auprc_ci95_low": 0.0459,
+      "auprc_ci95_high": 0.0577,
+      "auprc_trapz": 0.0516,
+      "auprc_crispr_comparison": 0.0514,
+      "precision_at_70_recall": 0.0524,
+      "auprc_negated": 0.0494,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:Bru-seq signal at E": {
+      "auprc": 0.0504,
+      "auprc_ci95_low": 0.0459,
+      "auprc_ci95_high": 0.057,
+      "auprc_trapz": 0.0501,
+      "auprc_crispr_comparison": 0.0454,
+      "precision_at_70_recall": 0.0581,
+      "auprc_negated": 0.0377,
+      "frac_overlapping": 0.8614
+    },
+    "phyloP:max_phyloP": {
+      "auprc": 0.0502,
+      "auprc_ci95_low": 0.0445,
+      "auprc_ci95_high": 0.057,
+      "auprc_trapz": 0.0488,
+      "auprc_crispr_comparison": 0.044,
+      "precision_at_70_recall": 0.0502,
+      "auprc_negated": 0.0403,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:NET-CAGE forward signal at P": {
+      "auprc": 0.0486,
+      "auprc_ci95_low": 0.0423,
+      "auprc_ci95_high": 0.0603,
+      "auprc_trapz": 0.0478,
+      "auprc_crispr_comparison": 0.039,
+      "precision_at_70_recall": 0.0428,
+      "auprc_negated": 0.0493,
+      "frac_overlapping": 0.8614
+    },
+    "pLI_LOEUF:pLI": {
+      "auprc": 0.048,
+      "auprc_ci95_low": 0.0422,
+      "auprc_ci95_high": 0.0549,
+      "auprc_trapz": 0.0456,
+      "auprc_crispr_comparison": 0.0408,
+      "precision_at_70_recall": 0.0473,
+      "auprc_negated": 0.0434,
+      "frac_overlapping": 0.8614
+    },
+    "pLI_LOEUF:LOEUF": {
+      "auprc": 0.0479,
+      "auprc_ci95_low": 0.0427,
+      "auprc_ci95_high": 0.0558,
+      "auprc_trapz": 0.0476,
+      "auprc_crispr_comparison": 0.0429,
+      "precision_at_70_recall": 0.0473,
+      "auprc_negated": 0.043,
+      "frac_overlapping": 0.8614
+    },
+    "Motif:UniqueMotifDensityJaspar2026": {
+      "auprc": 0.0478,
+      "auprc_ci95_low": 0.0425,
+      "auprc_ci95_high": 0.0585,
+      "auprc_trapz": 0.0465,
+      "auprc_crispr_comparison": 0.0417,
+      "precision_at_70_recall": 0.0459,
+      "auprc_negated": 0.0441,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K9me3 signal at P": {
+      "auprc": 0.0477,
+      "auprc_ci95_low": 0.0424,
+      "auprc_ci95_high": 0.0545,
+      "auprc_trapz": 0.0475,
+      "auprc_crispr_comparison": 0.0475,
+      "precision_at_70_recall": 0.0515,
+      "auprc_negated": 0.0412,
+      "frac_overlapping": 0.8614
+    },
+    "phastCons:mean_phastCons": {
+      "auprc": 0.0472,
+      "auprc_ci95_low": 0.0428,
+      "auprc_ci95_high": 0.0535,
+      "auprc_trapz": 0.0469,
+      "auprc_crispr_comparison": 0.0422,
+      "precision_at_70_recall": 0.0499,
+      "auprc_negated": 0.0413,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Acetylated_Regions": {
+      "auprc": 0.047,
+      "auprc_ci95_low": 0.0428,
+      "auprc_ci95_high": 0.0521,
+      "auprc_trapz": 0.0391,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0442,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Enh_ESC": {
+      "auprc": 0.0464,
+      "auprc_ci95_low": 0.0423,
+      "auprc_ci95_high": 0.0511,
+      "auprc_trapz": 0.0459,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0447,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K27me3 signal at P": {
+      "auprc": 0.0461,
+      "auprc_ci95_low": 0.0385,
+      "auprc_ci95_high": 0.057,
+      "auprc_trapz": 0.0414,
+      "auprc_crispr_comparison": 0.0414,
+      "precision_at_70_recall": 0.0433,
+      "auprc_negated": 0.0514,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:RNA-seq signal at E": {
+      "auprc": 0.046,
+      "auprc_ci95_low": 0.0416,
+      "auprc_ci95_high": 0.0512,
+      "auprc_trapz": 0.0457,
+      "auprc_crispr_comparison": 0.041,
+      "precision_at_70_recall": 0.0489,
+      "auprc_negated": 0.0418,
+      "frac_overlapping": 0.8614
+    },
+    "TFgene:is_tf": {
+      "auprc": 0.0458,
+      "auprc_ci95_low": 0.0415,
+      "auprc_ci95_high": 0.0505,
+      "auprc_trapz": 0.0439,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0452,
+      "frac_overlapping": 0.8614
+    },
+    "Alu:OverlapsAluS": {
+      "auprc": 0.0455,
+      "auprc_ci95_low": 0.0414,
+      "auprc_ci95_high": 0.05,
+      "auprc_trapz": 0.0418,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0455,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Heterochromatin_Regions": {
+      "auprc": 0.0453,
+      "auprc_ci95_low": 0.0412,
+      "auprc_ci95_high": 0.0492,
+      "auprc_trapz": 0.0409,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0457,
+      "frac_overlapping": 0.8614
+    },
+    "Alu:OverlapsAluY": {
+      "auprc": 0.0453,
+      "auprc_ci95_low": 0.0412,
+      "auprc_ci95_high": 0.0491,
+      "auprc_trapz": 0.0358,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0458,
+      "frac_overlapping": 0.8614
+    },
+    "Alu:OverlapsAlu": {
+      "auprc": 0.0451,
+      "auprc_ci95_low": 0.0407,
+      "auprc_ci95_high": 0.0492,
+      "auprc_trapz": 0.0378,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0459,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Quiescent_Regions": {
+      "auprc": 0.045,
+      "auprc_ci95_low": 0.041,
+      "auprc_ci95_high": 0.049,
+      "auprc_trapz": 0.0392,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.046,
+      "frac_overlapping": 0.8614
+    },
+    "Alu:OverlapsAluJ": {
+      "auprc": 0.0448,
+      "auprc_ci95_low": 0.0408,
+      "auprc_ci95_high": 0.0487,
+      "auprc_trapz": 0.0353,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0466,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Enh_Mesenchyme": {
+      "auprc": 0.0448,
+      "auprc_ci95_low": 0.0406,
+      "auprc_ci95_high": 0.049,
+      "auprc_trapz": 0.0361,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0462,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Transcribed_Region": {
+      "auprc": 0.0448,
+      "auprc_ci95_low": 0.0407,
+      "auprc_ci95_high": 0.0486,
+      "auprc_trapz": 0.0305,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0475,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Enh_Transcribed": {
+      "auprc": 0.0448,
+      "auprc_ci95_low": 0.0407,
+      "auprc_ci95_high": 0.0485,
+      "auprc_trapz": 0.0361,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0466,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K36me3 signal at E": {
+      "auprc": 0.0447,
+      "auprc_ci95_low": 0.0401,
+      "auprc_ci95_high": 0.0504,
+      "auprc_trapz": 0.0449,
+      "auprc_crispr_comparison": 0.0448,
+      "precision_at_70_recall": 0.046,
+      "auprc_negated": 0.0483,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Promoter_Bivalent": {
+      "auprc": 0.0446,
+      "auprc_ci95_low": 0.0406,
+      "auprc_ci95_high": 0.0485,
+      "auprc_trapz": 0.0325,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0474,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Enh_Weak": {
+      "auprc": 0.0446,
+      "auprc_ci95_low": 0.0405,
+      "auprc_ci95_high": 0.0484,
+      "auprc_trapz": 0.0362,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0466,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-RepressivePolycomb_Regions": {
+      "auprc": 0.0444,
+      "auprc_ci95_low": 0.0404,
+      "auprc_ci95_high": 0.0483,
+      "auprc_trapz": 0.0355,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0471,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Promoter_Active": {
+      "auprc": 0.0443,
+      "auprc_ci95_low": 0.0403,
+      "auprc_ci95_high": 0.0485,
+      "auprc_trapz": 0.0316,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0469,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-TSS": {
+      "auprc": 0.0443,
+      "auprc_ci95_low": 0.0403,
+      "auprc_ci95_high": 0.0482,
+      "auprc_trapz": 0.0331,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0478,
+      "frac_overlapping": 0.8614
+    },
+    "ChromHMM:CrhmmBool-Other": {
+      "auprc": 0.0441,
+      "auprc_ci95_low": 0.0402,
+      "auprc_ci95_high": 0.0478,
+      "auprc_trapz": 0.0304,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0493,
+      "frac_overlapping": 0.8614
+    },
+    "phyloP:min_phyloP": {
+      "auprc": 0.0439,
+      "auprc_ci95_low": 0.0386,
+      "auprc_ci95_high": 0.0491,
+      "auprc_trapz": 0.0402,
+      "auprc_crispr_comparison": 0.0402,
+      "precision_at_70_recall": 0.0472,
+      "auprc_negated": 0.0423,
+      "frac_overlapping": 0.8614
+    },
+    "Motif:MotifDensityJaspar2026": {
+      "auprc": 0.0438,
+      "auprc_ci95_low": 0.0395,
+      "auprc_ci95_high": 0.0512,
+      "auprc_trapz": 0.0431,
+      "auprc_crispr_comparison": 0.0384,
+      "precision_at_70_recall": 0.0453,
+      "auprc_negated": 0.0451,
+      "frac_overlapping": 0.8614
+    },
+    "Motif:CTCFMotifHitJaspar2026": {
+      "auprc": 0.0437,
+      "auprc_ci95_low": 0.0398,
+      "auprc_ci95_high": 0.0475,
+      "auprc_trapz": 0.0295,
+      "auprc_crispr_comparison": 0.0,
+      "precision_at_70_recall": 0.0455,
+      "auprc_negated": 0.0508,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K9me3 signal at E": {
+      "auprc": 0.0436,
+      "auprc_ci95_low": 0.0386,
+      "auprc_ci95_high": 0.0506,
+      "auprc_trapz": 0.044,
+      "auprc_crispr_comparison": 0.044,
+      "precision_at_70_recall": 0.0378,
+      "auprc_negated": 0.0651,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:RNA-seq signal at E": {
+      "auprc": 0.0433,
+      "auprc_ci95_low": 0.0395,
+      "auprc_ci95_high": 0.0484,
+      "auprc_trapz": 0.0432,
+      "auprc_crispr_comparison": 0.0384,
+      "precision_at_70_recall": 0.0485,
+      "auprc_negated": 0.0426,
+      "frac_overlapping": 0.8614
+    },
+    "Motif:UniqueMotifCountsJaspar2026": {
+      "auprc": 0.0428,
+      "auprc_ci95_low": 0.0382,
+      "auprc_ci95_high": 0.0478,
+      "auprc_trapz": 0.0425,
+      "auprc_crispr_comparison": 0.0378,
+      "precision_at_70_recall": 0.0467,
+      "auprc_negated": 0.0443,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:NET-CAGE reverse signal at P": {
+      "auprc": 0.0426,
+      "auprc_ci95_low": 0.0375,
+      "auprc_ci95_high": 0.0506,
+      "auprc_trapz": 0.0421,
+      "auprc_crispr_comparison": 0.0353,
+      "precision_at_70_recall": 0.0417,
+      "auprc_negated": 0.05,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K36me3 signal at E": {
+      "auprc": 0.0423,
+      "auprc_ci95_low": 0.037,
+      "auprc_ci95_high": 0.0479,
+      "auprc_trapz": 0.0425,
+      "auprc_crispr_comparison": 0.0425,
+      "precision_at_70_recall": 0.0414,
+      "auprc_negated": 0.0526,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H4K20me1 signal at P": {
+      "auprc": 0.0423,
+      "auprc_ci95_low": 0.0378,
+      "auprc_ci95_high": 0.0484,
+      "auprc_trapz": 0.0419,
+      "auprc_crispr_comparison": 0.0419,
+      "precision_at_70_recall": 0.0445,
+      "auprc_negated": 0.0535,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:NET-CAGE reverse signal at P": {
+      "auprc": 0.0423,
+      "auprc_ci95_low": 0.0368,
+      "auprc_ci95_high": 0.0522,
+      "auprc_trapz": 0.0414,
+      "auprc_crispr_comparison": 0.0358,
+      "precision_at_70_recall": 0.041,
+      "auprc_negated": 0.053,
+      "frac_overlapping": 0.8614
+    },
+    "Motif:MotifCountsJaspar2026": {
+      "auprc": 0.042,
+      "auprc_ci95_low": 0.0375,
+      "auprc_ci95_high": 0.047,
+      "auprc_trapz": 0.0416,
+      "auprc_crispr_comparison": 0.0369,
+      "precision_at_70_recall": 0.046,
+      "auprc_negated": 0.045,
+      "frac_overlapping": 0.8614
+    },
+    "sHet:genebayes_shet": {
+      "auprc": 0.0413,
+      "auprc_ci95_low": 0.0379,
+      "auprc_ci95_high": 0.0459,
+      "auprc_trapz": 0.0411,
+      "auprc_crispr_comparison": 0.0363,
+      "precision_at_70_recall": 0.0457,
+      "auprc_negated": 0.0447,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:NET-CAGE forward signal at P": {
+      "auprc": 0.0412,
+      "auprc_ci95_low": 0.0363,
+      "auprc_ci95_high": 0.0496,
+      "auprc_trapz": 0.0406,
+      "auprc_crispr_comparison": 0.0349,
+      "precision_at_70_recall": 0.043,
+      "auprc_negated": 0.0502,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:EP300 signal at P": {
+      "auprc": 0.0408,
+      "auprc_ci95_low": 0.0361,
+      "auprc_ci95_high": 0.0485,
+      "auprc_trapz": 0.0403,
+      "auprc_crispr_comparison": 0.0403,
+      "precision_at_70_recall": 0.0402,
+      "auprc_negated": 0.063,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:EP300 signal at P": {
+      "auprc": 0.0407,
+      "auprc_ci95_low": 0.0354,
+      "auprc_ci95_high": 0.0511,
+      "auprc_trapz": 0.0392,
+      "auprc_crispr_comparison": 0.0392,
+      "precision_at_70_recall": 0.0397,
+      "auprc_negated": 0.0722,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H2AFZ signal at P": {
+      "auprc": 0.0401,
+      "auprc_ci95_low": 0.0363,
+      "auprc_ci95_high": 0.0446,
+      "auprc_trapz": 0.0399,
+      "auprc_crispr_comparison": 0.0399,
+      "precision_at_70_recall": 0.0454,
+      "auprc_negated": 0.0473,
+      "frac_overlapping": 0.8614
+    },
+    "ENCODEstats:std": {
+      "auprc": 0.0397,
+      "auprc_ci95_low": 0.0357,
+      "auprc_ci95_high": 0.0443,
+      "auprc_trapz": 0.0391,
+      "auprc_crispr_comparison": 0.0344,
+      "precision_at_70_recall": 0.0422,
+      "auprc_negated": 0.0509,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K4me2 signal at P": {
+      "auprc": 0.0392,
+      "auprc_ci95_low": 0.034,
+      "auprc_ci95_high": 0.0465,
+      "auprc_trapz": 0.0369,
+      "auprc_crispr_comparison": 0.0369,
+      "precision_at_70_recall": 0.0427,
+      "auprc_negated": 0.0601,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H2AFZ signal at P": {
+      "auprc": 0.0383,
+      "auprc_ci95_low": 0.0343,
+      "auprc_ci95_high": 0.0427,
+      "auprc_trapz": 0.0382,
+      "auprc_crispr_comparison": 0.0382,
+      "precision_at_70_recall": 0.0443,
+      "auprc_negated": 0.0522,
+      "frac_overlapping": 0.8614
+    },
+    "ENCODEstats:mean": {
+      "auprc": 0.0375,
+      "auprc_ci95_low": 0.0334,
+      "auprc_ci95_high": 0.0448,
+      "auprc_trapz": 0.0368,
+      "auprc_crispr_comparison": 0.032,
+      "precision_at_70_recall": 0.0408,
+      "auprc_negated": 0.056,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:Bru-seq signal at P": {
+      "auprc": 0.0374,
+      "auprc_ci95_low": 0.0341,
+      "auprc_ci95_high": 0.0418,
+      "auprc_trapz": 0.0372,
+      "auprc_crispr_comparison": 0.0325,
+      "precision_at_70_recall": 0.0416,
+      "auprc_negated": 0.0513,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:RNA-seq signal at P": {
+      "auprc": 0.0374,
+      "auprc_ci95_low": 0.0335,
+      "auprc_ci95_high": 0.0425,
+      "auprc_trapz": 0.037,
+      "auprc_crispr_comparison": 0.0322,
+      "precision_at_70_recall": 0.0415,
+      "auprc_negated": 0.0546,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H4K20me1 signal at P": {
+      "auprc": 0.0373,
+      "auprc_ci95_low": 0.0332,
+      "auprc_ci95_high": 0.0426,
+      "auprc_trapz": 0.0366,
+      "auprc_crispr_comparison": 0.0366,
+      "precision_at_70_recall": 0.0406,
+      "auprc_negated": 0.0552,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K27me3 signal at E": {
+      "auprc": 0.0372,
+      "auprc_ci95_low": 0.033,
+      "auprc_ci95_high": 0.0411,
+      "auprc_trapz": 0.0371,
+      "auprc_crispr_comparison": 0.0371,
+      "precision_at_70_recall": 0.0399,
+      "auprc_negated": 0.0605,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K4me3 signal at P": {
+      "auprc": 0.0372,
+      "auprc_ci95_low": 0.0337,
+      "auprc_ci95_high": 0.0422,
+      "auprc_trapz": 0.0367,
+      "auprc_crispr_comparison": 0.0367,
+      "precision_at_70_recall": 0.042,
+      "auprc_negated": 0.0553,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-cap reverse signal at P": {
+      "auprc": 0.0371,
+      "auprc_ci95_low": 0.0335,
+      "auprc_ci95_high": 0.0433,
+      "auprc_trapz": 0.0365,
+      "auprc_crispr_comparison": 0.0288,
+      "precision_at_70_recall": 0.0414,
+      "auprc_negated": 0.0569,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:RNA-seq signal at P": {
+      "auprc": 0.0364,
+      "auprc_ci95_low": 0.0329,
+      "auprc_ci95_high": 0.0404,
+      "auprc_trapz": 0.0361,
+      "auprc_crispr_comparison": 0.0314,
+      "precision_at_70_recall": 0.0404,
+      "auprc_negated": 0.0544,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K4me3 signal at P": {
+      "auprc": 0.0363,
+      "auprc_ci95_low": 0.0329,
+      "auprc_ci95_high": 0.0398,
+      "auprc_trapz": 0.0361,
+      "auprc_crispr_comparison": 0.036,
+      "precision_at_70_recall": 0.0435,
+      "auprc_negated": 0.0531,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K79me2 signal at P": {
+      "auprc": 0.0363,
+      "auprc_ci95_low": 0.0331,
+      "auprc_ci95_high": 0.0406,
+      "auprc_trapz": 0.0361,
+      "auprc_crispr_comparison": 0.036,
+      "precision_at_70_recall": 0.0439,
+      "auprc_negated": 0.0562,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-seq reverse signal at P": {
+      "auprc": 0.036,
+      "auprc_ci95_low": 0.0326,
+      "auprc_ci95_high": 0.0411,
+      "auprc_trapz": 0.0358,
+      "auprc_crispr_comparison": 0.03,
+      "precision_at_70_recall": 0.0409,
+      "auprc_negated": 0.0555,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K27me3 signal at E": {
+      "auprc": 0.036,
+      "auprc_ci95_low": 0.0324,
+      "auprc_ci95_high": 0.0403,
+      "auprc_trapz": 0.0351,
+      "auprc_crispr_comparison": 0.0351,
+      "precision_at_70_recall": 0.0395,
+      "auprc_negated": 0.0659,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K9ac signal at P": {
+      "auprc": 0.0357,
+      "auprc_ci95_low": 0.0324,
+      "auprc_ci95_high": 0.04,
+      "auprc_trapz": 0.0354,
+      "auprc_crispr_comparison": 0.0354,
+      "precision_at_70_recall": 0.0405,
+      "auprc_negated": 0.0611,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:Bru-seq signal at P": {
+      "auprc": 0.0355,
+      "auprc_ci95_low": 0.0327,
+      "auprc_ci95_high": 0.0393,
+      "auprc_trapz": 0.0352,
+      "auprc_crispr_comparison": 0.0305,
+      "precision_at_70_recall": 0.0408,
+      "auprc_negated": 0.0553,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-cap forward signal at P": {
+      "auprc": 0.0354,
+      "auprc_ci95_low": 0.0322,
+      "auprc_ci95_high": 0.0388,
+      "auprc_trapz": 0.0352,
+      "auprc_crispr_comparison": 0.0285,
+      "precision_at_70_recall": 0.0419,
+      "auprc_negated": 0.0544,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-seq reverse signal at P": {
+      "auprc": 0.0353,
+      "auprc_ci95_low": 0.0324,
+      "auprc_ci95_high": 0.0397,
+      "auprc_trapz": 0.0351,
+      "auprc_crispr_comparison": 0.0299,
+      "precision_at_70_recall": 0.0405,
+      "auprc_negated": 0.0556,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:GRO-seq forward signal at P": {
+      "auprc": 0.0352,
+      "auprc_ci95_low": 0.0318,
+      "auprc_ci95_high": 0.0386,
+      "auprc_trapz": 0.035,
+      "auprc_crispr_comparison": 0.0297,
+      "precision_at_70_recall": 0.0431,
+      "auprc_negated": 0.0535,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-seq forward signal at P": {
+      "auprc": 0.0348,
+      "auprc_ci95_low": 0.0316,
+      "auprc_ci95_high": 0.0384,
+      "auprc_trapz": 0.0344,
+      "auprc_crispr_comparison": 0.0296,
+      "precision_at_70_recall": 0.0413,
+      "auprc_negated": 0.0558,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K79me2 signal at P": {
+      "auprc": 0.0348,
+      "auprc_ci95_low": 0.0318,
+      "auprc_ci95_high": 0.0384,
+      "auprc_trapz": 0.0347,
+      "auprc_crispr_comparison": 0.0347,
+      "precision_at_70_recall": 0.0404,
+      "auprc_negated": 0.055,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H4K20me1 signal at E": {
+      "auprc": 0.0346,
+      "auprc_ci95_low": 0.0313,
+      "auprc_ci95_high": 0.0383,
+      "auprc_trapz": 0.0344,
+      "auprc_crispr_comparison": 0.0344,
+      "precision_at_70_recall": 0.0385,
+      "auprc_negated": 0.0739,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT:H3K27ac signal at P": {
+      "auprc": 0.0341,
+      "auprc_ci95_low": 0.0311,
+      "auprc_ci95_high": 0.0383,
+      "auprc_trapz": 0.034,
+      "auprc_crispr_comparison": 0.034,
+      "precision_at_70_recall": 0.0403,
+      "auprc_negated": 0.0639,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-cap reverse signal at P": {
+      "auprc": 0.0336,
+      "auprc_ci95_low": 0.0305,
+      "auprc_ci95_high": 0.038,
+      "auprc_trapz": 0.0333,
+      "auprc_crispr_comparison": 0.0264,
+      "precision_at_70_recall": 0.0408,
+      "auprc_negated": 0.0609,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:GRO-cap forward signal at P": {
+      "auprc": 0.0334,
+      "auprc_ci95_low": 0.0304,
+      "auprc_ci95_high": 0.0366,
+      "auprc_trapz": 0.0332,
+      "auprc_crispr_comparison": 0.026,
+      "precision_at_70_recall": 0.0403,
+      "auprc_negated": 0.0601,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K27ac signal at P": {
+      "auprc": 0.0333,
+      "auprc_ci95_low": 0.0302,
+      "auprc_ci95_high": 0.0371,
+      "auprc_trapz": 0.033,
+      "auprc_crispr_comparison": 0.0329,
+      "precision_at_70_recall": 0.0391,
+      "auprc_negated": 0.0852,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H3K9ac signal at P": {
+      "auprc": 0.0333,
+      "auprc_ci95_low": 0.0304,
+      "auprc_ci95_high": 0.0366,
+      "auprc_trapz": 0.0333,
+      "auprc_crispr_comparison": 0.0333,
+      "precision_at_70_recall": 0.0409,
+      "auprc_negated": 0.0612,
+      "frac_overlapping": 0.8614
+    },
+    "EPCOT_woK562:H4K20me1 signal at E": {
+      "auprc": 0.0326,
+      "auprc_ci95_low": 0.0294,
+      "auprc_ci95_high": 0.0362,
+      "auprc_trapz": 0.0324,
+      "auprc_crispr_comparison": 0.0324,
+      "precision_at_70_recall": 0.0368,
+      "auprc_negated": 0.086,
+      "frac_overlapping": 0.8614
+    }
+  }
+}

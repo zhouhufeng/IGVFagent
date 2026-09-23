@@ -132,6 +132,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
     "scnt-seq":         ("igvfagent.scnt_seq_skill",
                           "scNT-seq: split new from old RNA by 4sU T>C "
                           "metabolic-labelling conversions"),
+    "sce2g":            ("igvfagent.sce2g_workbench_skill",
+                          "scE2G workbench: set up / configure / check / run "
+                          "model training with crowdsourced features, describe "
+                          "predictions, CRISPR_comparison-style benchmark"),
     "sce2g-predict":    ("igvfagent.sce2g_predict_skill",
                           "scE2G-style enhancer→gene features from paired "
                           "single-cell ATAC + RNA (Kendall + ABC)"),

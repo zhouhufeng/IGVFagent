@@ -6011,6 +6011,220 @@ _TOOLS: "list[Tool]" = [
                    "max_reads": "--max-reads", "label": "--label"},
     ),
 
+    # ---- scE2G workbench (EngreitzLab/scE2G training + CRISPR_comparison) ----
+
+    _T(
+        "sce2g_setup",
+        "★ scE2G TRAINING, STEP 1: PREPARE THE CHECKOUT ★. Clones "
+        "EngreitzLab/scE2G (branch fix/dag-staleness-integration) with the "
+        "ENCODE-rE2G submodule, or takes an existing checkout, and applies the "
+        "crowdsourced-features walkthrough's patches: drop `conda: \"mamba\"` "
+        "from both Snakefile_training files, add SCRIPTS_DIR, add "
+        "RNA_matrix_filtered / max_cell_count to config_training.yaml, put the "
+        "missing resources/feature_tables/multiome_arc_n6.tsv in place. "
+        "Idempotent. `check=true` only reports.",
+        {"type": "object", "properties": {
+            "repo_dir": {**_S_STRING, "description": "Path of the scE2G checkout (created if absent)."},
+            "branch":   {**_S_STRING, "default": "fix/dag-staleness-integration"},
+            "check":    {**_S_BOOLEAN, "default": False},
+            "keep_branch": {**_S_BOOLEAN, "default": False},
+            "offline":  {**_S_BOOLEAN, "default": False}},
+         "required": ["repo_dir"]},
+        cli=["sce2g", "setup"],
+        flag_map={"repo_dir": "--repo-dir", "branch": "--branch"},
+        bool_flags={"check", "keep_branch", "offline"},
+    ),
+
+    _T(
+        "sce2g_features",
+        "★ scE2G TRAINING, STEP 2: ADD CROWDSOURCED FEATURES ★. Converts an "
+        "E2G feature table (ElementChr/ElementStart/ElementEnd/GeneSymbol + "
+        "feature columns, as shared on Synapse, e.g. syn73717888 for K562) "
+        "into the scE2G source_file (chr/start/end/TargetGene, spaces -> "
+        "underscores, .tsv.gz), writes config/external_features_config_<name>"
+        ".tsv (input_col, source_col, aggregate_function=mean, join_by=overlap, "
+        "source_file) and resources/feature_tables/multiome_arc_n6_<name>.tsv "
+        "extending the base table with one row per feature (max, fill 0, "
+        "nice_name).",
+        {"type": "object", "properties": {
+            "features": {**_S_STRING, "description": "Feature table TSV."},
+            "name":     {**_S_STRING, "description": "Feature-set name used in every file name."},
+            "repo_dir": {**_S_STRING},
+            "out_dir":  {**_S_STRING},
+            "select":   {**_S_STRING, "description": "Comma list of feature columns to keep."},
+            "merge_aggregate": {**_S_STRING, "default": "mean"},
+            "benchmark_aggregate": {**_S_STRING, "default": "max"},
+            "fill_value": {**_S_STRING, "default": "0"}},
+         "required": ["features", "name"]},
+        cli=["sce2g", "features"],
+        flag_map={"features": "--features", "name": "--name", "repo_dir": "--repo-dir",
+                   "out_dir": "--out-dir", "select": "--select",
+                   "merge_aggregate": "--merge-aggregate",
+                   "benchmark_aggregate": "--benchmark-aggregate", "fill_value": "--fill-value"},
+    ),
+
+    _T(
+        "sce2g_configure",
+        "★ scE2G TRAINING, STEP 3: WRITE THE CONFIG ROWS ★. Adds or replaces "
+        "the cluster row in config/config_cell_clusters.tsv (rna_matrix_file, "
+        "atac_frag_file, model_dir=models/multiome_powerlaw_v3, plus the "
+        "external_features_config column) and the model row in "
+        "config/config_models.tsv (dataset == cluster, ABC_directory blank, "
+        "polynomial False, feature_table from step 2), and writes "
+        "run_training_<model>.sh with the Slurm-profile snakemake command and "
+        "the memory/runtime overrides from the walkthrough.",
+        {"type": "object", "properties": {
+            "repo_dir": {**_S_STRING}, "cluster": {**_S_STRING},
+            "rna": {**_S_STRING, "description": "rna_matrix_file (.csv.gz)."},
+            "atac_frag": {**_S_STRING, "description": "atac_frag_file (.tsv.gz)."},
+            "model_dir": {**_S_STRING, "default": "models/multiome_powerlaw_v3"},
+            "name": {**_S_STRING, "description": "Feature-set name from sce2g_features."},
+            "model": {**_S_STRING}, "feature_table": {**_S_STRING},
+            "profile": {**_S_STRING, "description": "Snakemake profile dir, e.g. profiles/slurm."},
+            "jobs": {**_S_INTEGER, "default": 4},
+            "hic": {**_S_STRING}, "hic_type": {**_S_STRING}, "hic_resolution": {**_S_STRING}},
+         "required": ["repo_dir", "cluster", "atac_frag"]},
+        cli=["sce2g", "configure"],
+        flag_map={"repo_dir": "--repo-dir", "cluster": "--cluster", "rna": "--rna",
+                   "atac_frag": "--atac-frag", "model_dir": "--model-dir", "name": "--name",
+                   "model": "--model", "feature_table": "--feature-table", "profile": "--profile",
+                   "jobs": "--jobs", "hic": "--hic", "hic_type": "--hic-type",
+                   "hic_resolution": "--hic-resolution"},
+    ),
+
+    _T(
+        "sce2g_check",
+        "★ scE2G TRAINING, STEP 4: CHECK BEFORE SPENDING COMPUTE ★. Verifies "
+        "every path the configs reference exists, cluster == dataset, the "
+        "feature table lists every external input_col, the source_file has "
+        "chr/start/end/TargetGene and the source_cols, no feature name has a "
+        "space, the Snakefile patches are in place, and prints the snakemake "
+        "command. Exit 1 with the list of problems.",
+        {"type": "object", "properties": {
+            "repo_dir": {**_S_STRING}, "model": {**_S_STRING},
+            "profile": {**_S_STRING}, "jobs": {**_S_INTEGER, "default": 4}},
+         "required": ["repo_dir"]},
+        cli=["sce2g", "check"],
+        flag_map={"repo_dir": "--repo-dir", "model": "--model", "profile": "--profile", "jobs": "--jobs"},
+    ),
+
+    _T(
+        "sce2g_run",
+        "★ scE2G TRAINING, STEP 5: RUN SNAKEMAKE ★ (dry-run unless "
+        "execute=true). Runs sce2g_check first and refuses on problems. Needs "
+        "snakemake on PATH; training takes hours and is normally run with a "
+        "Slurm profile on a cluster, not on the hosted instance.",
+        {"type": "object", "properties": {
+            "repo_dir": {**_S_STRING}, "model": {**_S_STRING}, "profile": {**_S_STRING},
+            "jobs": {**_S_INTEGER, "default": 4},
+            "execute": {**_S_BOOLEAN, "default": False},
+            "force": {**_S_BOOLEAN, "default": False}},
+         "required": ["repo_dir"]},
+        cli=["sce2g", "run"],
+        flag_map={"repo_dir": "--repo-dir", "model": "--model", "profile": "--profile", "jobs": "--jobs"},
+        bool_flags={"execute", "force"},
+    ),
+
+    _T(
+        "sce2g_predictions",
+        "★ DESCRIBE / COMPARE scE2G PREDICTION TABLES ★ (*.e2g.tsv, or any "
+        "element-gene table with ElementChr/Start/End + GeneSymbol or chr/start/"
+        "end + TargetGene). Links, genes, elements, score quantiles, links above "
+        "the threshold, element classes, self-promoter links; with two or more "
+        "tables also shared pairs, Jaccard and Spearman of scores on shared "
+        "pairs. Score-distribution figure.",
+        {"type": "object", "properties": {
+            "predictions": {**_S_ARRAY_S, "description": "LABEL=PATH entries."},
+            "score_col": {**_S_STRING, "default": "E2G.Score.qnorm"},
+            "threshold": {**_S_NUMBER, "default": 0.177},
+            "label": {**_S_STRING}, "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ["predictions"]},
+        cli=["sce2g", "predictions"],
+        flag_map={"predictions": "--predictions", "score_col": "--score-col",
+                   "threshold": "--threshold", "label": "--label"},
+        flag_repeat={"predictions"}, bool_flags={"no_plots"},
+    ),
+
+    _T(
+        "sce2g_benchmark",
+        "★ CRISPR BENCHMARK OF E2G PREDICTIONS ★ in the manner of "
+        "EngreitzLab/CRISPR_comparison: each CRISPR-tested element-gene pair "
+        "(EPCrisprBenchmark: chrom, chromStart, chromEnd, measuredGeneSymbol, "
+        "Regulated) gets the aggregate (max/mean/sum) of overlapping predicted "
+        "elements for the same gene, fill_value when none, inverse_predictor "
+        "and boolean semantics from a pred_config.txt; AUPRC (step rule) plus "
+        "`auprc_crispr_comparison` (the upstream pipeline's exact definition, "
+        "validated to 4 decimals against it), bootstrap 95% interval, "
+        "precision at 70% recall, PR-curve figure. Also writes "
+        "pred_config.txt + config.yml so the upstream Snakemake pipeline can "
+        "be run on the same inputs. Use to compare a newly trained scE2G "
+        "model against the base model or ABC.",
+        {"type": "object", "properties": {
+            "predictions": {**_S_ARRAY_S, "description": "LABEL=PATH entries."},
+            "crispr": {**_S_STRING, "description": "EPCrisprBenchmark TSV."},
+            "pred_config": {**_S_STRING},
+            "score_col": {**_S_STRING, "default": "E2G.Score.qnorm"},
+            "cell_type": {**_S_STRING},
+            "bootstrap": {**_S_INTEGER, "default": 200},
+            "all_features": {**_S_BOOLEAN, "default": False, "description":
+                "Benchmark EVERY feature column of each table as its own "
+                "predictor -- the crowdsourced-feature benchmark. Tables are "
+                "streamed and restricted to CRISPR-tested genes, so 11M-row "
+                "Synapse tables are fine."},
+            "gene_universe_filter": {**_S_BOOLEAN, "default": False, "description":
+                "CRISPR_comparison semantics: drop tested pairs whose gene is "
+                "absent from the prediction table instead of scoring them as "
+                "fill_value (raises scE2G K562 AUPRC from 0.531 to 0.551)."},
+            "label": {**_S_STRING}, "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ["predictions", "crispr"]},
+        cli=["sce2g", "benchmark"],
+        flag_map={"predictions": "--predictions", "crispr": "--crispr", "pred_config": "--pred-config",
+                   "score_col": "--score-col", "cell_type": "--cell-type", "bootstrap": "--bootstrap",
+                   "label": "--label"},
+        flag_repeat={"predictions"}, bool_flags={"no_plots", "all_features", "gene_universe_filter"},
+    ),
+
+    _T(
+        "sce2g_inventory",
+        "★ INVENTORY A FOLDER OF CROWDSOURCED E2G FEATURE TABLES ★ (e.g. the "
+        "Synapse K562 folder syn73717888 after `synapse download`): rows, "
+        "columns, feature names, missing fraction per feature, and whether "
+        "each table shares the first table's element-gene universe. Run "
+        "before sce2g_features / sce2g_benchmark to see what you have.",
+        {"type": "object", "properties": {
+            "dir": {**_S_STRING, "description": "Folder of *.tsv.gz feature tables."},
+            "max_rows": {**_S_INTEGER, "default": 0, "description": "Rows per file to scan (0 = all)."},
+            "label": {**_S_STRING}},
+         "required": ["dir"]},
+        cli=["sce2g", "inventory"],
+        flag_map={"dir": "--dir", "max_rows": "--max-rows", "label": "--label"},
+    ),
+
+    _T(
+        "sce2g_benchmark_merge",
+        "Merge several sce2g_benchmark run directories into one ranked table "
+        "(AUPRC, bootstrap interval, precision at 70% recall, AUPRC over "
+        "random, best orientation) and one ranked-bar figure. Use after "
+        "benchmarking feature tables in batches.",
+        {"type": "object", "properties": {
+            "runs": {**_S_ARRAY_S, "description": "Benchmark run directories."},
+            "top": {**_S_INTEGER, "default": 30},
+            "label": {**_S_STRING}, "no_plots": {**_S_BOOLEAN, "default": False}},
+         "required": ["runs"]},
+        cli=["sce2g", "merge"],
+        flag_map={"runs": "--runs", "top": "--top", "label": "--label"},
+        flag_repeat={"runs"}, bool_flags={"no_plots"},
+    ),
+
+    _T(
+        "sce2g_selftest",
+        "Self-test of the scE2G workbench on a fake checkout and synthetic "
+        "feature / prediction / CRISPR files: patches, config rows, checks and "
+        "benchmark all asserted. Run before touching a real checkout.",
+        {"type": "object", "properties": {"no_plots": {**_S_BOOLEAN, "default": False}}},
+        cli=["sce2g", "selftest"], bool_flags={"no_plots"},
+    ),
+
     _T(
         "sce2g_predict",
         "★ ENHANCER→GENE LINKS FROM PAIRED SINGLE-CELL ATAC + RNA ★ "

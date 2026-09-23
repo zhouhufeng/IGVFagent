@@ -1,0 +1,17 @@
+# written by igvfagent sce2g benchmark -- drop into CRISPR_comparison/config/config.yml
+comparisons:
+  k562_features_B:
+    pred:
+      baseline_E2G_Distance: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz"
+      ENCODEstats_std: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz"
+      ENCODEstats_mean: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz"
+      ENCODEstats_disp: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_gene_ENCODE_stats.tsv.gz"
+      phastCons_mean_phastCons: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_phastcons.tsv.gz"
+      phyloP_min_phyloP: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz"
+      phyloP_max_phyloP: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_phylop.tsv.gz"
+      Pinloop_Pinloop: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz"
+      pLI_LOEUF_pLI: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz"
+      pLI_LOEUF_LOEUF: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_pli_loeuf.tsv.gz"
+    expt:
+      crispr: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    pred_config: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Docs/scE2G/20260922_212801_k562_features_B/pred_config.txt"

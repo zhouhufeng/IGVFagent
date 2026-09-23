@@ -1,0 +1,29 @@
+# written by igvfagent sce2g benchmark -- drop into CRISPR_comparison/config/config.yml
+comparisons:
+  k562_features_A:
+    pred:
+      baseline_E2G_Distance: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Acetylated_Regions: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Promoter_Bivalent: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Other: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Enh_Mesenchyme: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Enh_Strong: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Enh_ESC: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Enh_Weak: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Heterochromatin_Regions: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Promoter_Active: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Quiescent_Regions: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-RepressivePolycomb_Regions: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-TSS: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Transcribed_Region: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ChromHMM_CrhmmBool-Enh_Transcribed: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_E2G_table.with.ChromHMM.state.overlap.features_CrhmmBool.txt.gz"
+      ArchR_ArchR_Score: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_ArchR.tsv.gz"
+      ArchR_ArchR_FDR: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_ArchR.tsv.gz"
+      Cicero_Cicero_Score: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_Cicero.tsv.gz"
+      SCENT_SCENT_Score: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_SCENT.tsv.gz"
+      SCENT_SCENT_beta: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_SCENT.tsv.gz"
+      Signac_Signac_Score: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_Signac.tsv.gz"
+      Signac_Signac_pvalue: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/K562_ERR9847049_Multiome_K562_Signac.tsv.gz"
+    expt:
+      crispr: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    pred_config: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Docs/scE2G/20260922_212801_k562_features_A/pred_config.txt"

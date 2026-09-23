@@ -61,6 +61,26 @@
       "notes": "BSD-3-Clause upstream; followed from its published description, no source copied."
     },
     {
+      "repo": "EngreitzLab/CRISPR_comparison",
+      "skills": [
+        "sce2g"
+      ],
+      "modules": [
+        "sce2g_workbench_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "clean-room",
+      "pinned": {
+        "ref": "50587422e6b11259ead6fbc6f867681c788f39b7",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-05-15T00:14:34Z",
+        "release": "v1.0.0",
+        "pinned_at": "2026-09-22"
+      },
+      "notes": "Evaluation reimplemented: overlap each CRISPR element-gene pair with predicted elements for the same gene, aggregate (max/mean/sum), fill_value, inverse_predictor, boolean, AUPRC, precision at 70% recall, bootstrap CI. Config formats (pred_config.txt columns, config.yml) consulted so `sce2g benchmark` can also emit them."
+    },
+    {
       "repo": "EngreitzLab/CRISPRi-FlowFISH",
       "skills": [
         "flowfish"
@@ -82,6 +102,26 @@
       "former_names": [
         "EngreitzLab/CRISPRi-FlowFISH-pipeline"
       ]
+    },
+    {
+      "repo": "EngreitzLab/scE2G",
+      "skills": [
+        "sce2g"
+      ],
+      "modules": [
+        "sce2g_workbench_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "wraps-binary",
+      "pinned": {
+        "ref": "7cb2af750fb96006f5d2b7c5475dcff30ea0e6c9",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-13T01:37:47Z",
+        "release": "v1.3",
+        "pinned_at": "2026-09-22"
+      },
+      "notes": "Not reimplemented: scE2G is Snakemake + R + Python in a Singularity container and its asset is the trained model. `igvfagent sce2g` prepares a checkout per the group's crowdsourced-features walkthrough (default branch fix/dag-staleness-integration @ 4e2b673, which stops needless rule re-runs), writes config_cell_clusters.tsv / config_models.tsv / external_features_config in upstream's column order, checks paths, and runs snakemake. sce2g_predict_skill (older) is a clean-room feature computation, separately declared."
     },
     {
       "repo": "Gartner-Lab/deMULTIplex2",
@@ -242,6 +282,26 @@
         "pinned_at": "2026-09-17"
       },
       "notes": "MIT upstream MCP server; wire contract re-derived to stay stdlib-only."
+    },
+    {
+      "repo": "kaybrand/scE2G",
+      "skills": [
+        "sce2g"
+      ],
+      "modules": [
+        "sce2g_workbench_skill.py"
+      ],
+      "license": "MIT",
+      "relationship": "reference",
+      "pinned": {
+        "ref": "7cb2af750fb96006f5d2b7c5475dcff30ea0e6c9",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-13T01:37:47Z",
+        "release": "",
+        "pinned_at": "2026-09-22"
+      },
+      "notes": "Fork consulted only for resources/feature_tables/multiome_arc_n6.tsv (branch rebase/multiple-cell-types), which the main scE2G branch lacks; a verbatim copy is embedded in sce2g_workbench_skill.py so setup works offline."
     },
     {
       "repo": "kircherlab/MPRAlib",

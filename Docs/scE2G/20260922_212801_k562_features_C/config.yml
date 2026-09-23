@@ -1,0 +1,19 @@
+# written by igvfagent sce2g benchmark -- drop into CRISPR_comparison/config/config.yml
+comparisons:
+  k562_features_C:
+    pred:
+      baseline_E2G_Distance: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_shet.tsv.gz"
+      sHet_genebayes_shet: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_shet.tsv.gz"
+      TFgene_is_tf: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562_candidate_e2g_pairs_tf_genes_marked.tsv.gz"
+      Alu_OverlapsAlu: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.Alu_features.tsv.gz"
+      Alu_OverlapsAluJ: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.Alu_features.tsv.gz"
+      Alu_OverlapsAluS: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.Alu_features.tsv.gz"
+      Alu_OverlapsAluY: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.Alu_features.tsv.gz"
+      Motif_MotifDensityJaspar2026: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.MotifDensityFeatures.tsv.gz"
+      Motif_MotifCountsJaspar2026: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.MotifDensityFeatures.tsv.gz"
+      Motif_UniqueMotifDensityJaspar2026: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.MotifDensityFeatures.tsv.gz"
+      Motif_UniqueMotifCountsJaspar2026: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.MotifDensityFeatures.tsv.gz"
+      Motif_CTCFMotifHitJaspar2026: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/Synapse/syn73717888/uniformly_processed_K562.MotifDensityFeatures.tsv.gz"
+    expt:
+      crispr: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    pred_config: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Docs/scE2G/20260922_212801_k562_features_C/pred_config.txt"

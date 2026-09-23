@@ -1,0 +1,4 @@
+pred_id	file	removed_elements	removed_predictions
+Pinloop	inputs/uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz	19214	1533410
+Signac	inputs/K562_ERR9847049_Multiome_K562_Signac.tsv.gz	19214	1533410
+SCENT	inputs/K562_ERR9847049_Multiome_K562_SCENT.tsv.gz	19214	1533410

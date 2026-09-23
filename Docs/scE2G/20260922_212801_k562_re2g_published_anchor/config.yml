@@ -1,0 +1,10 @@
+# written by igvfagent sce2g benchmark -- drop into CRISPR_comparison/config/config.yml
+comparisons:
+  k562_re2g_published_anchor:
+    pred:
+      rE2G_base: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/E2G_benchmark/rE2G_K562/ENCODE-rE2G_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz.tsv.gz"
+      rE2G_ext: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/E2G_benchmark/rE2G_K562/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz"
+      rE2G_ext_noEP300: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/E2G_benchmark/rE2G_K562/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz"
+    expt:
+      crispr: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    pred_config: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Docs/scE2G/20260922_212801_k562_re2g_published_anchor/pred_config.txt"

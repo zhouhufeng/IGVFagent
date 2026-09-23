@@ -1,0 +1,5 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+scE2G	Score	FALSE	0.177	max	0	FALSE	scE2G	blue
+scE2G_ignoreTPM	Score.ignoreTPM	FALSE	0.177	max	0	FALSE	scE2G ignoreTPM	steelblue
+ABC	ABC.Score	FALSE	0.02	max	0	FALSE	ABC	grey40
+ARC_E2G	ARC.E2G.Score	FALSE	0.1	max	0	FALSE	ARC-E2G	orange

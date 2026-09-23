@@ -1,0 +1,230 @@
+{
+  "paper": {
+    "authors": "IGVF crowdsourced E2G feature tables (Engreitz lab scE2G working group); Sheth, Qiu et al. (scE2G); Gschwind et al. (CRISPR benchmark)",
+    "journal": "Synapse deposit + bioRxiv",
+    "year": 2026,
+    "doi": "10.1101/2024.11.23.624931; 10.1101/2023.11.09.563812"
+  },
+  "data_source": {
+    "type": "synapse+portal+github",
+    "feature_tables_synapse": "syn73717888 (K562 folder, 16 tables, 11,029,156 element-gene rows each)",
+    "scE2G_predictionset": "IGVFDS5428HHMB -> IGVFFI1706PNVV.tsv.gz",
+    "crispr_ground_truth": "EngreitzLab/scE2G resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz (10,356 K562 pairs / 471 Regulated)",
+    "rE2G_published_anchor": "Synapse syn53019593 / syn53019595 (ENCODE-rE2G cross-validated K562 predictions; published AUPRC 0.634, precision at 70% recall 0.543)",
+    "gold_standard": "EngreitzLab/CRISPR_comparison @ 5058742 run on the same inputs (results/upstream/); per-pair merged scores identical, AUPRC compared on its own definition"
+  },
+  "skill_output_dir": "scE2G",
+  "label": "k562_crowdsourced_feature_benchmark",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "GOLD STANDARD: rE2G base AUPRC on CRISPR_comparison's definition equals the upstream run (0.6326)",
+      "type": "range",
+      "path": "predictors.rE2G_base.auprc_crispr_comparison",
+      "min": 0.6316,
+      "max": 0.6336,
+      "expected": 0.6326
+    },
+    {
+      "name": "GOLD STANDARD: scE2G Score AUPRC equals the upstream run (0.5190)",
+      "type": "range",
+      "path": "predictors.scE2G.auprc_crispr_comparison",
+      "min": 0.518,
+      "max": 0.52,
+      "expected": 0.519
+    },
+    {
+      "name": "GOLD STANDARD: scE2G ignoreTPM AUPRC equals the upstream run (0.5822)",
+      "type": "range",
+      "path": "predictors.scE2G_ignoreTPM.auprc_crispr_comparison",
+      "min": 0.5812,
+      "max": 0.5832,
+      "expected": 0.5822
+    },
+    {
+      "name": "GOLD STANDARD: ABC AUPRC equals the upstream run (0.4839)",
+      "type": "range",
+      "path": "predictors.ABC.auprc_crispr_comparison",
+      "min": 0.4829,
+      "max": 0.4849,
+      "expected": 0.4839
+    },
+    {
+      "name": "GOLD STANDARD: Pinloop AUPRC equals the upstream run (0.3311)",
+      "type": "range",
+      "path": "predictors.Pinloop:Pinloop.auprc_crispr_comparison",
+      "min": 0.3301,
+      "max": 0.3321,
+      "expected": 0.3311
+    },
+    {
+      "name": "GOLD STANDARD: Signac AUPRC equals the upstream run (0.2242)",
+      "type": "range",
+      "path": "predictors.Signac:Signac_Score.auprc_crispr_comparison",
+      "min": 0.2232,
+      "max": 0.2252,
+      "expected": 0.2242
+    },
+    {
+      "name": "GOLD STANDARD: SCENT beta AUPRC equals the upstream run (0.1773)",
+      "type": "range",
+      "path": "predictors.SCENT:SCENT_beta.auprc_crispr_comparison",
+      "min": 0.1763,
+      "max": 0.1783,
+      "expected": 0.1773
+    },
+    {
+      "name": "PUBLISHED ANCHOR: ENCODE-rE2G base AUPRC reproduces the paper's 0.634 within 0.005",
+      "type": "range",
+      "path": "predictors.rE2G_base.auprc",
+      "min": 0.629,
+      "max": 0.639,
+      "expected": 0.634
+    },
+    {
+      "name": "PUBLISHED ANCHOR: ENCODE-rE2G base precision at 70% recall reproduces the paper's 0.543 within 0.01",
+      "type": "range",
+      "path": "predictors.rE2G_base.precision_at_70_recall",
+      "min": 0.533,
+      "max": 0.553,
+      "expected": 0.543
+    },
+    {
+      "name": "ENCODE-rE2G extended is the top predictor (AUPRC 0.758, benchmark #12)",
+      "type": "range",
+      "path": "predictors.rE2G_ext.auprc",
+      "min": 0.74,
+      "max": 0.78,
+      "expected": 0.758
+    },
+    {
+      "name": "CRISPR ground truth has 10,356 K562 pairs",
+      "type": "range",
+      "path": "n_pairs",
+      "min": 10356,
+      "max": 10356
+    },
+    {
+      "name": "471 regulated pairs (random-baseline precision 0.0455)",
+      "type": "range",
+      "path": "n_positive",
+      "min": 471,
+      "max": 471
+    },
+    {
+      "name": "all 121 single-feature columns from the 16 Synapse tables were scored",
+      "type": "range",
+      "path": "n_single_features",
+      "min": 121,
+      "max": 121
+    },
+    {
+      "name": "scE2G reference AUPRC reproduces benchmark #12 (0.531 +/- 0.03)",
+      "type": "range",
+      "path": "predictors.scE2G.auprc",
+      "min": 0.5,
+      "max": 0.56,
+      "expected": 0.531
+    },
+    {
+      "name": "scE2G ignoreTPM reference AUPRC reproduces benchmark #12 (0.589 +/- 0.03)",
+      "type": "range",
+      "path": "predictors.scE2G_ignoreTPM.auprc",
+      "min": 0.56,
+      "max": 0.62,
+      "expected": 0.589
+    },
+    {
+      "name": "ABC baseline AUPRC 0.491 (+/- 0.03)",
+      "type": "range",
+      "path": "predictors.ABC.auprc",
+      "min": 0.46,
+      "max": 0.52,
+      "expected": 0.491
+    },
+    {
+      "name": "Pinloop is the strongest single crowdsourced feature (step AUPRC 0.357)",
+      "type": "range",
+      "path": "predictors.Pinloop:Pinloop.auprc",
+      "min": 0.34,
+      "max": 0.37,
+      "expected": 0.357
+    },
+    {
+      "name": "best single feature stays below the trained scE2G model",
+      "type": "range",
+      "path": "best_single_feature.auprc",
+      "min": 0.3,
+      "max": 0.42
+    },
+    {
+      "name": "Signac co-accessibility score AUPRC 0.228",
+      "type": "range",
+      "path": "predictors.Signac:Signac_Score.auprc",
+      "min": 0.19,
+      "max": 0.27,
+      "expected": 0.228
+    },
+    {
+      "name": "SCENT beta AUPRC 0.179",
+      "type": "range",
+      "path": "predictors.SCENT:SCENT_beta.auprc",
+      "min": 0.15,
+      "max": 0.21,
+      "expected": 0.179
+    },
+    {
+      "name": "EPCOT EP300 signal at the element is the best epigenomic-signal feature (AUPRC 0.159)",
+      "type": "range",
+      "path": "predictors.EPCOT:EP300 signal at E.auprc",
+      "min": 0.12,
+      "max": 0.19,
+      "expected": 0.159
+    },
+    {
+      "name": "distance baseline AUPRC 0.418 (inverted E2G_Distance; upstream distToTSS 0.436)",
+      "type": "range",
+      "path": "predictors.baseline:E2G_Distance.auprc",
+      "min": 0.4,
+      "max": 0.44,
+      "expected": 0.418
+    },
+    {
+      "name": "no single crowdsourced feature beats the distance baseline",
+      "type": "range",
+      "path": "n_features_above_distance_baseline",
+      "min": 0,
+      "max": 0,
+      "expected": 0
+    },
+    {
+      "name": "sequence conservation (mean phastCons) is at random as a standalone predictor",
+      "type": "range",
+      "path": "predictors.phastCons:mean_phastCons.auprc",
+      "min": 0.035,
+      "max": 0.06
+    },
+    {
+      "name": "gene constraint (pLI) is at random as a standalone predictor",
+      "type": "range",
+      "path": "predictors.pLI_LOEUF:pLI.auprc",
+      "min": 0.035,
+      "max": 0.06
+    },
+    {
+      "name": "ranked table written",
+      "type": "row_count_tsv",
+      "filename": "benchmark_summary.tsv",
+      "min": 120,
+      "max": 145
+    },
+    {
+      "name": "ranked AUPRC figure written",
+      "type": "artefact",
+      "filename": "auprc_ranked.png"
+    }
+  ],
+  "class": "biological-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+}

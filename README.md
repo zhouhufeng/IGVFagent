@@ -108,6 +108,7 @@ benchmark suite or a worked example in this README.
 
 | Area | Change |
 |---|---|
+| **scE2G workbench** | New `sce2g` skill wrapping [EngreitzLab/scE2G](https://github.com/EngreitzLab/scE2G) training with crowdsourced features (setup patches, Synapse feature table → `source_file` + external config + feature table, cluster/model rows, pre-flight `check`, snakemake `run`) and a clean-room [CRISPR_comparison](https://github.com/EngreitzLab/CRISPR_comparison) benchmark (pred_config semantics, AUPRC with bootstrap CI, precision at 70% recall, PR curves; writes the upstream configs too). Eight tools; self-test on a fake checkout plants a good and a random predictor and recovers the ranking. |
 | **TF Perturb-seq → disease / GWAS** | New `tf-perturb` skill: port of the IGVF [tf_perturb_seq](https://github.com/IGVF/tf_perturb_seq) WG3 jamboree notebook. Calibrated direct / cis / trans tables → significant effects, top trans regulators, GWAS Catalog overlap with Fisher trait enrichment, scE2G links and GWAS SNPs inside E2G elements, optional ChIP-seq support; report, CSVs, figures. Vectorised overlaps, chunked+cached 22M-row trans filter, `mudata`/`pyBigWig` optional. Self-test plants FOXH1/SOX17 regulators, a T2D SNP block and an enhancer SNP and recovers all of them. |
 | **Biosample census + hosted-agent fixes** | New `biosample-census` (`biosample_portal_census`): one command counts everything ENCODE and IGVF hold for a cell line via structured sample-term filters, with tables and plots. Re-authoring an agent extension under its own name is now an update; `explain_dataset` diagnoses a zero-hit search URL instead of writing an empty report; the failure banner shows the exception line, not the traceback header. |
 | **Single-cell CRISPR DE** | New `sc-crispr-de` skill (method of [Gersbachlab-Bioinformatics/sc-crispr-de](https://github.com/Gersbachlab-Bioinformatics/sc-crispr-de), MIT). Every guide tested independently against the cells with **no detected guide**, one negative-binomial GLM per gene, then α-RRA aggregation to gene level calibrated on the non-targeting guides. A port was impossible, not merely inconvenient: upstream is R (`MASS::glm.nb`, brglm2, Seurat) on a SLURM array, and the container has neither. Validated on planted knockdowns — GATA1 ×0.25 (expected log2FC −2.00) recovered at −1.89 / −2.22 / −2.03, HBB ×0.40 (−1.32) at −1.18 / −1.25 / −1.38, 630/630 tests converged, NTCs unperturbed. `--apply-bias-reduction` (brglm2) is **not implemented** rather than approximated, and aggregation is α-RRA not FRACTEL — so the columns are `rra_*`, never `FRACTEL_*`. |
@@ -2425,6 +2426,62 @@ igvfagent humantfs families
 `is-tf` distinguishes *unassessed* from *not a TF* — absence from the
 database is not evidence against. The data is downloaded at build time,
 never vendored; cite Lambert 2018 for derived tables.
+
+### scE2G workbench: train, check and benchmark E2G models (`sce2g`)
+
+[scE2G](https://github.com/EngreitzLab/scE2G) (MIT) is a Snakemake + R workflow
+with a Singularity container; its scientific asset is the trained model, so this
+skill does not reimplement it. It wraps the Engreitz group's "Quick Start on
+Building New E2G Models" walkthrough for adding crowdsourced features to the
+multiome model, and reimplements the evaluation of
+[CRISPR_comparison](https://github.com/EngreitzLab/CRISPR_comparison) (MIT)
+clean-room so a new model can be scored against CRISPR element-gene pairs here.
+
+```bash
+igvfagent sce2g selftest                                  # fake checkout, synthetic inputs
+igvfagent sce2g setup      --repo-dir ~/scE2G             # clone fix/dag-staleness-integration + patches
+igvfagent sce2g features   --repo-dir ~/scE2G --name h3k27ac --features K562_features.tsv
+igvfagent sce2g configure  --repo-dir ~/scE2G --cluster K562 --name h3k27ac \
+    --rna K562_rna_count_matrix.csv.gz --atac-frag K562_atac_fragments.tsv.gz --profile profiles/slurm
+igvfagent sce2g check      --repo-dir ~/scE2G --model multiome_h3k27ac
+igvfagent sce2g run        --repo-dir ~/scE2G --model multiome_h3k27ac --profile profiles/slurm --execute
+igvfagent sce2g predictions --predictions new=results/K562/multiome_h3k27ac/*.e2g.tsv --predictions base=...
+igvfagent sce2g benchmark  --predictions new=... --predictions base=... \
+    --crispr EPCrisprBenchmark_ensemble_data_GRCh38.tsv.gz --pred-config pred_config.txt
+```
+
+`setup` applies the walkthrough's four patches idempotently (drop
+`conda: "mamba"` from both `Snakefile_training` files, add `SCRIPTS_DIR`, add
+`RNA_matrix_filtered` / `max_cell_count`, restore the missing
+`multiome_arc_n6.tsv`). `features` renames `ElementChr/Start/End/GeneSymbol` to
+`chr/start/end/TargetGene`, replaces spaces in feature names, and writes the
+five-column `external_features_config_<name>.tsv` plus a feature table with one
+`max / 0 / NA / nice_name` row per feature. `configure` writes the cluster and
+model rows in upstream's exact column order and a run script with the Slurm
+profile and memory/runtime overrides. `check` catches the mistakes that
+otherwise surface hours into training: a feature in the external config that
+the feature table never lists, a source file missing a column, a dataset with
+no cluster row. `benchmark` scores each CRISPR pair with the pred_config's
+aggregate / fill / inverse semantics, reports AUPRC with bootstrap intervals
+and precision at 70% recall, and writes `pred_config.txt` + `config.yml` for
+the upstream pipeline. With `--all-features` every numeric column of every
+table becomes its own predictor, which is how the crowdsourced K562 feature
+tables on Synapse (syn73717888, 16 tables, 11 million element-gene rows each)
+were scored: tables are streamed and restricted to CRISPR-tested genes, so no
+table is loaded whole. `inventory` describes such a folder first, and `merge`
+combines batch runs into one ranked table, figure and report. The scorer was
+checked against the upstream pipeline itself, run in a container on the same
+inputs: per-pair scores identical for all 10,356 K562 CRISPR pairs, and the
+AUPRC on the upstream's own definition (`auprc_crispr_comparison`) equal to
+four decimals for every predictor tried (benchmark #24). Agent tools:
+`sce2g_setup`, `sce2g_features`, `sce2g_configure`, `sce2g_check`,
+`sce2g_run`, `sce2g_predictions`, `sce2g_benchmark`, `sce2g_inventory`,
+`sce2g_benchmark_merge`, `sce2g_selftest`.
+
+`explain_dataset --download` on IGVF files now works: the portal answers with
+a 307 to a pre-signed S3 URL, and forwarding the portal credentials to S3 made
+every download fail with HTTP 400; credentials are dropped on cross-host
+redirects.
 
 ### TF Perturb-seq: calibrated effects to disease and GWAS (`tf-perturb`)
 

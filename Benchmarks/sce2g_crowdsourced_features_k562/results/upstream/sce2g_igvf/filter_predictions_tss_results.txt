@@ -1,0 +1,5 @@
+pred_id	file	removed_elements	removed_predictions
+scE2G	inputs/IGVFFI1706PNVV.tsv.gz	19232	1533004
+scE2G_ignoreTPM	inputs/IGVFFI1706PNVV.tsv.gz	19232	1533004
+ABC	inputs/IGVFFI1706PNVV.tsv.gz	19232	1533004
+ARC_E2G	inputs/IGVFFI1706PNVV.tsv.gz	19232	1533004

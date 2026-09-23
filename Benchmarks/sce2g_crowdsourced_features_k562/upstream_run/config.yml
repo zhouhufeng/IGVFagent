@@ -1,0 +1,95 @@
+comparisons:
+  re2g_anchor:
+    pred:
+      rE2G_base: "inputs/ENCODE-rE2G_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz.tsv.gz"
+      rE2G_ext: "inputs/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz"
+      rE2G_ext_noEP300: "inputs/ENCODE-rE2G_extended_CrossValidated_K562_EPCrisprBenchmark_ensemble_data_GRCh38.predictions.tsv.gz"
+    expt: "inputs/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    gene_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.bed"
+    tss_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.TSS500bp.bed"
+    pred_config: "inputs/pred_config_re2g.txt"
+    pred_file_format: "generic"
+    include_col: Null
+    dist_bins_kb: [0, 20, 100, 2500]
+    expressed_genes: "resources/genomic_features/K562_expressed_genes.tsv"
+    gene_features: Null
+    enh_features: Null
+    enh_assays: Null
+  sce2g_igvf:
+    pred:
+      scE2G: "inputs/IGVFFI1706PNVV.tsv.gz"
+      scE2G_ignoreTPM: "inputs/IGVFFI1706PNVV.tsv.gz"
+      ABC: "inputs/IGVFFI1706PNVV.tsv.gz"
+      ARC_E2G: "inputs/IGVFFI1706PNVV.tsv.gz"
+    expt: "inputs/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    gene_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.bed"
+    tss_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.TSS500bp.bed"
+    pred_config: "inputs/pred_config_sce2g.txt"
+    pred_file_format: "IGVF"
+    include_col: Null
+    cell_type_mapping:
+      scE2G: "inputs/celltype_map_sce2g.txt"
+      scE2G_ignoreTPM: "inputs/celltype_map_sce2g.txt"
+      ABC: "inputs/celltype_map_sce2g.txt"
+      ARC_E2G: "inputs/celltype_map_sce2g.txt"
+    dist_bins_kb: [0, 20, 100, 2500]
+    expressed_genes: "resources/genomic_features/K562_expressed_genes.tsv"
+    gene_features: Null
+    enh_features: Null
+    enh_assays: Null
+  sce2g_igvf_notssfilter:
+    pred:
+      scE2G: "inputs/IGVFFI1706PNVV.tsv.gz"
+      scE2G_ignoreTPM: "inputs/IGVFFI1706PNVV.tsv.gz"
+      ABC: "inputs/IGVFFI1706PNVV.tsv.gz"
+      ARC_E2G: "inputs/IGVFFI1706PNVV.tsv.gz"
+    expt: "inputs/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    gene_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.bed"
+    tss_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.TSS500bp.bed"
+    pred_config: "inputs/pred_config_sce2g.txt"
+    pred_file_format: "IGVF"
+    filter_pred_tss: False
+    include_col: Null
+    cell_type_mapping:
+      scE2G: "inputs/celltype_map_sce2g.txt"
+      scE2G_ignoreTPM: "inputs/celltype_map_sce2g.txt"
+      ABC: "inputs/celltype_map_sce2g.txt"
+      ARC_E2G: "inputs/celltype_map_sce2g.txt"
+    dist_bins_kb: [0, 20, 100, 2500]
+    expressed_genes: "resources/genomic_features/K562_expressed_genes.tsv"
+    gene_features: Null
+    enh_features: Null
+    enh_assays: Null
+  features_igvf:
+    pred:
+      Pinloop: "inputs/uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz"
+      Signac: "inputs/K562_ERR9847049_Multiome_K562_Signac.tsv.gz"
+      SCENT: "inputs/K562_ERR9847049_Multiome_K562_SCENT.tsv.gz"
+    expt: "inputs/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    gene_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.bed"
+    tss_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.TSS500bp.bed"
+    pred_config: "inputs/pred_config_features.txt"
+    pred_file_format: "IGVF"
+    include_col: Null
+    dist_bins_kb: [0, 20, 100, 2500]
+    expressed_genes: "resources/genomic_features/K562_expressed_genes.tsv"
+    gene_features: Null
+    enh_features: Null
+    enh_assays: Null
+  features_igvf_notssfilter:
+    pred:
+      Pinloop: "inputs/uniformly_processed_K562_candidate_e2g_pairs_pinloop.tsv.gz"
+      Signac: "inputs/K562_ERR9847049_Multiome_K562_Signac.tsv.gz"
+      SCENT: "inputs/K562_ERR9847049_Multiome_K562_SCENT.tsv.gz"
+    expt: "inputs/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    gene_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.bed"
+    tss_universe: "resources/genome_annotations/CollapsedGeneBounds.hg38.TSS500bp.bed"
+    pred_config: "inputs/pred_config_features.txt"
+    pred_file_format: "IGVF"
+    filter_pred_tss: False
+    include_col: Null
+    dist_bins_kb: [0, 20, 100, 2500]
+    expressed_genes: "resources/genomic_features/K562_expressed_genes.tsv"
+    gene_features: Null
+    enh_features: Null
+    enh_assays: Null
