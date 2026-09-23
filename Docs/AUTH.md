@@ -164,23 +164,25 @@ the approval.
 
 ## What each person can see
 
-**Results are shared; organisation is private.**
+**History is private to each account; the knowledge graph is shared.**
 
-- **Any past answer is readable by anyone signed in**, and is recalled
-  automatically when someone asks about the same accession. This is deliberate:
-  the expensive case is two people asking the same question a week apart, and
-  there is little point paying for that analysis twice to hide a result from a
-  colleague who could simply ask for it. Set `IGVF_HISTORY_SHARED=0` for a
-  deployment where that trade goes the other way — strict per-user privacy,
-  at the cost of re-running work.
+- **A past answer is visible only to the account that produced it.** Nobody
+  else can list, search, recall or open it, and the UI's data viewers show only
+  runs from the viewer's own sessions. Set `IGVF_HISTORY_SHARED=1` for a
+  deployment that would rather share every finished answer (so the same
+  dataset is not re-analysed per person).
+- **The IGVF integrated knowledge graph is common to all**: facts drawn from
+  public sources accumulate there from everyone's work.
 - **Projects stay private.** A project is visible only to its owner and the
   people they share it with (`igvfagent project share <username>`, or the
   sidebar). Members can see and add to a shared project; only the owner can
   rename, archive, or change who else is in it.
 - Each run still records **who** produced it, so shared does not mean
   anonymous.
-- Work recorded before accounts existed belongs to nobody in particular — it
-  was produced under the shared password — and stays readable.
+- Work recorded before accounts existed is **quarantined**: only admins can
+  read it, and an admin can release a reviewed run to everyone.
+- **Not isolated yet:** the agent's file-reading tool can reach any file in the
+  shared workspace by path, including another account's run folder.
 
 `Scripts/test_history_visibility.py` asserts all of the above.
 

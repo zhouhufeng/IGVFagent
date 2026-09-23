@@ -190,8 +190,12 @@ def _render_grid(st, grid, *, title: str, cmap: str, label: str):
 
 # ─── Streamlit panel ────────────────────────────────────────────────────────
 
-def render_streamlit_panel(st) -> None:
-    """Drop-in panel for the 🧬 Spatial tab."""
+def render_streamlit_panel(st, allowed=None) -> None:
+    """Drop-in panel for the 🧬 Spatial tab.
+
+    ``allowed(path) -> bool`` limits the run picker to the signed-in user's
+    runs; None shows everything.
+    """
     st.markdown(
         "### 🧬 Spatial-ATAC-Hi-C Explorer\n"
         "Browse spatially resolved 3D genome + chromatin accessibility runs "
@@ -203,6 +207,8 @@ def render_streamlit_panel(st) -> None:
     )
 
     runs = discover_runs()
+    if allowed is not None:
+        runs = [r for r in runs if allowed(Path(r["path"]))]
     if not runs:
         st.info(
             "No `Docs/SpatialATACHiC/` runs found yet. Build one from the "

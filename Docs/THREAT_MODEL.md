@@ -74,14 +74,19 @@ permits it.
 
 Everything in Mode B, plus:
 
-- **The workspace is shared.** `Scripts/_localstore.py` resolves a single
-  process-global `IGVF_PROJECT_ROOT`, so every authenticated user reads and
-  writes one `Data/`, one `Docs/`, and one local knowledge graph. Your uploads
-  and results are visible to other users, and theirs to you.
+- **History is per account; the disk is not.** Chat history, recall and the
+  UI's data viewers show each account only its own runs (and projects shared
+  with it), and the knowledge graph is deliberately common to all. But
+  `Scripts/_localstore.py` resolves a single process-global
+  `IGVF_PROJECT_ROOT`, so every account's files sit in one `Data/` and one
+  `Docs/`, and the agent's file-reading tool (`artifact`) is contained to the
+  workspace, not to the caller's own runs. Another user who asks the agent for
+  a path can reach your output files.
 - **Uploaded data leaves your machine twice** — once to the server, and again
   to the model provider when the agent reads it.
-- **Authentication is a single shared password**, so "another user" means
-  anyone who has been given it.
+- **Authentication is per account** through the Genohub forum, with admin
+  approval (see [`AUTH.md`](AUTH.md)), so "another user" means any approved
+  member.
 - **Extension authoring may be enabled** (`IGVF_ALLOW_AGENT_AUTHORING=1`),
   which lets the agent write Python that the server subsequently executes.
 

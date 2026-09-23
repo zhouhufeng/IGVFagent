@@ -67,18 +67,33 @@ def main() -> int:
     check("_run_of ignores files outside any run",
           db._run_of(tmp / "Docs/Architecture/X.md") is None)
 
-    class Hist:
-        def recent_sessions(self, limit, viewer):
-            return [{"run_dir": "s1"}, {"run_dir": "s2"}]
+    # Real history store on a temp DB: alice owns run a, bob owns run b.
+    os.environ["IGVF_HISTORY_DB"] = str(tmp / "history.sqlite")
+    os.environ.pop("IGVF_HISTORY_SHARED", None)
+    import _history as H
+    importlib.reload(H)
+    H.record_session(str(tmp / "Docs/Agent/20260923_000001_alice"),
+                     query="alice", meta={"artefacts": [str(a / "report.md"),
+                     "/etc/passwd", "Docs/Secret/20260101_000000_x/k.txt"]},
+                     owner="alice")
+    H.record_session(str(tmp / "Docs/Agent/20260923_000002_bob"),
+                     query="bob", meta={"artefacts": [str(b / "report.md")]},
+                     owner="bob")
 
-        def session(self, run_dir, viewer):
-            arts = {"s1": [str(a / "report.md")],
-                    "s2": ["/etc/passwd", "Docs/Secret/20260101_000000_x/k.txt"]}
-            return {"artefacts": json.dumps(arts[run_dir])}
-
-    scoped = {r["rel"] for r in db.runs_for_viewer("alice", Hist())}
-    check("signed-in user sees only runs from their sessions",
-          scoped == {str(a.relative_to(tmp))})
+    scoped = {r["rel"] for r in db.runs_for_viewer("alice", H)}
+    check("signed-in user sees only runs from their own sessions",
+          str(a.relative_to(tmp)) in scoped
+          and str(b.relative_to(tmp)) not in scoped)
+    check("paths outside the workspace or under Secret never become runs",
+          not any("Secret" in r or r.startswith("/") for r in scoped))
+    vis = db.visibility_filter("alice", False, H)
+    check("the viewer filter admits the user's own run files",
+          vis is not None and vis(a / "Plots/p.png"))
+    check("...and rejects another user's", not vis(b / "report.md"))
+    check("...and files that belong to no run", not vis(tmp / "Docs/Architecture/X.md"))
+    check("no filter for admins or a local install",
+          db.visibility_filter("alice", True, H) is None
+          and db.visibility_filter(None, False, H) is None)
 
     # ── KG sources ──
     mir = tmp / "Data/Warehouse/KG"

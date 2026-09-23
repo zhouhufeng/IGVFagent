@@ -19,8 +19,9 @@ What counts as a run
 Who sees what
     Without sign-in (a laptop) and for admins: every run on disk. For a
     signed-in user on a shared deployment: only runs referenced by chat
-    sessions the history store says that user may see (their own, shared
-    projects). A run directory is not per-user on disk, so listing the
+    sessions the history store says that user may see (their own, and those
+    in projects shared with them). ``visibility_filter`` builds the same rule
+    for the Single-cell, Spatial-ATAC-Hi-C and network viewers. A run directory is not per-user on disk, so listing the
     whole tree to everyone would show one person's results to another.
     Every file also passes ``_pathguard.is_safe_artifact`` -- secrets under
     the workspace never render, whoever is asking.
@@ -94,19 +95,13 @@ def all_runs() -> "list[dict[str, Any]]":
 
 def runs_for_viewer(viewer: str, history) -> "list[dict[str, Any]]":
     """Runs referenced by the sessions ``viewer`` may see."""
-    import json
     dirs: "dict[Path, None]" = {}
     try:
-        rows = history.recent_sessions(limit=300, viewer=viewer)
+        arts_by_run = _visible_artefacts(viewer, history)
     except Exception:
         return []
-    for r in rows:
-        try:
-            full = history.session(r["run_dir"], viewer=viewer) or {}
-            arts = json.loads(full.get("artefacts") or "[]")
-        except Exception:
-            arts = []
-        for a in arts:
+    for run_dir, arts in arts_by_run:
+        for a in [run_dir, *arts]:
             p = Path(a)
             if not p.is_absolute():
                 p = ROOT / p
@@ -117,6 +112,56 @@ def runs_for_viewer(viewer: str, history) -> "list[dict[str, Any]]":
     runs = [_describe(d) for d in dirs]
     runs.sort(key=lambda r: r["mtime"], reverse=True)
     return runs
+
+
+def _visible_artefacts(viewer: str, history, limit: int = 2000):
+    """(run_dir, artefacts) for every session ``viewer`` may see.
+
+    One query and the history store's own visibility rule, rather than a
+    connection per session: this runs on every page render.
+    """
+    import json
+    con = history.connect()
+    try:
+        can_see = history._visible_to(con, viewer)
+        rows = con.execute(
+            "SELECT run_dir, owner, artefacts FROM sessions "
+            "ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
+        out = []
+        for r in rows:
+            if can_see("session", r["owner"], r["run_dir"]):
+                try:
+                    arts = json.loads(r["artefacts"] or "[]")
+                except Exception:
+                    arts = []
+                out.append((r["run_dir"], arts))
+        return out
+    finally:
+        con.close()
+
+
+class Visibility:
+    """What one signed-in user may see: their runs, and a path predicate.
+
+    Built once per page render and handed to every viewer, so the pickers
+    and the browser's "open in viewer" buttons index the same lists.
+    """
+
+    def __init__(self, runs: "list[dict[str, Any]]"):
+        self.runs = runs
+        self._dirs = {Path(r["path"]).resolve() for r in runs}
+
+    def __call__(self, path: Path) -> bool:
+        run = _run_of(Path(path))
+        return run is not None and run.resolve() in self._dirs
+
+
+def visibility_filter(viewer: Optional[str], is_admin: bool,
+                      history) -> "Optional[Visibility]":
+    """None when nothing is hidden (local install, admin), else a filter."""
+    if not viewer or is_admin or history is None:
+        return None
+    return Visibility(runs_for_viewer(viewer, history))
 
 
 def _describe(d: Path) -> "dict[str, Any]":
@@ -168,15 +213,18 @@ def render_streamlit_panel(st, *, render_file: Callable[[str], None],
                            viewer: Optional[str] = None,
                            is_admin: bool = False,
                            history=None, scviz=None, sphic=None,
-                           nwviz=None) -> None:
+                           nwviz=None,
+                           allowed: "Optional[Visibility]" = None) -> None:
     """The run browser. ``render_file`` is the chat's artefact renderer."""
     st.markdown(
         "### 📂 Runs and files\n"
         "Every analysis run and every file fetched from the IGVF Portal, in "
         "one place. Pick a run, then a file; files a dedicated viewer "
         "understands open there.")
-    scoped = bool(viewer) and not is_admin and history is not None
-    runs = runs_for_viewer(viewer, history) if scoped else all_runs()
+    if allowed is None and viewer and not is_admin and history is not None:
+        allowed = Visibility(runs_for_viewer(viewer, history))
+    scoped = allowed is not None
+    runs = allowed.runs if scoped else all_runs()
     if not runs:
         st.info("No runs yet. Ask something in Chat, or run any "
                 "`igvfagent <skill>` command; its output directory appears "
@@ -208,7 +256,7 @@ def render_streamlit_panel(st, *, render_file: Callable[[str], None],
     run_path: Path = run["path"]
     st.caption(f"`{run['rel']}`")
 
-    _route_run(st, run_path, sphic=sphic, nwviz=nwviz)
+    _route_run(st, run_path, sphic=sphic, nwviz=nwviz, allowed=allowed)
 
     files = run_files(run_path)
     if not files:
@@ -224,7 +272,7 @@ def render_streamlit_panel(st, *, render_file: Callable[[str], None],
     size = path.stat().st_size
 
     if path.suffix == ".h5ad":
-        _route_h5ad(st, path, scviz)
+        _route_h5ad(st, path, scviz, allowed)
         return
     if size > RENDER_LIMIT:
         st.info(f"`{path.name}` is {_human(size)}, too large to show here. "
@@ -233,7 +281,7 @@ def render_streamlit_panel(st, *, render_file: Callable[[str], None],
     render_file(str(path))
 
 
-def _route_h5ad(st, path: Path, scviz) -> None:
+def _route_h5ad(st, path: Path, scviz, allowed=None) -> None:
     st.markdown(f"`{path.name}` is an AnnData file.")
     if scviz is None:
         st.caption("The single-cell viewer is unavailable in this build.")
@@ -242,6 +290,8 @@ def _route_h5ad(st, path: Path, scviz) -> None:
         paths = scviz.discover_h5ad_paths()
     except Exception:
         paths = []
+    if allowed is not None:
+        paths = [p for p in paths if allowed(Path(p))]
     idx = _index_of(paths, lambda p: Path(p).resolve() == path.resolve())
     if idx is None:
         st.caption("The single-cell viewer does not scan this directory, so "
@@ -256,7 +306,7 @@ def _route_h5ad(st, path: Path, scviz) -> None:
     st.caption("Then switch to the **Single-cell** sub-tab.")
 
 
-def _route_run(st, run_path: Path, *, sphic, nwviz) -> None:
+def _route_run(st, run_path: Path, *, sphic, nwviz, allowed=None) -> None:
     """Offer the dedicated viewer for runs that have one."""
     rel = run_path.relative_to(ROOT).parts
     if len(rel) < 2:
@@ -266,6 +316,8 @@ def _route_run(st, run_path: Path, *, sphic, nwviz) -> None:
             runs = sphic.discover_runs()
         except Exception:
             runs = []
+        if allowed is not None:
+            runs = [r for r in runs if allowed(Path(r["path"]))]
         idx = _index_of(runs, lambda r: Path(r["path"]).resolve()
                         == run_path.resolve())
         if idx is not None:
@@ -279,6 +331,8 @@ def _route_run(st, run_path: Path, *, sphic, nwviz) -> None:
             runs = nwviz.discover_viz_runs()
         except Exception:
             runs = []
+        if allowed is not None:
+            runs = [r for r in runs if allowed(Path(r["path"]))]
         idx = _index_of(runs, lambda r: Path(r["path"]).resolve()
                         == run_path.resolve())
         if idx is not None:

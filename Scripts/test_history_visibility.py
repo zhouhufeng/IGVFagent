@@ -49,41 +49,41 @@ def main() -> int:
                      query="bob studies IGVFDS2222CCCC",
                      answer="bob's private result", owner="bob")
 
-    # Default policy: RESULTS are shared across the deployment, so the same
-    # dataset is not re-analysed once per person, while ORGANISATION (who
-    # filed what into which project) stays private.
-    print("\nanswers are shared, so nobody pays twice for the same question")
-    check("alice sees every post-account run, including bob's",
-          refs(H.recent_sessions(viewer="alice")),
-          {"Docs/Agent/20260201_000000_alice_bbbbbbbb",
-           "Docs/Agent/20260301_000000_bob_cccccccc"})
-    check("an unauthenticated/local deployment sees everything too",
-          len(H.recent_sessions(viewer=None)), 3)
-    check("alice can search bob's answer text",
-          len(H.search("bob's private result", viewer="alice")) >= 1, True)
-    check("alice can recall bob's accession — this is the whole point",
-          len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
-    check("...and open the run itself",
-          H.session("Docs/Agent/20260301_000000_bob_cccccccc",
-                    viewer="alice") is not None, True)
-    check("the pre-accounts corpus is NOT readable — it is quarantined "
-          "until reviewed",
-          H.search("legacy shared-password", viewer="alice"), [])
-
-    print("\nIGVF_HISTORY_SHARED=0 restores strict per-user privacy")
-    os.environ["IGVF_HISTORY_SHARED"] = "0"
-    check("alice no longer sees bob's run",
+    # Default policy: each account sees its own history and nobody else's.
+    # The knowledge graph is the only thing that accumulates across users.
+    os.environ.pop("IGVF_HISTORY_SHARED", None)
+    print("\nby default, history is private to each account")
+    check("alice sees her own run and not bob's",
           refs(H.recent_sessions(viewer="alice")),
           {"Docs/Agent/20260201_000000_alice_bbbbbbbb"})
     check("...nor recalls his accession",
           H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
     check("...nor finds his answer text",
           H.search("bob's private result", viewer="alice"), [])
+    check("...nor opens his run by path",
+          H.session("Docs/Agent/20260301_000000_bob_cccccccc",
+                    viewer="alice"), None)
     check("bob still sees his own", len(H.by_accession("IGVFDS2222CCCC",
                                                         viewer="bob")), 1)
+    check("an unauthenticated/local deployment sees everything",
+          len(H.recent_sessions(viewer=None)), 3)
+    check("the pre-accounts corpus is NOT readable — it is quarantined "
+          "until reviewed",
+          H.search("legacy shared-password", viewer="alice"), [])
+
+    print("\nIGVF_HISTORY_SHARED=1 opts a deployment into shared answers")
     os.environ["IGVF_HISTORY_SHARED"] = "1"
-    check("shared mode restored",
+    check("alice sees every post-account run, including bob's",
+          refs(H.recent_sessions(viewer="alice")),
+          {"Docs/Agent/20260201_000000_alice_bbbbbbbb",
+           "Docs/Agent/20260301_000000_bob_cccccccc"})
+    check("alice can search bob's answer text",
+          len(H.search("bob's private result", viewer="alice")) >= 1, True)
+    check("alice can recall bob's accession",
           len(H.by_accession("IGVFDS2222CCCC", viewer="alice")), 1)
+    os.environ.pop("IGVF_HISTORY_SHARED")
+    check("private again once the opt-in is removed",
+          H.by_accession("IGVFDS2222CCCC", viewer="alice"), [])
 
     print("\npre-account history is quarantined, not public")
     os.environ["IGVF_ACTING_ADMIN"] = "0"
@@ -114,7 +114,7 @@ def main() -> int:
     check("...and it is searchable again",
           len(H.search("legacy shared-password", viewer="alice")) >= 1, True)
 
-    print("\nprojects stay private even though answers are shared")
+    print("\nprojects stay private to their owner")
     H.create_project("Bob's study", "private", owner="bob")
     check("bob sees his project", [p["name"] for p in
           H.list_projects(viewer="bob")], ["Bob's study"])

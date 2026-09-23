@@ -410,19 +410,20 @@ def _shared_refs(con, viewer: "str | None") -> "set[str]":
 
 # Whether a completed ANSWER is readable across the deployment.
 #
-# The two goods here are in genuine tension. Private-by-default protects
-# unpublished work; shared answers stop the same dataset being re-analysed by
-# every person who asks about it, on hardware the whole lab pays for. On a
-# single-lab deployment the second wins: the expensive case is two people
-# asking the same question a week apart, and there is little point paying for
-# that twice to hide a result from a colleague who could ask for it anyway.
+# Private by default. A chat session is one person's question and answer, and
+# on a shared deployment it can carry unpublished context: the accession they
+# are working on, the file they uploaded, what they concluded. So each account
+# sees its own history and nobody else's; the knowledge graph is the one thing
+# that accumulates across everyone, because it holds facts extracted from
+# public sources rather than anybody's conversation.
 #
-# So RESULTS are shared and ORGANISATION stays private: anyone signed in can
-# read any past answer and have it recalled for them, while projects remain
-# visible only to their owner and the people they were shared with. Set
-# IGVF_HISTORY_SHARED=0 for a deployment where that trade goes the other way.
+# Sharing is still available where the trade goes the other way (one lab, one
+# machine, re-analysis being the expensive case): IGVF_HISTORY_SHARED=1 makes
+# every finished answer readable and recallable by anyone signed in. Projects
+# stay visible only to their owner and members under either setting, and a
+# legacy run an admin has reviewed and released is visible to all.
 def _answers_are_shared() -> bool:
-    return os.environ.get("IGVF_HISTORY_SHARED", "1") != "0"
+    return os.environ.get("IGVF_HISTORY_SHARED", "0") == "1"
 
 
 # Kinds that record a RESULT rather than someone's filing decisions.
@@ -467,7 +468,7 @@ def _visible_to(con, viewer: "str | None"):
     shared_refs = _shared_refs(con, viewer)
     answers_shared = _answers_are_shared()
     legacy_ok = _legacy_is_public() or is_admin(viewer)
-    allowed = {viewer} | ({LEGACY_OWNER} if legacy_ok else set())
+    allowed = {viewer, PUBLIC_OWNER} | ({LEGACY_OWNER} if legacy_ok else set())
 
     def ok(kind: str, owner: "str | None", ref: "str | None") -> bool:
         owner = owner or LEGACY_OWNER

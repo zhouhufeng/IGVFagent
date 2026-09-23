@@ -2216,9 +2216,9 @@ def _sidebar_projects() -> None:
     active is filed into it and stays there, and it can be renamed later
     without breaking any reference, because items point at an immutable id.
 
-    Like history, this is shared across the deployment -- one shared password,
-    no per-user identity -- so it is a shelf everyone can see, not a private
-    workspace. Collapsed by default; nothing changes until someone opens it.
+    Projects are private to their owner and the members they are shared
+    with; the store enforces that, not this panel. Collapsed by default;
+    nothing changes until someone opens it.
     """
     H = _history_store()
     if H is None:
@@ -2805,6 +2805,20 @@ def main() -> None:
     # "Report a bug" moved to the sidebar, where it is visible from every
     # tab. Every tab except Chat is independent of the loaded LLM.
     # ------------------------------------------------------------------
+    # Chat history is private to each account, so the viewers are too: a
+    # signed-in non-admin sees only runs from their own sessions (and
+    # projects shared with them). The knowledge graph stays common to all.
+    # Computed once per render and handed to every viewer so their pickers
+    # and the browser's "open in viewer" buttons index the same lists.
+    _viewer = current_user()
+    _visible = None
+    if _dbrowse is not None and _viewer:
+        try:
+            _visible = _dbrowse.visibility_filter(
+                _viewer["username"], bool(_viewer.get("admin")),
+                _history_store())
+        except Exception:
+            _visible = _dbrowse.Visibility([])   # fail closed
     chat_tab, kn_tab, dv_tab, val_tab = st.tabs(
         ["💬 Chat", "🕸 Knowledge & networks", "🔬 Data viewers",
          "📊 Validation"]
@@ -2821,7 +2835,8 @@ def main() -> None:
             _panel(_nwviz, "Network visualizer",
                    "needs `networkx`, `matplotlib`, `pyvis`, and `pandas` in "
                    "this venv:\n\n"
-                   "```\npip install networkx matplotlib pyvis pandas\n```")
+                   "```\npip install networkx matplotlib pyvis pandas\n```",
+                   allowed=_visible)
         with src_sub:
             user = current_user()
             allow = bool(user and user.get("admin")) or (
@@ -2845,16 +2860,18 @@ def main() -> None:
                    viewer=user["username"] if user else None,
                    is_admin=bool(user and user.get("admin")),
                    history=_history_store(), scviz=_scviz, sphic=_sphic,
-                   nwviz=_nwviz)
+                   nwviz=_nwviz, allowed=_visible)
         with sc_sub:
             _panel(_scviz, "Single-cell visualizer",
                    "needs `scanpy` + `anndata` + `matplotlib` in this venv:"
                    "\n\n```\npip install scanpy 'anndata>=0.10' umap-learn "
-                   "leidenalg python-igraph matplotlib\n```")
+                   "leidenalg python-igraph matplotlib\n```",
+                   allowed=_visible)
         with sp_sub:
             _panel(_sphic, "Spatial-ATAC-Hi-C browser",
                    "needs `numpy` and `matplotlib` in this venv:\n\n"
-                   "```\npip install 'igvfagent[analysis]'\n```")
+                   "```\npip install 'igvfagent[analysis]'\n```",
+                   allowed=_visible)
 
     with val_tab:
         _panel(_bmviz, "Benchmark visualizer",

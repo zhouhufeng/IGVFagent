@@ -284,8 +284,12 @@ def _ensure_in_session(st, key: str, default):
         st.session_state[key] = default
 
 
-def render_streamlit_panel(st) -> None:
-    """Drop-in Streamlit panel for single-cell visualization."""
+def render_streamlit_panel(st, allowed=None) -> None:
+    """Drop-in Streamlit panel for single-cell visualization.
+
+    ``allowed(path) -> bool`` limits the picker to files the signed-in user
+    may see (see ``data_browser.visibility_filter``); None shows everything.
+    """
     st.markdown(
         "### 🔬 Single-cell embedding viewer\n"
         "Browse the `.h5ad` outputs that `sc-analyze` writes under "
@@ -298,6 +302,8 @@ def render_streamlit_panel(st) -> None:
     # picker, and inspecting the selected file is enough for everything
     # after that.
     descs = discover_h5ad_files(inspect=False)
+    if allowed is not None:
+        descs = [d for d in descs if allowed(Path(d.path))]
     if not descs:
         st.warning(
             "No `.h5ad` files found. Build one with:\n\n"

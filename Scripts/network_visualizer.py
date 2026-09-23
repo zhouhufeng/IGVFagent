@@ -110,8 +110,12 @@ def discover_sif_files() -> "list[Path]":
 
 # ─── Streamlit panel ────────────────────────────────────────────────────────
 
-def render_streamlit_panel(st) -> None:
-    """Drop-in panel for the 🔗 Network tab."""
+def render_streamlit_panel(st, allowed=None) -> None:
+    """Drop-in panel for the 🔗 Network tab.
+
+    ``allowed(path) -> bool`` limits runs and SIF files to the signed-in
+    user's own; None shows everything.
+    """
     st.markdown(
         "### 🔗 Network Integration Explorer\n"
         "Browse and render publication-grade visualizations of "
@@ -123,6 +127,9 @@ def render_streamlit_panel(st) -> None:
 
     runs = discover_viz_runs()
     sifs = discover_sif_files()
+    if allowed is not None:
+        runs = [r for r in runs if allowed(Path(r["path"]))]
+        sifs = [s for s in sifs if allowed(Path(s))]
 
     # ── Two sub-views: browse existing runs, or generate a new one ────
     if runs:

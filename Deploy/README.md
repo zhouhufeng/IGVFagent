@@ -333,19 +333,18 @@ the number of runs.
   material inside it (`Docs/Secret/`, `.env`, `*.pem`, credential-like names).
 - Infrastructure credentials are **never** synced to the host.
 
-**Known limitation — the workspace is shared, not per-user**
+**Known limitation — history is per account, the disk is not**
 
-`Scripts/_localstore.py` resolves a single process-global `IGVF_PROJECT_ROOT`
-at import time, so every visitor shares one `Data/KG/local_kg.sqlite`, one
-DuckDB warehouse, and one `Docs/<skill>/` tree. On this deployment that means:
-
-- users can see each other's run outputs, and
-- the local knowledge graph accumulates everyone's queries together.
-
-That is acceptable behind a shared password among colleagues; it is **not**
-acceptable if the gate is ever opened to the anonymous public. Per-user
-isolation needs the module-level root refactored into a per-session value —
-tracked as follow-up work, not shipped here.
+Chat history, recall and the UI's data viewers are scoped to the signed-in
+account (`IGVF_HISTORY_SHARED` defaults to off), and the local knowledge graph
+is deliberately common to everyone. But `Scripts/_localstore.py` resolves a
+single process-global `IGVF_PROJECT_ROOT` at import time, so every account's
+files share one `Docs/<skill>/` tree and one `Data/`, and the agent's
+`artifact` read/grep/ls tool is contained to the workspace, not to the
+caller's runs. A user who asks the agent for another account's path can read
+it. Closing that means scoping `artifact` to the caller's runs (plus files the
+current turn produced), or giving each account its own run root; tracked as
+follow-up work.
 
 **Also unaddressed:** the agent executes wrapped CLIs as subprocesses with
 model-chosen arguments (`Scripts/_tools.py:3679`) on prompts from whoever is

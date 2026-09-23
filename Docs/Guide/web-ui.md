@@ -98,15 +98,30 @@ CLI and in the web UI, which has a **🗂️ Project** panel in the sidebar.
 Renaming is safe: items reference the project's immutable id, and every former
 name stays resolvable, so a reference written down months ago still works.
 
-**Results are shared, organisation is private.** Any past answer is readable
-by anyone signed in and is recalled automatically when someone asks about the
-same accession — paying twice for the same analysis to hide it from a colleague
-helps nobody, and each run still records who produced it. Projects are the
-private part: visible to their owner and whoever they share them with
-(`igvfagent project share <username>`), where members can add but only the
-owner can rename, archive or change membership. `IGVF_HISTORY_SHARED=0` flips
-answers back to strict per-user privacy. Without authentication in front,
-nothing is filtered at all.
+**History is private to each account; the knowledge graph is shared.** Your
+questions, answers and run folders are visible only to you: nobody else can
+list, search or recall them, and the **🔬 Data viewers** and **Your networks**
+views show only runs from your own sessions. The one thing that accumulates
+across users is the IGVF integrated knowledge graph (`Data/KG/local_kg.sqlite`),
+which holds facts drawn from public sources rather than anyone's conversation.
+
+To show work to a colleague, file it into a project and share the project
+(`igvfagent project share <username>`, or the sidebar). Members can see and add
+to a shared project; only the owner can rename, archive or change membership.
+Runs recorded before accounts existed are quarantined until an administrator
+reviews and releases them; a released run is visible to everyone.
+
+A deployment where one lab would rather reuse each other's answers can set
+`IGVF_HISTORY_SHARED=1`, which makes every finished answer readable and
+recallable by anyone signed in. Without authentication in front (a local
+install), nothing is filtered at all.
+
+**What is not isolated yet.** All accounts' files live on one disk, and the
+agent's file-reading tool (`igvfagent artifact read / grep / ls`) is limited to
+the workspace and away from secrets, but not yet to your own runs. A user who
+asks the agent to browse `Docs/` could reach another account's output files by
+path. Until that is closed, do not upload unpublished or sensitive data to the
+hosted site.
 
 **Nothing here is ever deleted.** That is enforced by `BEFORE DELETE` triggers
 on every history table, not by convention — removing an item from a project

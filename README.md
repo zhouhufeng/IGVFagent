@@ -79,13 +79,19 @@ needs approval, so email
 | LLM cost | paid by the project | your own API key, or free via Ollama |
 | Model | Claude Opus 5.5 by default; Sonnet 5, Haiku 4.5 and Fable 5.1 selectable | any backend: Anthropic, OpenAI, Ollama, vLLM, … |
 | Run length | capped per turn | uncapped |
-| Workspace | **shared with other users** | private to you |
+| Chat history | private to your account | private to you |
+| Knowledge graph | shared: grows from everyone's work | yours |
 
-> ⚠️ **The hosted workspace is shared.** Answers are visible to other signed-in
-> users and the knowledge graph is common to all. Use it for public IGVF and
-> ENCODE data, not for unpublished or sensitive datasets; install locally for
-> private work. How accounts, history and projects work:
-> [The browser UI, accounts and history](Docs/Guide/web-ui.md).
+> 🔒 **Your chat history is private to your account.** Only you can see,
+> search or recall your past questions and answers, and the data viewers show
+> only runs from your own sessions (or from projects someone shares with you).
+> What everyone shares is the **IGVF integrated knowledge graph**: facts drawn
+> from public sources accumulate there for all users.
+>
+> ⚠️ The server is still one machine with one disk, and the agent's
+> file-reading tool is not yet limited per account, so do not upload
+> unpublished or sensitive data; install locally for private work. Details:
+> [The browser UI, accounts and history](Docs/Guide/web-ui.md#projects-and-permanent-history).
 
 ## Quick start
 

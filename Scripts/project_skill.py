@@ -20,9 +20,8 @@
 **Sessions are private to whoever ran them.** Filing one into a project and
 then sharing that project is the deliberate act that makes it visible to
 someone else -- there is no other path between users. Work recorded before
-this deployment had accounts belongs to nobody and stays visible to everyone,
-because hiding the entire existing corpus from every user at once would be the
-wrong reading of "private by default".
+this deployment had accounts is quarantined: admins can review it and
+release a run to everyone (see ``_history._legacy_is_public``).
 
 Two things this gives that the filesystem did not.
 
