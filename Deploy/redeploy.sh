@@ -170,11 +170,11 @@ seed_benchmarks
 # 240 GB mirror is hours of work. Adding each long-running skill to this
 # pattern only after it has been interrupted once is not a plan; every
 # skill that can run for minutes is listed.
-HEAVY=$(pgrep -fc "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge|mct|kg-mirror|job worker) |mirror-kg.sh" 2>/dev/null || echo 0)
+HEAVY=$(pgrep -fc "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge|mct|kg-mirror|job worker|paper-code pipeline|paper-code reads) |igvfagent.paper_code_skill|mirror-kg.sh" 2>/dev/null || echo 0)
 if [ "${HEAVY:-0}" -gt 0 ] && [ "${FORCE_RECREATE:-0}" != "1" ]; then
   echo
   echo "REFUSING to recreate: $HEAVY analysis process(es) are running."
-  pgrep -fa "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge|mct|kg-mirror|job worker) |mirror-kg.sh" 2>/dev/null \
+  pgrep -fa "igvfagent (sc-analyze|raw-pipeline|crispr-screen|sge|mct|kg-mirror|job worker|paper-code pipeline|paper-code reads) |igvfagent.paper_code_skill|mirror-kg.sh" 2>/dev/null \
     | cut -c1-140 | sed 's/^/  /'
   echo
   echo "Recreating the container would kill them. Wait, or re-run with"
