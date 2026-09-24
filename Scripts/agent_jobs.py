@@ -146,6 +146,11 @@ b. Plan stages like: harvest -> find_code -> run_code (check: json
    <run_dir>/summary.json key printed.fraction_matched >= 0.9, or figures.produced
    >= 1 when the authors committed no rendering) -> review_sections -> repair
    (only if needed) -> cross_check (optional: IGVF/MaveDB data route) -> report.
+c0. When analyses fail on missing inputs: if the repository has a Snakemake
+   workflow, re-run with workflow=true (its dry run lists every missing input);
+   fetch the paper's deposited data (Zenodo/figshare in the Data Availability
+   statement) with paper_code_fetch_data into the paths the code reads; then
+   re-run. Missing data that is not deposited is a blocker, named in the report.
 c. Read summary.json and report.md. For chunks that raised errors, diagnose
    from run.log and report.md (a package API change is the usual cause;
    inventory.json lists the versions the authors ran). Repair only the

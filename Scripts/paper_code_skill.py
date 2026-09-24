@@ -60,6 +60,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -825,6 +826,25 @@ def declared_python_env(src: Path, inv: Dict[str, Any]) -> Optional[Path]:
     return best
 
 
+BUILD_TOOLS = {"cython", "numpy", "setuptools", "wheel", "setuptools-scm", "setuptools_scm", "pybind11",
+               "scikit-build", "cmake", "ninja", "versioneer", "pip"}
+PIP_SKIP = {"sklearn"}  # the deprecated "sklearn" dummy package refuses to install; scikit-learn is the real one
+# import / pip name -> conda package names to try (conda-forge, bioconda)
+CONDA_NAMES = {"moods": ["moods"], "moods-python": ["moods"], "dash_bio": ["dash-bio"], "dash-bio": ["dash-bio"],
+               "pybedtools": ["pybedtools"], "pysam": ["pysam"], "pybigwig": ["pybigwig"], "cyvcf2": ["cyvcf2"],
+               "htseq": ["htseq"], "pyranges": ["pyranges"], "scanpy": ["scanpy"], "bs4": ["beautifulsoup4"]}
+
+
+def _conda_install(run, mm: Path, root: Path, prefix: Path, name: str) -> bool:
+    """Install one package from conda-forge/bioconda into an existing env
+    (for what pip cannot build: C extensions, bioinformatics tools)."""
+    for cand in CONDA_NAMES.get(name.lower(), [name.lower(), name.lower().replace("_", "-")]):
+        if run([str(mm), "-r", str(root), "install", "-y", "-p", str(prefix), "-c", "conda-forge", "-c", "bioconda",
+                cand]).returncode == 0:
+            return True
+    return False
+
+
 def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", run) -> Dict[str, Any]:
     """micromamba env from the authors' environment.yml. GPU-only packages are
     dropped on a CPU host; if the exact pins do not solve, pins are relaxed to
@@ -878,10 +898,17 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
         return {"ok": False, "error": f"the declared environment {yml.name} could not be solved even with pins relaxed",
                 "declared": _rel(yml)}
     py = prefix / "bin" / "python"
-    pip_failed, pip_relaxed = [], []
+    pip_failed, pip_relaxed, conda_fallback = [], [], []
     if pip:
         if run([str(py), "-m", "pip", "install", "--no-input", *pip]).returncode:
+            # Pinned build tools first (a Cython 0.29 package cannot build under
+            # Cython 3), so the no-isolation retries below build against them.
+            tools = [x for x in pip if _dep_name(x)[0].lower() in BUILD_TOOLS]
+            for x in tools:
+                run([str(py), "-m", "pip", "install", "--no-input", x])
             for x in pip:
+                if x in tools:
+                    continue
                 if run([str(py), "-m", "pip", "install", "--no-input", x]).returncode == 0:
                     continue
                 # Source packages built against the env's own pinned build
@@ -890,7 +917,11 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
                     pip_relaxed.append(f"{x} (built without build isolation)")
                     continue
                 n, v = _dep_name(x)
-                if v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
+                if n.lower() in PIP_SKIP:
+                    continue
+                if _conda_install(run, mm, root, prefix, n):
+                    conda_fallback.append(f"{x} (from conda-forge/bioconda)")
+                elif v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
                     pip_relaxed.append(f"{x} -> latest {n}")
                 else:
                     pip_failed.append(x)
@@ -900,14 +931,22 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
         n = PY_PIP_NAME.get(m, m)
         if n.lower().replace("_", "-") + "==" not in have.replace("_", "-") and \
                 run([str(py), "-c", f"import {m}"]).returncode:
-            if run([str(py), "-m", "pip", "install", "--no-input", n]).returncode:
+            if run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
+                continue
+            if _conda_install(run, mm, root, prefix, m):
+                conda_fallback.append(f"{m} (imported by the notebooks; from conda-forge/bioconda)")
+            else:
                 pip_failed.append(f"{n} (imported by the notebooks)")
     vers = run([str(py), "-m", "pip", "freeze"]).stdout or ""
     pv = (run([str(py), "--version"]).stdout or "").strip()
     info = {"declared": _rel(yml), "relaxed_level": ["exact pins", "major.minor pins", "names only"][level_used],
             "dropped_gpu_only": dropped, "pip_failed": pip_failed, "pip_relaxed": pip_relaxed,
+            "conda_fallback": conda_fallback,
             "python": pv, "versions": (pv + "\n" + vers)[-8000:], "missing": pip_failed}
-    if not pip_failed:  # an incomplete env is rebuilt next time, not reused
+    # Rebuild next time only if a DECLARED dependency failed; modules the
+    # notebooks import that no index has (the authors' private helpers) will
+    # not appear on a rebuild either.
+    if not [x for x in pip_failed if "(imported by the notebooks)" not in x]:
         _write_json(ok_marker, info)
     return {"ok": True, "prefix": str(prefix), "reused": False, **info,
             "error": (f"pip could not install: {', '.join(pip_failed)}" if pip_failed else None)}
@@ -1017,6 +1056,85 @@ def _runner_python() -> Path:
     return py
 
 
+_PY_SHIMS = r'''"""Compatibility shims for the authors' notebooks (IGVF Agent paper-code).
+
+Loaded into the kernel at start; the notebooks are not modified. Each shim
+restores something the authors' machine had and logs when it fires, so the
+report says exactly what was substituted.
+"""
+import json, os, warnings
+
+def _log(**kw):
+    p = os.environ.get("IGVF_SHIM_LOG")
+    if p:
+        with open(p, "a") as fh:
+            fh.write(json.dumps(kw) + "\n")
+
+try:
+    import matplotlib.style as _ms
+    _orig_use = _ms.use
+
+    def _use(style, *a, **k):
+        # A personal style file of the authors (e.g. 'jr') that was never
+        # published: fall back to matplotlib's default. Values are unaffected;
+        # only the look of the figure differs.
+        try:
+            return _orig_use(style, *a, **k)
+        except OSError:
+            names = style if isinstance(style, (list, tuple)) else [style]
+            _log(shim="mpl_missing_style", style=[str(n) for n in names])
+            warnings.warn(f"IGVF Agent: matplotlib style {style!r} is not available here (the authors' own style "
+                          "file); using the default style")
+            return _orig_use("default", *a, **k)
+    _ms.use = _use
+    try:
+        import matplotlib.style.core as _msc
+        _msc.use = _use
+    except Exception:
+        pass
+except Exception:
+    pass
+'''
+
+
+_NB_DRIVER = r'''"""Execute one notebook with nbclient (IGVF Agent paper-code).
+
+Reads leniently: old notebooks often lack metadata current nbformat requires
+(kernelspec.display_name, cell ids); those are filled in memory only, the
+file on disk is not touched. The executed copy is always written, also after
+a timeout or a kernel death, so whatever ran is kept.
+"""
+import sys, os, warnings
+import nbformat
+from nbclient import NotebookClient
+
+src, out, kname, timeout, tolerant = sys.argv[1:6]
+warnings.filterwarnings("ignore")
+with open(src) as fh:
+    nb = nbformat.read(fh, as_version=4)
+ks = nb.metadata.setdefault("kernelspec", {})
+ks.setdefault("display_name", ks.get("name") or kname)
+ks.setdefault("name", kname)
+ks.setdefault("language", "python")
+try:
+    nbformat.validator.normalize(nb)
+except Exception:
+    pass
+client = NotebookClient(nb, kernel_name=kname, timeout=int(timeout), allow_errors=tolerant == "1",
+                        resources={"metadata": {"path": os.path.dirname(os.path.abspath(src))}})
+rc = 0
+try:
+    client.execute()
+except Exception as e:  # CellExecutionError (strict), CellTimeoutError, DeadKernelError
+    print(f"notebook stopped: {type(e).__name__}: {str(e)[:2000]}", file=sys.stderr)
+    rc = 1
+finally:
+    with open(out, "w") as fh:
+        nbformat.write(nb, fh)
+sys.exit(rc)
+'''
+
+
 def _register_kernel(run_dir: Path, prefix: Path, language: str) -> "Tuple[str, str]":
     """A kernelspec for the authors' environment, private to this run."""
     kdir = run_dir / "_jupyter" / "kernels" / "igvf-authors"
@@ -1025,8 +1143,13 @@ def _register_kernel(run_dir: Path, prefix: Path, language: str) -> "Tuple[str, 
         spec = {"argv": [str(prefix / "bin" / "R"), "--slave", "-e", "IRkernel::main()", "--args", "{connection_file}"],
                 "display_name": "R (authors' environment)", "language": "R"}
     else:
-        spec = {"argv": [str(prefix / "bin" / "python"), "-m", "ipykernel_launcher", "-f", "{connection_file}"],
-                "display_name": "Python (authors' environment)", "language": "python"}
+        shim_dir = run_dir / "_jupyter" / "shims"
+        shim_dir.mkdir(parents=True, exist_ok=True)
+        (shim_dir / "igvf_py_shims.py").write_text(_PY_SHIMS)
+        spec = {"argv": [str(prefix / "bin" / "python"), "-m", "ipykernel_launcher", "-f", "{connection_file}",
+                         "--IPKernelApp.exec_lines=['import igvf_py_shims']"],
+                "display_name": "Python (authors' environment)", "language": "python",
+                "env": {"PYTHONPATH": str(shim_dir), "IGVF_SHIM_LOG": str(run_dir / "_shim_log.jsonl")}}
     (kdir / "kernel.json").write_text(json.dumps(spec, indent=1))
     return "igvf-authors", str(run_dir / "_jupyter")
 
@@ -1050,6 +1173,18 @@ def _link_or_copy(s_: str, d: str) -> str:
 
 def prepare_work(src: Path, work: Path) -> None:
     shutil.copytree(src, work, ignore=shutil.ignore_patterns(".git"), copy_function=_link_or_copy, symlinks=True)
+
+
+def _read_shim_log(p: Path) -> "List[Dict[str, Any]]":
+    out: List[Dict[str, Any]] = []
+    try:
+        for ln in p.read_text().splitlines():
+            e = json.loads(ln)
+            if e not in out:
+                out.append(e)
+    except (OSError, ValueError):
+        pass
+    return out
 
 
 def _snapshot(d: Path) -> Dict[str, float]:
@@ -1103,10 +1238,10 @@ def run_entry(src: Path, inv: Dict[str, Any], env: Dict[str, Any], run_dir: Path
         # their machine's; ours is registered per run. The notebook is unchanged.
         kname, jpath = _register_kernel(run_dir, prefix, inv["language"])
         envvars["JUPYTER_PATH"] = jpath + os.pathsep + envvars.get("JUPYTER_PATH", "")
-        argv = [str(_runner_python()), "-m", "nbconvert", "--to", "notebook", "--execute",
-                "--output", entry.stem + ".executed.ipynb", f"--ExecutePreprocessor.timeout={int(timeout_min * 60)}",
-                f"--ExecutePreprocessor.kernel_name={kname}"]
-        argv += (["--allow-errors"] if tolerant else []) + [entry.name]
+        drv = run_dir / "_jupyter" / "igvf_nb_run.py"
+        drv.write_text(_NB_DRIVER)
+        argv = [str(_runner_python()), str(drv), entry.name, entry.stem + ".executed.ipynb", kname,
+                str(int(timeout_min * 60)), "1" if tolerant else "0"]
     else:
         argv = [str(prefix / "bin" / "python"), entry.name]
     with open(log, "w") as lf:
@@ -1124,7 +1259,7 @@ def run_entry(src: Path, inv: Dict[str, Any], env: Dict[str, Any], run_dir: Path
     render = status_txt.read_text().splitlines()[0] if status_txt.exists() else ("ok" if rc == 0 else f"exit {rc}")
     return {"exit_code": rc, "render": render, "seconds": round(time.time() - t0, 1), "new_files": new,
             "rng_sample_rounding": envvars.get("IGVF_R_SAMPLE_ROUNDING") == "1", "inputs_substituted": substituted,
-            "r_shims": shims,
+            "r_shims": shims, "py_shims": _read_shim_log(run_dir / "_shim_log.jsonl"),
             "log": _rel(log), "work": _rel(work), "argv": argv}
 
 
@@ -1395,6 +1530,10 @@ def write_report(run_dir: Path, inv: Dict[str, Any], env: Dict[str, Any], src_me
         L.append("- **New data, the authors' code:** " + "; ".join(
             f"`{k}` ← `{v['from']}`" for k, v in run["inputs_substituted"].items())
                  + ". Comparison with the authors' rendering then measures how the results changed, not reproduction.")
+    for sh in run.get("py_shims") or []:
+        if sh.get("shim") == "mpl_missing_style":
+            L.append(f"- Compatibility shim `mpl_missing_style`: matplotlib style {sh.get('style')} is the authors' own "
+                     "and not published; figures use the default style (values unaffected).")
     for sh in run.get("r_shims") or []:
         L.append(f"- Compatibility shim `{sh}`: {R_SHIMS.get(sh, '')}. The authors' code is unchanged.")
     if run.get("rng_sample_rounding"):
@@ -1550,6 +1689,171 @@ def _new_run_dir(repo: str) -> Path:
 ANALYSIS_EXT = (".ipynb", ".Rmd", ".rmd", ".qmd")
 
 
+# ─── workflow stage: the authors' pipeline before their notebooks ───────────
+
+def find_workflow(src: Path) -> Optional[Dict[str, str]]:
+    for rel in ("workflow/Snakefile", "Snakefile", "workflow/snakefile", "snakefile"):
+        if (src / rel).is_file():
+            return {"engine": "snakemake", "file": rel}
+    for rel in ("main.nf", "workflow/main.nf"):
+        if (src / rel).is_file():
+            return {"engine": "nextflow", "file": rel}
+    return None
+
+
+def _missing_inputs(text: str) -> "List[str]":
+    """Files Snakemake says are missing, from both its layouts (files listed
+    directly under "Missing input files for rule X:", or under an indented
+    "affected files:")."""
+    out, on = [], False
+    for ln in text.splitlines():
+        t = ln.strip()
+        if "Missing input files for rule" in ln:
+            on = True
+            continue
+        if not on:
+            continue
+        if not t or not ln.startswith((" ", "\t")):
+            on = False
+            continue
+        if re.match(r"^[A-Za-z][\w ]*:\s*\S*", t) and not re.match(r"^[\w./-]+$", t):
+            continue  # "output: ...", "affected files:", "wildcards: ..."
+        if re.match(r"^[\w./{}*-]+$", t):
+            out.append(t)
+    return sorted(set(out))[:200]
+
+
+def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path, timeout_min: float,
+                 cores: int) -> Dict[str, Any]:
+    """Dry run (the plan and every missing input), then the real run with
+    --keep-going, in the work copy. Rules that declare their own conda envs run
+    in the declared environment instead (recorded)."""
+    res: Dict[str, Any] = {"engine": wf["engine"], "file": wf["file"]}
+    if wf["engine"] != "snakemake":
+        res["error"] = f"{wf['engine']} workflows are detected but not run by paper-code yet"
+        return res
+    prefix = Path(env.get("prefix") or "")
+    exe = prefix / "bin" / "snakemake"
+    if not exe.exists():
+        res["error"] = "snakemake is not in the analysis environment (add it to the declared env or --pin snakemake)"
+        return res
+    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
+    base = [str(exe), "-s", wf["file"], "--cores", str(cores), "--nolock"]
+    t0 = time.time()
+    dry = subprocess.run(base + ["-n", "--quiet"], cwd=str(work), env=envvars, capture_output=True, text=True,
+                         stdin=subprocess.DEVNULL, timeout=1800)
+    txt = (dry.stdout or "") + (dry.stderr or "")
+    jobs = re.findall(r"^\s*(\w[\w.-]*)\s+(\d+)\s*$", txt, re.M)
+    res["dry_run"] = {"exit": dry.returncode, "jobs_by_rule": {r: int(n) for r, n in jobs if r not in ("total", "job")},
+                      "total_jobs": next((int(n) for r, n in jobs if r == "total"), None),
+                      "missing_inputs": _missing_inputs(txt),
+                      "conda_rules": len(re.findall(r"^\s*conda\s*:", (work / wf["file"]).read_text(errors="replace"), re.M))}
+    before = _snapshot(work)
+    with open(log, "w") as lf:
+        lf.write("$ " + " ".join(base + ["--keep-going", "--rerun-incomplete"]) + "\n" + txt + "\n---- run ----\n")
+        lf.flush()
+        try:
+            p_ = subprocess.run(base + ["--keep-going", "--rerun-incomplete"], cwd=str(work), env=envvars, stdout=lf,
+                                stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=timeout_min * 60)
+            rc = p_.returncode
+        except subprocess.TimeoutExpired:
+            rc = 124
+    out = log.read_text(errors="replace")
+    after = _snapshot(work)
+    res["run"] = {"exit": rc, "seconds": round(time.time() - t0, 1),
+                  "failed_rules": sorted(set(re.findall(r"Error in rule (\S+?):", out)))[:50],
+                  "steps_done": len(re.findall(r"\d+ of \d+ steps \(\d+%\) done", out)),
+                  "new_files": sum(1 for k, t in after.items() if k not in before or t > before[k] + 1e-6),
+                  "log": _rel(log)}
+    return res
+
+
+# ─── deposited data (Zenodo, URLs) into the checkout ────────────────────────
+
+def _zenodo_id(ref: str) -> Optional[str]:
+    m = re.search(r"zenodo\.(\d+)", ref) or re.search(r"records?/(\d+)", ref) or re.fullmatch(r"\s*(\d+)\s*", ref)
+    return m.group(1) if m else None
+
+
+def fetch_data(repo: str, *, zenodo: Optional[str] = None, url: Optional[str] = None, into: str = "",
+               files: Optional[str] = None, extract: bool = False) -> Dict[str, Any]:
+    """Download a paper's deposited data into its checkout (so every later run
+    sees it), verify checksums, optionally extract archives, and record the
+    provenance in Data/PaperCode/<repo>/data.json."""
+    import fnmatch
+    d = repo_dir(repo)
+    src = d / "src"
+    if not src.is_dir():
+        return {"ok": False, "error": f"fetch the repository first (paper-code fetch {repo})"}
+    dest = (src / into).resolve()
+    try:
+        dest.relative_to(src.resolve())
+    except ValueError:
+        return {"ok": False, "error": "--into must stay inside the repository"}
+    dest.mkdir(parents=True, exist_ok=True)
+    items: List[Dict[str, Any]] = []
+    if zenodo:
+        rid = _zenodo_id(zenodo)
+        if not rid:
+            return {"ok": False, "error": f"not a Zenodo record or DOI: {zenodo}"}
+        req = urllib.request.Request(f"https://zenodo.org/api/records/{rid}", headers={"User-Agent": "igvfagent"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            rec = json.loads(r.read().decode())
+        for f in rec.get("files") or []:
+            name = f.get("key") or f.get("filename")
+            if files and not fnmatch.fnmatch(name, files):
+                continue
+            items.append({"name": name, "url": (f.get("links") or {}).get("self") or (f.get("links") or {}).get("download"),
+                          "checksum": f.get("checksum"), "size": f.get("size"),
+                          "source": f"zenodo:{rec.get('id')} ({rec.get('metadata', {}).get('title', '')[:80]})"})
+    elif url:
+        items.append({"name": Path(urllib.parse.urlparse(url).path).name or "download", "url": url, "checksum": None,
+                      "size": None, "source": url})
+    else:
+        return {"ok": False, "error": "give --zenodo or --url"}
+    done = []
+    for it in items:
+        out = dest / it["name"]
+        if not (out.exists() and it.get("size") and out.stat().st_size == it["size"]):
+            req = urllib.request.Request(it["url"], headers={"User-Agent": "igvfagent"})
+            h = hashlib.md5()
+            tmp = out.with_suffix(out.suffix + ".part")
+            with urllib.request.urlopen(req, timeout=300) as r, open(tmp, "wb") as fh:
+                while True:
+                    b = r.read(1 << 20)
+                    if not b:
+                        break
+                    h.update(b)
+                    fh.write(b)
+            want = (it.get("checksum") or "").split(":", 1)[-1] if (it.get("checksum") or "").startswith("md5") else None
+            if want and h.hexdigest() != want:
+                tmp.unlink()
+                return {"ok": False, "error": f"checksum mismatch for {it['name']}"}
+            os.replace(tmp, out)
+        entry = {"file": _rel(out), "source": it["source"], "checksum": it.get("checksum"),
+                 "bytes": out.stat().st_size}
+        if extract and re.search(r"\.(zip|tar\.gz|tgz|tar)$", out.name):
+            if out.name.endswith(".zip"):
+                import zipfile
+                with zipfile.ZipFile(out) as z:
+                    for m in z.namelist():
+                        if m.startswith("/") or ".." in Path(m).parts:
+                            continue
+                        z.extract(m, dest)
+            else:
+                with tarfile.open(out) as tf:
+                    for m in tf.getmembers():
+                        if m.name.startswith("/") or ".." in Path(m.name).parts or m.issym() or m.islnk():
+                            continue
+                        tf.extract(m, dest)
+            entry["extracted_into"] = _rel(dest)
+        done.append(entry)
+    prov = _read_json(d / "data.json", []) or []
+    prov += [{**e, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())} for e in done]
+    _write_json(d / "data.json", prov)
+    return {"ok": True, "files": done, "into": _rel(dest)}
+
+
 def _slug_path(p: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", p).strip("_")[:60]
 
@@ -1586,7 +1890,8 @@ def _rewrite_links(md: str, prefix: str) -> str:
 
 def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins: "Sequence[str]", strict: bool,
                    paper: Optional[str], run_dir: Path, entry_timeout_min: float, replay: bool,
-                   inputs: "Optional[Dict[str, str]]") -> Dict[str, Any]:
+                   inputs: "Optional[Dict[str, str]]", workflow: bool = False, workflow_timeout_min: float = 240,
+                   cores: int = 4) -> Dict[str, Any]:
     """Every selected notebook of a repository, in one shared work copy and in
     order (as the authors ran them), each with its own sub-report; one
     combined summary and report for the paper."""
@@ -1615,6 +1920,15 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
         envs[lang] = build_env(merged, pins, log=run_dir / f"env_{lang}.log")
         _write_json(run_dir / f"env_{lang}.json", envs[lang])
     prepare_work(src, run_dir / "work")
+    wf_res = None
+    wf = find_workflow(src) if workflow else None
+    if wf:
+        stage("workflow", engine=wf["engine"])
+        wenv = envs.get("python") or next(iter(envs.values()))
+        wf_res = run_workflow(run_dir / "work", wf, wenv, run_dir / "workflow.log", workflow_timeout_min, cores)
+        _write_json(run_dir / "workflow.json", wf_res)
+    elif workflow:
+        wf_res = {"error": "no Snakefile or main.nf in the repository"}
     if replay:
         prepare_work(src, run_dir / "replay")
     summaries = []
@@ -1660,7 +1974,8 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                                                                           "dropped_gpu_only", "pip_failed", "missing")}
                                              for lang, e in envs.items()},
                "replay": ({"deterministic": all((x.get("replay") or {}).get("deterministic") for x in summaries
-                                                if x.get("replay"))} if replay else None)}
+                                                if x.get("replay"))} if replay else None),
+               "workflow": wf_res, "data": _read_json(repo_dir(repo) / "data.json")}
     _write_json(run_dir / "summary.json", summary)
     pr = tot["printed"]
     L = [f"# Reproduction from the authors' code: {src_meta.get('repo')}", ""]
@@ -1679,6 +1994,19 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                      + (f"; GPU-only packages dropped on this CPU host: {', '.join(e['dropped_gpu_only'])}"
                         if e.get("dropped_gpu_only") else "")
                      + (f"; pip could not install: {', '.join(e['pip_failed'])}" if e.get("pip_failed") else ""))
+    if wf_res:
+        if wf_res.get("error"):
+            L.append(f"- Workflow: {wf_res['error']}")
+        else:
+            dr, rn = wf_res.get("dry_run") or {}, wf_res.get("run") or {}
+            L.append(f"- Workflow `{wf_res['file']}` ({wf_res['engine']}) ran first: {dr.get('total_jobs')} planned jobs, "
+                     f"{rn.get('steps_done')} steps done in {rn.get('seconds')} s, exit {rn.get('exit')}, "
+                     f"{rn.get('new_files')} new files"
+                     + (f"; failed rules: {', '.join(rn['failed_rules'][:8])}" if rn.get("failed_rules") else "")
+                     + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
+                        f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
+    for dd in (summary.get("data") or [])[-5:]:
+        L.append(f"- Data: `{dd['file']}` from {dd['source']}")
     L += ["", "| # | analysis | ran | chunks (root errors) | printed matched | figures | first root error |",
           "|---|---|---|---|---|---|---|"]
     for k, x in enumerate(summaries, 1):
@@ -1711,9 +2039,12 @@ def pipeline(repo: str, *, ref: Optional[str] = None, entry: Optional[str] = Non
              strict: bool = False, paper: Optional[str] = None, run_dir: Optional[Path] = None,
              timeout_min: float = 180, replay: bool = False,
              inputs: "Optional[Dict[str, str]]" = None, entries: "Optional[List[str]]" = None,
-             all_entries: bool = False, max_entries: int = 60, entry_timeout_min: float = 60) -> Dict[str, Any]:
+             all_entries: bool = False, max_entries: int = 60, entry_timeout_min: float = 60,
+             workflow: bool = False, workflow_timeout_min: float = 240, cores: int = 4) -> Dict[str, Any]:
     run_dir = run_dir or _new_run_dir(repo)
-    if entries and len(entries) > 1 or all_entries:
+    if workflow and not (entries and len(entries) > 1):
+        all_entries = all_entries or not entries  # the workflow stage lives in the multi-analysis path
+    if entries and len(entries) > 1 or all_entries or workflow:
         sel = list(entries or [])
         if all_entries and not sel:
             meta = fetch(repo, ref)
@@ -1721,10 +2052,11 @@ def pipeline(repo: str, *, ref: Optional[str] = None, entry: Optional[str] = Non
                 return {"ok": False, "error": meta["error"]}
             top = inventory(ROOT / meta["src"])
             sel = [e for e in top.get("entries") or [] if e.endswith(ANALYSIS_EXT)][:max_entries]
-        if len(sel) > 1:
+        if len(sel) > 1 or workflow:
             try:
                 res = pipeline_multi(repo, sel, ref=ref, pins=pins, strict=strict, paper=paper, run_dir=run_dir,
-                                     entry_timeout_min=entry_timeout_min, replay=replay, inputs=inputs)
+                                     entry_timeout_min=entry_timeout_min, replay=replay, inputs=inputs,
+                                     workflow=workflow, workflow_timeout_min=workflow_timeout_min, cores=cores)
             except Exception as e:  # noqa: BLE001
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if not res.get("ok"):
@@ -1928,6 +2260,33 @@ def cmd_selftest() -> int:
                   and "`nb/b.py`" in (rd / "report.md").read_text())
         finally:
             g["ROOT"], g["fetch"], g["build_env"] = saved
+    with tempfile.TemporaryDirectory() as td:
+        td = str(Path(td).resolve())
+        repo_src = Path(td) / "PaperCode" / "o__r" / "src"
+        (repo_src / "workflow").mkdir(parents=True)
+        (repo_src / "workflow" / "Snakefile").write_text("rule all:\n    input: 'results/x.txt'\n")
+        check("a Snakemake workflow is found", find_workflow(repo_src) == {"engine": "snakemake",
+                                                                          "file": "workflow/Snakefile"})
+        txt = ("Building DAG of jobs...\nMissingInputException in rule map in file workflow/Snakefile, line 3:\n"
+               "Missing input files for rule map:\n    output: results/mapped/a.h5ad\n    affected files:\n"
+               "        results/raw/A_R1.fastq.gz\n        results/raw/A_R2.fastq.gz\n")
+        mi = _missing_inputs(txt)
+        check("missing workflow inputs are listed", "results/raw/A_R1.fastq.gz" in mi and "results/raw/A_R2.fastq.gz" in mi)
+        payload = Path(td) / "deposit.tsv"
+        payload.write_text("a\tb\n1\t2\n")
+        g = globals()
+        saved = g["CODE_DIR"], g["ROOT"]
+        g["CODE_DIR"], g["ROOT"] = Path(td) / "PaperCode", Path(td)
+        try:
+            res = fetch_data("o/r", url=payload.as_uri(), into="resources/data")
+            prov = _read_json(Path(td) / "PaperCode" / "o__r" / "data.json", [])
+            check("deposited data is fetched into the checkout with provenance",
+                  res["ok"] and (repo_src / "resources" / "data" / "deposit.tsv").read_text().startswith("a\tb")
+                  and prov and prov[0]["source"].startswith("file:"))
+            check("data cannot be written outside the repository", not fetch_data("o/r", url=payload.as_uri(),
+                                                                                    into="../../x")["ok"])
+        finally:
+            g["CODE_DIR"], g["ROOT"] = saved
     gy = GPU_ONLY
     check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
           and not gy.match("pytorch") and not gy.match("numpy"))
@@ -1967,6 +2326,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="run every notebook / R Markdown file in the repository, in path order")
         s.add_argument("--max-entries", type=int, default=60)
         s.add_argument("--entry-timeout-min", type=float, default=60, help="per analysis, with several")
+        s.add_argument("--workflow", action="store_true",
+                       help="run the authors' Snakemake workflow first (dry run + real run), then the analyses")
+        s.add_argument("--workflow-timeout-min", type=float, default=240)
+        s.add_argument("--cores", type=int, default=int(os.environ.get("IGVF_PAPER_CODE_CORES", "4")))
         s.add_argument("--pin", action="append", default=[], help="conda/pip pin, e.g. r-reshape2=1.4.4")
         s.add_argument("--strict", action="store_true", help="stop at the first failing chunk")
         s.add_argument("--paper", help="paper title/DOI for the report")
@@ -1976,6 +2339,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="run the same code on new data: replace input NAME (as the analysis reads it) with PATH")
         s.add_argument("--detach", action="store_true", help="run in the background; job_wait on <run>/done.json")
         s.add_argument("--run-dir", help=argparse.SUPPRESS)
+    s = sub.add_parser("data", help="Fetch a paper's deposited data (Zenodo record/DOI or URL) into its checkout")
+    s.add_argument("repo")
+    s.add_argument("--zenodo", help="record id, zenodo.org URL or 10.5281/zenodo.N DOI")
+    s.add_argument("--url")
+    s.add_argument("--into", default="", help="directory inside the repository (where the analyses read it)")
+    s.add_argument("--files", help="glob of record files to take (default: all)")
+    s.add_argument("--extract", action="store_true", help="unpack .zip/.tar.gz archives after download")
     s = sub.add_parser("report", help="Re-write the report of a finished run directory")
     s.add_argument("run_dir")
     s = sub.add_parser("status", help="State of a run directory")
@@ -2037,12 +2407,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         res = pipeline(repo, ref=args.ref, entry=(args.entry or [None])[0], pins=args.pin, strict=args.strict,
                        paper=args.paper, entries=args.entry, all_entries=args.all_entries,
                        max_entries=args.max_entries, entry_timeout_min=args.entry_timeout_min,
+                       workflow=args.workflow, workflow_timeout_min=args.workflow_timeout_min, cores=args.cores,
                        run_dir=Path(args.run_dir) if args.run_dir else None, timeout_min=args.timeout_min,
                        replay=args.replay,
                        inputs=dict(x.split("=", 1) for x in args.input) or None)
         print(json.dumps({k: v for k, v in res.items()}, indent=2, default=str))
         if res.get("ok"):
             _announce(res)
+        return 0 if res.get("ok") else 1
+    if args.cmd == "data":
+        res = fetch_data(find(repo=args.repo)["candidates"][0]["repo"], zenodo=args.zenodo, url=args.url,
+                         into=args.into, files=args.files, extract=args.extract)
+        print(json.dumps(res, indent=2))
         return 0 if res.get("ok") else 1
     if args.cmd == "status":
         rd = Path(args.run_dir)

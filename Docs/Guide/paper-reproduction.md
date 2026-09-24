@@ -43,10 +43,19 @@ route for code-backed papers:
 - The paper gets one combined summary and report.
 - Large files, such as deposited data, are hard-linked into the work copy rather than copied.
 
+**The authors' pipeline, then their notebooks.** Many notebooks read intermediate results that the authors' workflow produced. With `--workflow` (`workflow` from a job), a Snakemake `Snakefile` runs first in the work copy:
+- A dry run lists the planned jobs and **every missing input**; those are usually deposited data.
+- Then the real run goes with `--keep-going`.
+- The report gives the failed rules and the files produced.
+
+`igvfagent paper-code data <repo> --zenodo <record|DOI> --into <path> [--files GLOB] [--extract]` puts a deposit into the checkout, where later runs find it. It also takes `--url` for a direct link. Checksums are verified and provenance is recorded in `Data/PaperCode/<repo>/data.json`. A job does this itself (`paper_code_fetch_data`) when analyses fail on missing inputs. Missing data that was never deposited is reported as a blocker.
+
+**Compatibility shims for Python notebooks.** Like the R shims, these are loaded into the kernel without editing the notebook, and they are listed in the report whenever they fire. `mpl_missing_style` falls back to the default style when a notebook uses the authors' unpublished matplotlib style, such as `jr`: figures look different, values are unchanged.
+
 **The authors' declared environment comes first.** Python notebooks run on a micromamba environment built from the repository's own `environment.yml`, whenever it pins Python:
 - GPU-only packages (`cudatoolkit`, `cudnn` and similar) are dropped on a CPU host.
 - If the exact pins don't solve, they are relaxed to major.minor, then to names only, with Python kept at its major.minor.
-- `pip:` dependencies install inside the environment, with compilers available, and a pin that fails is retried unpinned.
+- `pip:` dependencies install inside the environment. Pinned build tools such as Cython and numpy go first, and source packages are then retried without build isolation. What pip can't build comes from conda-forge/bioconda, and only after that is a pin retried unpinned.
 - Every change is recorded in the report.
 - Notebooks are driven by IGVF Agent's own nbconvert and nbclient, while their code runs in a kernel launched from the authors' environment (ipykernel, or IRkernel for R). That way the authors' pinned Jupyter packages cannot break the runner, and the kernel name from their machine (such as `jy_anbe_py38`) is not needed. The notebook files are not modified. An analysis that never executed is always counted as a root-cause error, never as clean.
 

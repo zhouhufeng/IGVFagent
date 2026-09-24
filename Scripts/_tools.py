@@ -6088,6 +6088,9 @@ _TOOLS: "list[Tool]" = [
             "pin": {**_S_ARRAY_S, "description": "conda/pip pins or cran:pkg@version."},
             "strict": {**_S_BOOLEAN, "description": "Stop at the first failing chunk."},
             "replay": {**_S_BOOLEAN, "description": "Execute twice and check the outputs are identical."},
+            "workflow": {**_S_BOOLEAN, "description": "Run the authors' Snakemake workflow first (dry run lists every "
+                                                      "missing input, then --keep-going), so the notebooks find the "
+                                                      "intermediate results they read."},
             "all_entries": {**_S_BOOLEAN, "description": "Run EVERY notebook / R Markdown analysis of the repository "
                                                          "(one shared work copy, per-analysis reports, one summary). "
                                                          "Use for repositories that publish one notebook per figure."},
@@ -6095,7 +6098,7 @@ _TOOLS: "list[Tool]" = [
                                                   "the analysis reads (names from paper_code_inventory)."},
             "paper": {**_S_STRING, "description": "Paper title/DOI for the report."}}},
         cli=["paper-code", "pipeline", "--detach"], positional=["repo"], flag_repeat={"pin", "input"},
-        bool_flags={"strict", "replay", "all_entries"},
+        bool_flags={"strict", "replay", "all_entries", "workflow"},
     ),
 
     _T(
@@ -6131,6 +6134,21 @@ _TOOLS: "list[Tool]" = [
         "answer which papers have been reproduced and how well.",
         {"type": "object", "properties": {"query": {**_S_STRING, "description": "Title, DOI, repository, gene, assay or outcome."}}},
         cli=["repro", "list"], flag_map={"query": "--query"},
+    ),
+
+    _T(
+        "paper_code_fetch_data",
+        "Fetch a paper's deposited data (a Zenodo record id / URL / 10.5281/zenodo DOI, or a direct URL) into the "
+        "authors' repository checkout, where their notebooks or workflow read it (--into a path inside the "
+        "repository). Checksums are verified, archives optionally extracted, provenance recorded. Use when "
+        "paper_code_reproduce reports missing inputs.",
+        {"type": "object", "properties": {
+            "repo": {**_S_STRING, "description": "owner/name of the paper's repository (already fetched)."},
+            "zenodo": {**_S_STRING}, "url": {**_S_STRING},
+            "into": {**_S_STRING, "description": "Directory inside the repository, e.g. workflow/resources."},
+            "files": {**_S_STRING, "description": "Glob of record files to take."},
+            "extract": {**_S_BOOLEAN}}, "required": ["repo"]},
+        cli=["paper-code", "data"], positional=["repo"], bool_flags={"extract"},
     ),
 
     _T(
