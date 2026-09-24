@@ -48,7 +48,7 @@ route for code-backed papers:
 - If the exact pins don't solve, they are relaxed to major.minor, then to names only, with Python kept at its major.minor.
 - `pip:` dependencies install inside the environment, with compilers available, and a pin that fails is retried unpinned.
 - Every change is recorded in the report.
-- Notebooks run on this environment's own kernel (`python3`, or `ir` for R notebooks), not the kernel name the authors' machine used. The notebook files are not modified.
+- Notebooks are driven by IGVF Agent's own nbconvert and nbclient, while their code runs in a kernel launched from the authors' environment (ipykernel, or IRkernel for R). That way the authors' pinned Jupyter packages cannot break the runner, and the kernel name from their machine (such as `jy_anbe_py38`) is not needed. The notebook files are not modified. An analysis that never executed is always counted as a root-cause error, never as clean.
 
 When the authors ran R older than 3.6, the run uses `RNGkind(sample.kind = "Rounding")`. R 3.6 changed `sample()`, and without this the authors' `set.seed()` would give different random draws.
 
