@@ -118,6 +118,13 @@ except Exception:
     except Exception:
         _jobsui = None
 try:
+    from igvfagent import reproductions as _repro  # type: ignore
+except Exception:
+    try:
+        import reproductions as _repro  # type: ignore
+    except Exception:
+        _repro = None
+try:
     from igvfagent import kg_sources as _kgsrc  # type: ignore
 except Exception:
     try:
@@ -2724,6 +2731,43 @@ else:
         _agent_jobs_body()
 
 
+def _viewer_admin() -> "tuple":
+    user = current_user()
+    return (user["username"] if user else None), (bool(user and user.get("admin")) or user is None)
+
+
+def _reproductions_panel(focus: "str | None" = None) -> None:
+    """📊 Validation → 📑 Reproductions: every paper's record, searchable."""
+    if _repro is None:
+        st.caption("Reproduction records are unavailable (`reproductions` could not be imported).")
+        return
+    viewer, admin = _viewer_admin()
+    try:
+        _repro.render_streamlit_panel(st, viewer, admin, focus=focus or st.query_params.get("repro"))
+    except Exception as exc:                                 # noqa: BLE001
+        st.error(f"Reproductions panel failed: {exc}")
+
+
+def repro_link_panel() -> None:
+    """A forum post links to /?repro=<paper_id>: show that record on arrival."""
+    pid = st.query_params.get("repro") if hasattr(st, "query_params") else None
+    if not pid or _repro is None:
+        return
+    viewer, admin = _viewer_admin()
+    rec = _repro.load(pid)
+    with st.container(border=True):
+        head, close = st.columns([8, 1])
+        if not rec or not _repro.visible(rec, viewer, admin):
+            head.markdown(f"**📑 {pid}** — no record you can see (it may be private to its owner).")
+        else:
+            head.markdown(f"**📑 {rec['paper'].get('title') or pid}** — {rec['outcome']}: {_repro.headline(rec)}")
+        if close.button("✕", key="repro_link_close"):
+            del st.query_params["repro"]
+            st.rerun()
+        if rec and _repro.visible(rec, viewer, admin):
+            _repro.render_record(st, rec, viewer, admin)
+
+
 def agent_jobs_panel() -> None:
     """The user's durable agent jobs; refreshes itself while one is running."""
     if _jobsui is None:
@@ -3136,8 +3180,12 @@ def main() -> None:
                    allowed=_visible)
 
     with val_tab:
-        _panel(_bmviz, "Benchmark visualizer",
-               "`Scripts/benchmark_visualizer.py` could not be imported.")
+        rp_sub, bm_sub = st.tabs(["📑 Reproductions", "🧪 Benchmark suite"])
+        with rp_sub:
+            _reproductions_panel()
+        with bm_sub:
+            _panel(_bmviz, "Benchmark visualizer",
+                   "`Scripts/benchmark_visualizer.py` could not be imported.")
         st.divider()
         _render_about(st)
 
@@ -3156,6 +3204,7 @@ def main() -> None:
         # Live view of detached work, above the transcript: a job started in
         # an earlier turn keeps producing figures, and this is where they
         # show up without the user having to ask again.
+        repro_link_panel()
         history_panel()
         live_jobs_panel()
         agent_jobs_panel()

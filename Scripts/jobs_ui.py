@@ -98,6 +98,15 @@ def job_line(j: dict) -> str:
     return f"{STATUS_ICON.get(st_, '•')} {(j.get('title') or j['id'])[:48]}{prog}"
 
 
+def _record_of(job_id: str) -> Optional[str]:
+    try:
+        root = aj.ROOT / "Data" / "Reproductions"
+        hit = next(root.glob(f"*/attempts/{job_id}.json"), None)
+        return hit.parent.parent.name if hit else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None, key: str = "",
                expanded: Optional[bool] = None) -> None:
     st_ = j.get("effective_status") or aj.effective_status(j)
@@ -136,6 +145,9 @@ def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None,
                         render_file(a)
                     except Exception:  # noqa: BLE001
                         st.caption(a)
+        rec = _record_of(j["id"])
+        if rec:
+            st.markdown(f"📑 Reproduction record: [{rec}](?repro={rec}) — also under 📊 Validation → 📑 Reproductions")
         c1, c2, _ = st.columns([1, 1, 4])
         if st_ in ("running", "queued"):
             if c1.button("⏹ Stop", key=f"stop_{j['id']}{key}"):

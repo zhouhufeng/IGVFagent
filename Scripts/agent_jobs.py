@@ -873,7 +873,32 @@ def run_worker(job_id: str, runner=None, verifier: "Optional[Callable]" = None, 
             break
     finally:
         stop_hb.set()
+        _record_reproduction(job_id)
     return load_job(job_id)
+
+
+def _record_reproduction(job_id: str) -> None:
+    """Keep a durable per-paper record of every finished reproduction or
+    benchmark attempt (Data/Reproductions/, 📑 Reproductions in the UI)."""
+    try:
+        j = load_job(job_id)
+        if effective_status(j) in ("running", "queued"):
+            return
+        try:
+            from igvfagent import reproductions as rp  # type: ignore
+        except Exception:
+            import reproductions as rp  # type: ignore
+        plan_text = json.dumps(load_plan(job_id))
+        if rp.REPRO_QUERY.search(j.get("query") or "") or any(
+                k in plan_text for k in ("PaperCode", "concordance", "harvest.json")):
+            rec = rp.record_from_job(job_id)
+            if rec:
+                event(job_id, "record", f"reproduction record {rec['paper_id']}: {rec['outcome']}")
+    except Exception as e:  # noqa: BLE001  (a record must never fail the job)
+        try:
+            event(job_id, "record", f"reproduction record not written: {type(e).__name__}: {e}")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ─── starting, stopping, resuming ───────────────────────────────────────────

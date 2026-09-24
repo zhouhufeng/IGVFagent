@@ -318,6 +318,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Benchmarks/<paper-id>/ that concordance.py scores. "
                           "Subcommands: resolve, harvest, route, scaffold, run, "
                           "score, report, pipeline, selftest, list-routes."),
+    "repro":            ("igvfagent.reproductions",
+                          "Reproduction records: one searchable record per "
+                          "paper across attempts (route, agreement with the "
+                          "paper and the authors' outputs, verifier, every "
+                          "figure in a self-contained HTML); publish; post to "
+                          "discussion.genohub.org"),
     "paper-code":       ("igvfagent.paper_code_skill",
                           "Reproduce a paper by running the authors' own code: "
                           "find the repository named in the paper, pin it, "

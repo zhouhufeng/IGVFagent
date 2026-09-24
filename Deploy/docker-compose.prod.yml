@@ -85,10 +85,19 @@ services:
       # Chat history visibility: 0 (default) = each account sees only its own
       # history; 1 = finished answers readable by anyone signed in.
       IGVF_HISTORY_SHARED:    ${IGVF_HISTORY_SHARED:-0}
+      # Reproduction records can be posted (by their owner, after a preview) to
+      # the IGVF Agent category of the forum; posts are authored as the owner.
+      IGVF_DISCOURSE_URL:     ${IGVF_DISCOURSE_URL:-https://discussion.genohub.org}
+      IGVF_DISCOURSE_API_KEY: ${IGVF_DISCOURSE_API_KEY:-}
+      IGVF_PUBLIC_URL:        ${IGVF_PUBLIC_URL:-https://igvfagent.genohub.org}
+      IGVF_REPRO_FORUM_CATEGORY: ${IGVF_REPRO_FORUM_CATEGORY:-30}
     volumes:
       # The attached data volume, mounted on the host at /mnt/igvf-data.
       - /mnt/igvf-data/Data:/workspace/Data
       - /mnt/igvf-data/Docs:/workspace/Docs
+      # Job-scaffolded benchmarks and concordance scores (Benchmarks/results/),
+      # seeded with the committed suite by Deploy/redeploy.sh.
+      - /mnt/igvf-data/Benchmarks:/workspace/Benchmarks
     expose:
       - "8501"
     # Blast radius: the agent runs wrapped CLIs as subprocesses

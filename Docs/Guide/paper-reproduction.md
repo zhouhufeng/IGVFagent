@@ -20,6 +20,7 @@ route for code-backed papers:
 - [From the command line](#from-the-command-line)
 - [Reading the result](#reading-the-result)
 - [Repairs are environment-only](#repairs-are-environment-only)
+- [Records, the Reproductions page and the forum](#records-the-reproductions-page-and-the-forum)
 - [Worked example: Matreyek et al. 2018](#worked-example-matreyek-et-al-2018)
 
 ## What it does
@@ -87,6 +88,47 @@ The authors' code is never edited. Errors are split into two kinds:
 - **knock-on errors:** "object not found" in code that needed an object a failing chunk would have created.
 
 For known upstream breakages the report suggests the pin that fixes them. A pin is either `r-<pkg>=<version>` from conda-forge, or `cran:<pkg>@<version>`, built from the CRAN archive with the environment's compilers. A failed pin marks the environment incomplete, so it is never reused.
+
+## Records, the Reproductions page and the forum
+
+Every reproduction or benchmark job that finishes writes one **record per paper**, whatever the outcome. The files are in `Data/Reproductions/<paper_id>/` on the persistent volume:
+
+| File | Contents |
+|---|---|
+| `record.json` | The best attempt, the full list of attempts, the owner, and the published and forum state. |
+| `attempts/<job>.json` | One attempt. It has the paper (DOI, harvested claims, named code repositories), the route (the authors' code or public data), and agreement with the authors' printed values. It also has chunks, figures, replay, shims, benchmark checks, the harness-verified stages, the verifier's verdict, the final report and a selected log. |
+| `<job>.html` | One self-contained HTML report, like Paper2Agent's delivered page. It has the headline, the tables, the plan, the final report and the authors'-code report section by section, with **every figure embedded**. |
+
+The outcome comes from harness facts only:
+- **reproduced:** the job is done, the verifier passed, and either the authors' code matched at least 90% of their printed values with no root-cause errors, or every benchmark check passed.
+- **partial:** anything in between. If the paper publishes its code and an attempt never ran it, that attempt is at best partial.
+- **not reproduced:** neither holds.
+
+Attempts on the same paper join one record, matched by DOI or repository.
+
+On the site, go to **📊 Validation → 📑 Reproductions**:
+- Search by title, DOI, repository, gene, assay or outcome.
+- See every paper with its result, verifier verdict and number of attempts.
+- Open any attempt to see its full report, and download the HTML.
+
+Records are private to their owner. **Publish** makes one visible to every signed-in user. A job's panel links to its record, and `/?repro=<paper_id>` opens a record directly.
+
+**Post to discussion.genohub.org** puts a summary in the IGVF Agent › IGVF Agent Help category. The summary includes the headline numbers, the agreement table, benchmark checks, blocked stages, key figures (one per section), the selected run log and a link back to the record.
+- The post is authored as the owner's forum account.
+- Nothing is sent until the owner has read the preview and confirmed it.
+- A later attempt on the same paper is posted as a reply in the same topic.
+
+From the command line:
+
+```bash
+igvfagent repro list --query vampseq
+igvfagent repro show matreyek2018_pten_vampseq
+igvfagent repro record <job_id>                  # refresh one job's record
+igvfagent repro record-run Docs/PaperCode/<run> --doi 10.1038/...   # a standalone paper-code run
+igvfagent repro backfill                         # every finished job (run by Deploy/redeploy.sh)
+igvfagent repro publish <paper_id> [--off]
+igvfagent repro post <paper_id>                  # preview; add --yes to post
+```
 
 ## Worked example: Matreyek et al. 2018
 

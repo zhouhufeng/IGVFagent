@@ -6096,6 +6096,17 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "reproductions_search",
+        "Search the reproduction records: one per paper, kept across attempts, "
+        "with the outcome (reproduced / partial / not reproduced), route "
+        "(authors' code or public data), agreement with the paper and the "
+        "authors' outputs, the verifier's verdict and the report path. Use it to "
+        "answer which papers have been reproduced and how well.",
+        {"type": "object", "properties": {"query": {**_S_STRING, "description": "Title, DOI, repository, gene, assay or outcome."}}},
+        cli=["repro", "list"], flag_map={"query": "--query"},
+    ),
+
+    _T(
         "paper_code_status",
         "State of a paper_code_reproduce run directory (running stage, or the "
         "final result with report, summary and figure counts).",

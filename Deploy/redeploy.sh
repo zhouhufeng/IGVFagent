@@ -66,6 +66,31 @@ container_hash() {
 # generated live there too, and they are the whole point of the mount.
 DATA_DOCS=/mnt/igvf-data/Docs
 
+# Benchmarks/ is bind-mounted from /mnt/igvf-data/Benchmarks so what jobs
+# write there (bench scaffolds, Benchmarks/results/ concordance scores)
+# survives a redeploy; before that mount existed it lived inside the
+# container and was lost on every recreate, taking job evidence with it.
+# 1. Rescue anything the running container wrote there that is not on the
+#    volume yet (no clobber). 2. Refresh the committed suite (tracked files
+#    only: concordance.py, each benchmark's run.sh/expected.json/README) so
+#    the site can score benchmarks; generated files are never deleted.
+BENCH_VOL=/mnt/igvf-data/Benchmarks
+seed_benchmarks() {
+    [ -d /mnt/igvf-data ] || { echo "  /mnt/igvf-data not present — skipping"; return 0; }
+    mkdir -p "$BENCH_VOL"
+    if docker inspect "$CONTAINER" >/dev/null 2>&1 && \
+       ! docker inspect "$CONTAINER" --format '{{range .Mounts}}{{.Destination}} {{end}}' | grep -q '/workspace/Benchmarks'; then
+        local tmp; tmp="$(mktemp -d)"
+        if docker cp "$CONTAINER:/workspace/Benchmarks/." "$tmp/" 2>/dev/null; then
+            cp -rn "$tmp/." "$BENCH_VOL/" && echo "  rescued $(find "$tmp" -type f | wc -l) file(s) the container wrote under Benchmarks/"
+        fi
+        rm -rf "$tmp"
+    fi
+    git -C "$ROOT" ls-files -z Benchmarks | tar --null -T - -C "$ROOT" -cf - | tar -xf - -C /mnt/igvf-data/
+    chown -R 1000:1000 "$BENCH_VOL" 2>/dev/null || sudo chown -R 1000:1000 "$BENCH_VOL" 2>/dev/null || true
+    echo "  Benchmarks/ suite refreshed on the volume ($(git -C "$ROOT" ls-files Benchmarks | wc -l) tracked files)"
+}
+
 seed_fixtures() {
     [ -d "$DATA_DOCS" ] || { echo "  $DATA_DOCS not present — skipping"; return 0; }
     local src="$ROOT/Docs/Network" dst="$DATA_DOCS/Network" n=0
@@ -128,6 +153,7 @@ BUILD_HEAD="$(git -C "$ROOT" rev-parse HEAD)"
 
 echo "==> 2/5  seeding read-only fixtures onto the mounted volume"
 seed_fixtures
+seed_benchmarks
 
 # Checked BEFORE the rebuild, not after. A --no-cache build takes about
 # three minutes; refusing afterwards burns that for nothing and, worse,
@@ -238,6 +264,8 @@ if verify; then
     # Agent jobs whose worker was cut off by the recreate pick up from their
     # on-disk plan (Scripts/agent_jobs.py).
     docker exec igvfagent-app igvfagent job resume-interrupted 2>/dev/null | tail -1 || true
+    # Per-paper reproduction records for jobs that finished (📑 Reproductions).
+    docker exec igvfagent-app igvfagent repro backfill 2>/dev/null | tail -3 || true
     echo "Redeploy complete. Hard-refresh the browser (Cmd/Ctrl+Shift+R)."
     exit 0
 fi
