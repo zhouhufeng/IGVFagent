@@ -265,7 +265,7 @@ if verify; then
     # on-disk plan (Scripts/agent_jobs.py).
     docker exec igvfagent-app igvfagent job resume-interrupted 2>/dev/null | tail -1 || true
     # Per-paper reproduction records for jobs that finished (📑 Reproductions).
-    docker exec igvfagent-app igvfagent repro backfill 2>/dev/null | tail -3 || true
+    docker exec igvfagent-app igvfagent repro backfill 2>&1 | tail -5 || true
     echo "Redeploy complete. Hard-refresh the browser (Cmd/Ctrl+Shift+R)."
     exit 0
 fi
