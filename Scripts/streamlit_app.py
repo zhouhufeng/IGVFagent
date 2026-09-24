@@ -111,6 +111,13 @@ except Exception:
     except Exception:
         _dbrowse = None
 try:
+    from igvfagent import jobs_ui as _jobsui  # type: ignore
+except Exception:
+    try:
+        import jobs_ui as _jobsui  # type: ignore
+    except Exception:
+        _jobsui = None
+try:
     from igvfagent import kg_sources as _kgsrc  # type: ignore
 except Exception:
     try:
@@ -913,6 +920,86 @@ def _sidebar_orchestrator() -> str:
     return chosen
 
 
+def _sidebar_long_jobs() -> None:
+    """When a message becomes a background job, and who orchestrates it.
+
+    A job (agent_jobs.py) runs in its own process, plans its stages on disk,
+    has each stage checked by the harness and the result reviewed by an
+    independent verifier, and keeps going across rounds until it is done or
+    its budget ends; closing the page does not stop it.
+    """
+    import shutil
+    if _jobsui is None:
+        return
+    st.subheader("🕒 Long tasks")
+    modes = {"auto": "Auto: reproductions and pipelines run as jobs",
+             "always": "Always run as a background job",
+             "never": "Never (single reply)"}
+    cur = st.session_state.get("_job_mode", "auto")
+    st.session_state["_job_mode"] = st.selectbox(
+        "Run as a background job", list(modes), index=list(modes).index(cur) if cur in modes else 0,
+        format_func=lambda k: modes[k], key="_job_mode_select",
+        help="Jobs survive closing the page, plan on disk, verify every stage, and resume on 'continue'.")
+    has_claude = shutil.which("claude") is not None
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    opts = {"internal": "IGVFagent orchestrator (planned, verified rounds)",
+            "claude_code": "Claude Code agent on the Anthropic API"
+                           + ("" if has_claude and has_key else " — unavailable here")}
+    cur_o = st.session_state.get("_job_orchestrator", "internal")
+    pick = st.radio("Job orchestrator", list(opts), index=list(opts).index(cur_o) if cur_o in opts else 0,
+                    format_func=lambda k: opts[k], key="_job_orch_radio",
+                    help="Claude Code drives the job with its own session, subagents and to-do list, calling "
+                         "every IGVFagent tool over MCP; the same plan gates and verifier apply.")
+    if pick == "claude_code" and not (has_claude and has_key):
+        st.caption("Needs the `claude` CLI and ANTHROPIC_API_KEY; using the IGVFagent orchestrator.")
+        pick = "internal"
+    st.session_state["_job_orchestrator"] = pick
+
+
+def _maybe_run_as_job(query: str, cfg: dict) -> bool:
+    """Start or resume a background job for this message. True when handled."""
+    if _jobsui is None:
+        return False
+    user = current_user()
+    viewer = user["username"] if user else None
+    admin = bool(user and user.get("admin")) or user is None
+    prior = [m for m in st.session_state.get("messages", [])]
+    if _jobsui.is_continue(query):
+        j = _jobsui.latest_unfinished(viewer, admin)
+        if j and j["effective_status"] not in ("running", "queued"):
+            _jobsui.aj.resume_job(j["id"], note=query)
+            msg = (f"▶ Resumed job `{j['id']}` — **{j.get('title', '')[:80]}** from its plan "
+                   f"({j.get('rounds', 0)} rounds so far). Progress is in the jobs panel above.")
+        elif j:
+            msg = f"Job `{j['id']}` is still running; its progress is in the jobs panel above."
+        else:
+            return False
+    elif _jobsui.route(query, st.session_state.get("_job_mode", "auto")):
+        orch = st.session_state.get("_job_orchestrator", "internal")
+        backend = (cfg.get("effective") or {}).get("backend") or cfg.get("backend")
+        if backend in ("claude_cli", "codex_cli"):
+            backend = "anthropic" if os.environ.get("ANTHROPIC_API_KEY") else None
+        model = (cfg.get("effective") or {}).get("model") or cfg.get("model")
+        j = _jobsui.start_from_chat(query, prior, owner=viewer or "", owner_admin=bool(user and user.get("admin")),
+                                    orchestrator=orch, backend=backend, model=model)
+        who = "Claude Code on the Anthropic API" if orch == "claude_code" else "the IGVFagent orchestrator"
+        msg = (f"🕒 Started background job `{j['id']}`, driven by {who}. It will plan the work in stages, "
+               "check each stage's output, retry what fails, and have an independent verifier review the result "
+               "before reporting. It keeps running if you close this page; follow it in the jobs panel above, "
+               "and say **continue** later to resume it.")
+    else:
+        return False
+    st.session_state.messages.append({"role": "user", "content": query})
+    st.session_state.messages.append({"role": "assistant", "content": msg})
+    turn = st.session_state.get("_turn_area") or st.container()
+    with turn:
+        with st.chat_message("user"):
+            st.markdown(query)
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+    return True
+
+
 def _sidebar() -> dict:
     public = _public_mode()
     with st.sidebar:
@@ -1052,6 +1139,8 @@ def _sidebar() -> dict:
         st.divider()
         _sidebar_document_upload()
 
+        st.divider()
+        _sidebar_long_jobs()
         st.divider()
         _sidebar_user_extensions()
 
@@ -2478,6 +2567,37 @@ else:
         _live_jobs_body()
 
 
+def _agent_jobs_body() -> None:
+    user = current_user()
+    _jobsui.render_panel(st, user["username"] if user else None,
+                         bool(user and user.get("admin")) or user is None, render_file=_render_one)
+
+
+if hasattr(st, "fragment"):
+    @st.fragment(run_every="6s")
+    def _agent_jobs_fragment() -> None:
+        _agent_jobs_body()
+else:
+    def _agent_jobs_fragment() -> None:
+        _agent_jobs_body()
+
+
+def agent_jobs_panel() -> None:
+    """The user's durable agent jobs; refreshes itself while one is running."""
+    if _jobsui is None:
+        return
+    try:
+        user = current_user()
+        jobs = _jobsui.aj.list_jobs(user["username"] if user else None,
+                                    bool(user and user.get("admin")) or user is None, limit=5)
+    except Exception:                                        # noqa: BLE001
+        return
+    if any(j["effective_status"] in ("running", "queued") for j in jobs):
+        _agent_jobs_fragment()
+    elif jobs:
+        _agent_jobs_body()
+
+
 def live_jobs_panel() -> None:
     """Live view of work THIS session started. Silent otherwise."""
     try:
@@ -2896,6 +3016,7 @@ def main() -> None:
         # show up without the user having to ask again.
         history_panel()
         live_jobs_panel()
+        agent_jobs_panel()
 
         # Replay prior conversation
         for entry in st.session_state.messages:
@@ -2981,6 +3102,14 @@ def main() -> None:
     # Everything below renders the new turn — keep it inside the chat
     # tab so the new exchange lands above the docked input.
     chat_tab.__enter__()
+
+    # Long tasks become durable background jobs (planned, gated, verified,
+    # resumable), and "continue" resumes the latest one from its plan.
+    try:
+        if _maybe_run_as_job(query, cfg):
+            return
+    except Exception as exc:                                 # noqa: BLE001
+        st.warning(f"Could not start a background job ({exc}); answering in this reply instead.")
 
     # Pre-flight validation: catch obvious mismatches before we even
     # call the agent. This is what bit you on query 2 (Anthropic

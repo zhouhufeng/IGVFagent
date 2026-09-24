@@ -245,6 +245,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "AlphaGenome (google-deepmind/alphagenome): "
                           "predictions, variant scores, ISM and Atlas scores, "
                           "with IGVF Catalog rsID/gene resolution"),
+    "job":              ("igvfagent.agent_jobs",
+                          "Durable agent jobs: long analyses planned on disk, "
+                          "gated by harness checks, verified, resumable"),
     "sce2g":            ("igvfagent.sce2g_workbench_skill",
                           "scE2G workbench: set up / configure / check / run "
                           "model training with crowdsourced features, describe "

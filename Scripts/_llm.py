@@ -699,6 +699,9 @@ def _is_starred_tool(entry: dict) -> bool:
     return desc.lstrip().startswith("★")
 
 
+JOB_ONLY_TOOLS = frozenset({"plan_set", "plan_update", "plan_show", "delegate_tasks", "job_wait"})
+
+
 def canonical_tools(tools: "Optional[list[dict]]",
                      max_tools: Optional[int] = None) -> "Optional[list[dict]]":
     """Return one backend-independent, deterministically-ordered tool subset.
@@ -750,8 +753,15 @@ def canonical_tools(tools: "Optional[list[dict]]",
                     out.append(buckets[f].pop(0))
         return out
 
-    starred = sorted((e for e in tools if _is_starred_tool(e)), key=_key)
-    unstarred = [e for e in tools if not _is_starred_tool(e)]
+    # Tools that only work inside a long-running job (agent_jobs.py): pinned
+    # to the front there, so no cap can take the plan away from a job, and
+    # hidden everywhere else, where they would only return "not in a job".
+    in_job = bool(os.environ.get("IGVF_JOB_ID"))
+    tools = [e for e in tools if in_job or _key(e) not in JOB_ONLY_TOOLS]
+    pinned = sorted((e for e in tools if _key(e) in JOB_ONLY_TOOLS), key=_key)
+    rest = [e for e in tools if _key(e) not in JOB_ONLY_TOOLS]
+    starred = pinned + sorted((e for e in rest if _is_starred_tool(e)), key=_key)
+    unstarred = [e for e in rest if not _is_starred_tool(e)]
     # Starred tools stay in name order: they are the curated core and all of
     # them are expected to survive any sane cap. Only the remainder, which is
     # what a cap actually eats into, is interleaved.

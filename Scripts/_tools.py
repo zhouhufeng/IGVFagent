@@ -5950,6 +5950,98 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "job_start",
+        "★ START A LONG-RUNNING AGENT JOB ★ for work that cannot finish in one "
+        "reply: reproducing a paper, a full pipeline from raw reads, many "
+        "downloads, anything that needs a plan of several stages or hours of "
+        "compute. The job runs in its own background process (it survives the "
+        "browser closing), plans its stages on disk, has every stage checked "
+        "by the harness, retries failures, and is reviewed by an independent "
+        "verifier before it reports done. Returns the job id; tell the user "
+        "it is running and that progress appears in the Jobs panel. Use "
+        "orchestrator=claude_code to drive it with Claude Code on the "
+        "Anthropic API instead of IGVFagent's own loop.",
+        {"type": "object", "properties": {
+            "query": {**_S_STRING, "description": "The full task, with every detail the job needs (paper, accessions, what to reproduce)."},
+            "orchestrator": {**_S_STRING, "description": "internal (default) or claude_code."},
+            "budget_minutes": {**_S_NUMBER, "description": "Wall-clock budget (default 240)."},
+            "max_rounds": {**_S_INTEGER, "description": "Maximum agent rounds (default 12)."}},
+         "required": ["query"]},
+        cli=["job", "start"], positional=["query"],
+        flag_map={"budget_minutes": "--budget-minutes", "max_rounds": "--max-rounds"},
+    ),
+
+    _T(
+        "job_status",
+        "Status of a long-running agent job: state, rounds, cost, the "
+        "harness-verified plan (done / failed / blocked stages), the "
+        "verifier's verdict and the latest answer or final report.",
+        {"type": "object", "properties": {"job": {**_S_STRING, "description": "Job id (J...)."}},
+         "required": ["job"]},
+        cli=["job", "status"], positional=["job"],
+    ),
+
+    _T(
+        "plan_set",
+        "INSIDE A JOB: record the staged plan before starting multi-step work. "
+        "stages_json is a JSON list of stages, each {id, title, goal, success, "
+        "evidence: [paths the stage will write], check}. check is optional and "
+        "run by the harness: {kind: files, paths} | {kind: json, path, key, op, "
+        "value} | {kind: rows, path, min} | {kind: concordance, benchmark}. "
+        "Calling it again revises the plan and keeps finished stages.",
+        {"type": "object", "properties": {"stages_json": {**_S_STRING, "description": "JSON list of stages."}},
+         "required": ["stages_json"]},
+        cli=["job", "plan-set"], flag_map={"stages_json": "--stages-json"},
+    ),
+
+    _T(
+        "plan_update",
+        "INSIDE A JOB: update a stage. status=done is verified by the harness "
+        "(the evidence files must exist and the stage's check must pass); if not, "
+        "the stage becomes failed and the reason is returned. Use failed to "
+        "record an attempt, and blocked (with a note giving the reason) after 3 "
+        "failed attempts or when data or credentials are unavailable.",
+        {"type": "object", "properties": {
+            "stage": {**_S_STRING}, "status": {**_S_STRING, "description": "pending, running, done, failed or blocked."},
+            "evidence": {**_S_ARRAY_S, "description": "Paths this stage produced."},
+            "note": {**_S_STRING, "description": "What happened; required for blocked."}},
+         "required": ["stage", "status"]},
+        cli=["job", "plan-update"], flag_repeat={"evidence"},
+    ),
+
+    _T(
+        "plan_show",
+        "INSIDE A JOB: the current plan with harness-verified stage states.",
+        {"type": "object", "properties": {}},
+        cli=["job", "plan-show"],
+    ),
+
+    _T(
+        "delegate_tasks",
+        "INSIDE A JOB: run up to 4 focused sub-agents in parallel, each in a "
+        "fresh context, and get back each one's concise result and "
+        "artefacts. Use for independent sub-questions (look up several "
+        "datasets, check several claims, run several independent analyses). "
+        "Each task text must be self-contained.",
+        {"type": "object", "properties": {"tasks": {**_S_ARRAY_S, "description": "1-4 self-contained task descriptions."}},
+         "required": ["tasks"]},
+        cli=["job", "delegate"], flag_map={"tasks": "--task"}, flag_repeat={"tasks"},
+    ),
+
+    _T(
+        "job_wait",
+        "INSIDE A JOB: wait (up to timeout_min, default 240) for a detached "
+        "raw-pipeline job to finish or for an output file to appear and stop "
+        "growing, instead of ending the round. Returns the job's final status "
+        "or the file's presence.",
+        {"type": "object", "properties": {
+            "raw_job": {**_S_STRING, "description": "Detached raw-pipeline job id."},
+            "path": {**_S_STRING, "description": "Workspace path to wait for."},
+            "timeout_min": {**_S_NUMBER}}},
+        cli=["job", "wait"], flag_map={"raw_job": "--raw-job", "timeout_min": "--timeout-min"},
+    ),
+
+    _T(
         "processed_discover",
         "★ FIND IGVF PORTAL DATA BY TOPIC ★ when the user names a phenotype, "
         "tissue, gene or kind of data rather than an accession (e.g. 'IGVF "

@@ -1,6 +1,6 @@
 # Skills
 
-IGVFagent has 116 skills exposing 592 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
+IGVFagent has 117 skills exposing 599 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
 
 **On this page**
 
@@ -99,7 +99,7 @@ Direct `python3 Scripts/<module>.py` invocations are listed in [`Scripts/README.
 
 ## All skills
 
-All 116 `igvfagent` skills, generated from the `SKILLS` registry in [`Scripts/cli.py`](../../../Scripts/cli.py). Run `igvfagent <skill> --help` for its subcommands and options, or `igvfagent tools` for the typed tools the agent calls.
+All 117 `igvfagent` skills, generated from the `SKILLS` registry in [`Scripts/cli.py`](../../../Scripts/cli.py). Run `igvfagent <skill> --help` for its subcommands and options, or `igvfagent tools` for the typed tools the agent calls.
 
 ### Finding and retrieving data
 
@@ -253,6 +253,7 @@ Skills without a worked example in the guide link to their module; `igvfagent <s
 
 | Skill | What it does | Documented in | Module |
 |---|---|---|---|
+| `job` | Durable agent jobs: long analyses planned on disk, gated by harness checks, verified, resumable | [Long-running jobs](../jobs.md) | [`agent_jobs.py`](../../../Scripts/agent_jobs.py) |
 | `artifact` | Read back reports/manifests the agent produced (workspace-contained: read / grep / ls) | — | [`artifact_read_skill.py`](../../../Scripts/artifact_read_skill.py) |
 | `bench` | Paper → reproduction benchmark. Resolve a publication from a title / URL / DOI / PMID / author+journal+year, harvest its Data Availability statement + accessions from the full text, route them onto an IGVFagent analysis chain, and scaffold a runnable Benchmarks/<paper-id>/ that concordance.py scores. Subcommands: resolve, harvest, route, scaffold, run, score, report, pipeline, selftest, list-routes. | — | [`benchmark_skill.py`](../../../Scripts/benchmark_skill.py) |
 | `eval-tiers` | Tier 2 (planning / tool selection) and Tier 3 (conclusion validity) evaluation | — | [`eval_tiers_skill.py`](../../../Scripts/eval_tiers_skill.py) |

@@ -33,7 +33,7 @@ with a built-in **Plan → Action → Results → Evaluation** loop.
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it, and shows its
-working.** 116 skills and 592 typed tools, hosted or installed locally.
+working.** 117 skills and 599 typed tools, hosted or installed locally.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
@@ -182,7 +182,7 @@ checks ([dashboard](Benchmarks/README.md)).
 
 | | |
 |---|---|
-| **Use it** | [Installation](Docs/Guide/installation.md) · [Browser UI, accounts and history](Docs/Guide/web-ui.md) · [LLM backends](Docs/Guide/llm-backends.md) · [Skills](Docs/Guide/skills/README.md) |
+| **Use it** | [Installation](Docs/Guide/installation.md) · [Browser UI, accounts and history](Docs/Guide/web-ui.md) · [Long-running jobs](Docs/Guide/jobs.md) · [LLM backends](Docs/Guide/llm-backends.md) · [Skills](Docs/Guide/skills/README.md) |
 | **Understand it** | [Architecture](Docs/Guide/architecture.md) · [Benchmarks](Docs/Guide/benchmarks.md) · [Security](Docs/Guide/security.md) · [Threat model](Docs/THREAT_MODEL.md) · [Evaluation](Docs/EVALUATION.md) |
 | **Extend or run it** | [Extending IGVFagent](Docs/Guide/extending.md) · [Operating the hosted deployment](Docs/Guide/deployment.md) · [Server setup](Deploy/README.md) · [Accounts and sign-in](Docs/AUTH.md) |
 | **Provenance** | [References and attribution](Docs/Guide/references.md) · [Pinned upstream projects](Docs/Guide/references.md#pinned-upstream-projects) · [What's new](Docs/Guide/whats-new.md) |
