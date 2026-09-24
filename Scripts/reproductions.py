@@ -420,7 +420,7 @@ def apply(paper_id: str, files: Dict[str, str], *, replay: bool = False, detach:
 
 
 def record_from_run(run_dir: str, *, paper_id: Optional[str] = None, doi: Optional[str] = None,
-                    title: Optional[str] = None, owner: str = "") -> Optional[Dict[str, Any]]:
+                    title: Optional[str] = None, owner: str = "", note: str = "") -> Optional[Dict[str, Any]]:
     """A record for a standalone `paper-code pipeline` run (no job)."""
     d = _abs(run_dir)
     s = _read_json(d / "summary.json")
@@ -441,7 +441,7 @@ def record_from_run(run_dir: str, *, paper_id: Optional[str] = None, doi: Option
                 "finished_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime((d / "summary.json").stat().st_mtime)),
                 "verdict": {}},
         "stages": [], "code": code, "data": [], "log": [],
-        "answer": "", "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "route": "authors_code"}
+        "answer": note, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "route": "authors_code"}
     rec["outcome"] = outcome(rec)
     return _store(rec)
 
@@ -965,6 +965,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--doi")
     s.add_argument("--title")
     s.add_argument("--owner")
+    s.add_argument("--note", help="findings to attach (Markdown), shown as the attempt's report text")
+    s.add_argument("--note-file")
     s = sub.add_parser("list")
     s.add_argument("--query", default="")
     s = sub.add_parser("show")
@@ -1015,7 +1017,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(r["error"])
         return 0 if r.get("ok") else 1
     if a.cmd == "record-run":
-        r = record_from_run(a.run_dir, paper_id=a.paper_id, doi=a.doi, title=a.title, owner=a.owner or "")
+        note = Path(a.note_file).read_text() if a.note_file else (a.note or "")
+        r = record_from_run(a.run_dir, paper_id=a.paper_id, doi=a.doi, title=a.title, owner=a.owner or "",
+                            note=note)
         if not r:
             print(f"no paper-code summary in {a.run_dir}")
             return 1
