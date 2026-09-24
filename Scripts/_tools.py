@@ -6041,6 +6041,68 @@ _TOOLS: "list[Tool]" = [
         cli=["job", "wait"], flag_map={"raw_job": "--raw-job", "timeout_min": "--timeout-min"},
     ),
 
+    # Paper reproduction from the authors' own code (paper_code_skill.py),
+    # following Paper2Agent's code-first route.
+    _T(
+        "paper_code_find",
+        "Which GitHub repository holds a paper's analysis code. Give the "
+        "harvest.json written by paper_benchmark/bench harvest (the Code "
+        "Availability statement is ranked first), a repository, or search text.",
+        {"type": "object", "properties": {
+            "harvest": {**_S_STRING, "description": "Path to a bench harvest.json."},
+            "repo": {**_S_STRING, "description": "owner/name or GitHub URL."},
+            "query": {**_S_STRING, "description": "GitHub search text (title, first author)."}}},
+        cli=["paper-code", "find"],
+    ),
+
+    _T(
+        "paper_code_inventory",
+        "Clone (pinned) and inventory a paper's code repository: the main "
+        "analysis (.Rmd/.qmd/.ipynb/.R/.py), the inputs it reads and whether "
+        "they are in the repository, packages it loads, output directories, the "
+        "authors' own rendered output (for comparison), the package versions "
+        "the authors ran, and the analysis sections.",
+        {"type": "object", "properties": {
+            "repo": {**_S_STRING, "description": "owner/name or GitHub URL."},
+            "entry": {**_S_STRING, "description": "Analysis file (default: the main Rmd/notebook)."}},
+         "required": ["repo"]},
+        cli=["paper-code", "inventory"], positional=["repo"],
+    ),
+
+    _T(
+        "paper_code_reproduce",
+        "★ REPRODUCE A PAPER BY RUNNING THE AUTHORS' CODE ★ when a paper's Code "
+        "Availability names a repository. Clones it at a pinned commit, builds "
+        "the R (micromamba) or Python (uv) environment it needs, runs the "
+        "analysis UNMODIFIED in a work copy (one failing chunk does not hide the "
+        "rest), compares printed values and figures with the authors' own "
+        "rendered output, and writes a per-section report with every figure. "
+        "Runs in the background: wait with job_wait on <run_dir>/done.json (or "
+        "paper_code_status), then read summary.json. Use pins to repair an "
+        "environment (e.g. r-reshape2=1.4.4 or cran:reshape2@1.4.4).",
+        {"type": "object", "properties": {
+            "repo": {**_S_STRING, "description": "owner/name or GitHub URL."},
+            "harvest": {**_S_STRING, "description": "Or: pick the repository from this harvest.json."},
+            "ref": {**_S_STRING, "description": "Commit or tag to pin (default: HEAD, recorded)."},
+            "entry": {**_S_STRING, "description": "Analysis file inside the repository."},
+            "pin": {**_S_ARRAY_S, "description": "conda/pip pins or cran:pkg@version."},
+            "strict": {**_S_BOOLEAN, "description": "Stop at the first failing chunk."},
+            "replay": {**_S_BOOLEAN, "description": "Execute twice and check the outputs are identical."},
+            "input": {**_S_ARRAY_S, "description": "Apply the authors' code to new data: NAME=PATH replaces an input "
+                                                  "the analysis reads (names from paper_code_inventory)."},
+            "paper": {**_S_STRING, "description": "Paper title/DOI for the report."}}},
+        cli=["paper-code", "pipeline", "--detach"], positional=["repo"], flag_repeat={"pin", "input"},
+        bool_flags={"strict", "replay"},
+    ),
+
+    _T(
+        "paper_code_status",
+        "State of a paper_code_reproduce run directory (running stage, or the "
+        "final result with report, summary and figure counts).",
+        {"type": "object", "properties": {"run_dir": {**_S_STRING}}, "required": ["run_dir"]},
+        cli=["paper-code", "status"], positional=["run_dir"],
+    ),
+
     _T(
         "processed_discover",
         "★ FIND IGVF PORTAL DATA BY TOPIC ★ when the user names a phenotype, "

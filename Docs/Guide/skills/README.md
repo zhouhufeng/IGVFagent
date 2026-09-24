@@ -253,6 +253,7 @@ Skills without a worked example in the guide link to their module; `igvfagent <s
 
 | Skill | What it does | Documented in | Module |
 |---|---|---|---|
+| `paper-code` | Reproduce a paper by running the authors' own code: repository from the Code Availability statement, pinned commit, R/Python environment, unmodified execution, comparison with the authors' rendered output, replay check, per-section report | [Reproducing a paper](../paper-reproduction.md) | [`paper_code_skill.py`](../../../Scripts/paper_code_skill.py) |
 | `job` | Durable agent jobs: long analyses planned on disk, gated by harness checks, verified, resumable | [Long-running jobs](../jobs.md) | [`agent_jobs.py`](../../../Scripts/agent_jobs.py) |
 | `artifact` | Read back reports/manifests the agent produced (workspace-contained: read / grep / ls) | — | [`artifact_read_skill.py`](../../../Scripts/artifact_read_skill.py) |
 | `bench` | Paper → reproduction benchmark. Resolve a publication from a title / URL / DOI / PMID / author+journal+year, harvest its Data Availability statement + accessions from the full text, route them onto an IGVFagent analysis chain, and scaffold a runnable Benchmarks/<paper-id>/ that concordance.py scores. Subcommands: resolve, harvest, route, scaffold, run, score, report, pipeline, selftest, list-routes. | — | [`benchmark_skill.py`](../../../Scripts/benchmark_skill.py) |

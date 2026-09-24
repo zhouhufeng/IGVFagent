@@ -318,6 +318,12 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Benchmarks/<paper-id>/ that concordance.py scores. "
                           "Subcommands: resolve, harvest, route, scaffold, run, "
                           "score, report, pipeline, selftest, list-routes."),
+    "paper-code":       ("igvfagent.paper_code_skill",
+                          "Reproduce a paper by running the authors' own code: "
+                          "find the repository named in the paper, pin it, "
+                          "build its R/Python environment, run the analysis "
+                          "unmodified, compare with the authors' rendered "
+                          "output, per-section report with every figure"),
     "mavedb":           ("igvfagent.mavedb_mapping_skill",
                           "MaveDB scoreset → genomic coords (chr/pos/ref/alt)"),
     "encode":           ("igvfagent.encode_pipeline",

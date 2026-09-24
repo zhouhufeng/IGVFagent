@@ -858,6 +858,8 @@ def extract_accessions(text: str, sections: List[Dict[str, str]]) -> Dict[str, L
         for m in pat.finditer(text):
             val = m.group(1) if m.groups() else m.group(0)
             val = val.strip()
+            if spec["key"] == "github_repo":  # "…/FowlerLab/VAMPseq." ends a sentence
+                val = re.sub(r"\.git$", "", val.rstrip(".,;:)"))
             norm = val.upper() if spec["key"] not in ("synapse", "github_repo",
                                                        "cellxgene", "mavedb_urn",
                                                        "figshare_doi", "zenodo_doi") else val
@@ -2506,6 +2508,10 @@ def _print_harvest(hv: Dict[str, Any]) -> None:
         print(f"  {key:15s} {marks}")
     if n:
         print("  (* = named in a Data/Code Availability section)")
+    code = [e["value"] for e in acc.get("github_repo") or [] if e.get("in_data_availability")]
+    if code:
+        print(f"Code:       the paper's analysis code is public ({', '.join(code[:3])}). Reproduce it by running "
+              f"that code: igvfagent paper-code pipeline --harvest <this run>/harvest.json")
     print("Assays:     " + ", ".join(
         f"{a['assay']}×{a['mentions']}" for a in (hv.get("assays") or [])[:8]))
     print("Genes:      " + ", ".join((hv.get("genes") or [])[:10]))

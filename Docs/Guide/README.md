@@ -10,6 +10,7 @@ to try it. These pages hold the detail.
 | [Installation and first run](installation.md) | install locally (pip, pipx or Docker), configure credentials, run the smoke test |
 | [The browser UI, accounts and history](web-ui.md) | know what each tab does, how sign-in works, and how past results and projects are kept |
 | [LLM backends](llm-backends.md) | choose a model (Claude, OpenAI, Ollama, Claude Code), keep results consistent across models, or drive IGVFagent from another agent |
+| [Reproducing a paper](paper-reproduction.md) | run the authors' own code from the paper's repository, compare every printed value and figure with their rendering, repair only the environment |
 | [Long-running jobs](jobs.md) | reproduce a paper or run a pipeline as a background job that plans, checks every stage, verifies and resumes |
 | [Skills](skills/README.md) | find the skill for a task: the full index of every `igvfagent` command |
 

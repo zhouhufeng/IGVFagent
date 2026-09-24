@@ -37,6 +37,7 @@ depend on evidence, bounded retries, fresh verifiers, resumable state).
   - *Unfiled* lists your jobs and chats that are in no project; ➕ files one into the active project.
   - *Manage* renames, shares or creates projects.
 - The jobs panel above the chat shows each of your jobs: its stages with harness-verified state, the latest events, the verifier's verdict and, when finished, the report and files. **Stop** and **Resume** buttons are there too.
+- Reproducing a paper whose code is public runs the authors' own code first; see [Reproducing a paper](paper-reproduction.md).
 - Saying **continue** (or "keep going", "resume the reproduction") resumes your latest unfinished job instead of starting over.
 - The agent can also start a job itself (`job_start`) when a request turns out to need one.
 

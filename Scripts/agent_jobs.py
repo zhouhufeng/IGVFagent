@@ -126,6 +126,36 @@ early is a failure, not a courtesy.
 6. When every stage is done or blocked, write the final report: what was
    reproduced (with numbers and file paths), what differs from the paper and
    why, and what is blocked.
+
+REPRODUCING A PAPER (the paper's own code is the scientific source of truth)
+a. Resolve and harvest the paper first (paper_benchmark / bench harvest), then
+   paper_code_find on its harvest.json. If the Code Availability statement
+   names a repository, the reproduction IS running that code: call
+   paper_code_reproduce with replay=true (it runs in the background) and job_wait on
+   <run_dir>/done.json. Never reimplement the authors' analysis yourself, and
+   do not present a re-derivation from deposited tables (MaveDB, Portal) as
+   the reproduction; that is a separate cross-check stage.
+b. Plan stages like: harvest -> find_code -> run_code (check: json
+   <run_dir>/summary.json key printed.fraction_matched >= 0.9, or figures.produced
+   >= 1 when the authors committed no rendering) -> review_sections -> repair
+   (only if needed) -> cross_check (optional: IGVF/MaveDB data route) -> report.
+c. Read summary.json and report.md. For chunks that raised errors, diagnose
+   from run.log and report.md (a package API change is the usual cause;
+   inventory.json lists the versions the authors ran). Repair only the
+   environment, with pins (r-<pkg>=<version> or cran:<pkg>@<version>) and
+   re-run; at most 3 environment repairs. Never edit the authors' code to make
+   it pass; if it cannot run, mark the stage blocked naming the chunk, line and
+   error.
+d. Verify section by section with delegate_tasks: one fresh sub-agent per
+   group of analysis sections, each given the section titles, the figure paths
+   and the printed-value agreement for those sections, asked to state which of
+   the paper's claims for those sections the outputs support, contradict or
+   leave untested. Their verdicts go in the final report.
+e. The final report leads with the authors' repository and commit, the
+   printed-value agreement (identical / numerically close / missing), the
+   figures per section (paths), the errors and blocked chunks, and the
+   environment differences from the authors'. Numbers come only from
+   summary.json, compare.json and the run's files.
 """
 
 
@@ -631,6 +661,38 @@ def _evidence_digest(plan: dict, limit_chars: int = 12000) -> str:
     return "\n".join(out)
 
 
+_REPRO = re.compile(r"\b(reproduc\w*|replicat\w*|re-?run the (?:paper|analysis))\b", re.I)
+
+
+def code_route_gap(job: dict, plan: dict) -> Optional[str]:
+    """A paper reproduction whose harvested Code Availability names a GitHub
+    repository must have run that code (a paper-code summary.json in the
+    evidence) or blocked the stage with a reason. Reproducing from deposited
+    tables alone is a cross-check, not the reproduction."""
+    if not _REPRO.search(job.get("query") or ""):
+        return None
+    ev = [e for st in plan.get("stages") or [] for e in (st.get("evidence") or [])]
+    if any("PaperCode" in e and e.endswith(("summary.json", "done.json", "report.md")) for e in ev):
+        return None
+    if any(st["status"] == "blocked" and re.search(r"code|repositor|paper.code", " ".join(
+            [st.get("title") or "", st.get("id") or ""] + list(st.get("notes") or [])), re.I)
+           for st in plan.get("stages") or []):
+        return None
+    repos: "List[str]" = []
+    for e in ev:
+        if e.endswith("harvest.json"):
+            q = _safe_path(e)
+            hv = _read_json(q) if q else None
+            for hit in ((hv or {}).get("accessions") or {}).get("github_repo") or []:
+                if hit.get("in_data_availability"):
+                    repos.append(str(hit.get("value", "")).rstrip(".,;"))
+    if not repos:
+        return None
+    return (f"The paper's Code Availability names {', '.join(sorted(set(repos))[:3])}, but no stage ran the authors' "
+            "code. Run paper_code_reproduce on it (job_wait on <run_dir>/done.json) and report its summary.json, or "
+            "mark a code stage blocked with the reason.")
+
+
 def verify(job: dict, plan: dict, answer: str, llm_call: "Optional[Callable]" = None) -> dict:
     user = (f"# Task\n{job['query']}\n\n# Plan and evidence\n{_evidence_digest(plan)}\n\n"
             f"# Final report under review\n{answer[:8000]}")
@@ -788,6 +850,9 @@ def run_worker(job_id: str, runner=None, verifier: "Optional[Callable]" = None, 
                 continue
             vc = int(job.get("verify_cycles") or 0)
             verdict = verify(job, plan, res.answer, llm_call=verifier)
+            gap = code_route_gap(job, plan)
+            if gap:  # deterministic: the paper names its code and nobody ran it
+                verdict = {"verdict": "fail", "issues": [gap] + list(verdict.get("issues") or [])}
             event(job_id, "verify", f"verifier: {verdict['verdict']}", issues=verdict["issues"])
             if verdict["verdict"] != "pass" and vc < MAX_VERIFY_CYCLES:
                 issues = [f"verifier: {i}" for i in verdict["issues"]] or ["verifier could not confirm the report"]
