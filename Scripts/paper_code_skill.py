@@ -787,6 +787,28 @@ if ("melt_reshape" %%in%% shims) {
   }
   fmt$knitr$opts_chunk$igvf_compat <- TRUE
 }
+if ("jitter_global_rng" %%in%% shims) {
+  # ggplot2 < 3.0 jittered with base::jitter() in the global random stream at
+  # draw time; ggplot2 >= 3.0 takes one seed draw and jitters in a private
+  # stream, which shifts every later sample()/runif() of a seeded analysis.
+  # seed = NULL restores the global-stream behaviour. The Rmd is unchanged.
+  prev <- fmt$knitr$knit_hooks$igvf_compat
+  fmt$knitr$knit_hooks$igvf_compat <- function(before, options, envir) {
+    if (is.function(prev)) prev(before, options, envir)
+    if (before && "package:ggplot2" %%in%% search() && !("igvf_compat_jitter" %%in%% search())) {
+      pj <- function(width = NULL, height = NULL, seed = NULL) ggplot2::position_jitter(width, height, seed = seed)
+      gj <- function(mapping = NULL, data = NULL, stat = "identity", position = "jitter", ..., width = NULL,
+                     height = NULL, na.rm = FALSE, show.legend = NA, inherit.aes = TRUE) {
+        if (identical(position, "jitter")) position <- ggplot2::position_jitter(width, height, seed = NULL)
+        ggplot2::geom_point(mapping = mapping, data = data, stat = stat, position = position, ...,
+                            na.rm = na.rm, show.legend = show.legend, inherit.aes = inherit.aes)
+      }
+      attach(list(position_jitter = pj, geom_jitter = gj), name = "igvf_compat_jitter", warn.conflicts = FALSE)
+    }
+    NULL
+  }
+  fmt$knitr$opts_chunk$igvf_compat <- TRUE
+}
 t0 <- Sys.time()
 res <- tryCatch({ rmarkdown::render(entry, output_format = fmt, envir = new.env(), quiet = FALSE); "ok" },
                 error = function(e) paste("render error:", conditionMessage(e)))
@@ -796,6 +818,8 @@ writeLines(capture.output(sessionInfo()), "igvf_sessionInfo.txt")
 
 
 R_SHIMS = {
+    "jitter_global_rng": "geom_jitter()/position_jitter() draw from the global random stream as in ggplot2 < 3.0 "
+                         "(the authors' version), so later seeded draws follow the authors' sequence",
     "melt_reshape": "melt() resolves to reshape::melt as it did before R 3.6 (the analysis attaches reshape, "
                     "then data.table, and melts data.frames)",
 }
@@ -812,6 +836,10 @@ def r_shims(inv: Dict[str, Any], code_of_entry: Optional[Path] = None) -> "List[
     if "reshape" in lib_order and "data.table" in lib_order and re.search(r"(?<![\w.:])melt\s*\(", code) \
             and lib_order.index("reshape") < lib_order.index("data.table"):
         out.append("melt_reshape")
+    gv = (inv.get("author_versions") or {}).get("ggplot2")
+    if gv and re.match(r"^[0-2]\.", gv) and re.search(r"\b(geom_jitter|position_jitter)\s*\(", code) \
+            and re.search(r"\bset\.seed\s*\(", code):
+        out.append("jitter_global_rng")
     return out
 
 

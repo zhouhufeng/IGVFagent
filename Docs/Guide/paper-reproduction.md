@@ -104,18 +104,18 @@ Each run changed only the environment:
 | 1 | latest conda-forge (R 4.5.3, data.table 1.18.6, reshape2 1.4.5) | Knit ok in 103 s, 115 figures, 104 of 119 printed blocks identical. 2 chunks fail at `melt()` on a data.frame: 3 root errors and 18 knock-on. |
 | 2 | adds `r-data.table=1.17.8` | Same failure; data.table 1.17 already raises the error. |
 | 3 | adds `cran:data.table@1.16.4 cran:reshape2@1.4.4` | `melt()` now redirects, but gives 3 columns where the authors' next line selects 4. 1 chunk still fails. |
-| 4 | adds the `melt_reshape` shim and `RNGkind(sample.kind="Rounding")` (authors' R 3.4.4) | All **67 of 67 chunks** run without error, and 119 figures are produced. |
+| 4 | adds the `melt_reshape` shim and `RNGkind(sample.kind="Rounding")` (authors' R 3.4.4) | All 67 chunks run; 108 of 110 value blocks match. The 2 permutation-test tables differ. |
+| 5 | adds the `jitter_global_rng` shim (authors' ggplot2 2.2.1) | **110 of 110** value blocks match, including both permutation-test tables |
+| 6 | latest packages, **no pins**, shims chosen automatically | same as run 5 in one shot: 67 of 67 chunks, 119 figures, 110 of 110 value blocks, deterministic replay |
 
-Run 4 in detail:
-- **Printed values:** 104 identical, plus 4 with the same values in another layout (correlation matrices wrapped at a different console width). That is 108 of the authors' 110 value blocks (98.2%).
-- **The other 2 blocks** are Monte Carlo permutation p-values from 10,000 draws. They are listed side by side under "Same output, other numbers":
-  - The ClinVar table agrees within sampling error: 0.0188 against 0.0187, and 0.3799 against 0.3746.
-  - The per-cancer table differs in 11 of 25 values, for example 0.0032 against 0.0039, and 0.1978 against 0.2005.
-  - The seeded random stream still diverges somewhere in the 2018 run. Plotting code consuming random numbers is a likely cause that has not been isolated.
+Final result (run 6, local and on the hosted site):
+- **Printed values:** 106 identical, plus 4 with the same values in another layout (correlation matrices wrapped at a different console width). That is all 110 of the authors' value blocks.
 - **Library warnings:** the authors' 9 ggplot2 warnings are reported separately. ggplot2 4 words them differently.
 - **Replay:** deterministic, with 126 of 126 printed blocks and 65 of 65 saved files identical. The analysis writes its own working directory into its PyMOL scripts, and the comparison normalises that path.
 
-Why run 4 needed a shim. In 2018 the analysis attached reshape, then data.table. `melt()` went to data.table, which redirected data.frames to `reshape2::melt`, whose `UseMethod` then found reshape's exported `melt.data.frame` on the search path. R 3.6 stopped searching the search path for S3 methods. The shim is a knitr hook that puts `reshape::melt` first once data.table is attached, which is what `melt()` resolved to in 2018. It is applied by detection: the analysis loads reshape before data.table and calls `melt()`. The Rmd text is unchanged. Paper2Agent's environment manager reached the same diagnosis on this repository.
+Why the shims were needed. **`melt_reshape`:** In 2018 the analysis attached reshape, then data.table. `melt()` went to data.table, which redirected data.frames to `reshape2::melt`, whose `UseMethod` then found reshape's exported `melt.data.frame` on the search path. R 3.6 stopped searching the search path for S3 methods. The shim is a knitr hook that puts `reshape::melt` first once data.table is attached, which is what `melt()` resolved to in 2018. It is applied by detection: the analysis loads reshape before data.table and calls `melt()`. The Rmd text is unchanged. Paper2Agent's environment manager reached the same diagnosis on this repository.
+
+**`jitter_global_rng`:** ggplot2 before 3.0 jittered points with `base::jitter()` in the global random stream, taking 2n draws per jittered layer. ggplot2 3.0 and later takes one draw for a private seed instead. Every seeded `sample()` after the first jittered plot therefore shifted, including the ClinVar and cancer permutation tests. The shim makes `geom_jitter()` and `position_jitter()` use `seed = NULL`, which runs the same `base::jitter()` in the global stream. It is applied when the authors' ggplot2 is older than 3.0 and the analysis jitters and sets a seed.
 
 ---
 
