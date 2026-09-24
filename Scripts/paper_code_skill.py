@@ -1994,7 +1994,7 @@ def _rewrite_links(md: str, prefix: str) -> str:
 def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins: "Sequence[str]", strict: bool,
                    paper: Optional[str], run_dir: Path, entry_timeout_min: float, replay: bool,
                    inputs: "Optional[Dict[str, str]]", workflow: bool = False, workflow_timeout_min: float = 240,
-                   cores: int = 4) -> Dict[str, Any]:
+                   cores: int = 4, max_passes: int = 2) -> Dict[str, Any]:
     """Every selected notebook of a repository, in one shared work copy and in
     order (as the authors ran them), each with its own sub-report; one
     combined summary and report for the paper."""
@@ -2067,39 +2067,50 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                           "has_reference": bool(inv_e.get("reference")), "inputs_missing": inv_e.get("inputs_missing"),
                           "first_error": roots[0]["message"][:240] if roots else None,
                           "replay": sm.get("replay"), "seconds": sm.get("seconds")})
-    # The analyses name what they could not find; the workflow may be able to
-    # produce it (e.g. model runs from the deposited processed objects). Build
-    # those files, then run again only the analyses that were missing them.
-    if wf and wf.get("engine") == "snakemake" and not (wf_res or {}).get("error"):
+    # The analyses name what they could not find. The workflow may produce it
+    # (e.g. model runs from the deposited processed objects), and another
+    # analysis may have written it in this pass (one notebook's table is the
+    # next one's input). Build what the workflow can, then re-run every
+    # analysis whose missing inputs now exist, until nothing changes.
+    passes: List[Dict[str, Any]] = []
+    for it in range(1 + max_passes):
         need: Dict[str, List[str]] = {}
         for x in summaries:
             for f_ in missing_files(ROOT / x["dir"], x["entry"], run_dir / "work"):
                 need.setdefault(f_, []).append(x["entry"])
-        if need:
+        if not need:
+            break
+        info: Dict[str, Any] = {"pass": it + 2, "missing": len(need)}
+        if it == 0 and wf and wf.get("engine") == "snakemake" and not (wf_res or {}).get("error"):
             stage("workflow-targets", files=len(need))
             wenv = envs.get("python") or next(iter(envs.values()))
             bt = build_targets(run_dir / "work", wf, wenv, sorted(need), run_dir / "workflow.log",
                                workflow_timeout_min, cores)
-            rerun = sorted({e for f_ in bt.get("built") or [] for e in need[f_]})
-            bt["analyses_rerun"] = rerun
             (wf_res or {}).update({"second_pass": bt})
             _write_json(run_dir / "workflow.json", wf_res)
-            for k, inv_e in enumerate(invs, 1):
-                if inv_e["entry"] not in rerun:
-                    continue
-                sub = run_dir / "entries" / f"{k:02d}_{_slug_path(inv_e['entry'])}"
-                env = envs[inv_e["language"]]
-                stage("rerun", entry=inv_e["entry"])
-                run = run_entry(src, inv_e, env, sub, tolerant=not strict, timeout_min=entry_timeout_min,
-                                reuse_work=True)
-                _write_json(sub / "run.json", run)
-                sm = write_report(sub, inv_e, env, src_meta, paper)["summary"]
-                roots = [e for e in sm.get("errors") or [] if e.get("kind") != "cascade"]
-                for x in summaries:
-                    if x["entry"] == inv_e["entry"]:
-                        x.update({"render": sm.get("render"), "chunks": sm.get("chunks"), "figures": sm.get("figures"),
-                                  "printed": sm.get("printed"), "first_error": roots[0]["message"][:240] if roots else None,
-                                  "rerun_after_workflow": True})
+            info["workflow_built"] = len(bt.get("built") or [])
+        now = [f_ for f_ in need if (run_dir / "work" / f_).exists()]
+        rerun = sorted({e for f_ in now for e in need[f_]})
+        info.update({"now_present": len(now), "rerun": rerun})
+        passes.append(info)
+        if not rerun:
+            break
+        for k, inv_e in enumerate(invs, 1):
+            if inv_e["entry"] not in rerun:
+                continue
+            sub = run_dir / "entries" / f"{k:02d}_{_slug_path(inv_e['entry'])}"
+            env = envs[inv_e["language"]]
+            stage("rerun", entry=inv_e["entry"], pass_=it + 2)
+            run = run_entry(src, inv_e, env, sub, tolerant=not strict, timeout_min=entry_timeout_min,
+                            reuse_work=True)
+            _write_json(sub / "run.json", run)
+            sm = write_report(sub, inv_e, env, src_meta, paper)["summary"]
+            roots = [e for e in sm.get("errors") or [] if e.get("kind") != "cascade"]
+            for x in summaries:
+                if x["entry"] == inv_e["entry"]:
+                    x.update({"render": sm.get("render"), "chunks": sm.get("chunks"), "figures": sm.get("figures"),
+                              "printed": sm.get("printed"), "first_error": roots[0]["message"][:240] if roots else None,
+                              "passes": x.get("passes", 1) + 1})
     stage("report")
     tot = _sum_summaries([x for x in summaries if x.get("chunks")])
     clean = sum(1 for x in summaries if x.get("chunks") and not x["chunks"].get("root_errors"))
@@ -2111,7 +2122,9 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                                              for lang, e in envs.items()},
                "replay": ({"deterministic": all((x.get("replay") or {}).get("deterministic") for x in summaries
                                                 if x.get("replay"))} if replay else None),
-               "workflow": wf_res, "data": _read_json(repo_dir(repo) / "data.json")}
+               "workflow": wf_res, "data": _read_json(repo_dir(repo) / "data.json"), "passes": passes,
+               "still_missing": sorted({f_ for x in summaries for f_ in missing_files(ROOT / x["dir"], x["entry"],
+                                                                                      run_dir / "work")})[:300]}
     _write_json(run_dir / "summary.json", summary)
     pr = tot["printed"]
     L = [f"# Reproduction from the authors' code: {src_meta.get('repo')}", ""]
@@ -2145,11 +2158,18 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                         if wf_res.get("targets") else "")
                      + (f"; the analyses asked for {len(wf_res['second_pass']['requested'])} missing file(s), "
                         f"{len(wf_res['second_pass']['buildable'])} buildable by the workflow, "
-                        f"{len(wf_res['second_pass'].get('built') or [])} built, "
-                        f"{len(wf_res['second_pass']['analyses_rerun'])} analyses re-run"
+                        f"{len(wf_res['second_pass'].get('built') or [])} built"
                         if wf_res.get("second_pass") else "")
                      + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
                         f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
+    for ps in summary.get("passes") or []:
+        L.append(f"- Pass {ps['pass']}: {ps['missing']} missing input file(s)"
+                 + (f", {ps['workflow_built']} built by the workflow" if "workflow_built" in ps else "")
+                 + f", {ps['now_present']} now present, {len(ps['rerun'])} analyses re-run")
+    if summary.get("still_missing"):
+        ext = [f_ for f_ in summary["still_missing"] if f_.startswith(("/", ".."))]
+        L.append(f"- **Still missing: {len(summary['still_missing'])} file(s)** the analyses read and neither the "
+                 f"repository, its workflow nor fetched deposits provide, e.g. `{summary['still_missing'][0]}`")
     for dd in (summary.get("data") or [])[-5:]:
         L.append(f"- Data: `{dd['file']}` from {dd['source']}")
     L += ["", "| # | analysis | ran | chunks (root errors) | printed matched | figures | first root error |",
@@ -2401,6 +2421,17 @@ def cmd_selftest() -> int:
                   (b_sum.get("chunks") or {}).get("root_errors") == 1 and "did not execute" in
                   (b_sum.get("errors") or [{}])[0].get("message", "") and "1/2 ran without root errors" in
                   sm.get("render", ""))
+            (src / "nb" / "r_reader.py").write_text("print(open('shared.txt').read())\n")
+            (src / "nb" / "w_writer.py").write_text("open('shared.txt','w').write('made by writer')\n")
+            rd2 = Path(td) / "run2"
+            rd2.mkdir()
+            pipeline_multi("x/y", ["nb/r_reader.py", "nb/w_writer.py"], ref=None, pins=(), strict=False, paper="P",
+                           run_dir=rd2, entry_timeout_min=2, replay=False, inputs=None)
+            sm2 = _read_json(rd2 / "summary.json", {})
+            reader = next(e for e in sm2["entries"] if e["entry"] == "nb/r_reader.py")
+            check("an analysis whose input another analysis writes is re-run once it exists",
+                  reader.get("passes") == 2 and not (reader.get("chunks") or {}).get("root_errors")
+                  and sm2["passes"][0]["rerun"] == ["nb/r_reader.py"])
             check("the combined report lists every analysis", "`nb/a.py`" in (rd / "report.md").read_text()
                   and "`nb/b.py`" in (rd / "report.md").read_text())
         finally:

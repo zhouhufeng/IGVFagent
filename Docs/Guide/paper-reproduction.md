@@ -48,6 +48,11 @@ route for code-backed papers:
 - Then the real run goes with `--keep-going`.
 - The report gives the failed rules and the files produced.
 
+After the first pass, **every missing file an analysis names drives more passes**:
+- With `--workflow`, the workflow is asked for exactly those files. It dry-runs each and builds every one it can, for example model runs made from the deposited processed objects.
+- Any analysis whose missing inputs now exist is re-run, whichever analysis or workflow produced them. This repeats for up to 2 extra passes, which covers notebooks that read another notebook's output.
+- The report lists each pass and what is **still missing**. That is usually supplementary tables, or paths on the authors' own machine, which are reported as blockers.
+
 `igvfagent paper-code data <repo> --zenodo <record|DOI> --into <path> [--files GLOB] [--extract]` puts a deposit into the checkout, where later runs find it. It also takes `--url` for a direct link. Checksums are verified and provenance is recorded in `Data/PaperCode/<repo>/data.json`. A job does this itself (`paper_code_fetch_data`) when analyses fail on missing inputs. Missing data that was never deposited is reported as a blocker.
 
 **Compatibility shims for Python notebooks.** Like the R shims, these are loaded into the kernel without editing the notebook, and they are listed in the report whenever they fire. `mpl_missing_style` falls back to the default style when a notebook uses the authors' unpublished matplotlib style, such as `jr`: figures look different, values are unchanged.
