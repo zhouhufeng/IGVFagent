@@ -827,7 +827,7 @@ def declared_python_env(src: Path, inv: Dict[str, Any]) -> Optional[Path]:
     return best
 
 
-DECLARED_ENV_BUILDER = "5"  # bump when build_env_declared changes what it installs
+DECLARED_ENV_BUILDER = "6"  # bump when build_env_declared changes what it installs
 BUILD_TOOLS = {"cython", "numpy", "setuptools", "wheel", "setuptools-scm", "setuptools_scm", "pybind11",
                "scikit-build", "cmake", "ninja", "versioneer", "pip"}
 PIP_SKIP = {"sklearn"}  # the deprecated "sklearn" dummy package refuses to install; scikit-learn is the real one
@@ -1878,9 +1878,15 @@ def _build_rounds(res: Dict[str, Any], by_wd: Dict[Path, List[str]], exe: Path, 
         got = []
         # Never upgrade what the authors pinned: everything installed now is a
         # constraint, so pip picks a version compatible with it (or fails).
-        frz = subprocess.run(_pip(py, "freeze"), capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout or ""
+        # `pip list --format=freeze` names conda-installed packages too (plain
+        # `pip freeze` prints them as "torch @ file:///...", which a
+        # constraints file cannot use; leaving them out let pip upgrade the
+        # authors' conda torch 1.12 to 2.x).
+        frz = subprocess.run(_pip(py, "list", "--format=freeze"), capture_output=True, text=True,
+                             stdin=subprocess.DEVNULL).stdout or ""
         cons = log.parent / "_constraints.txt"
-        cons.write_text("\n".join(ln for ln in frz.splitlines() if "==" in ln and " @ " not in ln) + "\n")
+        cons.write_text("\n".join(ln.split("+")[0] if "==" in ln else ln for ln in frz.splitlines()
+                                  if re.match(r"^[A-Za-z0-9_.\-]+==[\w.\-+!]+$", ln.strip())) + "\n")
         for m in sorted(set(mods)):
             pipn = PY_PIP_NAME.get(m, m)
             if subprocess.run(_pip(py, "install", "-c", str(cons), pipn), capture_output=True,
