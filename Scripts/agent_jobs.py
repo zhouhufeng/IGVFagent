@@ -89,6 +89,7 @@ JOBS_DIR = Path(os.environ.get("IGVF_JOBS_DIR") or ROOT / "Data" / "Jobs")
 log = logging.getLogger("agent_jobs")
 
 TERMINAL = ("done", "done_with_blocked", "failed", "stopped", "budget_exhausted")
+WAIT_MAX_MIN = float(os.environ.get("IGVF_JOB_WAIT_MAX_MIN", "240"))
 RESUMABLE = ("stopped", "interrupted", "budget_exhausted", "failed", "done_with_blocked")
 STAGE_STATES = ("pending", "running", "done", "failed", "blocked")
 MAX_STAGE_ATTEMPTS = int(os.environ.get("IGVF_JOB_STAGE_ATTEMPTS", "5"))
@@ -124,6 +125,10 @@ early is a failure, not a courtesy.
    the detached job or output file instead of ending the round.
 5. Independent sub-questions can run in parallel with delegate_tasks. Each
    sub-agent starts fresh, so give it everything it needs in the task text.
+5b. To save notes, section verdicts or a report as stage evidence, use
+   write_text_file (Docs/, Data/ or Benchmarks/ paths) and read_text_file.
+   Do not author new tools or extensions to write files, and do not use
+   sed edits or sub-agents as a file writer.
 6. When every stage is done or blocked, write the final report: what was
    reproduced (with numbers and file paths), what differs from the paper and
    why, and what is blocked.
@@ -621,11 +626,15 @@ class ClaudeCodeRunner:
         jid = job["id"]
         env = dict(os.environ)
         env.setdefault("IGVF_PROJECT_ROOT", str(ROOT))
+        # job_wait may legitimately wait hours; the IGVFagent MCP server bounds
+        # every other call itself (IGVF_MCP_TOOL_TIMEOUT), so the client's
+        # own per-call timeout (ms) only needs to cover the longest wait.
+        env.setdefault("MCP_TOOL_TIMEOUT", str(int((WAIT_MAX_MIN + 10) * 60 * 1000)))
         if not env.get("ANTHROPIC_API_KEY"):
             return RoundResult(error="ANTHROPIC_API_KEY is not set; the Claude Code orchestrator runs on the API key")
         try:
             proc = subprocess.Popen(self.argv(job, prompt), cwd=str(ROOT), env=env, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, bufsize=1)
         except OSError as e:
             return RoundResult(error=f"cannot start claude: {e}")
         update_job(jid, child_pid=proc.pid)

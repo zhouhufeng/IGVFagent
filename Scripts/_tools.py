@@ -6096,6 +6096,30 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "write_text_file",
+        "Write (or append) a UTF-8 text file inside the workspace: section "
+        "verdicts, notes, reports, small JSON/TSV evidence. Paths under "
+        "Docs/, Data/ or Benchmarks/; never secrets, source code or .git; "
+        "text files only, up to 5 MB. Returns the path to use as evidence.",
+        {"type": "object", "properties": {
+            "path": {**_S_STRING, "description": "Workspace-relative path, e.g. Docs/PaperCode/<run>/verdicts.md."},
+            "content": {**_S_STRING, "description": "The full text to write."},
+            "append": {**_S_BOOLEAN, "description": "Append instead of replacing."}},
+         "required": ["path", "content"]},
+        cli=["files", "write"], flag_map={"path": "--path", "content": "--content"}, bool_flags={"append"},
+    ),
+
+    _T(
+        "read_text_file",
+        "Read lines of a text file inside the workspace (never secrets).",
+        {"type": "object", "properties": {
+            "path": {**_S_STRING}, "offset": {**_S_INTEGER, "description": "First line, 0-based."},
+            "limit": {**_S_INTEGER, "description": "Lines to return (default 400)."}},
+         "required": ["path"]},
+        cli=["files", "read"], flag_map={"path": "--path", "offset": "--offset", "limit": "--limit"},
+    ),
+
+    _T(
         "reproductions_search",
         "Search the reproduction records: one per paper, kept across attempts, "
         "with the outcome (reproduced / partial / not reproduced), route "
@@ -13049,6 +13073,12 @@ def _coerce_value(v: Any) -> str:
     return str(v)
 
 
+def _flag_value(flag: str, value: str) -> "list[str]":
+    """``--flag=value`` when the value starts with '-' (a Markdown list, a
+    negative number, "-1"): argparse would read ``--flag -x`` as two options."""
+    return [f"{flag}={value}"] if value.startswith("-") and flag.startswith("--") else [flag, value]
+
+
 def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
     """Translate the parameter dict the LLM provided into ``igvfagent``
     argv tokens (or the user tool's own ``command`` argv)."""
@@ -13071,7 +13101,7 @@ def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
         if name in tool.flag_repeat:
             flag = tool.flag_map.get(name, "--" + name.replace("_", "-"))
             for v in (value if isinstance(value, (list, tuple)) else [value]):
-                argv.extend([flag, _coerce_value(v)])
+                argv.extend(_flag_value(flag, _coerce_value(v)))
             continue
         flag = tool.flag_map.get(name, "--" + name.replace("_", "-"))
         # Convention: ``flag_map={name: ""}`` means the argument is
@@ -13080,7 +13110,7 @@ def _build_argv(tool: Tool, arguments: dict) -> "list[str]":
         if flag == "":
             argv.append(_coerce_value(value))
         else:
-            argv.extend([flag, _coerce_value(value)])
+            argv.extend(_flag_value(flag, _coerce_value(value)))
     return argv
 
 
@@ -13173,8 +13203,12 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
         env.update(extra_env)
     logger.info("tool=%s argv=%s", name, shlex.join(argv))
     try:
+        # stdin=DEVNULL: a tool must never inherit ours. Under the MCP server
+        # our stdin IS the JSON-RPC stream, and a child that reads it (an
+        # agent-authored extension did, when an argument was missing) eats
+        # the requests and hangs every later call.
         proc = subprocess.run(
-            argv, cwd=cwd, env=env, capture_output=True,
+            argv, cwd=cwd, env=env, capture_output=True, stdin=subprocess.DEVNULL,
             text=True, timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired as e:

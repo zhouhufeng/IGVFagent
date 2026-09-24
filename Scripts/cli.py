@@ -318,6 +318,9 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Benchmarks/<paper-id>/ that concordance.py scores. "
                           "Subcommands: resolve, harvest, route, scaffold, run, "
                           "score, report, pipeline, selftest, list-routes."),
+    "files":            ("igvfagent.workspace_files",
+                          "Read/write plain-text files inside the workspace "
+                          "(never secrets or code; content never from stdin)"),
     "repro":            ("igvfagent.reproductions",
                           "Reproduction records: one searchable record per "
                           "paper across attempts (route, agreement with the "

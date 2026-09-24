@@ -132,7 +132,7 @@ def handle(request: dict, *, all_tools: bool = False) -> "dict | None":
         if not name:
             return _error(req_id, -32602, "missing tool name")
         try:
-            res = _tools.execute(name, args)
+            res = _tools.execute(name, args, timeout=_call_timeout(name, args))
         except KeyError:
             return _error(req_id, -32602, f"unknown tool: {name}")
         except Exception as e:
@@ -163,6 +163,21 @@ def handle(request: dict, *, all_tools: bool = False) -> "dict | None":
     return _error(req_id, -32601, f"method not found: {method}")
 
 
+def _call_timeout(name: str, args: dict) -> float:
+    """Every call is bounded, so a stuck tool cannot hold a client forever.
+    Waiting tools get their own wait plus a margin."""
+    base = float(os.environ.get("IGVF_MCP_TOOL_TIMEOUT", "3600"))
+    try:
+        wait_min = float(args.get("timeout_min") or 0)
+    except (TypeError, ValueError):
+        wait_min = 0.0
+    if name == "job_wait":
+        wait_min = wait_min or float(os.environ.get("IGVF_JOB_WAIT_MAX_MIN", "240"))
+    if name == "delegate_tasks":
+        wait_min = max(wait_min, float(os.environ.get("IGVF_DELEGATE_TIMEOUT_MIN", "90")))
+    return max(base, wait_min * 60 + 300)
+
+
 def serve_stdio(*, all_tools: bool = False) -> int:
     """Read JSON-RPC from stdin, write responses to stdout.
 
@@ -171,17 +186,22 @@ def serve_stdio(*, all_tools: bool = False) -> int:
     """
     print(f"{SERVER_NAME} MCP server ready on stdio "
           f"({len(_exposed_tools(all_tools=all_tools))} tools)", file=sys.stderr)
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            request = json.loads(line)
-        except json.JSONDecodeError:
-            sys.stdout.write(json.dumps(
-                _error(None, -32700, "parse error")) + "\n")
+    # Requests are handled concurrently: a client issues parallel tool calls,
+    # and one long call (delegate_tasks, a download) must not stall the rest.
+    # Responses carry their request id, so their order does not matter; the
+    # lock keeps each JSON line whole on stdout.
+    import concurrent.futures
+    import threading
+    out_lock = threading.Lock()
+    pool = concurrent.futures.ThreadPoolExecutor(
+        max_workers=int(os.environ.get("IGVF_MCP_WORKERS", "8")))
+
+    def emit(obj: dict) -> None:
+        with out_lock:
+            sys.stdout.write(json.dumps(obj) + "\n")
             sys.stdout.flush()
-            continue
+
+    def work(request: dict) -> None:
         try:
             response = handle(request, all_tools=all_tools)
         except Exception as e:  # never let one bad call kill the server
@@ -189,8 +209,22 @@ def serve_stdio(*, all_tools: bool = False) -> int:
             response = _error(request.get("id"), -32603,
                               f"internal error: {type(e).__name__}: {e}")
         if response is not None:
-            sys.stdout.write(json.dumps(response) + "\n")
-            sys.stdout.flush()
+            emit(response)
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError:
+            emit(_error(None, -32700, "parse error"))
+            continue
+        if request.get("method") in ("initialize", "tools/list") or request.get("id") is None:
+            work(request)  # handshake and notifications stay in order
+        else:
+            pool.submit(work, request)
+    pool.shutdown(wait=True)
     return 0
 
 
