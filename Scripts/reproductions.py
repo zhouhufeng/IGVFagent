@@ -428,7 +428,10 @@ def record_from_run(run_dir: str, *, paper_id: Optional[str] = None, doi: Option
         return None
     code = code_info([_rel(d) + "/summary.json"])
     t = title or s.get("paper") or s.get("repo")
-    st_ = "done" if s.get("render") == "ok" else "failed"
+    ents = s.get("entries") or []
+    clean = sum(1 for e in ents if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors"))
+    # a multi-analysis run counts as done when at least one analysis ran clean
+    st_ = "done" if s.get("render") == "ok" or clean else "failed"
     rec: Dict[str, Any] = {
         "paper_id": paper_id or _slug(t), "paper": {"title": t, "doi": doi, "claims": [],
                                                     "code_repositories": [s.get("repo")]},
