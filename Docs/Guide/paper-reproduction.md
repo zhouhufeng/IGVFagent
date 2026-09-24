@@ -55,6 +55,23 @@ After the first pass, **every missing file an analysis names drives more passes*
 
 `igvfagent paper-code data <repo> --zenodo <record|DOI> --into <path> [--files GLOB] [--extract]` puts a deposit into the checkout, where later runs find it. It also takes `--url` for a direct link. Checksums are verified and provenance is recorded in `Data/PaperCode/<repo>/data.json`. A job does this itself (`paper_code_fetch_data`) when analyses fail on missing inputs. Missing data that was never deposited is reported as a blocker.
 
+**Raw reads.** When the authors' workflow starts from sequencing reads, `paper-code reads` fetches them from ENA into the exact paths their code reads:
+
+```bash
+igvfagent paper-code reads pinellolab/bean_manuscript --guess-layout     # FASTQ path patterns in the authors' code
+igvfagent paper-code reads pinellolab/bean_manuscript --accession PRJNA1042659 --into workflow \
+    --layout "results/raw/{lib}/{library_name}_R{read}.fastq.gz" \
+    --match "^(?P<lib>LDLvar|LDLRCDS(?:_CBE_SpRY|_CBE_CasNG)?)_(?:rep|plasmid)" --include "^LDL"   # preview
+... --yes                                                               # download (md5-checked, resumable)
+```
+
+- The accession can be a BioProject, an SRA study or a GEO series; a GEO series is resolved to its BioProject.
+- The layout can use run-table fields (`library_name`, `sample_alias`, `run_accession`, …), named groups of `--match`, and `{read}`.
+- The preview shows the mapping, the total size, skipped runs and any file that would receive several runs, before anything is downloaded.
+- A manifest and the provenance go to `Data/PaperCode/<repo>/`.
+
+**The paper's own statements win.** When a paper states a software version that differs from its repository's environment, pin it with `--pin pip:NAME==VERSION`. For example, Ryu 2024 says "the version (0.2.9) of bean used for the analyses", while `environment.yml` pins 0.2.5.
+
 **Compatibility shims for Python notebooks.** Like the R shims, these are loaded into the kernel without editing the notebook, and they are listed in the report whenever they fire. `mpl_missing_style` falls back to the default style when a notebook uses the authors' unpublished matplotlib style, such as `jr`: figures look different, values are unchanged.
 
 **The authors' declared environment comes first.** Python notebooks run on a micromamba environment built from the repository's own `environment.yml`, whenever it pins Python:

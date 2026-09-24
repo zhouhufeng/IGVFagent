@@ -6152,6 +6152,25 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "paper_code_fetch_reads",
+        "Raw sequencing reads of a paper (SRA/ENA BioProject, SRA study or GEO series) into the exact paths the "
+        "authors' workflow reads. layout is a template relative to `into` using run-table fields (library_name, "
+        "sample_alias, run_accession, ...) and named groups of `match` applied to `field`, plus {read} (1/2). "
+        "Use guess_layout first to see the FASTQ path patterns in the authors' code, then preview (download=false, "
+        "the default) and check the mapping, then download=true. md5-checked, resumable, provenance recorded.",
+        {"type": "object", "properties": {
+            "repo": {**_S_STRING}, "accession": {**_S_STRING},
+            "layout": {**_S_STRING, "description": "e.g. results/raw/{lib}/{library_name}_R{read}.fastq.gz"},
+            "into": {**_S_STRING, "description": "Directory inside the repository (e.g. workflow)."},
+            "match": {**_S_STRING, "description": "Regex with named groups on `field`, e.g. ^(?P<lib>.+?)_(?:rep|plasmid)"},
+            "field": {**_S_STRING}, "include": {**_S_STRING, "description": "Only runs whose field matches."},
+            "guess_layout": {**_S_BOOLEAN}, "download": {**_S_BOOLEAN, "description": "Download (else preview)."},
+            "max_gb": {**_S_NUMBER}}, "required": ["repo"]},
+        cli=["paper-code", "reads"], positional=["repo"], flag_map={"download": "--yes", "max_gb": "--max-gb"},
+        bool_flags={"guess_layout", "download"},
+    ),
+
+    _T(
         "paper_code_status",
         "State of a paper_code_reproduce run directory (running stage, or the "
         "final result with report, summary and figure counts).",

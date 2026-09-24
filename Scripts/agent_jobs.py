@@ -150,7 +150,12 @@ c0. When analyses fail on missing inputs: if the repository has a Snakemake
    workflow, re-run with workflow=true (its dry run lists every missing input);
    fetch the paper's deposited data (Zenodo/figshare in the Data Availability
    statement) with paper_code_fetch_data into the paths the code reads; then
-   re-run. Missing data that is not deposited is a blocker, named in the report.
+   re-run. When the workflow starts from raw reads, fetch them with
+   paper_code_fetch_reads (guess_layout, then preview, then download=true)
+   into the paths the authors' code reads. If the paper states software
+   versions that differ from the repository's environment (e.g. "version 0.2.9
+   of bean was used"), re-run with pin pip:NAME==VERSION; the paper wins.
+   Missing data that is not deposited is a blocker, named in the report.
 c. Read summary.json and report.md. For chunks that raised errors, diagnose
    from run.log and report.md (a package API change is the usual cause;
    inventory.json lists the versions the authors ran). Repair only the

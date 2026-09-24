@@ -858,6 +858,11 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     deps = doc.get("dependencies") or []
     conda = [d for d in deps if isinstance(d, str)]
     pip = [x for d in deps if isinstance(d, dict) for x in d.get("pip") or []]
+    # --pin pip:NAME==VER overrides the declared pip dependency (e.g. the paper
+    # states it used bean 0.2.9 while the repository's environment says 0.2.5)
+    pip_over = {_dep_name(p_[4:])[0].lower(): p_[4:] for p_ in pins if p_.startswith("pip:")}
+    pip = [pip_over.pop(_dep_name(x)[0].lower(), x) for x in pip] + list(pip_over.values())
+    pins = [p_ for p_ in pins if not p_.startswith("pip:")]
     gpu = bool(shutil.which("nvidia-smi"))
     dropped = [d for d in conda if GPU_ONLY.match(_dep_name(d)[0]) and not gpu]
     conda = [d for d in conda if d not in dropped and _dep_name(d)[0].lower() != "pip"]
@@ -882,7 +887,7 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
 
     # the builder's version is part of the key: a fix to how envs are built
     # (compilers, fallbacks) must not be hidden by a cached older env
-    h = hashlib.sha256((DECLARED_ENV_BUILDER + yml.read_text() + "|".join(pins)).encode()).hexdigest()[:12]
+    h = hashlib.sha256((DECLARED_ENV_BUILDER + yml.read_text() + "|".join(pins) + "|".join(pip)).encode()).hexdigest()[:12]
     prefix = CODE_DIR / "envs" / f"declared_{h}"
     ok_marker = prefix / ".igvf_env_ok.json"
     if ok_marker.exists():
@@ -2051,6 +2056,177 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
     return res
 
 
+# ─── raw reads (SRA / ENA) into the paths the workflow reads ─────────────────
+
+ENA_FIELDS = "run_accession,sample_alias,sample_title,experiment_title,library_name,experiment_alias,fastq_bytes,fastq_ftp,fastq_md5"
+
+
+def _http_json(url: str) -> Any:
+    req = urllib.request.Request(url, headers={"User-Agent": "igvfagent"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return json.loads(r.read().decode())
+
+
+def resolve_study(acc: str) -> str:
+    """GEO series -> its BioProject (ENA knows BioProjects, SRA studies and
+    runs directly)."""
+    acc = acc.strip()
+    if acc.upper().startswith("GSE"):
+        es = _http_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=bioproject&term={acc}"
+                        "[All Fields]&retmode=json")
+        ids = es.get("esearchresult", {}).get("idlist") or []
+        if ids:
+            sm = _http_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=bioproject&id={ids[0]}"
+                            "&retmode=json")
+            return sm["result"][ids[0]]["project_acc"]
+        raise ValueError(f"no BioProject found for {acc}")
+    return acc
+
+
+def ena_runs(acc: str) -> "List[Dict[str, str]]":
+    url = (f"https://www.ebi.ac.uk/ena/portal/api/filereport?accession={urllib.parse.quote(resolve_study(acc))}"
+           f"&result=read_run&fields={ENA_FIELDS}&format=tsv&limit=0")
+    req = urllib.request.Request(url, headers={"User-Agent": "igvfagent"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        lines = r.read().decode().splitlines()
+    if not lines:
+        return []
+    head = lines[0].split("\t")
+    return [dict(zip(head, ln.split("\t"))) for ln in lines[1:] if ln.strip()]
+
+
+def guess_read_layout(src: Path) -> "List[str]":
+    """FASTQ path patterns the authors' code builds (to choose --layout)."""
+    pats = []
+    for f in list(src.rglob("*.py")) + list(src.rglob("*.smk")) + list(src.rglob("Snakefile")) + \
+            list(src.rglob("*.R")) + list(src.rglob("*.sh")) + list(src.rglob("*.yaml")) + list(src.rglob("*.yml")):
+        if ".git" in f.parts or f.stat().st_size > 2_000_000:
+            continue
+        for m in re.finditer(r"[\"']([^\"'\n]*\{[^\"'\n]*\}[^\"'\n]*\.(?:fastq|fq)(?:\.gz)?)[\"']",
+                             f.read_text(errors="replace")):
+            k = f"{m.group(1)}    ({f.relative_to(src)})"
+            if k not in pats:
+                pats.append(k)
+    return pats[:30]
+
+
+def plan_reads(runs: "List[Dict[str, str]]", layout: str, match: Optional[str] = None, field: str = "library_name",
+               include: Optional[str] = None) -> "List[Dict[str, Any]]":
+    rx = re.compile(match) if match else None
+    inc = re.compile(include) if include else None
+    plan = []
+    for r in runs:
+        key = r.get(field) or ""
+        if inc and not inc.search(key):
+            continue
+        fields = {k: v for k, v in r.items()}
+        if rx:
+            m = rx.search(key)
+            if not m:
+                plan.append({"run": r["run_accession"], "key": key, "skip": f"--match did not match {field}"})
+                continue
+            fields.update({k: v for k, v in m.groupdict().items() if v is not None})
+        urls = [u for u in (r.get("fastq_ftp") or "").split(";") if u]
+        md5s = (r.get("fastq_md5") or "").split(";")
+        sizes = (r.get("fastq_bytes") or "").split(";")
+        paired = [i for i, u in enumerate(urls) if re.search(r"_[12]\.f(ast)?q\.gz$", u)]
+        use = paired or list(range(len(urls)))
+        for n, i in enumerate(use, 1):
+            read = re.search(r"_([12])\.f(ast)?q\.gz$", urls[i]).group(1) if paired else str(n)
+            try:
+                dest = layout.format(**fields, read=read)
+            except KeyError as e:
+                plan.append({"run": r["run_accession"], "key": key, "skip": f"layout needs {e}"})
+                break
+            plan.append({"run": r["run_accession"], "key": key, "read": read, "url": "https://" + urls[i],
+                         "md5": md5s[i] if i < len(md5s) else "", "bytes": int(sizes[i]) if i < len(sizes) and
+                         sizes[i].isdigit() else 0, "dest": dest})
+    return plan
+
+
+def fetch_reads(repo: str, accession: str, layout: str, *, into: str = "", match: Optional[str] = None,
+                field: str = "library_name", include: Optional[str] = None, download: bool = False,
+                max_gb: float = 200.0, workers: int = 4) -> Dict[str, Any]:
+    """Map a study's runs onto the file names the authors' code reads, and
+    (with download) fetch them from ENA with md5 checks, resumably. Without
+    download it only previews the mapping, so the layout can be checked first."""
+    d = repo_dir(repo)
+    src = d / "src"
+    if not src.is_dir():
+        return {"ok": False, "error": f"fetch the repository first (paper-code fetch {repo})"}
+    base = (src / into).resolve()
+    runs = ena_runs(accession)
+    plan = plan_reads(runs, layout, match, field, include)
+    todo = [p_ for p_ in plan if not p_.get("skip")]
+    for p_ in todo:
+        q = (base / p_["dest"]).resolve()
+        try:
+            q.relative_to(src.resolve())
+        except ValueError:
+            return {"ok": False, "error": f"layout places {p_['dest']} outside the repository"}
+        p_["path"] = q
+    dests = [p_["dest"] for p_ in todo]
+    dup = sorted({x for x in dests if dests.count(x) > 1})
+    total = sum(p_["bytes"] for p_ in todo)
+    out: Dict[str, Any] = {"ok": True, "accession": accession, "runs": len(runs), "files": len(todo),
+                           "gigabytes": round(total / 1e9, 2), "skipped": [p_ for p_ in plan if p_.get("skip")][:20],
+                           "duplicates": dup[:20],
+                           "preview": [{"run": p_["run"], "read": p_["read"], "dest": p_["dest"]} for p_ in todo[:12]]}
+    if dup:
+        out.update(ok=False, error=f"{len(dup)} destination(s) would receive several runs; refine --layout/--match")
+        return out
+    if not download:
+        out["note"] = "preview only: re-run with --yes to download"
+        return out
+    if total / 1e9 > max_gb:
+        return {**out, "ok": False, "error": f"{total / 1e9:.1f} GB exceeds --max-gb {max_gb}"}
+    import concurrent.futures
+
+    def one(p_: Dict[str, Any]) -> Dict[str, Any]:
+        q: Path = p_["path"]
+        if q.exists() and p_["bytes"] and q.stat().st_size == p_["bytes"]:
+            return {"dest": p_["dest"], "status": "present"}
+        q.parent.mkdir(parents=True, exist_ok=True)
+        tmp = q.with_name(q.name + ".part")
+        h = hashlib.md5()
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(p_["url"], headers={"User-Agent": "igvfagent"})
+                with urllib.request.urlopen(req, timeout=300) as r, open(tmp, "wb") as fh:
+                    h = hashlib.md5()
+                    while True:
+                        b = r.read(1 << 20)
+                        if not b:
+                            break
+                        h.update(b)
+                        fh.write(b)
+                break
+            except Exception as e:  # noqa: BLE001
+                if attempt == 2:
+                    return {"dest": p_["dest"], "status": f"failed: {e}"}
+        if p_["md5"] and h.hexdigest() != p_["md5"]:
+            tmp.unlink(missing_ok=True)
+            return {"dest": p_["dest"], "status": "md5 mismatch"}
+        os.replace(tmp, q)
+        return {"dest": p_["dest"], "status": "downloaded"}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        results = list(ex.map(one, todo))
+    ok_n = sum(1 for r in results if r["status"] in ("downloaded", "present"))
+    prov = _read_json(d / "data.json", []) or []
+    prov.append({"source": f"ENA/SRA {accession}", "layout": layout, "into": into, "match": match,
+                 "files": ok_n, "gigabytes": out["gigabytes"],
+                 "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                 "file": _rel(base), "checksum": "md5 per file (ENA)"})
+    _write_json(d / "data.json", prov)
+    manifest = d / f"reads_{re.sub(r'[^A-Za-z0-9]+', '_', accession)}.tsv"
+    manifest.write_text("run\tread\tdest\tstatus\n" + "".join(
+        f"{p_['run']}\t{p_['read']}\t{p_['dest']}\t{r['status']}\n" for p_, r in zip(todo, results)))
+    out.update({"downloaded_or_present": ok_n, "failed": [r for r in results if r["status"] not in
+                                                          ("downloaded", "present")][:20],
+                "manifest": _rel(manifest), "ok": ok_n == len(todo)})
+    return out
+
+
 # ─── deposited data (Zenodo, URLs) into the checkout ────────────────────────
 
 def _zenodo_id(ref: str) -> Optional[str]:
@@ -2659,6 +2835,19 @@ def cmd_selftest() -> int:
                                                                                     into="../../x")["ok"])
         finally:
             g["CODE_DIR"], g["ROOT"] = saved
+    runs = [{"run_accession": "SRR1", "library_name": "LDLvar_rep1_top", "fastq_bytes": "10;12",
+             "fastq_ftp": "ftp.x/SRR1_1.fastq.gz;ftp.x/SRR1_2.fastq.gz", "fastq_md5": "a;b"},
+            {"run_accession": "SRR2", "library_name": "LDLRCDS_CBE_SpRY_rep2", "fastq_bytes": "5",
+             "fastq_ftp": "ftp.x/SRR2_1.fastq.gz", "fastq_md5": "c"},
+            {"run_accession": "SRR3", "library_name": "20loci_ATAC_rep1", "fastq_bytes": "1",
+             "fastq_ftp": "ftp.x/SRR3_1.fastq.gz", "fastq_md5": "d"}]
+    pl = plan_reads(runs, "results/raw/{lib}/{library_name}_R{read}.fastq.gz",
+                    r"^(?P<lib>LDLvar|LDLRCDS(?:_CBE_SpRY)?)_(?:rep|plasmid)")
+    got = [(x["run"], x.get("dest"), x.get("skip")) for x in pl]
+    check("runs map onto the authors' FASTQ names (paired reads, regex groups); non-matching runs are skipped",
+          ("SRR1", "results/raw/LDLvar/LDLvar_rep1_top_R2.fastq.gz", None) in got
+          and ("SRR2", "results/raw/LDLRCDS_CBE_SpRY/LDLRCDS_CBE_SpRY_rep2_R1.fastq.gz", None) in got
+          and any(r == "SRR3" and sk for r, _, sk in got))
     gy = GPU_ONLY
     check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
           and not gy.match("pytorch") and not gy.match("numpy"))
@@ -2718,6 +2907,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--into", default="", help="directory inside the repository (where the analyses read it)")
     s.add_argument("--files", help="glob of record files to take (default: all)")
     s.add_argument("--extract", action="store_true", help="unpack .zip/.tar.gz archives after download")
+    s = sub.add_parser("reads", help="Raw reads of a study (SRA/ENA/GEO) into the paths the authors' code reads")
+    s.add_argument("repo")
+    s.add_argument("--accession", help="BioProject (PRJNA/PRJEB), SRA study (SRP/ERP), GEO series (GSE) or run")
+    s.add_argument("--layout", help="destination template relative to --into, with run-table fields and --match "
+                                   "groups, e.g. 'results/raw/{lib}/{library_name}_R{read}.fastq.gz'")
+    s.add_argument("--into", default="", help="directory inside the repository the layout is relative to")
+    s.add_argument("--match", help="regex with named groups applied to --field, e.g. '^(?P<lib>.+?)_(?:rep|plasmid)'")
+    s.add_argument("--field", default="library_name")
+    s.add_argument("--include", help="only runs whose --field matches this regex")
+    s.add_argument("--guess-layout", action="store_true", help="show the FASTQ path patterns in the authors' code")
+    s.add_argument("--yes", action="store_true", help="download (default: preview the mapping only)")
+    s.add_argument("--max-gb", type=float, default=200)
     s = sub.add_parser("report", help="Re-write the report of a finished run directory")
     s.add_argument("run_dir")
     s = sub.add_parser("status", help="State of a run directory")
@@ -2786,6 +2987,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(json.dumps({k: v for k, v in res.items()}, indent=2, default=str))
         if res.get("ok"):
             _announce(res)
+        return 0 if res.get("ok") else 1
+    if args.cmd == "reads":
+        repo = find(repo=args.repo)["candidates"][0]["repo"]
+        if args.guess_layout:
+            for ln in guess_read_layout(repo_dir(repo) / "src"):
+                print(ln)
+            return 0
+        if not (args.accession and args.layout):
+            print("give --accession and --layout (see --guess-layout)")
+            return 2
+        res = fetch_reads(repo, args.accession, args.layout, into=args.into, match=args.match, field=args.field,
+                          include=args.include, download=args.yes, max_gb=args.max_gb)
+        print(json.dumps(res, indent=2, default=str))
         return 0 if res.get("ok") else 1
     if args.cmd == "data":
         res = fetch_data(find(repo=args.repo)["candidates"][0]["repo"], zenodo=args.zenodo, url=args.url,
