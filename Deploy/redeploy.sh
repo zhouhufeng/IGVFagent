@@ -77,18 +77,24 @@ DATA_DOCS=/mnt/igvf-data/Docs
 BENCH_VOL=/mnt/igvf-data/Benchmarks
 seed_benchmarks() {
     [ -d /mnt/igvf-data ] || { echo "  /mnt/igvf-data not present — skipping"; return 0; }
-    mkdir -p "$BENCH_VOL"
+    # /mnt/igvf-data is root-owned, and docker creates a missing bind source as
+    # root: every step on the volume runs as root, then hands it to the
+    # container user (1000).
+    local SUDO=""; [ "$(id -u)" = 0 ] || SUDO="sudo -n"
+    $SUDO mkdir -p "$BENCH_VOL"
     if docker inspect "$CONTAINER" >/dev/null 2>&1 && \
        ! docker inspect "$CONTAINER" --format '{{range .Mounts}}{{.Destination}} {{end}}' | grep -q '/workspace/Benchmarks'; then
         local tmp; tmp="$(mktemp -d)"
         if docker cp "$CONTAINER:/workspace/Benchmarks/." "$tmp/" 2>/dev/null; then
-            cp -rn "$tmp/." "$BENCH_VOL/" && echo "  rescued $(find "$tmp" -type f | wc -l) file(s) the container wrote under Benchmarks/"
+            $SUDO cp -rn "$tmp/." "$BENCH_VOL/" && echo "  rescued $(find "$tmp" -type f | wc -l) file(s) the container wrote under Benchmarks/"
         fi
         rm -rf "$tmp"
     fi
-    git -C "$ROOT" ls-files -z Benchmarks | tar --null -T - -C "$ROOT" -cf - | tar -xf - -C /mnt/igvf-data/
-    chown -R 1000:1000 "$BENCH_VOL" 2>/dev/null || sudo chown -R 1000:1000 "$BENCH_VOL" 2>/dev/null || true
-    echo "  Benchmarks/ suite refreshed on the volume ($(git -C "$ROOT" ls-files Benchmarks | wc -l) tracked files)"
+    git -C "$ROOT" ls-files -z Benchmarks | tar --null -C "$ROOT" -T - -cf - | $SUDO tar -xf - -C /mnt/igvf-data/
+    $SUDO chown -R 1000:1000 "$BENCH_VOL"
+    local n; n=$(find "$BENCH_VOL" -type f | wc -l)
+    [ "$n" -gt 0 ] || { echo "  ERROR: Benchmarks/ volume is empty after seeding"; return 1; }
+    echo "  Benchmarks/ on the volume: $n file(s) ($(git -C "$ROOT" ls-files Benchmarks | wc -l) tracked)"
 }
 
 seed_fixtures() {
