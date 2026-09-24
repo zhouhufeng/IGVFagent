@@ -73,7 +73,8 @@ CRAN = "https://cloud.r-project.org"
 R_BASE_PKGS = {"base", "grid", "stats", "utils", "methods", "graphics", "grDevices", "tools", "parallel",
                "splines", "stats4", "tcltk", "compiler", "datasets"}
 R_ALWAYS = ["r-base", "r-rmarkdown", "r-knitr", "pandoc", "poppler"]
-PY_PIP_NAME = {"sklearn": "scikit-learn", "cv2": "opencv-python", "PIL": "pillow", "yaml": "pyyaml",
+PY_PIP_NAME = {"pkg_resources": "setuptools", "pyro": "pyro-ppl", "torch": "torch", "Bio": "biopython", "anndata": "anndata",
+               "sklearn": "scikit-learn", "cv2": "opencv-python", "PIL": "pillow", "yaml": "pyyaml",
                "Bio": "biopython", "skimage": "scikit-image", "bs4": "beautifulsoup4", "umap": "umap-learn",
                "igraph": "python-igraph", "sc": "scanpy", "mpl_toolkits": "matplotlib"}
 PY_ALWAYS = ["nbconvert", "nbclient", "ipykernel", "nbformat", "matplotlib"]
@@ -1826,21 +1827,77 @@ def build_targets(work: Path, wf: Dict[str, str], env: Dict[str, Any], targets: 
     if by_wd:
         t0 = time.time()
         codes = []
-        for wd, rels in by_wd.items():
-            cmd = _snk(exe, work, wf, wd, rels, "--keep-going", "--rerun-incomplete", cores=cores)
-            with open(log, "a") as lf:
-                lf.write("\n---- targets the analyses asked for ----\n$ " + " ".join(cmd) + "\n")
-                lf.flush()
-                try:
-                    codes.append(subprocess.run(cmd, cwd=str(wd), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
-                                                stdin=subprocess.DEVNULL, timeout=timeout_min * 60).returncode)
-                except subprocess.TimeoutExpired:
-                    codes.append(124)
-        res["exit"] = max(codes)
+        _build_rounds(res, by_wd, exe, work, wf, cores, envvars, log, timeout_min, prefix, codes)
+        res["exit"] = max(codes) if codes else None
         res["workdirs"] = [_rel(w) for w in by_wd]
         res["seconds"] = round(time.time() - t0, 1)
         res["built"] = [t for t in res["buildable"] if (work / t).exists()]
     return res
+
+
+def _pip(py: Path, *args: str) -> "List[str]":
+    """pip for an environment's interpreter: its own pip module, else uv."""
+    has = subprocess.run([str(py), "-c", "import pip"], capture_output=True, stdin=subprocess.DEVNULL).returncode == 0
+    if has:
+        return [str(py), "-m", "pip", *args[:1], *(["--no-input"] if args[:1] == ("install",) else []), *args[1:]]
+    uv = shutil.which("uv") or "uv"
+    return [uv, "pip", *args[:1], "--python", str(py), *args[1:]]
+
+
+def _build_rounds(res: Dict[str, Any], by_wd: Dict[Path, List[str]], exe: Path, work: Path, wf: Dict[str, str],
+                  cores: int, envvars: Dict[str, str], log: Path, timeout_min: float, prefix: Path,
+                  codes: "List[int]") -> None:
+    """Build the targets; if a rule died on a module the declared environment
+    lacks (its authors had it installed without declaring it), install that
+    module (pip, then conda-forge/bioconda) and build once more."""
+    got_all: List[str] = []
+    for attempt in (1, 2, 3, 4):
+        start = log.stat().st_size if log.exists() else 0
+        round_codes: List[int] = []
+        for wd, rels in by_wd.items():
+            cmd = _snk(exe, work, wf, wd, rels, "--keep-going", "--rerun-incomplete", cores=cores)
+            with open(log, "a") as lf:
+                lf.write(f"\n---- targets the analyses asked for (attempt {attempt}) ----\n$ " + " ".join(cmd) + "\n")
+                lf.flush()
+                try:
+                    round_codes.append(subprocess.run(cmd, cwd=str(wd), env=envvars, stdout=lf,
+                                                      stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                                      timeout=timeout_min * 60).returncode)
+                except subprocess.TimeoutExpired:
+                    round_codes.append(124)
+        codes[:] = round_codes  # the result is the last round's
+        if attempt == 4 or not any(round_codes):
+            return
+        with open(log, errors="replace") as fh:
+            fh.seek(start)
+            mods = sorted(set(re.findall(r"ModuleNotFoundError: No module named '([\w.]+)'", fh.read())))
+        mods = [m.split(".")[0] for m in mods]
+        if not mods:
+            return
+        py = prefix / "bin" / "python"
+        got = []
+        # Never upgrade what the authors pinned: everything installed now is a
+        # constraint, so pip picks a version compatible with it (or fails).
+        frz = subprocess.run(_pip(py, "freeze"), capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout or ""
+        cons = log.parent / "_constraints.txt"
+        cons.write_text("\n".join(ln for ln in frz.splitlines() if "==" in ln and " @ " not in ln) + "\n")
+        for m in sorted(set(mods)):
+            pipn = PY_PIP_NAME.get(m, m)
+            if subprocess.run(_pip(py, "install", "-c", str(cons), pipn), capture_output=True,
+                              stdin=subprocess.DEVNULL).returncode == 0:
+                got.append(f"{m} (pip {pipn})")
+                continue
+            mm = micromamba()
+            for cand in CONDA_NAMES.get(m.lower(), [pipn.lower(), m.lower()]):
+                if subprocess.run([str(mm), "-r", str(CODE_DIR / "mamba-root"), "install", "-y", "-p", str(prefix),
+                                   "-c", "conda-forge", "-c", "bioconda", cand], capture_output=True,
+                                  stdin=subprocess.DEVNULL).returncode == 0:
+                    got.append(f"{m} (conda {cand})")
+                    break
+        got_all += got
+        res["installed_on_demand"] = got_all
+        if not got:
+            return
 
 
 def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path, timeout_min: float,
@@ -2201,6 +2258,9 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                      + (f"; the analyses asked for {len(wf_res['second_pass']['requested'])} missing file(s), "
                         f"{len(wf_res['second_pass']['buildable'])} buildable by the workflow, "
                         f"{len(wf_res['second_pass'].get('built') or [])} built"
+                        + (f" (installed on demand, missing from the declared environment: "
+                           f"{', '.join(wf_res['second_pass']['installed_on_demand'])})"
+                           if wf_res['second_pass'].get('installed_on_demand') else "")
                         if wf_res.get("second_pass") else "")
                      + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
                         f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
