@@ -210,6 +210,11 @@ def fetch(repo: str, ref: Optional[str] = None) -> Dict[str, Any]:
             return {"ok": False, "error": f"cannot check out {ref}: {p.stderr.strip()[-300:]}"}
     commit = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"], capture_output=True,
                             text=True).stdout.strip()
+    old = _read_json(d / "source.json", {}) or {}
+    if old.get("commit") == commit and old.get("src") == _rel(src):
+        # Unchanged source: leave the file (and its hash) alone. A job that
+        # verified it as evidence must not see it "change" on every fetch.
+        return {"ok": True, **old}
     meta = {"repo": repo, "url": f"https://github.com/{repo}", "commit": commit, "src": _rel(src),
             "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     _write_json(d / "source.json", meta)
@@ -243,6 +248,8 @@ def _fetch_tarball(repo: str, ref: Optional[str], d: Path) -> Dict[str, Any]:
                 tf.extract(m, tmp)
         (next(tmp.iterdir())).rename(src)
         shutil.rmtree(tmp, ignore_errors=True)
+    if meta.get("commit") == commit and (d / "src").is_dir():
+        return {"ok": True, **meta}
     meta = {"repo": repo, "url": f"https://github.com/{repo}", "commit": commit, "src": _rel(src),
             "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "via": "tarball"}
     _write_json(d / "source.json", meta)

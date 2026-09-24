@@ -623,8 +623,27 @@ class ClaudeCodeRunner:
         return res
 
     def run_round(self, job: dict, prompt: str, history: "List[dict]") -> RoundResult:
+        res = self._run_once(job, prompt)
+        if job.get("session_id") and res.error and not res.answer.strip() and (
+                res.stop_reason == "error_during_execution" or "conversation" in (res.error or "").lower()):
+            # The Claude Code session could not be resumed (it lived in a
+            # container a redeploy replaced, or expired). The round prompt
+            # carries the task, the plan and the open issues, so a fresh
+            # session continues from the plan instead of failing the job.
+            event(job["id"], "session", f"session {job['session_id'][:8]} could not be resumed; starting a fresh "
+                                        "session from the plan")
+            update_job(job["id"], session_id="")
+            res = self._run_once({**job, "session_id": ""}, prompt)
+        return res
+
+    def _run_once(self, job: dict, prompt: str) -> RoundResult:
         jid = job["id"]
         env = dict(os.environ)
+        # Keep Claude Code's sessions with the job on the persistent volume, so
+        # --resume still works after the container is recreated.
+        cdir = job_dir(jid) / "claude"
+        cdir.mkdir(parents=True, exist_ok=True)
+        env.setdefault("CLAUDE_CONFIG_DIR", str(cdir))
         env.setdefault("IGVF_PROJECT_ROOT", str(ROOT))
         # job_wait may legitimately wait hours; the IGVFagent MCP server bounds
         # every other call itself (IGVF_MCP_TOOL_TIMEOUT), so the client's
