@@ -1773,6 +1773,24 @@ def missing_files(sub: Path, entry: str, work: Path) -> "List[str]":
     return out
 
 
+def _snk(exe: Path, work: Path, wf: Dict[str, str], wd: Path, targets: "Sequence[str]", *extra: str,
+         cores: int = 4) -> "List[str]":
+    """A snakemake command. Targets go first: in Snakemake 7 `--quiet` takes
+    an optional value and would swallow a following target."""
+    return [str(exe), *targets, "-s", str((work / wf["file"]).resolve()), "-d", str(wd), "--cores", str(cores),
+            "--nolock", *extra]
+
+
+def _workdirs(work: Path, wf: Dict[str, str]) -> "List[Path]":
+    """Where the rules' relative paths live: the repository root, or the
+    Snakefile's directory (WorkflowHub layouts keep results/ under workflow/)."""
+    out = [work]
+    d = (work / wf["file"]).parent
+    if d != work:
+        out.insert(0 if (d / "results").exists() or (d / "resources").exists() else 1, d)
+    return out
+
+
 def build_targets(work: Path, wf: Dict[str, str], env: Dict[str, Any], targets: "List[str]", log: Path,
                   timeout_min: float, cores: int) -> Dict[str, Any]:
     """Ask the workflow for specific files (what the analyses could not find):
@@ -1783,30 +1801,43 @@ def build_targets(work: Path, wf: Dict[str, str], env: Dict[str, Any], targets: 
     if wf.get("engine") != "snakemake" or not exe.exists() or not targets:
         return res
     envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
-    base = [str(exe), "-s", wf["file"], "--cores", str(cores), "--nolock"]
+    by_wd: Dict[Path, List[str]] = {}
     for t in targets[:120]:
-        d_ = subprocess.run(base + ["-n", "--quiet", t], cwd=str(work), env=envvars, capture_output=True, text=True,
-                            stdin=subprocess.DEVNULL, timeout=600)
-        txt = (d_.stdout or "") + (d_.stderr or "")
-        if d_.returncode == 0:
-            res["buildable"].append(t)
-        else:
+        why: List[str] = []
+        for wd in _workdirs(work, wf):
+            try:
+                rel = os.path.relpath(work / t, wd)
+            except ValueError:
+                continue
+            if rel.startswith(".."):
+                continue
+            d_ = subprocess.run(_snk(exe, work, wf, wd, [rel], "-n", "--quiet", "rules", cores=cores), cwd=str(wd),
+                                env=envvars, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
+            txt = (d_.stdout or "") + (d_.stderr or "")
+            if d_.returncode == 0:
+                by_wd.setdefault(wd, []).append(rel)
+                res["buildable"].append(t)
+                break
             why = _missing_inputs(txt)[:3] or [next((ln.strip() for ln in txt.splitlines()
                                                     if "MissingRuleException" in ln or "No rule to produce" in ln),
                                                    txt.strip().splitlines()[-1][:160] if txt.strip() else "")]
+        else:
             res["not_buildable"][t] = why
-    if res["buildable"]:
+    if by_wd:
         t0 = time.time()
-        with open(log, "a") as lf:
-            lf.write("\n---- targets the analyses asked for ----\n$ " + " ".join(base + res["buildable"]) + "\n")
-            lf.flush()
-            try:
-                p_ = subprocess.run(base + ["--keep-going", "--rerun-incomplete"] + res["buildable"], cwd=str(work),
-                                    env=envvars, stdout=lf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                    timeout=timeout_min * 60)
-                res["exit"] = p_.returncode
-            except subprocess.TimeoutExpired:
-                res["exit"] = 124
+        codes = []
+        for wd, rels in by_wd.items():
+            cmd = _snk(exe, work, wf, wd, rels, "--keep-going", "--rerun-incomplete", cores=cores)
+            with open(log, "a") as lf:
+                lf.write("\n---- targets the analyses asked for ----\n$ " + " ".join(cmd) + "\n")
+                lf.flush()
+                try:
+                    codes.append(subprocess.run(cmd, cwd=str(wd), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
+                                                stdin=subprocess.DEVNULL, timeout=timeout_min * 60).returncode)
+                except subprocess.TimeoutExpired:
+                    codes.append(124)
+        res["exit"] = max(codes)
+        res["workdirs"] = [_rel(w) for w in by_wd]
         res["seconds"] = round(time.time() - t0, 1)
         res["built"] = [t for t in res["buildable"] if (work / t).exists()]
     return res
@@ -1827,9 +1858,11 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
         res["error"] = "snakemake is not in the analysis environment (add it to the declared env or --pin snakemake)"
         return res
     envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
-    base = [str(exe), "-s", wf["file"], "--cores", str(cores), "--nolock"]
+    wd = _workdirs(work, wf)[0]
+    res["workdir"] = _rel(wd)
+    base = _snk(exe, work, wf, wd, [], cores=cores)
     t0 = time.time()
-    dry = subprocess.run(base + ["-n", "--quiet"], cwd=str(work), env=envvars, capture_output=True, text=True,
+    dry = subprocess.run(base + ["-n", "--quiet", "rules"], cwd=str(wd), env=envvars, capture_output=True, text=True,
                          stdin=subprocess.DEVNULL, timeout=1800)
     txt = (dry.stdout or "") + (dry.stderr or "")
     jobs = re.findall(r"^\s*(\w[\w.-]*)\s+(\d+)\s*$", txt, re.M)
@@ -1842,22 +1875,22 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
         # The full DAG needs files that are not here (raw reads, usually).
         # Run every rule that can be built from what exists instead: often the
         # modelling steps start from the deposited processed objects.
-        lr = subprocess.run([str(exe), "-s", wf["file"], "--list-rules"], cwd=str(work), env=envvars,
+        lr = subprocess.run(base + ["--list-rules"], cwd=str(wd), env=envvars,
                             capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
         rules = [r.strip() for r in (lr.stdout or "").splitlines() if re.match(r"^\s*\w+\s*$", r)]
         blocked: Dict[str, List[str]] = {}
         for r in rules:
             if r == "all":
                 continue
-            d_ = subprocess.run(base + ["-n", "--quiet", r], cwd=str(work), env=envvars, capture_output=True,
-                                text=True, stdin=subprocess.DEVNULL, timeout=600)
+            d_ = subprocess.run(_snk(exe, work, wf, wd, [r], "-n", "--quiet", "rules", cores=cores), cwd=str(wd),
+                                env=envvars, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
             if d_.returncode == 0:
                 targets.append(r)
             else:
                 blocked[r] = _missing_inputs((d_.stdout or "") + (d_.stderr or ""))[:5]
         res["targets"] = {"buildable": targets, "blocked": blocked}
     before = _snapshot(work)
-    cmd = base + ["--keep-going", "--rerun-incomplete"] + targets
+    cmd = _snk(exe, work, wf, wd, targets, "--keep-going", "--rerun-incomplete", cores=cores)
     with open(log, "w") as lf:
         lf.write("$ " + " ".join(cmd) + "\n" + txt + "\n---- run ----\n")
         lf.flush()
@@ -1865,7 +1898,7 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
             rc = dry.returncode  # nothing can be built from what is here
         else:
             try:
-                p_ = subprocess.run(cmd, cwd=str(work), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
+                p_ = subprocess.run(cmd, cwd=str(wd), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
                                     stdin=subprocess.DEVNULL, timeout=timeout_min * 60)
                 rc = p_.returncode
             except subprocess.TimeoutExpired:
