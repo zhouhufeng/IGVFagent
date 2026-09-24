@@ -79,6 +79,12 @@ services:
       IGVF_SECRET_ACCESS_KEY: ${IGVF_SECRET_ACCESS_KEY:-}
       IGVF_PORTAL_COOKIE:     ${IGVF_PORTAL_COOKIE:-}
       IGVF_ARANGO_PASSWORD:   ${IGVF_ARANGO_PASSWORD:-}
+      # AlphaGenome API key (alphagenome_* tools). Empty disables them; they
+      # then say how to add one. Non-commercial use only (AlphaGenome terms).
+      ALPHAGENOME_API_KEY:    ${ALPHAGENOME_API_KEY:-}
+      # Chat history visibility: 0 (default) = each account sees only its own
+      # history; 1 = finished answers readable by anyone signed in.
+      IGVF_HISTORY_SHARED:    ${IGVF_HISTORY_SHARED:-0}
     volumes:
       # The attached data volume, mounted on the host at /mnt/igvf-data.
       - /mnt/igvf-data/Data:/workspace/Data
