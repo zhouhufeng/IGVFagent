@@ -1748,16 +1748,39 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
                       "total_jobs": next((int(n) for r, n in jobs if r == "total"), None),
                       "missing_inputs": _missing_inputs(txt),
                       "conda_rules": len(re.findall(r"^\s*conda\s*:", (work / wf["file"]).read_text(errors="replace"), re.M))}
+    targets: List[str] = []
+    if dry.returncode != 0 and res["dry_run"]["missing_inputs"]:
+        # The full DAG needs files that are not here (raw reads, usually).
+        # Run every rule that can be built from what exists instead: often the
+        # modelling steps start from the deposited processed objects.
+        lr = subprocess.run([str(exe), "-s", wf["file"], "--list-rules"], cwd=str(work), env=envvars,
+                            capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=600)
+        rules = [r.strip() for r in (lr.stdout or "").splitlines() if re.match(r"^\s*\w+\s*$", r)]
+        blocked: Dict[str, List[str]] = {}
+        for r in rules:
+            if r == "all":
+                continue
+            d_ = subprocess.run(base + ["-n", "--quiet", r], cwd=str(work), env=envvars, capture_output=True,
+                                text=True, stdin=subprocess.DEVNULL, timeout=600)
+            if d_.returncode == 0:
+                targets.append(r)
+            else:
+                blocked[r] = _missing_inputs((d_.stdout or "") + (d_.stderr or ""))[:5]
+        res["targets"] = {"buildable": targets, "blocked": blocked}
     before = _snapshot(work)
+    cmd = base + ["--keep-going", "--rerun-incomplete"] + targets
     with open(log, "w") as lf:
-        lf.write("$ " + " ".join(base + ["--keep-going", "--rerun-incomplete"]) + "\n" + txt + "\n---- run ----\n")
+        lf.write("$ " + " ".join(cmd) + "\n" + txt + "\n---- run ----\n")
         lf.flush()
-        try:
-            p_ = subprocess.run(base + ["--keep-going", "--rerun-incomplete"], cwd=str(work), env=envvars, stdout=lf,
-                                stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=timeout_min * 60)
-            rc = p_.returncode
-        except subprocess.TimeoutExpired:
-            rc = 124
+        if dry.returncode != 0 and not targets:
+            rc = dry.returncode  # nothing can be built from what is here
+        else:
+            try:
+                p_ = subprocess.run(cmd, cwd=str(work), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, timeout=timeout_min * 60)
+                rc = p_.returncode
+            except subprocess.TimeoutExpired:
+                rc = 124
     out = log.read_text(errors="replace")
     after = _snapshot(work)
     res["run"] = {"exit": rc, "seconds": round(time.time() - t0, 1),
@@ -2003,6 +2026,10 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                      f"{rn.get('steps_done')} steps done in {rn.get('seconds')} s, exit {rn.get('exit')}, "
                      f"{rn.get('new_files')} new files"
                      + (f"; failed rules: {', '.join(rn['failed_rules'][:8])}" if rn.get("failed_rules") else "")
+                     + (f"; ran the {len(wf_res['targets']['buildable'])} rule(s) buildable from the files present "
+                        f"({', '.join(wf_res['targets']['buildable'][:8])}); "
+                        f"{len(wf_res['targets']['blocked'])} rule(s) need inputs that are not here"
+                        if wf_res.get("targets") else "")
                      + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
                         f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
     for dd in (summary.get("data") or [])[-5:]:
