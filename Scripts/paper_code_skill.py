@@ -847,6 +847,28 @@ def _conda_install(run, mm: Path, root: Path, prefix: Path, name: str) -> bool:
     return False
 
 
+def repair_script_shebangs(prefix: Path) -> "List[str]":
+    """Installed scripts whose shebang ends in a carriage return (a package
+    released with Windows line endings: '#!/usr/bin/env python\\r' cannot
+    execute on Linux). Only the shebang line of the env's own bin/ is fixed."""
+    fixed = []
+    for f in (prefix / "bin").iterdir() if (prefix / "bin").is_dir() else []:
+        try:
+            if not f.is_file() or f.is_symlink() or f.stat().st_size > 5_000_000:
+                continue
+            with open(f, "rb") as fh:
+                head = fh.read(512)
+            if not head.startswith(b"#!") or b"\r" not in head.split(b"\n", 1)[0]:
+                continue
+            data = f.read_bytes()
+            first, _, rest = data.partition(b"\n")
+            f.write_bytes(first.rstrip(b"\r") + b"\n" + rest)
+            fixed.append(f.name)
+        except OSError:
+            continue
+    return fixed
+
+
 def _release_archive(name: str, version: str) -> Optional[str]:
     """`name @ <archive URL>` for a version that exists as a tag in the
     project's GitHub repository but was never uploaded to PyPI (e.g. the
@@ -919,7 +941,12 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     prefix = CODE_DIR / "envs" / f"declared_{h}"
     ok_marker = prefix / ".igvf_env_ok.json"
     if ok_marker.exists():
-        return {"ok": True, "prefix": str(prefix), "reused": True, **_read_json(ok_marker, {})}
+        info = _read_json(ok_marker, {})
+        fx = repair_script_shebangs(prefix)
+        if fx:
+            info["fixed_crlf_shebangs"] = sorted(set((info.get("fixed_crlf_shebangs") or []) + fx))
+            _write_json(ok_marker, info)
+        return {"ok": True, "prefix": str(prefix), "reused": True, **info}
     mm = micromamba()
     root = CODE_DIR / "mamba-root"
     level_used = None
@@ -1008,11 +1035,12 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
                 conda_fallback.append(f"{m} (imported by the notebooks; from conda-forge/bioconda)")
             else:
                 pip_failed.append(f"{n} (imported by the notebooks)")
+    crlf = repair_script_shebangs(prefix)
     vers = run([str(py), "-m", "pip", "freeze"]).stdout or ""
     pv = (run([str(py), "--version"]).stdout or "").strip()
     info = {"declared": _rel(yml), "relaxed_level": ["exact pins", "major.minor pins", "names only"][level_used],
             "dropped_gpu_only": dropped, "pip_failed": pip_failed, "pip_relaxed": pip_relaxed,
-            "conda_fallback": conda_fallback, "pin_failed": pin_failed,
+            "conda_fallback": conda_fallback, "pin_failed": pin_failed, "fixed_crlf_shebangs": crlf,
             "python": pv, "versions": (pv + "\n" + vers)[-8000:], "missing": pip_failed}
     # Rebuild next time only if a DECLARED dependency failed; modules the
     # notebooks import that no index has (the authors' private helpers) will
@@ -2516,7 +2544,8 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                "entry": f"{len(summaries)} analyses", "language": "+".join(sorted(envs)),
                "render": f"{clean}/{len(summaries)} ran without root errors", **tot,
                "entries": summaries, "env": {lang: {k: e.get(k) for k in ("prefix", "declared", "relaxed_level",
-                                                                          "dropped_gpu_only", "pip_failed", "missing")}
+                                                                          "dropped_gpu_only", "pip_failed", "missing",
+                                                                          "pip_relaxed", "fixed_crlf_shebangs")}
                                              for lang, e in envs.items()},
                "replay": ({"deterministic": all((x.get("replay") or {}).get("deterministic") for x in summaries
                                                 if x.get("replay"))} if replay else None),
@@ -2540,7 +2569,11 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
             L.append(f"- {lang} environment: the authors' `{e['declared']}` ({e.get('relaxed_level')})"
                      + (f"; GPU-only packages dropped on this CPU host: {', '.join(e['dropped_gpu_only'])}"
                         if e.get("dropped_gpu_only") else "")
-                     + (f"; pip could not install: {', '.join(e['pip_failed'])}" if e.get("pip_failed") else ""))
+                     + (f"; pip could not install: {', '.join(e['pip_failed'])}" if e.get("pip_failed") else "")
+                     + (f"; installed from the project's release archive: {'; '.join(x for x in e.get('pip_relaxed') or [] if 'release archive' in x)}"
+                        if any("release archive" in x for x in e.get("pip_relaxed") or []) else "")
+                     + (f"; repaired Windows line endings in the shebang of {', '.join(e['fixed_crlf_shebangs'])}"
+                        if e.get("fixed_crlf_shebangs") else ""))
     if wf_res:
         if wf_res.get("error"):
             L.append(f"- Workflow: {wf_res['error']}")
