@@ -57,7 +57,7 @@ PROMOTED = HERE / "promoted"
 # (flag, regex, level). "high" blocks promotion without an accepted reason.
 SAFETY = [
     ("reads_stdin", r"sys\.stdin|(?<![\w.])input\s*\(|fileinput", "high"),
-    ("eval_exec", r"(?<![\w.])(eval|exec)\s*\(|__import__\s*\(|compile\s*\(", "high"),
+    ("eval_exec", r"(?<![\w.])(eval|exec|compile)\s*\(|__import__\s*\(", "high"),  # not re.compile(
     ("shell", r"os\.system|shell\s*=\s*True|os\.popen|pty\.spawn", "high"),
     ("secrets", r"Docs/Secret|/Secret/|API[_-]?KEY|_TOKEN|password|credential", "high"),
     ("subprocess", r"subprocess\.|os\.exec|os\.spawn", "medium"),
@@ -317,6 +317,8 @@ def selftest() -> int:
     fl = {f["flag"] for f in scan(bad)}
     check("stdin, file writes and absolute paths are flagged", {"reads_stdin", "writes_files", "absolute_paths"} <= fl
           and risk(scan(bad)) == "high")
+    check("re.compile / subprocess.exec* are not eval", "eval_exec" not in {f["flag"] for f in scan(
+        "import re\nR = re.compile(r'x')\n")} and "eval_exec" in {f["flag"] for f in scan("eval(x)")})
     check("a plain analysis is low risk", risk(scan("import pandas as pd\ndf = pd.read_csv(p)\nprint(df.shape)")) == "none")
     global PROMOTED, JOBS_DIR, REVIEW_DIR
     saved = (PROMOTED, JOBS_DIR, REVIEW_DIR)
