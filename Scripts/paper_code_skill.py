@@ -826,7 +826,7 @@ def declared_python_env(src: Path, inv: Dict[str, Any]) -> Optional[Path]:
     return best
 
 
-DECLARED_ENV_BUILDER = "4"  # bump when build_env_declared changes what it installs
+DECLARED_ENV_BUILDER = "5"  # bump when build_env_declared changes what it installs
 BUILD_TOOLS = {"cython", "numpy", "setuptools", "wheel", "setuptools-scm", "setuptools_scm", "pybind11",
                "scikit-build", "cmake", "ninja", "versioneer", "pip"}
 PIP_SKIP = {"sklearn"}  # the deprecated "sklearn" dummy package refuses to install; scikit-learn is the real one
@@ -911,6 +911,15 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
         hit = [h for pat in pats for h in sorted((prefix / "bin").glob(pat))]
         if hit:
             benv[var] = str(hit[0])
+    # distutils links with Python's configured LDSHARED ("gcc -shared ..."),
+    # not CC: the system gcc with the env's linker then looks for libc in the
+    # wrong place (/lib64 on a Debian host). Link with the env's compiler too.
+    if benv.get("CC"):
+        rpath = f"-L{prefix / 'lib'} -Wl,-rpath,{prefix / 'lib'}"
+        shared = "-dynamiclib -undefined dynamic_lookup" if sys.platform == "darwin" else "-pthread -shared"
+        benv["LDSHARED"] = f"{benv['CC']} {shared} {rpath}"
+        if benv.get("CXX"):
+            benv["LDCXXSHARED"] = f"{benv['CXX']} {shared} {rpath}"
     _run0 = run
 
     def run(argv: "List[str]", **kw):  # pip gets the build environment
