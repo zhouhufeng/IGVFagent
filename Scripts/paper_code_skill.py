@@ -993,6 +993,44 @@ def r_shims(inv: Dict[str, Any], code_of_entry: Optional[Path] = None) -> "List[
     return out
 
 
+def _runner_python() -> Path:
+    """A Python with a current nbconvert + nbclient to drive notebooks:
+    IGVF Agent's own interpreter when it has them, else a small cached venv."""
+    try:
+        import nbclient  # type: ignore  # noqa: F401
+        import nbconvert  # type: ignore  # noqa: F401
+        return Path(sys.executable)
+    except Exception:  # noqa: BLE001
+        pass
+    venv = CODE_DIR / "envs" / "nb-runner"
+    py = venv / "bin" / "python"
+    if not py.exists():
+        uv = shutil.which("uv")
+        if uv:
+            subprocess.run([uv, "venv", "--quiet", str(venv)], capture_output=True)
+            subprocess.run([uv, "pip", "install", "--quiet", "--python", str(py), "nbconvert", "nbclient",
+                            "ipykernel"], capture_output=True)
+        else:
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], capture_output=True)
+            subprocess.run([str(py), "-m", "pip", "install", "-q", "nbconvert", "nbclient", "ipykernel"],
+                           capture_output=True)
+    return py
+
+
+def _register_kernel(run_dir: Path, prefix: Path, language: str) -> "Tuple[str, str]":
+    """A kernelspec for the authors' environment, private to this run."""
+    kdir = run_dir / "_jupyter" / "kernels" / "igvf-authors"
+    kdir.mkdir(parents=True, exist_ok=True)
+    if language == "r":
+        spec = {"argv": [str(prefix / "bin" / "R"), "--slave", "-e", "IRkernel::main()", "--args", "{connection_file}"],
+                "display_name": "R (authors' environment)", "language": "R"}
+    else:
+        spec = {"argv": [str(prefix / "bin" / "python"), "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+                "display_name": "Python (authors' environment)", "language": "python"}
+    (kdir / "kernel.json").write_text(json.dumps(spec, indent=1))
+    return "igvf-authors", str(run_dir / "_jupyter")
+
+
 LINK_OVER_BYTES = int(os.environ.get("IGVF_PAPER_CODE_LINK_BYTES", str(2 * 1024 * 1024)))
 
 
@@ -1058,11 +1096,14 @@ def run_entry(src: Path, inv: Dict[str, Any], env: Dict[str, Any], run_dir: Path
     elif inv["language"] == "r":
         argv = [str(prefix / "bin" / "Rscript"), "--vanilla", entry.name]
     elif entry.suffix == ".ipynb":
-        # The authors' kernelspec names their machine's environment (e.g.
-        # "jy_anbe_py38"), which does not exist here: run on this environment's
-        # own kernel instead. The notebook itself is not modified.
-        kname = "ir" if inv["language"] == "r" else "python3"
-        argv = [str(prefix / "bin" / "python"), "-m", "jupyter", "nbconvert", "--to", "notebook", "--execute",
+        # The notebook is driven by IGVF Agent's own nbconvert/nbclient (the
+        # authors' pinned nbconvert may not even import next to newer
+        # dependencies), while its code runs in a kernel launched from the
+        # authors' environment. Their kernelspec name (e.g. "jy_anbe_py38") is
+        # their machine's; ours is registered per run. The notebook is unchanged.
+        kname, jpath = _register_kernel(run_dir, prefix, inv["language"])
+        envvars["JUPYTER_PATH"] = jpath + os.pathsep + envvars.get("JUPYTER_PATH", "")
+        argv = [str(_runner_python()), "-m", "nbconvert", "--to", "notebook", "--execute",
                 "--output", entry.stem + ".executed.ipynb", f"--ExecutePreprocessor.timeout={int(timeout_min * 60)}",
                 f"--ExecutePreprocessor.kernel_name={kname}"]
         argv += (["--allow-errors"] if tolerant else []) + [entry.name]
@@ -1265,14 +1306,29 @@ def harvest_run(run_dir: Path, inv: Dict[str, Any], env: Dict[str, Any]) -> Dict
             for o in c.get("outputs") or []:
                 if o.get("output_type") == "error":
                     msg = f"{o.get('ename')}: {o.get('evalue')}"[:400]
+                    # the first error is the root cause; a later NameError is
+                    # usually a name the failed cell would have defined
                     errors.append({"chunk": i + 1, "message": msg,
-                                   "kind": "cascade" if o.get("ename") == "NameError" else "root"})
+                                   "kind": "cascade" if errors and o.get("ename") == "NameError" else "root"})
                 if o.get("output_type") == "display_data" and "image/png" in (o.get("data") or {}):
                     import base64
                     figs_dir.mkdir(parents=True, exist_ok=True)
                     pth = figs_dir / f"cell{i + 1}_{len(figures) + 1}.png"
                     pth.write_bytes(base64.b64decode(o["data"]["image/png"]))
                     figures.append({"path": pth, "source": "notebook", "png": pth, "chunk": i + 1})
+    if not errors and run.get("exit_code") not in (0, None):
+        executed = (entry.with_name(entry.stem + ".executed.ipynb") if entry.suffix == ".ipynb"
+                    else _produced_md(work, inv) if entry.suffix.lower() in (".rmd", ".qmd") else None)
+        if entry.suffix not in (".ipynb", ".Rmd", ".rmd", ".qmd") or executed is None or not executed.exists():
+            # Nothing ran (or the script died): that is a failure, never "no errors".
+            try:
+                tail = [ln for ln in (ROOT / run.get("log", "")).read_text(errors="replace").splitlines() if ln.strip()]
+            except OSError:
+                tail = []
+            msg = next((ln for ln in reversed(tail) if re.search(r"Error|error|Exception|No such|not found", ln)),
+                       tail[-1] if tail else f"exit {run.get('exit_code')}")
+            errors = [{"kind": "root", "chunk": None, "message": f"did not execute (exit {run.get('exit_code')}): "
+                                                                 f"{msg.strip()[:300]}"}]
     ref_rel = inv.get("reference")
     cmp: Dict[str, Any] = {}
     if ref_rel:
@@ -1863,6 +1919,11 @@ def cmd_selftest() -> int:
                   (_read_json(Path(td) / ents[0]["dir"] / "run.json", {}).get("new_files") or []))
             check("large files are hard-linked into the work copy, not copied",
                   os.stat(rd / "work" / "big.bin").st_ino == os.stat(src / "big.bin").st_ino)
+            b_sum = _read_json(Path(td) / ents[1]["dir"] / "summary.json", {})
+            check("an analysis that fails to run is a root error, never 'clean'",
+                  (b_sum.get("chunks") or {}).get("root_errors") == 1 and "did not execute" in
+                  (b_sum.get("errors") or [{}])[0].get("message", "") and "1/2 ran without root errors" in
+                  sm.get("render", ""))
             check("the combined report lists every analysis", "`nb/a.py`" in (rd / "report.md").read_text()
                   and "`nb/b.py`" in (rd / "report.md").read_text())
         finally:
