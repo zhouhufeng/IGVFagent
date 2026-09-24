@@ -154,6 +154,10 @@ Workflow:
    pipeline matrices, fragments, cell annotations, predictions) and their QC;
    answer from those and fetch them with processed_fetch. Download raw reads or
    run a pipeline ONLY for a product portal_lineage shows does not exist.
+   IGVF data named by TOPIC, not accession (a phenotype, tissue, gene, or kind
+   of data: "coronary artery disease", "heart", "element-gene links in liver",
+   "screens targeting GATA1") -> processed_discover first, then portal_lineage
+   on the accessions it returns.
    ENCODE accession or any URL -> explain_dataset;
    discover datasets -> portal_kg_pull / splitseq_retrieve / encode_retrieve;
    prior literature check -> ref_validate; study-design -> ref_design.

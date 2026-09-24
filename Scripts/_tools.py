@@ -5950,6 +5950,37 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "processed_discover",
+        "★ FIND IGVF PORTAL DATA BY TOPIC ★ when the user names a phenotype, "
+        "tissue, gene or kind of data rather than an accession (e.g. 'IGVF "
+        "data on coronary artery disease / heart', 'element-gene links in "
+        "liver', 'screens targeting GATA1'). Matches the words to the terms "
+        "the Portal actually uses (phenotype terms, sample terms, gene "
+        "symbols, prediction / library / curated set types), then searches "
+        "PredictionSets (associated_phenotypes, assessed_genes, virtual "
+        "samples), ModelSets, MeasurementSets (samples, targeted genes, "
+        "construct library type, assay), AnalysisSets, CuratedSets and "
+        "ConstructLibrarySets. Superseded sets are left out. An empty match "
+        "is reported with the nearest real values. Writes report.md and "
+        "discover.json; follow each accession with portal_lineage.",
+        {"type": "object", "properties": {
+            "phenotype": {**_S_STRING, "description": "Phenotype or disease, e.g. 'coronary artery disease'."},
+            "tissue": {**_S_STRING, "description": "Tissue / cell type / cell line sample term, e.g. heart, liver, K562."},
+            "gene": {**_S_STRING, "description": "Gene symbol assessed by predictions or targeted by screens."},
+            "prediction_type": {**_S_STRING, "description": "PredictionSet / ModelSet type, e.g. 'element-gene links', 'non-coding variant effects', 'coding variant effects', 'disease associations', 'variant TF binding effects'."},
+            "library_type": {**_S_STRING, "description": "Construct library type: 'guide library', 'reporter library', 'editing template library', 'expression vector library'."},
+            "assay": {**_S_STRING, "description": "Assay title, e.g. 'MPRA', '10x multiome', 'CRISPR FlowFISH'."},
+            "curated_type": {**_S_STRING, "description": "CuratedSet type, e.g. variants, elements, 'guide RNAs', 'training data for predictive models'."},
+            "types": {**_S_STRING, "description": "Comma-separated Portal types to search (default: prediction, model, measurement, analysis, curated and construct library sets)."},
+            "limit": {**_S_INTEGER, "description": "Results per type (default 25)."},
+            "include_superseded": {**_S_BOOLEAN, "description": "Also list superseded sets."}}},
+        cli=["processed", "discover"],
+        flag_map={"prediction_type": "--prediction-type", "library_type": "--library-type",
+                  "curated_type": "--curated-type", "include_superseded": "--include-superseded"},
+        bool_flags={"include_superseded"},
+    ),
+
+    _T(
         "portal_lineage",
         "★ CALL THIS FIRST FOR ANY IGVF ACCESSION (IGVFDS / IGVFFI / IGVFSM) "
         "BEFORE DOWNLOADING OR REPROCESSING ANYTHING ★ Walks every link the "
@@ -5974,7 +6005,15 @@ _TOOLS: "list[Tool]" = [
         "and writes report.md, plan.json, lineage_graph.json and a lineage "
         "figure. On IGVFDS9875NBZW it finds a 3.7 GB h5ad, 5.6 GB public "
         "fragments, cell annotations and a hashing table, instead of 155 GB "
-        "of controlled reads. Follow with processed_fetch.",
+        "of controlled reads. It also reports what the data is about and "
+        "how it was designed: superseded sets and their replacements, the "
+        "construct library (guide / reporter / editing-template library and "
+        "its integrated guide or element tables), the sample tree (sorted "
+        "fractions, time points, treatments, CRISPR modifications), a "
+        "prediction's phenotypes, assessed genes, cell type and external "
+        "training data, the column-definition documents of tabular outputs, "
+        "the analysis step and software that made each file, and "
+        "publications. Follow with processed_fetch.",
         {
             "type": "object",
             "properties": {

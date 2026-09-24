@@ -133,6 +133,38 @@ IGVFDS6290TXZY. Linked objects the credentials cannot see are reported as
 Agent tools: `portal_lineage` (the agent's first call for any IGVF accession)
 and `processed_fetch`.
 
+The lineage report also says what the data is about and how it was built,
+following the links in the lab submission diagrams (see
+[IGVF Portal data model](../../Architecture/IGVF_PORTAL_DATA_MODEL.md)):
+
+- superseded sets, and the set that replaces them;
+- the construct library (guide, reporter or editing-template library) and its integrated guide or element tables;
+- the sample tree: sorted fractions, time points, treatments and CRISPR modifications;
+- a prediction's phenotypes, assessed genes, cell type and external training data;
+- the column-definition document of each tabular output;
+- the analysis step and software that made each file, and publications.
+
+## Find IGVF data by topic (`processed discover`)
+
+When a question names a phenotype, tissue, gene or kind of data rather than an
+accession, `processed discover` finds the Portal objects about it. Your words
+are matched to the terms the Portal actually uses (so "coronary artery
+disease" reaches the Portal's phenotype term, and "heart" also reaches "heart
+left ventricle"), and each type is searched on its own link fields:
+phenotypes and assessed genes on PredictionSets, targeted genes and library
+type on MeasurementSets, sample terms everywhere. Superseded sets are left
+out, and a search with no match lists the nearest real values.
+
+```bash
+igvfagent processed discover --phenotype "coronary artery disease"
+igvfagent processed discover --tissue heart --types MeasurementSet,AnalysisSet,PredictionSet
+igvfagent processed discover --gene GATA1                       # TF binding models and predictions
+igvfagent processed discover --prediction-type "element-gene links" --tissue heart
+igvfagent processed discover --library-type "guide library" --tissue K562
+```
+
+Follow any accession it returns with `processed lineage`. Agent tool: `processed_discover`.
+
 ## Data illustration and interpretation
 
 ```bash

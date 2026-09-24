@@ -447,12 +447,47 @@ def cmd_fetch(args) -> int:
     return 0 if got or args.dry_run else 1
 
 
+def cmd_discover(args) -> int:
+    """Topic search: which Portal objects are about this phenotype / tissue / gene / type."""
+    try:
+        from igvfagent import portal_discover as pdisc  # type: ignore
+    except Exception:
+        import portal_discover as pdisc  # type: ignore
+    crit = {k: v for k, v in (("phenotype", args.phenotype), ("tissue", args.tissue), ("gene", args.gene),
+                               ("prediction_type", args.prediction_type), ("library_type", args.library_type),
+                               ("assay", args.assay), ("curated_type", args.curated_type)) if v}
+    if not crit:
+        print("give at least one of --phenotype --tissue --gene --prediction-type --library-type --assay "
+              "--curated-type")
+        return 2
+    types = [t.strip() for t in (args.types or "").split(",") if t.strip()] or None
+    res = pdisc.discover(crit, types=types, limit=args.limit, include_superseded=args.include_superseded)
+    import re as _re
+    out = _run_dir("discover_" + _re.sub(r"[^A-Za-z0-9._-]+", "_", "_".join(str(v) for v in crit.values()))[:60])
+    (out / "discover.json").write_text(json.dumps(res, indent=2))
+    (out / "report.md").write_text(pdisc.to_markdown(res))
+    for typ, t in res["types"].items():
+        m = "; ".join(f"{k}: {', '.join(v)}" for k, v in (t.get("matched") or {}).items())
+        print(f"{typ:20s} {t['total']:5d}  {m}")
+        for it in t["items"][:5]:
+            print(f"    {it['accession']}  {it['file_set_type'][:28]:28s} {it['summary'][:80]}")
+        for k, v in (t.get("no_match") or {}).items():
+            print(f"    no {k} match; nearest: {', '.join(v[:5])}")
+    print(f"JSON: {out / 'discover.json'}")
+    print(f"Report: {out / 'report.md'}")
+    return 0
+
+
 def cmd_selftest(args) -> int:
     import tempfile
     import portal_lineage as pl  # noqa: E402
+    import portal_discover as pdisc  # noqa: E402
     checks: "list" = []
     with tempfile.TemporaryDirectory() as td:
         pl.selftest(checks, Path(td))
+    for good, msg in pdisc.selftest():
+        checks.append((good, msg))
+        print(("  ok    " if good else "  FAIL  ") + msg)
     ok = all(c for c, _ in checks)
     print("selftest: all checks pass" if ok else f"selftest: {sum(1 for c, _ in checks if not c)} FAILED")
     return 0 if ok else 1
@@ -499,6 +534,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--no-qc", action="store_true")
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(func=cmd_fetch)
+
+    s = sub.add_parser("discover", help="Topic search: Portal objects about a phenotype, tissue, gene, "
+                                        "prediction type, library type or assay, matched to the Portal's own terms.")
+    s.add_argument("--phenotype", help="e.g. 'coronary artery disease', 'LDL cholesterol'")
+    s.add_argument("--tissue", help="sample term, e.g. heart, liver, K562")
+    s.add_argument("--gene", help="assessed / targeted gene symbol")
+    s.add_argument("--prediction-type", help="PredictionSet/ModelSet type, e.g. 'element-gene links'")
+    s.add_argument("--library-type", help="construct library type, e.g. 'guide library', 'reporter library'")
+    s.add_argument("--assay", help="assay title, e.g. 'MPRA', '10x multiome'")
+    s.add_argument("--curated-type", help="CuratedSet type, e.g. variants, elements")
+    s.add_argument("--types", default="", help="Comma-separated Portal types (default: prediction, model, "
+                                               "measurement, analysis, curated and construct library sets)")
+    s.add_argument("--limit", type=int, default=25)
+    s.add_argument("--include-superseded", action="store_true")
+    s.set_defaults(func=cmd_discover)
 
     s = sub.add_parser("selftest", help="Offline test of the graph walk and plan on a fixture Portal.")
     s.add_argument("--no-plots", action="store_true")

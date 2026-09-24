@@ -155,6 +155,27 @@ def _ids(v) -> "list[str]":
     return out
 
 
+def _names(v, *keys: str) -> "list[str]":
+    """Readable names of linked objects (embedded dicts or bare @ids)."""
+    if v is None:
+        return []
+    out = []
+    for x in (v if isinstance(v, list) else [v]):
+        if isinstance(x, dict):
+            name = next((x.get(k) for k in keys if x.get(k)), None) or x.get("summary") or x.get("accession") \
+                or _acc(x.get("@id", ""))
+            if name:
+                out.append(str(name))
+        elif isinstance(x, str) and x:
+            out.append(_acc(x) if x.startswith("/") else x)
+    return out
+
+
+def _one(v) -> str:
+    v = v.get("@id") if isinstance(v, dict) else v
+    return v or ""
+
+
 def _acc(path: str) -> str:
     m = ACCESSION_RE.search(path or "")
     return m.group(1) if m else (path or "").strip("/").split("/")[-1]
@@ -176,6 +197,7 @@ def is_qc(obj: dict) -> bool:
 class Graph:
     def __init__(self, root: str):
         self.root = root
+        self.provenance: "dict[str, dict]" = {}
         self.nodes: "dict[str, dict]" = {}
         self.edges: "list[tuple[str, str, str]]" = []
         self.blocked: "dict[str, int]" = {}
@@ -191,7 +213,7 @@ class Graph:
 
     def to_json(self) -> dict:
         return {"root": self.root, "nodes": self.nodes, "edges": [list(e) for e in self.edges],
-                "blocked": self.blocked, "requests": self.requests}
+                "blocked": self.blocked, "requests": self.requests, "provenance": self.provenance}
 
 
 def _file_node(f: dict, parent_set: str = "") -> dict:
@@ -211,6 +233,11 @@ def _file_node(f: dict, parent_set: str = "") -> dict:
                                                     for w in (f.get("workflows") or [])],
         "software": [s.get("summary") for s in ((f.get("analysis_step_version") or {}).get("software_versions") or [])
                      if isinstance(s, dict)] if isinstance(f.get("analysis_step_version"), dict) else [],
+        # column definitions for tabular outputs, and where an external model lives
+        "file_format_specifications": _ids(f.get("file_format_specifications")),
+        "analysis_step_version": _one(f.get("analysis_step_version")),
+        "reference_files": _names(f.get("reference_files"), "accession"),
+        "externally_hosted": f.get("externally_hosted"), "external_host_url": f.get("external_host_url") or "",
     }
 
 
@@ -283,7 +310,7 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
         """Fetch the pending frontier in parallel; processing stays sequential and deterministic."""
         todo = []
         for pth, _d, _r in list(queue)[:64]:
-            fr = "embedded" if (_typ({}, pth) in FILESET_TYPES or pth == start) else "object"
+            fr = "embedded" if (_typ({}, pth) in FILESET_TYPES | SAMPLE_TYPES or pth == start) else "object"
             if f"{pth}|{fr}" not in cache and (pth, fr) not in todo:
                 todo.append((pth, fr))
         if len(todo) < 2 or workers < 2:
@@ -306,7 +333,7 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
             continue
         seen[path] = rel
         typ_guess = _typ({}, path)
-        frame = "embedded" if (typ_guess in FILESET_TYPES or path == start) else "object"
+        frame = "embedded" if (typ_guess in FILESET_TYPES | SAMPLE_TYPES or path == start) else "object"
         status, obj = get(path, frame)
         if status != 200 or not isinstance(obj, dict) or obj.get("status") == "error":
             code = status if status else 0
@@ -348,6 +375,23 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
                                           for x in obj.get("software_versions") or []],
                     "n_input_for": len(obj.get("input_for") or []),
                     "n_input_file_sets": len(obj.get("input_file_sets") or []),
+                    # what a screen / prediction is about (Portal data-model diagrams)
+                    "targeted_genes": _names(obj.get("targeted_genes"), "symbol")[:50],
+                    "functional_assay_mechanisms": _names(obj.get("functional_assay_mechanisms"), "term_name"),
+                    "crispr_screen_biometric": _names(obj.get("crispr_screen_biometric"), "term_name"),
+                    "assessed_genes": _names(obj.get("assessed_genes"), "symbol")[:50],
+                    "n_assessed_genes": len(obj.get("assessed_genes") or []),
+                    "associated_phenotypes": _names(obj.get("associated_phenotypes"), "term_name"),
+                    "cell_type": _names(obj.get("cell_type"), "term_name"),
+                    "model_zoo_location": obj.get("model_zoo_location") or "",
+                    "dbxrefs": obj.get("dbxrefs") or [], "url": obj.get("url") or "",
+                    "guide_type": obj.get("guide_type") or "", "selection_criteria": obj.get("selection_criteria") or [],
+                    "targeton": obj.get("targeton") or "", "exon": obj.get("exon") or "",
+                    "publications": [{"title": x.get("title") or "", "doi": x.get("doi") or "",
+                                      "pmid": x.get("publication_identifiers") or []} if isinstance(x, dict)
+                                     else {"title": "", "doi": "", "@id": x} for x in obj.get("publications") or []],
+                    "superseded_by": _ids(obj.get("superseded_by")), "supersedes": _ids(obj.get("supersedes")),
+                    "n_control_for": len(obj.get("control_for") or []),
                     "truncated": prev.get("truncated", {})}
             g.nodes[oid] = node
             expand_files = rel in ("root", "family", "down", "up")
@@ -433,6 +477,40 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
             for fld in ("small_scale_loci_list", "small_scale_gene_list"):
                 if obj.get(fld):
                     node[fld + "_n"] = len(obj.get(fld) or [])
+            # design: the library a screen / reporter assay / SGE was built from
+            if rel in ("root", "family", "down", "up"):
+                for c in _ids(obj.get("construct_library_sets")):
+                    g.add_edge(oid, c, "construct_library_sets")
+                    enqueue(c, depth + 1, "ref")
+            for fid in _ids(obj.get("integrated_content_files")):   # ConstructLibrarySet
+                g.add_edge(oid, fid, "integrated_content_files")
+                g.nodes.setdefault(fid, {"kind": "file", "type": _typ({}, fid), "accession": _acc(fid), "@id": fid,
+                                         "product": "design", "content_type": "integrated content",
+                                         "file_set": "", "controlled_access": None, "relation": "ref"})
+                enqueue(fid, depth + 1, "ref")
+            for fld, prod in (("enrichment_designs", "design"), ("hashtag_barcode_map", "demultiplexing"),
+                              ("barcode_replacement_file", "design")):
+                for fid in _ids(obj.get(fld) if isinstance(obj.get(fld), list) else [obj.get(fld)] if obj.get(fld) else []):
+                    g.add_edge(oid, fid, fld)
+                    g.nodes.setdefault(fid, {"kind": "file", "type": _typ({}, fid), "accession": _acc(fid), "@id": fid,
+                                             "product": prod, "content_type": fld.replace("_", " "), "file_set": "",
+                                             "controlled_access": None, "relation": "ref"})
+                    enqueue(fid, depth + 1, "ref")
+            ext = obj.get("external_input_data")                      # ModelSet training data
+            for fid in _ids(ext if isinstance(ext, list) else [ext] if ext else []):
+                g.add_edge(fid, oid, "external_input_data")
+                g.nodes.setdefault(fid, {"kind": "file", "type": _typ({}, fid), "accession": _acc(fid), "@id": fid,
+                                         "product": "training_data", "content_type": "external input data",
+                                         "file_set": "", "controlled_access": None, "relation": "up"})
+                if rel in ("root", "down", "up"):
+                    enqueue(fid, depth + 1, "up")
+            # a superseded set points at its replacement: record it, and from the root follow it
+            for newer in _ids(obj.get("superseded_by")):
+                g.add_edge(oid, newer, "superseded_by")
+                if rel == "root":
+                    enqueue(newer, depth + 1, "family")
+                else:
+                    stub(newer, "sibling")
             if rel in ("root", "family", "down", "up"):
                 for sid in capped(oid, _ids(obj.get("samples")), "samples"):
                     g.add_edge(oid, sid, "samples")
@@ -466,7 +544,34 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
                             "n_multiplexed_samples": len(obj.get("multiplexed_samples") or []),
                             "n_donors": len(obj.get("donors") or []), "cellular_sub_pool": obj.get("cellular_sub_pool"),
                             "multiplexing_methods": obj.get("multiplexing_methods") or [],
-                            "taxa": obj.get("taxa"), "n_file_sets": len(obj.get("file_sets") or [])}
+                            "taxa": obj.get("taxa"), "n_file_sets": len(obj.get("file_sets") or []),
+                            # the sample tree (sorting screens, SGE time points, pools, demultiplexing)
+                            "sorted_from": _one(obj.get("sorted_from")),
+                            "sorted_from_detail": obj.get("sorted_from_detail") or "",
+                            "originated_from": _one(obj.get("originated_from")),
+                            "part_of": _one(obj.get("part_of")),
+                            "pooled_from": _ids(obj.get("pooled_from")),
+                            "demultiplexed_from": _one(obj.get("demultiplexed_from")),
+                            "time_post_library_delivery": obj.get("time_post_library_delivery"),
+                            "time_post_library_delivery_units": obj.get("time_post_library_delivery_units") or "",
+                            "time_post_change": obj.get("time_post_change"),
+                            "time_post_change_units": obj.get("time_post_change_units") or "",
+                            "treatments": _names(obj.get("treatments"), "treatment_term_name", "summary"),
+                            "modifications": _names(obj.get("modifications"), "summary", "modality"),
+                            "construct_library_sets": [_acc(x) for x in _ids(obj.get("construct_library_sets"))],
+                            "virtual": obj.get("virtual"),
+                            "targeted_sample_term": _names(obj.get("targeted_sample_term"), "term_name")}
+            for fld in ("sorted_from", "originated_from", "part_of", "demultiplexed_from"):
+                parent = _one(obj.get(fld))
+                if parent:
+                    g.add_edge(parent, oid, fld)
+                    if depth < max_depth - 1:
+                        enqueue(parent, depth + 1, "ref")
+            for parent in _ids(obj.get("pooled_from")):
+                g.add_edge(parent, oid, "pooled_from")
+            for c in _ids(obj.get("construct_library_sets")):
+                g.add_edge(oid, c, "construct_library_sets")
+                enqueue(c, depth + 1, "ref")
             bm = obj.get("barcode_map")
             bm = bm.get("@id") if isinstance(bm, dict) else bm
             if bm:
@@ -509,6 +614,10 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
                     enqueue(d, depth + 1, "up")
             for sq in fn["seqspecs"]:
                 g.add_edge(oid, sq, "seqspecs")
+            for doc in fn["file_format_specifications"]:
+                g.add_edge(oid, doc, "file_format_specifications")
+                if rel in ("root", "family", "down", "up"):
+                    enqueue(doc, depth + 1, "ref")
             qms = fn["quality_metrics"]
             if fetch_qc and not qms and fn["product"] in QC_PRODUCTS and rel in ("root", "family", "down"):
                 st, res = get(f"/search/?type=QualityMetric&quality_metric_of={urllib.parse.quote(oid)}&limit=20", "object")
@@ -522,7 +631,40 @@ def walk(accession: str, fetch: "Optional[Fetch]" = None, max_depth: int = 6, ma
     if root_id is None:
         g.root = start
     g.cap_reached = len(seen) >= max_nodes
+    g.provenance = _provenance(g, get)
     return g
+
+
+def _provenance(g: Graph, get, cap: int = 25) -> "dict[str, dict]":
+    """How each processed file was made: AnalysisStepVersion -> AnalysisStep
+    (step type, input/output content types) and its software versions.
+
+    Fetched once per distinct step version, for files on the provenance of the
+    starting object only; the data-model diagrams put the workflow description
+    here rather than on the file.
+    """
+    asvs = []
+    for n in g.nodes.values():
+        a = n.get("analysis_step_version") if n.get("kind") == "file" else ""
+        if a and n.get("relation") in ("root", "family", "down", "up") and a not in asvs:
+            asvs.append(a)
+    out: "dict[str, dict]" = {}
+    for a in asvs[:cap]:
+        st, obj = get(a, "embedded")
+        if st != 200 or not isinstance(obj, dict):
+            out[a] = {"status": st}
+            continue
+        step = obj.get("analysis_step") or {}
+        if isinstance(step, str):
+            s2, step_obj = get(step, "object")
+            step = step_obj if s2 == 200 and isinstance(step_obj, dict) else {"@id": step}
+        out[a] = {"accession": _acc(a),
+                  "step": step.get("title") or step.get("step_label") or _acc(step.get("@id", "")),
+                  "step_types": step.get("analysis_step_types") or [],
+                  "input_content_types": step.get("input_content_types") or [],
+                  "output_content_types": step.get("output_content_types") or [],
+                  "software": _names(obj.get("software_versions"), "summary", "name")}
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -653,8 +795,80 @@ def build_plan(g: Graph, wants: "Optional[list[str]]" = None, have_credentials: 
                     "status": s.get("status"), "n_files": s.get("n_files"),
                     "inputs": [_acc(a) for a, b, lab in g.edges if b == k and lab == "input_for"],
                     "relation": s.get("relation"),
+                    "assessed_genes": s.get("assessed_genes") or [], "n_assessed_genes": s.get("n_assessed_genes") or 0,
+                    "associated_phenotypes": s.get("associated_phenotypes") or [],
+                    "cell_type": s.get("cell_type") or [], "model_zoo_location": s.get("model_zoo_location") or "",
+                    "training_data": [_acc(a) for a, b, lab in g.edges if b == k and lab == "external_input_data"],
                     "truncated": s.get("truncated") or {}}
                    for k, s in sets.items() if s.get("type") in ("PredictionSet", "ModelSet")]
+    # --- context the Portal data-model diagrams put around the data ---------
+    superseded = [{"accession": s.get("accession"), "type": s.get("type"),
+                   "superseded_by": [_acc(x) for x in s.get("superseded_by") or []], "relation": s.get("relation")}
+                  for s in sets.values() if s.get("superseded_by")]
+    libraries = []
+    for k, s in sets.items():
+        if s.get("type") != "ConstructLibrarySet":
+            continue
+        integ = [nodes.get(b, {}) for a, b, lab in g.edges if a == k and lab == "integrated_content_files"]
+        libraries.append({"accession": s.get("accession"), "file_set_type": s.get("file_set_type"),
+                          "scope": s.get("scope"), "guide_type": s.get("guide_type"),
+                          "targeton": s.get("targeton"), "exon": s.get("exon"),
+                          "selection_criteria": s.get("selection_criteria") or [],
+                          "genes": s.get("small_scale_gene_list_n") or 0, "summary": s.get("summary"),
+                          "integrated_content_files": [{"accession": f.get("accession"),
+                                                        "content_type": f.get("content_type"),
+                                                        "file_format": f.get("file_format")} for f in integ],
+                          "used_by": sorted({_acc(a) for a, b, lab in g.edges
+                                             if b == k and lab == "construct_library_sets"})})
+    sample_tree = []
+    virtual_samples: "list[str]" = []
+    for k, v in nodes.items():
+        if v.get("kind") != "sample":
+            continue
+        rec = {"accession": v.get("accession"), "type": v.get("type"), "summary": v.get("summary"),
+               "parent": next((f"{fld.replace('_', ' ')} {_acc(v[fld])}" for fld in
+                               ("sorted_from", "originated_from", "part_of", "demultiplexed_from") if v.get(fld)), ""),
+               "sorted_fraction": v.get("sorted_from_detail") or "",
+               "time_point": (f"{v['time_post_library_delivery']} {v.get('time_post_library_delivery_units') or ''}"
+                              " post library delivery").strip() if v.get("time_post_library_delivery") is not None else
+                             (f"{v['time_post_change']} {v.get('time_post_change_units') or ''} post change"
+                              if v.get("time_post_change") is not None else ""),
+               "treatments": v.get("treatments") or [], "modifications": v.get("modifications") or [],
+               "construct_library_sets": v.get("construct_library_sets") or [], "virtual": v.get("virtual"),
+               "measured_in": sorted({_acc(a) for a, b, lab in g.edges if b == k and lab == "samples"})}
+        if any(rec[x] for x in ("parent", "sorted_fraction", "time_point", "treatments", "modifications",
+                                "construct_library_sets")):
+            sample_tree.append(rec)
+        elif rec["virtual"]:
+            virtual_samples.append(", ".join(v.get("sample_terms") or []) or v.get("summary") or v.get("accession"))
+    doc_nodes = {k: v for k, v in nodes.items() if v.get("kind") == "document"}
+    column_specs = []
+    for a, b, lab in g.edges:
+        if lab == "file_format_specifications":
+            d = doc_nodes.get(b, {})
+            column_specs.append({"file": _acc(a), "document": _acc(b), "description": d.get("description") or "",
+                                 "attachment": d.get("attachment") or "", "visible": b in doc_nodes})
+    provenance = [{"file": f.get("accession"), "product": f.get("product"), **(g.provenance or {}).get(
+                   f.get("analysis_step_version"), {})}
+                  for f in files.values() if f.get("analysis_step_version")
+                  and (g.provenance or {}).get(f.get("analysis_step_version"), {}).get("step")]
+    publications = []
+    for s in sets.values():
+        for pub in s.get("publications") or []:
+            key = pub.get("doi") or pub.get("title") or pub.get("@id")
+            if key and key not in [x["key"] for x in publications]:
+                publications.append({"key": key, "title": pub.get("title"), "doi": pub.get("doi"),
+                                     "set": s.get("accession")})
+    design = [{"accession": f.get("accession"), "product": f.get("product"), "content_type": f.get("content_type"),
+               "file_format": f.get("file_format")} for f in files.values() if f.get("product") in ("design",)]
+    about = {k: v for k, v in {
+        "targeted_genes": sorted({g_ for s in sets.values() for g_ in s.get("targeted_genes") or []}),
+        "functional_assay_mechanisms": sorted({x for s in sets.values() for x in s.get("functional_assay_mechanisms") or []}),
+        "crispr_screen_biometric": sorted({x for s in sets.values() for x in s.get("crispr_screen_biometric") or []}),
+        "associated_phenotypes": sorted({x for s in sets.values() for x in s.get("associated_phenotypes") or []}),
+        "external_references": sorted({x for s in sets.values() for x in (s.get("dbxrefs") or [])}
+                                      | {s["url"] for s in sets.values() if s.get("url")}),
+    }.items() if v}
     root = nodes.get(g.root, {})
     verdict = ("processed" if any(x["product"] in ("rna_matrix", "atac_matrix", "fragments", "peaks", "cell_annotations",
                                                    "perturbation_effects", "predictions") for x in start_here)
@@ -668,6 +882,10 @@ def build_plan(g: Graph, wants: "Optional[list[str]]" = None, have_credentials: 
             "documents": documents, "blocked": blocked, "have_credentials": have_credentials,
             "predictions_and_models": pred_models, "siblings": siblings,
             "truncated": {s.get("accession"): s.get("truncated") for s in sets.values() if s.get("truncated")},
+            "superseded": superseded, "construct_libraries": libraries, "sample_tree": sample_tree,
+            "virtual_samples": sorted(set(virtual_samples)),
+            "column_specs": column_specs, "provenance": provenance, "publications": publications,
+            "design_files": design, "about": about,
             "n_nodes": len(nodes), "n_edges": len(g.edges), "requests": g.requests,
             "node_cap_reached": bool(getattr(g, "cap_reached", False))}
 
@@ -712,6 +930,19 @@ def write_report(plan: dict, g: Graph, out: Path, figure: "Optional[Path]" = Non
                   f"outputs is reachable yet, so the pipeline has to be run from the reads.", ""]
     else:
         lines += ["**Nothing downloadable was reachable from this accession.**", ""]
+    sup = [x for x in plan.get("superseded") or [] if x.get("relation") in ("root", "family", "down", "up")]
+    if sup:
+        lines += ["> **Superseded data.** " + "; ".join(
+            f"{x['accession']} ({x['type']}) is superseded by {', '.join(x['superseded_by'])}" for x in sup)
+            + ". Prefer the newer set unless you need to reproduce an older result.", ""]
+    ab = plan.get("about") or {}
+    if ab:
+        lab_ = {"targeted_genes": "Targeted genes", "functional_assay_mechanisms": "Assay readout",
+                "crispr_screen_biometric": "Screen biometric", "associated_phenotypes": "Associated phenotypes",
+                "external_references": "External references"}
+        lines += ["## What this data is about", ""] + [
+            f"- **{lab_[k]}:** {', '.join(v[:25])}" + (f" (+{len(v) - 25} more)" if len(v) > 25 else "")
+            for k, v in ab.items()] + [""]
     if plan["start_here"]:
         lines += ["## Start here", "", "| product | file | format | size | access | from | pipeline |",
                   "|---|---|---|---|---|---|---|"]
@@ -759,6 +990,25 @@ def write_report(plan: dict, g: Graph, out: Path, figure: "Optional[Path]" = Non
             lines.append(f"| {m['accession']} | {m['type']} | {m.get('file_set_type') or ''} | {what} | "
                          f"{', '.join(m['inputs'][:4])} | {(m.get('summary') or '')[:120]} |")
         lines.append("")
+    ctx = [m for m in direct_pm if m.get("assessed_genes") or m.get("associated_phenotypes") or m.get("cell_type")
+           or m.get("model_zoo_location") or m.get("training_data")]
+    if ctx:
+        lines += ["### Prediction and model context", ""]
+        for m in ctx:
+            bits = []
+            if m.get("associated_phenotypes"):
+                bits.append("phenotypes: " + ", ".join(m["associated_phenotypes"][:8]))
+            if m.get("cell_type"):
+                bits.append("cell type: " + ", ".join(m["cell_type"]))
+            if m.get("assessed_genes"):
+                n = m.get("n_assessed_genes") or len(m["assessed_genes"])
+                bits.append(f"assessed genes ({n}): " + ", ".join(m["assessed_genes"][:10]) + (" ..." if n > 10 else ""))
+            if m.get("training_data"):
+                bits.append("trained on external data " + ", ".join(m["training_data"]))
+            if m.get("model_zoo_location"):
+                bits.append(f"model zoo: {m['model_zoo_location']}")
+            lines.append(f"- {m['accession']} ({m['type']}): " + "; ".join(bits))
+        lines.append("")
     if plan.get("truncated"):
         lines += ["Shared hubs were not walked in full: " + "; ".join(
             f"{k} {', '.join(f'{f} {n}' for f, n in v.items())}" for k, v in plan["truncated"].items())
@@ -774,6 +1024,59 @@ def write_report(plan: dict, g: Graph, out: Path, figure: "Optional[Path]" = Non
             lines.append(f"| {m['accession']} | {m['type']} ({m.get('file_set_type')}) | {m.get('assay') or ''} | "
                          f"{rb['n']} | {rb['gb']:.1f} GB | {rb['controlled']} of {rb['n']} |")
         lines.append("")
+    if plan.get("construct_libraries") or plan.get("design_files"):
+        lines += ["## Design: construct libraries and designs", "",
+                  "The library the screen or reporter assay was built from (guides, editing templates, "
+                  "reporter elements); its integrated content files list every designed element.", ""]
+        for c in plan.get("construct_libraries") or []:
+            what = ", ".join(x for x in (c.get("file_set_type"), c.get("scope") and f"scope {c['scope']}",
+                                         c.get("guide_type") and f"guides {c['guide_type']}",
+                                         c.get("targeton") and f"targeton {c['targeton']}",
+                                         c.get("exon") and f"exon {c['exon']}",
+                                         c.get("genes") and f"{c['genes']} genes") if x)
+            integ = ", ".join(f"{f['accession']} ({f.get('content_type') or ''})" for f in c["integrated_content_files"])
+            lines.append(f"- {c['accession']}: {what or c.get('summary') or ''}"
+                         + (f"; integrated content: {integ}" if integ else "")
+                         + (f"; used by {', '.join(c['used_by'][:6])}" if c.get("used_by") else ""))
+        for f in plan.get("design_files") or []:
+            if not any(f["accession"] == x["accession"] for c in plan.get("construct_libraries") or []
+                       for x in c["integrated_content_files"]):
+                lines.append(f"- design file {f['accession']} ({f.get('content_type') or ''})")
+        lines.append("")
+    if plan.get("sample_tree"):
+        lines += ["## Sample tree", "",
+                  "How the measured samples relate: sorted fractions, time points, treatments and edits.", "",
+                  "| sample | from | sorted fraction | time point | treatments / modifications | measured in |",
+                  "|---|---|---|---|---|---|"]
+        for s_ in plan["sample_tree"][:60]:
+            tm = "; ".join((s_.get("treatments") or []) + (s_.get("modifications") or []))
+            lines.append(f"| {s_['accession']} {'(virtual)' if s_.get('virtual') else ''} | {s_.get('parent') or ''} | "
+                         f"{s_.get('sorted_fraction') or ''} | {s_.get('time_point') or ''} | {tm} | "
+                         f"{', '.join(s_.get('measured_in') or [])} |")
+        lines.append("")
+    if plan.get("virtual_samples"):
+        vs_ = plan["virtual_samples"]
+        lines += [f"Predictions are made for {len(vs_)} virtual sample(s) (model context, not measured material): "
+                  + "; ".join(vs_[:30]) + (" ..." if len(vs_) > 30 else ""), ""]
+    if plan.get("column_specs"):
+        lines += ["## Column definitions", "",
+                  "Tabular outputs point to a file-format specification document that defines their columns.", ""]
+        for c in plan["column_specs"][:30]:
+            doc = c["description"][:120] if c.get("description") else f"document {c['document']}"
+            lines.append(f"- {c['file']}: {doc}" + (f" ([spec]({c['attachment']}))" if c.get("attachment") else "")
+                         + ("" if c.get("visible") else " (not visible)"))
+        lines.append("")
+    if plan.get("provenance"):
+        lines += ["## How the files were made", "", "| file | product | step | step type | software |",
+                  "|---|---|---|---|---|"]
+        for pv in plan["provenance"][:30]:
+            lines.append(f"| {pv['file']} | {pv.get('product') or ''} | {pv.get('step') or ''} | "
+                         f"{', '.join(pv.get('step_types') or [])} | {', '.join(pv.get('software') or [])} |")
+        lines.append("")
+    if plan.get("publications"):
+        lines += ["## Publications", ""] + [
+            f"- {p_.get('title') or p_['key']}" + (f" (doi:{p_['doi']})" if p_.get("doi") else "")
+            + f" — cited by {p_['set']}" for p_ in plan["publications"][:15]] + [""]
     if plan["configs"]:
         lines += ["## Configuration (seqspec, onlists)", ""]
         for c in plan["configs"]:
@@ -1139,6 +1442,52 @@ def fixture_portal() -> "tuple[Fetch, dict]":
                        "description": "ATACseq chromap fragments QC metric", "pct_duplicates": 29.3, "n_reads": 1839833072,
                        "quality_metric_of": ["/tabular-files/TSTFI0103FRG/"]},
     }
+    # --- data-model patterns from the lab submission diagrams ---------------
+    srt, new, cls = "/measurement-sets/TSTDS0020SRT/", "/measurement-sets/TSTDS0021NEW/", "/construct-library-sets/TSTDS0011CLS/"
+    par, hig = "/in-vitro-systems/TSTSM0019PAR/", "/in-vitro-systems/TSTSM0020HIG/"
+    objs.update({
+        srt: {"@id": srt, "@type": ["MeasurementSet", "FileSet", "Item"], "accession": "TSTDS0020SRT", "status": "released",
+              "file_set_type": "experimental data", "summary": "CRISPRi FACS screen, high bin",
+              "assay_term": {"term_name": "proliferation CRISPR screen"}, "superseded_by": [new],
+              "targeted_genes": [{"symbol": "GATA1", "@id": "/genes/ENSG00000102145/"}],
+              "functional_assay_mechanisms": [{"term_name": "gene expression"}],
+              "construct_library_sets": [{"@id": cls}], "samples": [{"@id": hig}],
+              "files": [reads(31, srt, 2_000_000_000, False)]},
+        new: {"@id": new, "@type": ["MeasurementSet", "FileSet", "Item"], "accession": "TSTDS0021NEW", "status": "released",
+              "file_set_type": "experimental data", "supersedes": [srt], "files": [reads(32, new, 2_000_000_000, False)]},
+        cls: {"@id": cls, "@type": ["ConstructLibrarySet", "FileSet", "Item"], "accession": "TSTDS0011CLS", "status": "released",
+              "file_set_type": "guide library", "scope": "loci", "guide_type": "sgRNA",
+              "small_scale_gene_list": [{"symbol": "GATA1"}, {"symbol": "TAL1"}],
+              "integrated_content_files": ["/tabular-files/TSTFI0701GDE/"], "files": []},
+        "/tabular-files/TSTFI0701GDE/": {"@id": "/tabular-files/TSTFI0701GDE/", "@type": ["TabularFile", "File", "Item"],
+                                          "accession": "TSTFI0701GDE", "content_type": "guide RNA sequences",
+                                          "file_format": "tsv", "file_size": 90_000, "file_set": cls},
+        par: {"@id": par, "@type": ["InVitroSystem", "Sample", "Item"], "accession": "TSTSM0019PAR", "status": "released",
+              "summary": "K562 CRISPRi parental"},
+        hig: {"@id": hig, "@type": ["InVitroSystem", "Sample", "Item"], "accession": "TSTSM0020HIG", "status": "released",
+              "summary": "K562, sorted high", "sorted_from": par, "sorted_from_detail": "high expression bin",
+              "time_post_library_delivery": 5, "time_post_library_delivery_units": "day",
+              "treatments": [{"treatment_term_name": "dimethyl sulfoxide"}],
+              "modifications": [{"summary": "CRISPRi dCas9-KRAB"}], "construct_library_sets": [cls]},
+        "/documents/TSTDOC0001FMT/": {"@id": "/documents/TSTDOC0001FMT/", "@type": ["Document", "Item"],
+                                      "document_type": "file format specification",
+                                      "description": "columns: chr, start, end, TargetGene, Score",
+                                      "attachment": {"href": "@@download/attachment/spec.pdf"}},
+        "/analysis-step-versions/TSTASV1/": {"@id": "/analysis-step-versions/TSTASV1/", "@type": ["AnalysisStepVersion", "Item"],
+                                             "analysis_step": "/analysis-steps/TSTAS1/",
+                                             "software_versions": [{"summary": "scE2G v1.2"}]},
+        "/analysis-steps/TSTAS1/": {"@id": "/analysis-steps/TSTAS1/", "@type": ["AnalysisStep", "Item"],
+                                    "title": "scE2G prediction", "analysis_step_types": ["computational model prediction"]},
+        "/tabular-files/TSTFI0801EXT/": {"@id": "/tabular-files/TSTFI0801EXT/", "@type": ["TabularFile", "File", "Item"],
+                                          "accession": "TSTFI0801EXT", "content_type": "external source data",
+                                          "file_format": "tsv", "file_size": 1_000, "file_set": "/curated-sets/TSTDS0012TRN/"},
+    })
+    pred = objs["/prediction-sets/TSTDS0008PRD/"]
+    pred.update({"associated_phenotypes": [{"term_name": "coronary artery disease"}],
+                 "assessed_genes": [{"symbol": "APOE"}, {"symbol": "LDLR"}], "cell_type": {"term_name": "hepatocyte"}})
+    objs["/tabular-files/TSTFI0301E2G/"].update({"file_format_specifications": ["/documents/TSTDOC0001FMT/"],
+                                                  "analysis_step_version": "/analysis-step-versions/TSTASV1/"})
+    objs["/model-sets/TSTDS0009MOD/"]["external_input_data"] = "/tabular-files/TSTFI0801EXT/"
     calls: "list[str]" = []
 
     def fetch(url: str):
@@ -1237,3 +1586,37 @@ def selftest(checks: "list", tmp: Path) -> None:
           "sibling datasets of the pool are recorded as stubs, not expanded")
     g3 = walk("TSTSM0001MUX", fetch=fetch, max_depth=2)
     check(ids["uni"] in g3.nodes and ids["bmap"] in g3.nodes, "walk from a multiplexed sample reaches its file sets and barcode map")
+
+    # data-model patterns from the lab submission diagrams
+    gs = walk("TSTDS0020SRT", fetch=fetch, max_depth=4)
+    ps = build_plan(gs)
+    lib = {c["accession"]: c for c in ps["construct_libraries"]}
+    check("TSTDS0011CLS" in lib and lib["TSTDS0011CLS"]["file_set_type"] == "guide library"
+          and [f["accession"] for f in lib["TSTDS0011CLS"]["integrated_content_files"]] == ["TSTFI0701GDE"],
+          "construct library set and its integrated guide table are reached from the screen")
+    st = {x["accession"]: x for x in ps["sample_tree"]}
+    hi = st.get("TSTSM0020HIG") or {}
+    check(hi.get("parent") == "sorted from TSTSM0019PAR" and hi.get("sorted_fraction") == "high expression bin"
+          and hi.get("time_point", "").startswith("5 day") and "dimethyl sulfoxide" in hi.get("treatments", [])
+          and "CRISPRi dCas9-KRAB" in hi.get("modifications", []),
+          "sample tree: sorted fraction, parent, time point, treatment and modification recorded")
+    check("/in-vitro-systems/TSTSM0019PAR/" in gs.nodes, "the parental sample of a sorted fraction is walked")
+    check(any(x["accession"] == "TSTDS0020SRT" and x["superseded_by"] == ["TSTDS0021NEW"] for x in ps["superseded"])
+          and "/measurement-sets/TSTDS0021NEW/" in gs.nodes, "superseded root: replacement recorded and walked")
+    check(ps["about"].get("targeted_genes") == ["GATA1"] and ps["about"].get("functional_assay_mechanisms") == ["gene expression"],
+          "targeted genes and assay readout surfaced")
+    rs = write_report(ps, gs, tmp / "report_screen.md").read_text()
+    check("Superseded data" in rs and "Sample tree" in rs and "Design: construct libraries" in rs,
+          "report shows supersession, the sample tree and the design library")
+    gp = walk("TSTDS0008PRD", fetch=fetch, max_depth=4, fanout=10)
+    pp = build_plan(gp)
+    pm = {m["accession"]: m for m in pp["predictions_and_models"]}
+    pr = pm.get("TSTDS0008PRD") or {}
+    check(pr.get("associated_phenotypes") == ["coronary artery disease"] and pr.get("assessed_genes") == ["APOE", "LDLR"]
+          and pr.get("cell_type") == ["hepatocyte"], "prediction context: phenotype, assessed genes, cell type")
+    check((pm.get("TSTDS0009MOD") or {}).get("training_data") == ["TSTFI0801EXT"],
+          "model set's external training data linked")
+    check(any(c["file"] == "TSTFI0301E2G" and c["visible"] and "TargetGene" in c["description"] for c in pp["column_specs"]),
+          "column definitions document of the prediction table found")
+    check(any(pv.get("step") == "scE2G prediction" and "scE2G v1.2" in pv.get("software", []) for pv in pp["provenance"]),
+          "provenance: analysis step and software of the prediction file")

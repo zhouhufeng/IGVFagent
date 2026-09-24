@@ -1,6 +1,6 @@
 # Skills
 
-IGVFagent has 116 skills exposing 591 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
+IGVFagent has 116 skills exposing 592 typed tools. Every skill is an `igvfagent <skill> <subcommand>` command, and the agent calls the same commands as tools.
 
 **On this page**
 
