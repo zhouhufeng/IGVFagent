@@ -369,8 +369,19 @@ def _nb_headings(nb: dict) -> "List[Dict[str, Any]]":
     return out
 
 
+def notebook_kernel(path: Path) -> Dict[str, str]:
+    nb = _read_json(path, {}) or {}
+    md = nb.get("metadata") or {}
+    ks = md.get("kernelspec") or {}
+    li = md.get("language_info") or {}
+    return {"name": ks.get("name") or "", "language": (ks.get("language") or li.get("name") or "python").lower(),
+            "version": str(li.get("version") or "")}
+
+
 def language_of(path: Path) -> str:
-    return "python" if path.suffix in (".ipynb", ".py") else "r"
+    if path.suffix == ".ipynb":
+        return "r" if notebook_kernel(path)["language"] in ("r", "ir") else "python"
+    return "python" if path.suffix == ".py" else "r"
 
 
 def author_package_versions(code: str, ref: Optional[Path]) -> Dict[str, str]:
@@ -459,12 +470,13 @@ def inventory(src: Path, entry: Optional[str] = None) -> Dict[str, Any]:
             if p.name in ("requirements.txt", "environment.yml", "environment.yaml", "renv.lock", "DESCRIPTION",
                           "setup.py", "pyproject.toml", "install.R")]
     return {"ok": True, "src": _rel(src), "entry": str(main.relative_to(src)), "language": lang,
-            "entries": [str(p.relative_to(src)) for p in entries[:30]], "packages": pkgs, "inputs": inputs,
+            "entries": [str(p.relative_to(src)) for p in entries[:300]], "packages": pkgs, "inputs": inputs,
             "inputs_missing": [i["path"] for i in inputs if not i["exists"] and not i["is_url"]],
             "output_dirs": out_dirs, "outputs_declared": writes, "declared_env_files": reqs,
             "author_versions": author_versions,
             "reference": str(ref.relative_to(src)) if ref else None, "reference_stats": ref_stats,
             "n_chunks": len(parsed["chunks"]),
+            "kernel": notebook_kernel(main) if main.suffix == ".ipynb" else None,
             "sections": [{"title": s["title"], "chunks": s["chunks"]} for s in sections_of(parsed)]}
 
 
@@ -679,6 +691,8 @@ def build_env(inv: Dict[str, Any], pins: "Sequence[str]" = (), log: Optional[Pat
             if "data.table" in pkgs and "reshape2" not in pkgs:
                 pkgs.append("reshape2")  # data.table's melt/dcast on a data.frame redirect to reshape2
             wanted = [pinned.get(r_conda_name(p), r_conda_name(p)) for p in pkgs]
+            if inv.get("r_notebooks") or str(inv.get("entry", "")).endswith(".ipynb"):
+                wanted += ["r-irkernel", "jupyter", "nbconvert"]  # R notebooks run on this env's IRkernel
             if cran_pins:  # building archived CRAN versions needs compilers
                 pins = pins + ["c-compiler", "cxx-compiler", "fortran-compiler", "make"]
             spec = sorted(set(R_ALWAYS + wanted + [p for p in pins if p.split("=")[0] not in
@@ -734,7 +748,11 @@ def build_env(inv: Dict[str, Any], pins: "Sequence[str]" = (), log: Optional[Pat
                 _write_json(ok_marker, info)
             return {"ok": not missing, "prefix": str(prefix), "reused": False, **info,
                     "error": f"packages not installable: {', '.join(missing)}" if missing else None}
-        # python
+        # python: the authors' declared environment first (Paper2Agent: restore
+        # a supplied environment before adding anything)
+        yml = declared_python_env(ROOT / inv["src"], inv)
+        if yml is not None and not os.environ.get("IGVF_PAPER_CODE_IGNORE_DECLARED"):
+            return build_env_declared(yml, inv, pins, run)
         pip_names = sorted({PY_PIP_NAME.get(m, m) for m in inv["packages"]} | set(PY_ALWAYS) | set(pins))
         prefix = env_dir(["py"] + pip_names)
         ok_marker = prefix / ".igvf_env_ok.json"
@@ -768,6 +786,124 @@ def build_env(inv: Dict[str, Any], pins: "Sequence[str]" = (), log: Optional[Pat
     finally:
         if logf:
             logf.close()
+
+
+GPU_ONLY = re.compile(r"^(cudatoolkit|cudnn|cuda-[\w-]+|cuda|nccl|pytorch-mutex|pytorch-cuda|[\w-]+-gpu|nvidia-[\w-]+|"
+                      r"libcublas[\w-]*|magma[\w-]*|cupy[\w-]*|jaxlib-cuda[\w-]*)$", re.I)
+
+
+def _dep_name(spec: str) -> "Tuple[str, str]":
+    m = re.match(r"^\s*([A-Za-z0-9_.\-]+)\s*(?:[=<>!~]=?\s*([^=\s,;]+))?", spec or "")
+    return (m.group(1), m.group(2) or "") if m else (spec, "")
+
+
+def declared_python_env(src: Path, inv: Dict[str, Any]) -> Optional[Path]:
+    """The conda environment file the authors ship for their notebooks, if any:
+    one that pins python and brings a Jupyter kernel or runner."""
+    try:
+        import yaml  # type: ignore
+    except Exception:  # noqa: BLE001
+        return None
+    best, score = None, 0.0
+    for rel in inv.get("declared_env_files") or []:
+        if not rel.endswith((".yml", ".yaml")):
+            continue
+        try:
+            doc = yaml.safe_load((src / rel).read_text()) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        deps = [d for d in doc.get("dependencies") or [] if isinstance(d, str)]
+        names = {_dep_name(d)[0].lower() for d in deps}
+        pips = [x for d in doc.get("dependencies") or [] if isinstance(d, dict) for x in d.get("pip") or []]
+        names |= {_dep_name(x)[0].lower() for x in pips}
+        if "python" not in names:
+            continue
+        sc = 2.0 + (2.0 if names & {"ipykernel", "jupyter", "nbconvert", "papermill", "jupyterlab", "notebook"} else 0) \
+            + len(names) / 100.0 - (1.0 if "/" in rel.strip("/") and rel.count("/") > 3 else 0)
+        if sc > score:
+            best, score = src / rel, sc
+    return best
+
+
+def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", run) -> Dict[str, Any]:
+    """micromamba env from the authors' environment.yml. GPU-only packages are
+    dropped on a CPU host; if the exact pins do not solve, pins are relaxed to
+    major.minor, then to names (python kept at major.minor). pip dependencies
+    install inside the env; a pin that fails is retried unpinned. Every change
+    is recorded, so the report can say how this environment differs."""
+    import yaml  # type: ignore
+    doc = yaml.safe_load(yml.read_text()) or {}
+    deps = doc.get("dependencies") or []
+    conda = [d for d in deps if isinstance(d, str)]
+    pip = [x for d in deps if isinstance(d, dict) for x in d.get("pip") or []]
+    gpu = bool(shutil.which("nvidia-smi"))
+    dropped = [d for d in conda if GPU_ONLY.match(_dep_name(d)[0]) and not gpu]
+    conda = [d for d in conda if d not in dropped and _dep_name(d)[0].lower() != "pip"]
+    names = {_dep_name(d)[0].lower() for d in conda}
+    extra = [x for x in ("pip", "c-compiler", "cxx-compiler", "make", "ipykernel", "nbconvert", "nbclient", "nbformat")
+             if x not in names]
+    pyver = next((_dep_name(d)[1] for d in conda if _dep_name(d)[0].lower() == "python"), "")
+    pymm = ".".join(pyver.split(".")[:2]) if pyver else ""
+
+    def spec_at(level: int) -> "List[str]":
+        out = []
+        for d in conda:
+            n, v = _dep_name(d)
+            if level == 0 and v:
+                out.append(f"{n}={v.split('=')[0]}")
+            elif level == 1 and v:
+                mm = ".".join(v.split("=")[0].split(".")[:2])
+                out.append(f"{n}={mm}.*" if re.match(r"^\d+\.\d+", mm) else n)
+            else:
+                out.append(f"python={pymm}.*" if n.lower() == "python" and pymm else n)
+        return out + extra + [p_ for p_ in pins if not p_.startswith("cran:")]
+
+    h = hashlib.sha256((yml.read_text() + "|".join(pins)).encode()).hexdigest()[:12]
+    prefix = CODE_DIR / "envs" / f"declared_{h}"
+    ok_marker = prefix / ".igvf_env_ok.json"
+    if ok_marker.exists():
+        return {"ok": True, "prefix": str(prefix), "reused": True, **_read_json(ok_marker, {})}
+    mm = micromamba()
+    root = CODE_DIR / "mamba-root"
+    level_used = None
+    for level in (0, 1, 2):
+        if prefix.exists():
+            shutil.rmtree(prefix, ignore_errors=True)
+        p_ = run([str(mm), "-r", str(root), "create", "-y", "-p", str(prefix), "-c", "conda-forge", "-c", "bioconda",
+                  *spec_at(level)])
+        if p_.returncode == 0:
+            level_used = level
+            break
+    if level_used is None:
+        return {"ok": False, "error": f"the declared environment {yml.name} could not be solved even with pins relaxed",
+                "declared": _rel(yml)}
+    py = prefix / "bin" / "python"
+    pip_failed, pip_relaxed = [], []
+    if pip:
+        if run([str(py), "-m", "pip", "install", "--no-input", *pip]).returncode:
+            for x in pip:
+                if run([str(py), "-m", "pip", "install", "--no-input", x]).returncode:
+                    n, v = _dep_name(x)
+                    if v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
+                        pip_relaxed.append(x)
+                    else:
+                        pip_failed.append(x)
+    # imports the notebooks use that the declared file does not cover
+    have = (run([str(py), "-m", "pip", "list", "--format=freeze"]).stdout or "").lower()
+    for m in inv.get("packages") or []:
+        n = PY_PIP_NAME.get(m, m)
+        if n.lower().replace("_", "-") + "==" not in have.replace("_", "-") and \
+                run([str(py), "-c", f"import {m}"]).returncode:
+            if run([str(py), "-m", "pip", "install", "--no-input", n]).returncode:
+                pip_failed.append(f"{n} (imported by the notebooks)")
+    vers = run([str(py), "-m", "pip", "freeze"]).stdout or ""
+    pv = (run([str(py), "--version"]).stdout or "").strip()
+    info = {"declared": _rel(yml), "relaxed_level": ["exact pins", "major.minor pins", "names only"][level_used],
+            "dropped_gpu_only": dropped, "pip_failed": pip_failed, "pip_relaxed": pip_relaxed,
+            "python": pv, "versions": (pv + "\n" + vers)[-8000:], "missing": pip_failed}
+    _write_json(ok_marker, info)
+    return {"ok": True, "prefix": str(prefix), "reused": False, **info,
+            "error": (f"pip could not install: {', '.join(pip_failed)}" if pip_failed else None)}
 
 
 # ─── run: execute the entry unmodified ──────────────────────────────────────
@@ -850,17 +986,39 @@ def r_shims(inv: Dict[str, Any], code_of_entry: Optional[Path] = None) -> "List[
     return out
 
 
+LINK_OVER_BYTES = int(os.environ.get("IGVF_PAPER_CODE_LINK_BYTES", str(2 * 1024 * 1024)))
+
+
+def _link_or_copy(s_: str, d: str) -> str:
+    """Large files (deposited data) are hard-linked, not copied: a 3.6 GB
+    repository would otherwise be duplicated for every run. Analyses write new
+    files; one that rewrote an input in place would change the checkout too,
+    which the replay check and the pinned commit would then show."""
+    try:
+        if os.path.getsize(s_) > LINK_OVER_BYTES:
+            os.link(s_, d)
+            return d
+    except OSError:
+        pass
+    return shutil.copy2(s_, d)
+
+
+def prepare_work(src: Path, work: Path) -> None:
+    shutil.copytree(src, work, ignore=shutil.ignore_patterns(".git"), copy_function=_link_or_copy, symlinks=True)
+
+
 def _snapshot(d: Path) -> Dict[str, float]:
     return {str(p.relative_to(d)): p.stat().st_mtime for p in d.rglob("*") if p.is_file()}
 
 
 def run_entry(src: Path, inv: Dict[str, Any], env: Dict[str, Any], run_dir: Path,
               tolerant: bool = True, timeout_min: float = 180, work_name: str = "work",
-              inputs: "Optional[Dict[str, str]]" = None) -> Dict[str, Any]:
+              inputs: "Optional[Dict[str, str]]" = None, reuse_work: bool = False) -> Dict[str, Any]:
     work = run_dir / work_name
-    if work.exists():
-        shutil.rmtree(work)
-    shutil.copytree(src, work, ignore=shutil.ignore_patterns(".git"))
+    if work.exists() and not reuse_work:
+        shutil.rmtree(work) if not work.is_symlink() else work.unlink()
+    if not work.exists():
+        prepare_work(src, work)
     entry = work / inv["entry"]
     for od in inv.get("output_dirs") or []:
         (entry.parent / od).mkdir(parents=True, exist_ok=True)
@@ -893,8 +1051,13 @@ def run_entry(src: Path, inv: Dict[str, Any], env: Dict[str, Any], run_dir: Path
     elif inv["language"] == "r":
         argv = [str(prefix / "bin" / "Rscript"), "--vanilla", entry.name]
     elif entry.suffix == ".ipynb":
+        # The authors' kernelspec names their machine's environment (e.g.
+        # "jy_anbe_py38"), which does not exist here: run on this environment's
+        # own kernel instead. The notebook itself is not modified.
+        kname = "ir" if inv["language"] == "r" else "python3"
         argv = [str(prefix / "bin" / "python"), "-m", "jupyter", "nbconvert", "--to", "notebook", "--execute",
-                "--output", entry.stem + ".executed.ipynb", f"--ExecutePreprocessor.timeout={int(timeout_min * 60)}"]
+                "--output", entry.stem + ".executed.ipynb", f"--ExecutePreprocessor.timeout={int(timeout_min * 60)}",
+                f"--ExecutePreprocessor.kernel_name={kname}"]
         argv += (["--allow-errors"] if tolerant else []) + [entry.name]
     else:
         argv = [str(prefix / "bin" / "python"), entry.name]
@@ -1321,11 +1484,191 @@ def _new_run_dir(repo: str) -> Path:
     return d
 
 
+ANALYSIS_EXT = (".ipynb", ".Rmd", ".rmd", ".qmd")
+
+
+def _slug_path(p: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", p).strip("_")[:60]
+
+
+def _merge_invs(invs: "List[Dict[str, Any]]") -> Dict[str, Any]:
+    """One environment per language for all the notebooks that use it."""
+    m = dict(invs[0])
+    m["packages"] = sorted({p_ for i in invs for p_ in i.get("packages") or []})
+    m["r_notebooks"] = any(i["entry"].endswith(".ipynb") for i in invs if i["language"] == "r")
+    for i in invs:
+        for k, v in (i.get("author_versions") or {}).items():
+            m.setdefault("author_versions", {}).setdefault(k, v)
+    return m
+
+
+def _sum_summaries(entries: "List[Dict[str, Any]]") -> Dict[str, Any]:
+    tot = {"chunks": {"total": 0, "errored": 0, "root_errors": 0, "cascade_errors": 0},
+           "figures": {"produced": 0, "reference": 0, "saved_files": 0},
+           "printed": {"reference_blocks": 0, "identical": 0, "numerically_close": 0,
+                       "same_values_other_layout": 0, "missing": 0}}
+    for e in entries:
+        for sect in ("chunks", "figures", "printed"):
+            for k in tot[sect]:
+                tot[sect][k] += int((e.get(sect) or {}).get(k) or 0)
+    pr = tot["printed"]
+    got = pr["identical"] + pr["numerically_close"] + pr["same_values_other_layout"]
+    pr["fraction_matched"] = round(got / pr["reference_blocks"], 4) if pr["reference_blocks"] else None
+    return tot
+
+
+def _rewrite_links(md: str, prefix: str) -> str:
+    return re.sub(r"(!?\[[^\]]*\]\()(?!https?:|data:|#|/)([^)]+)\)", lambda m: f"{m.group(1)}{prefix}{m.group(2)})", md)
+
+
+def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins: "Sequence[str]", strict: bool,
+                   paper: Optional[str], run_dir: Path, entry_timeout_min: float, replay: bool,
+                   inputs: "Optional[Dict[str, str]]") -> Dict[str, Any]:
+    """Every selected notebook of a repository, in one shared work copy and in
+    order (as the authors ran them), each with its own sub-report; one
+    combined summary and report for the paper."""
+    status = run_dir / "status.json"
+
+    def stage(name: str, **kw) -> None:
+        _write_json(status, {"state": "running", "stage": name, "at": time.time(), **kw})
+        print(f"[paper-code] {name}", flush=True)
+
+    src_meta = fetch(repo, ref)
+    if not src_meta.get("ok"):
+        return {"ok": False, "error": src_meta["error"]}
+    src = ROOT / src_meta["src"]
+    stage("inventory", entries=len(entries))
+    invs = []
+    for e in entries:
+        i = inventory(src, e)
+        if i.get("ok"):
+            invs.append(i)
+    if not invs:
+        return {"ok": False, "error": "none of the selected entries could be inventoried"}
+    envs: Dict[str, Dict[str, Any]] = {}
+    for lang in sorted({i["language"] for i in invs}):
+        merged = _merge_invs([i for i in invs if i["language"] == lang])
+        stage("env", language=lang, packages=len(merged["packages"]))
+        envs[lang] = build_env(merged, pins, log=run_dir / f"env_{lang}.log")
+        _write_json(run_dir / f"env_{lang}.json", envs[lang])
+    prepare_work(src, run_dir / "work")
+    if replay:
+        prepare_work(src, run_dir / "replay")
+    summaries = []
+    for k, inv_e in enumerate(invs, 1):
+        sub = run_dir / "entries" / f"{k:02d}_{_slug_path(inv_e['entry'])}"
+        sub.mkdir(parents=True, exist_ok=True)
+        for nm in ("work",) + (("replay",) if replay else ()):
+            link = sub / nm
+            if not link.exists():
+                link.symlink_to(os.path.relpath(run_dir / nm, sub))
+        env = envs[inv_e["language"]]
+        _write_json(sub / "inventory.json", inv_e)
+        _write_json(sub / "env.json", env)
+        stage("run", entry=inv_e["entry"], k=k, n=len(invs))
+        if not env.get("prefix"):
+            summaries.append({"entry": inv_e["entry"], "dir": _rel(sub), "render": "no environment",
+                              "error": env.get("error")})
+            continue
+        mine = {n: v for n, v in (inputs or {}).items() if n in {i["path"] for i in inv_e.get("inputs") or []}}
+        run = run_entry(src, inv_e, env, sub, tolerant=not strict, timeout_min=entry_timeout_min, inputs=mine,
+                        reuse_work=True)
+        _write_json(sub / "run.json", run)
+        if replay:
+            _write_json(sub / "replay.json", run_entry(src, inv_e, env, sub, tolerant=not strict,
+                                                       timeout_min=entry_timeout_min, work_name="replay",
+                                                       inputs=mine, reuse_work=True))
+            _write_json(sub / "replay_compare.json", replay_compare(sub, inv_e))
+        rep_e = write_report(sub, inv_e, env, src_meta, paper)
+        sm = rep_e["summary"]
+        roots = [e for e in sm.get("errors") or [] if e.get("kind") != "cascade"]
+        summaries.append({"entry": inv_e["entry"], "dir": _rel(sub), "render": sm.get("render"),
+                          "chunks": sm.get("chunks"), "figures": sm.get("figures"), "printed": sm.get("printed"),
+                          "has_reference": bool(inv_e.get("reference")), "inputs_missing": inv_e.get("inputs_missing"),
+                          "first_error": roots[0]["message"][:240] if roots else None,
+                          "replay": sm.get("replay"), "seconds": sm.get("seconds")})
+    stage("report")
+    tot = _sum_summaries([x for x in summaries if x.get("chunks")])
+    clean = sum(1 for x in summaries if x.get("chunks") and not x["chunks"].get("root_errors"))
+    summary = {"paper": paper, "repo": src_meta.get("repo"), "commit": src_meta.get("commit"),
+               "entry": f"{len(summaries)} analyses", "language": "+".join(sorted(envs)),
+               "render": f"{clean}/{len(summaries)} ran without root errors", **tot,
+               "entries": summaries, "env": {lang: {k: e.get(k) for k in ("prefix", "declared", "relaxed_level",
+                                                                          "dropped_gpu_only", "pip_failed", "missing")}
+                                             for lang, e in envs.items()},
+               "replay": ({"deterministic": all((x.get("replay") or {}).get("deterministic") for x in summaries
+                                                if x.get("replay"))} if replay else None)}
+    _write_json(run_dir / "summary.json", summary)
+    pr = tot["printed"]
+    L = [f"# Reproduction from the authors' code: {src_meta.get('repo')}", ""]
+    if paper:
+        L += [f"**Paper:** {paper}", ""]
+    L += [f"- Repository: [{src_meta.get('repo')}]({src_meta.get('url')}) at commit `{(src_meta.get('commit') or '')[:12]}`",
+          f"- **{len(summaries)} analyses** run unmodified in one work copy, in order: **{clean}** without root-cause "
+          f"errors; {tot['chunks']['total']} chunks/cells, {tot['chunks']['root_errors']} root errors, "
+          f"{tot['chunks']['cascade_errors']} knock-on",
+          f"- Printed values vs the authors' stored outputs: **{pr['identical'] + pr['numerically_close'] + pr['same_values_other_layout']}"
+          f" of {pr['reference_blocks']}** ({(pr['fraction_matched'] or 0) * 100:.1f}%)",
+          f"- Figures: **{tot['figures']['produced']}** produced (the authors' outputs have {tot['figures']['reference']})"]
+    for lang, e in envs.items():
+        if e.get("declared"):
+            L.append(f"- {lang} environment: the authors' `{e['declared']}` ({e.get('relaxed_level')})"
+                     + (f"; GPU-only packages dropped on this CPU host: {', '.join(e['dropped_gpu_only'])}"
+                        if e.get("dropped_gpu_only") else "")
+                     + (f"; pip could not install: {', '.join(e['pip_failed'])}" if e.get("pip_failed") else ""))
+    L += ["", "| # | analysis | ran | chunks (root errors) | printed matched | figures | first root error |",
+          "|---|---|---|---|---|---|---|"]
+    for k, x in enumerate(summaries, 1):
+        ch, prx, fg = x.get("chunks") or {}, x.get("printed") or {}, x.get("figures") or {}
+        mt = ((prx.get("identical") or 0) + (prx.get("numerically_close") or 0) + (prx.get("same_values_other_layout") or 0))
+        matched = f"{mt}/{prx['reference_blocks']}" if prx.get("reference_blocks") else "-"
+        err = (x.get("first_error") or "").replace("|", "/")[:120]
+        L.append(f"| {k} | `{x['entry']}` | {x.get('render')} | {ch.get('total', '-')} ({ch.get('root_errors', '-')}) | "
+                 f"{matched} | {fg.get('produced', '-')} | {err} |")
+    L.append("")
+    for k, x in enumerate(summaries, 1):
+        sub = ROOT / x["dir"]
+        body = (sub / "report.md").read_text() if (sub / "report.md").exists() else ""
+        body = "\n".join(("#" + ln if ln.startswith("#") else ln) for ln in body.splitlines()[1:])
+        L += [f"## {k}. `{x['entry']}`", "", _rewrite_links(body, os.path.relpath(sub, run_dir) + "/"), ""]
+    md = run_dir / "report.md"
+    md.write_text("\n".join(L))
+    (run_dir / "report.html").write_text(_md_to_html("\n".join(L), f"Reproduction: {src_meta.get('repo')}"))
+    _write_json(run_dir / "compare.json", {"entries": [{"entry": x["entry"], "printed": x.get("printed")}
+                                                        for x in summaries]})
+    res = {"ok": True, "run_dir": _rel(run_dir), "report": _rel(md), "html": _rel(run_dir / "report.html"),
+           "summary": _rel(run_dir / "summary.json"), "render": summary["render"], "figures": tot["figures"],
+           "printed": tot["printed"], "chunks": tot["chunks"], "entries": len(summaries)}
+    _write_json(status, {"state": "done", "at": time.time()})
+    _write_json(run_dir / "done.json", res)
+    return res
+
+
 def pipeline(repo: str, *, ref: Optional[str] = None, entry: Optional[str] = None, pins: "Sequence[str]" = (),
              strict: bool = False, paper: Optional[str] = None, run_dir: Optional[Path] = None,
              timeout_min: float = 180, replay: bool = False,
-             inputs: "Optional[Dict[str, str]]" = None) -> Dict[str, Any]:
+             inputs: "Optional[Dict[str, str]]" = None, entries: "Optional[List[str]]" = None,
+             all_entries: bool = False, max_entries: int = 60, entry_timeout_min: float = 60) -> Dict[str, Any]:
     run_dir = run_dir or _new_run_dir(repo)
+    if entries and len(entries) > 1 or all_entries:
+        sel = list(entries or [])
+        if all_entries and not sel:
+            meta = fetch(repo, ref)
+            if not meta.get("ok"):
+                return {"ok": False, "error": meta["error"]}
+            top = inventory(ROOT / meta["src"])
+            sel = [e for e in top.get("entries") or [] if e.endswith(ANALYSIS_EXT)][:max_entries]
+        if len(sel) > 1:
+            try:
+                res = pipeline_multi(repo, sel, ref=ref, pins=pins, strict=strict, paper=paper, run_dir=run_dir,
+                                     entry_timeout_min=entry_timeout_min, replay=replay, inputs=inputs)
+            except Exception as e:  # noqa: BLE001
+                res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            if not res.get("ok"):
+                _write_json(run_dir / "status.json", {"state": "failed", "error": res.get("error"), "at": time.time()})
+                _write_json(run_dir / "done.json", {**res, "run_dir": _rel(run_dir)})
+            return res
+        entry = sel[0] if sel else entry
     status = run_dir / "status.json"
 
     def stage(name: str, **kw) -> None:
@@ -1482,6 +1825,44 @@ def cmd_selftest() -> int:
         check("python script runs unmodified in a work copy and its outputs are seen",
               run["exit_code"] == 0 and "out.txt" in run["new_files"])
         check("report and summary written", rep["report"].exists() and rep["summary"]["chunks"]["total"] == 1)
+    # several analyses of one repository: shared work copy, per-analysis
+    # sub-reports, one combined summary; large files hard-linked
+    with tempfile.TemporaryDirectory() as td:
+        td = str(Path(td).resolve())
+        src = Path(td) / "repo"
+        (src / "nb").mkdir(parents=True)
+        (src / "big.bin").write_bytes(b"x" * (LINK_OVER_BYTES + 10))
+        (src / "nb" / "a.py").write_text("print('a', 1+1)\nopen('a_out.txt','w').write('a')\n")
+        (src / "nb" / "b.py").write_text("import missing_module_xyz\n")
+        fake = Path(td) / "env"
+        (fake / "bin").mkdir(parents=True)
+        (fake / "bin" / "python").symlink_to(sys.executable)
+        g = globals()
+        saved = (g["ROOT"], g["fetch"], g["build_env"])
+        g["ROOT"] = Path(td)
+        g["fetch"] = lambda repo, ref=None: {"ok": True, "repo": repo, "url": "u", "commit": "c0ffee",
+                                             "src": "repo"}
+        g["build_env"] = lambda inv, pins=(), log=None: {"ok": True, "prefix": str(fake), "versions": "stub"}
+        try:
+            rd = Path(td) / "run"
+            rd.mkdir()
+            res = pipeline_multi("x/y", ["nb/a.py", "nb/b.py"], ref=None, pins=(), strict=False, paper="P",
+                                 run_dir=rd, entry_timeout_min=2, replay=False, inputs=None)
+            sm = _read_json(rd / "summary.json", {})
+            ents = sm.get("entries") or []
+            check("several analyses: one summary with each analysis and its own report",
+                  res.get("ok") and len(ents) == 2 and all((Path(td) / e["dir"] / "report.md").exists() for e in ents))
+            check("files an analysis writes are attributed to it", "nb/a_out.txt" in
+                  (_read_json(Path(td) / ents[0]["dir"] / "run.json", {}).get("new_files") or []))
+            check("large files are hard-linked into the work copy, not copied",
+                  os.stat(rd / "work" / "big.bin").st_ino == os.stat(src / "big.bin").st_ino)
+            check("the combined report lists every analysis", "`nb/a.py`" in (rd / "report.md").read_text()
+                  and "`nb/b.py`" in (rd / "report.md").read_text())
+        finally:
+            g["ROOT"], g["fetch"], g["build_env"] = saved
+    gy = GPU_ONLY
+    check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
+          and not gy.match("pytorch") and not gy.match("numpy"))
     if shutil.which("Rscript") and subprocess.run(["Rscript", "-e", "stopifnot(requireNamespace('rmarkdown'))"],
                                                   capture_output=True).returncode == 0:
         print("  (R + rmarkdown present: a real knit is exercised by `paper-code pipeline`)")
@@ -1512,7 +1893,12 @@ def build_parser() -> argparse.ArgumentParser:
         s.add_argument("repo", nargs="?", help="owner/name or GitHub URL (or give --harvest)")
         s.add_argument("--harvest", help="pick the repository from a bench harvest.json")
         s.add_argument("--ref", help="commit/tag to pin (default: current HEAD, recorded)")
-        s.add_argument("--entry", help="analysis file inside the repository (default: the main Rmd/notebook)")
+        s.add_argument("--entry", action="append", default=None,
+                       help="analysis file inside the repository (repeatable; default: the main Rmd/notebook)")
+        s.add_argument("--all-entries", action="store_true",
+                       help="run every notebook / R Markdown file in the repository, in path order")
+        s.add_argument("--max-entries", type=int, default=60)
+        s.add_argument("--entry-timeout-min", type=float, default=60, help="per analysis, with several")
         s.add_argument("--pin", action="append", default=[], help="conda/pip pin, e.g. r-reshape2=1.4.4")
         s.add_argument("--strict", action="store_true", help="stop at the first failing chunk")
         s.add_argument("--paper", help="paper title/DOI for the report")
@@ -1580,7 +1966,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Wait with job_wait on {_rel(rd / 'done.json')}, or `igvfagent paper-code status {_rel(rd)}`.")
             say("JSON", _rel(rd / "status.json"))
             return 0
-        res = pipeline(repo, ref=args.ref, entry=args.entry, pins=args.pin, strict=args.strict, paper=args.paper,
+        res = pipeline(repo, ref=args.ref, entry=(args.entry or [None])[0], pins=args.pin, strict=args.strict,
+                       paper=args.paper, entries=args.entry, all_entries=args.all_entries,
+                       max_entries=args.max_entries, entry_timeout_min=args.entry_timeout_min,
                        run_dir=Path(args.run_dir) if args.run_dir else None, timeout_min=args.timeout_min,
                        replay=args.replay,
                        inputs=dict(x.split("=", 1) for x in args.input) or None)

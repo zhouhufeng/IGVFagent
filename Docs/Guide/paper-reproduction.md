@@ -37,6 +37,19 @@ route for code-backed papers:
 | replay | This is optional (`--replay`). The analysis runs a second time, and printed values and saved files must come out identical. PDFs are compared without their timestamps. |
 | report | `report.md` and `report.html` have one section per top-level heading, holding its figures, errors and printed-value agreement. `summary.json` feeds plan checks. |
 
+**Repositories with many analyses.** Many papers publish one notebook per figure. Pass `--all-entries`, or `all_entries` from a job, to run every notebook and R Markdown file:
+- They run in path order in one shared work copy, as the authors ran them, so a later notebook finds what an earlier one wrote.
+- Each analysis gets its own sub-report (`entries/NN_<name>/`), with its own agreement, figures and first root-cause error.
+- The paper gets one combined summary and report.
+- Large files, such as deposited data, are hard-linked into the work copy rather than copied.
+
+**The authors' declared environment comes first.** Python notebooks run on a micromamba environment built from the repository's own `environment.yml`, whenever it pins Python:
+- GPU-only packages (`cudatoolkit`, `cudnn` and similar) are dropped on a CPU host.
+- If the exact pins don't solve, they are relaxed to major.minor, then to names only, with Python kept at its major.minor.
+- `pip:` dependencies install inside the environment, with compilers available, and a pin that fails is retried unpinned.
+- Every change is recorded in the report.
+- Notebooks run on this environment's own kernel (`python3`, or `ir` for R notebooks), not the kernel name the authors' machine used. The notebook files are not modified.
+
 When the authors ran R older than 3.6, the run uses `RNGkind(sample.kind = "Rounding")`. R 3.6 changed `sample()`, and without this the authors' `set.seed()` would give different random draws.
 
 ## From the browser or a job

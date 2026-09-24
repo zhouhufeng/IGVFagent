@@ -6088,11 +6088,14 @@ _TOOLS: "list[Tool]" = [
             "pin": {**_S_ARRAY_S, "description": "conda/pip pins or cran:pkg@version."},
             "strict": {**_S_BOOLEAN, "description": "Stop at the first failing chunk."},
             "replay": {**_S_BOOLEAN, "description": "Execute twice and check the outputs are identical."},
+            "all_entries": {**_S_BOOLEAN, "description": "Run EVERY notebook / R Markdown analysis of the repository "
+                                                         "(one shared work copy, per-analysis reports, one summary). "
+                                                         "Use for repositories that publish one notebook per figure."},
             "input": {**_S_ARRAY_S, "description": "Apply the authors' code to new data: NAME=PATH replaces an input "
                                                   "the analysis reads (names from paper_code_inventory)."},
             "paper": {**_S_STRING, "description": "Paper title/DOI for the report."}}},
         cli=["paper-code", "pipeline", "--detach"], positional=["repo"], flag_repeat={"pin", "input"},
-        bool_flags={"strict", "replay"},
+        bool_flags={"strict", "replay", "all_entries"},
     ),
 
     _T(

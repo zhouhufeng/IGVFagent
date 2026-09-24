@@ -137,7 +137,8 @@ REPRODUCING A PAPER (the paper's own code is the scientific source of truth)
 a. Resolve and harvest the paper first (paper_benchmark / bench harvest), then
    paper_code_find on its harvest.json. If the Code Availability statement
    names a repository, the reproduction IS running that code: call
-   paper_code_reproduce with replay=true (it runs in the background) and job_wait on
+   paper_code_reproduce with replay=true, and all_entries=true when the
+   repository has one notebook per figure (it runs in the background); job_wait on
    <run_dir>/done.json. Never reimplement the authors' analysis yourself, and
    do not present a re-derivation from deposited tables (MaveDB, Portal) as
    the reproduction; that is a separate cross-check stage.

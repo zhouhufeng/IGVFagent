@@ -140,14 +140,43 @@ def paper_info(ev: "List[str]", job: dict) -> Dict[str, Any]:
             "doi": doi.group(0).rstrip(".") if doi else None, "claims": [], "code_repositories": []}
 
 
+def _entry_rows(d: Path, s: Dict[str, Any]) -> "List[Dict[str, Any]]":
+    if s.get("entries"):
+        return [dict(e, run_dir=_rel(d)) for e in s["entries"]]
+    return [{"entry": s.get("entry"), "render": s.get("render"), "chunks": s.get("chunks"), "figures": s.get("figures"),
+             "printed": s.get("printed"), "replay": s.get("replay"), "run_dir": _rel(d)}]
+
+
 def code_info(ev: "List[str]") -> Optional[Dict[str, Any]]:
-    dirs = [d for d in _run_dirs(ev, "Docs/PaperCode") if (d / "summary.json").exists()]
+    """The authors'-code result of a job. A job often runs several analyses of
+    one repository (one notebook per figure), in one or several paper-code
+    runs: every analysis counts, with its latest run."""
+    dirs = sorted({d for d in _run_dirs(ev, "Docs/PaperCode") if (d / "summary.json").exists()}, key=lambda d: d.name)
     if not dirs:
         return None
-    d = dirs[-1]
+    rows: Dict[str, Dict[str, Any]] = {}
+    for d_ in dirs:
+        for r in _entry_rows(d_, _read_json(d_ / "summary.json") or {}):
+            rows[str(r.get("entry"))] = r
+    d = next((x for x in reversed(dirs) if (_read_json(x / "summary.json") or {}).get("entries")), dirs[-1])
     s = _read_json(d / "summary.json") or {}
     run = _read_json(d / "run.json") or {}
-    return {"run_dir": _rel(d), "repo": s.get("repo"), "commit": s.get("commit"), "entry": s.get("entry"),
+    entries = list(rows.values())
+    if len(entries) > 1:
+        tot = {"chunks": {"total": 0, "errored": 0, "root_errors": 0, "cascade_errors": 0},
+               "figures": {"produced": 0, "reference": 0}, "printed": {"reference_blocks": 0, "identical": 0,
+                                                                     "numerically_close": 0,
+                                                                     "same_values_other_layout": 0, "missing": 0}}
+        for e in entries:
+            for sect, keys in tot.items():
+                for k in keys:
+                    keys[k] += int((e.get(sect) or {}).get(k) or 0)
+        pr = tot["printed"]
+        got = pr["identical"] + pr["numerically_close"] + pr["same_values_other_layout"]
+        pr["fraction_matched"] = round(got / pr["reference_blocks"], 4) if pr["reference_blocks"] else None
+        s = {**s, **tot, "entry": f"{len(entries)} analyses"}
+    return {"entries": entries, "runs": [_rel(x) for x in dirs],
+            "run_dir": _rel(d), "repo": s.get("repo"), "commit": s.get("commit"), "entry": s.get("entry"),
             "language": s.get("language"), "render": s.get("render"), "seconds": s.get("seconds"),
             "chunks": s.get("chunks"), "figures": s.get("figures"), "printed": s.get("printed"),
             "replay": s.get("replay"), "shims": run.get("r_shims") or [],
@@ -472,6 +501,10 @@ def set_published(paper_id: str, on: bool) -> Dict[str, Any]:
 
 def headline(rec: Dict[str, Any]) -> str:
     c, parts = rec.get("code"), []
+    if c and len(c.get("entries") or []) > 1:
+        ents = c["entries"]
+        clean = sum(1 for e in ents if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors"))
+        parts.append(f"{clean}/{len(ents)} analyses ran without root errors")
     if c:
         pr = c.get("printed") or {}
         if pr.get("reference_blocks"):
