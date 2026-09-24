@@ -882,12 +882,18 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     if pip:
         if run([str(py), "-m", "pip", "install", "--no-input", *pip]).returncode:
             for x in pip:
-                if run([str(py), "-m", "pip", "install", "--no-input", x]).returncode:
-                    n, v = _dep_name(x)
-                    if v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
-                        pip_relaxed.append(x)
-                    else:
-                        pip_failed.append(x)
+                if run([str(py), "-m", "pip", "install", "--no-input", x]).returncode == 0:
+                    continue
+                # Source packages built against the env's own pinned build
+                # tools (e.g. Cython 0.29 for a package that breaks on Cython 3)
+                if run([str(py), "-m", "pip", "install", "--no-input", "--no-build-isolation", x]).returncode == 0:
+                    pip_relaxed.append(f"{x} (built without build isolation)")
+                    continue
+                n, v = _dep_name(x)
+                if v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
+                    pip_relaxed.append(f"{x} -> latest {n}")
+                else:
+                    pip_failed.append(x)
     # imports the notebooks use that the declared file does not cover
     have = (run([str(py), "-m", "pip", "list", "--format=freeze"]).stdout or "").lower()
     for m in inv.get("packages") or []:
@@ -901,7 +907,8 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     info = {"declared": _rel(yml), "relaxed_level": ["exact pins", "major.minor pins", "names only"][level_used],
             "dropped_gpu_only": dropped, "pip_failed": pip_failed, "pip_relaxed": pip_relaxed,
             "python": pv, "versions": (pv + "\n" + vers)[-8000:], "missing": pip_failed}
-    _write_json(ok_marker, info)
+    if not pip_failed:  # an incomplete env is rebuilt next time, not reused
+        _write_json(ok_marker, info)
     return {"ok": True, "prefix": str(prefix), "reused": False, **info,
             "error": (f"pip could not install: {', '.join(pip_failed)}" if pip_failed else None)}
 
