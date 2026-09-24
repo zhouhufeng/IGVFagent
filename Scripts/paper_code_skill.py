@@ -826,6 +826,7 @@ def declared_python_env(src: Path, inv: Dict[str, Any]) -> Optional[Path]:
     return best
 
 
+DECLARED_ENV_BUILDER = "4"  # bump when build_env_declared changes what it installs
 BUILD_TOOLS = {"cython", "numpy", "setuptools", "wheel", "setuptools-scm", "setuptools_scm", "pybind11",
                "scikit-build", "cmake", "ninja", "versioneer", "pip"}
 PIP_SKIP = {"sklearn"}  # the deprecated "sklearn" dummy package refuses to install; scikit-learn is the real one
@@ -860,8 +861,8 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     dropped = [d for d in conda if GPU_ONLY.match(_dep_name(d)[0]) and not gpu]
     conda = [d for d in conda if d not in dropped and _dep_name(d)[0].lower() != "pip"]
     names = {_dep_name(d)[0].lower() for d in conda}
-    extra = [x for x in ("pip", "c-compiler", "cxx-compiler", "make", "ipykernel", "nbconvert", "nbclient", "nbformat")
-             if x not in names]
+    extra = [x for x in ("pip", "c-compiler", "cxx-compiler", "make", "libxcrypt", "ipykernel", "nbconvert", "nbclient",
+                         "nbformat") if x not in names]
     pyver = next((_dep_name(d)[1] for d in conda if _dep_name(d)[0].lower() == "python"), "")
     pymm = ".".join(pyver.split(".")[:2]) if pyver else ""
 
@@ -878,7 +879,9 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
                 out.append(f"python={pymm}.*" if n.lower() == "python" and pymm else n)
         return out + extra + [p_ for p_ in pins if not p_.startswith("cran:")]
 
-    h = hashlib.sha256((yml.read_text() + "|".join(pins)).encode()).hexdigest()[:12]
+    # the builder's version is part of the key: a fix to how envs are built
+    # (compilers, fallbacks) must not be hidden by a cached older env
+    h = hashlib.sha256((DECLARED_ENV_BUILDER + yml.read_text() + "|".join(pins)).encode()).hexdigest()[:12]
     prefix = CODE_DIR / "envs" / f"declared_{h}"
     ok_marker = prefix / ".igvf_env_ok.json"
     if ok_marker.exists():
@@ -899,6 +902,21 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
                 "declared": _rel(yml)}
     py = prefix / "bin" / "python"
     pip_failed, pip_relaxed, conda_fallback = [], [], []
+    # The env is never "activated", so point source builds at its own
+    # compilers and headers (the system gcc lacks e.g. crypt.h for Python 3.8).
+    benv = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+            "CPATH": str(prefix / "include"), "LIBRARY_PATH": str(prefix / "lib")}
+    for var, pats in (("CC", ("*-conda-linux-gnu-cc", "*-apple-darwin*-clang")),
+                      ("CXX", ("*-conda-linux-gnu-c++", "*-apple-darwin*-clang++"))):
+        hit = [h for pat in pats for h in sorted((prefix / "bin").glob(pat))]
+        if hit:
+            benv[var] = str(hit[0])
+    _run0 = run
+
+    def run(argv: "List[str]", **kw):  # pip gets the build environment
+        if argv[:3] == [str(py), "-m", "pip"] and "env" not in kw:
+            kw["env"] = benv
+        return _run0(argv, **kw)
     if pip:
         if run([str(py), "-m", "pip", "install", "--no-input", *pip]).returncode:
             # Pinned build tools first (a Cython 0.29 package cannot build under
@@ -1723,6 +1741,68 @@ def _missing_inputs(text: str) -> "List[str]":
     return sorted(set(out))[:200]
 
 
+_MISSING_FILE = [re.compile(r"No such file or directory: '([^']+)'"), re.compile(r"name = '([^']+)'"),
+                 re.compile(r"FileNotFoundError: \[Errno 2\] [^:]*: '([^']+)'"), re.compile(r"does not exist: '([^']+)'")]
+
+
+def missing_files(sub: Path, entry: str, work: Path) -> "List[str]":
+    """Workspace-relative files an analysis failed to open (from its root
+    errors), resolved against the analysis's own directory."""
+    sm = _read_json(sub / "summary.json", {}) or {}
+    out = []
+    for e in sm.get("errors") or []:
+        for rx in _MISSING_FILE:
+            for m in rx.finditer(e.get("message") or ""):
+                q = Path(m.group(1))
+                q = (q if q.is_absolute() else (work / Path(entry).parent / q)).resolve()
+                try:
+                    rel = str(q.relative_to(work.resolve()))
+                except ValueError:
+                    continue
+                if rel not in out:
+                    out.append(rel)
+    return out
+
+
+def build_targets(work: Path, wf: Dict[str, str], env: Dict[str, Any], targets: "List[str]", log: Path,
+                  timeout_min: float, cores: int) -> Dict[str, Any]:
+    """Ask the workflow for specific files (what the analyses could not find):
+    dry-run each, build every buildable one with --keep-going."""
+    prefix = Path(env.get("prefix") or "")
+    exe = prefix / "bin" / "snakemake"
+    res: Dict[str, Any] = {"requested": targets, "buildable": [], "not_buildable": {}}
+    if wf.get("engine") != "snakemake" or not exe.exists() or not targets:
+        return res
+    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
+    base = [str(exe), "-s", wf["file"], "--cores", str(cores), "--nolock"]
+    for t in targets[:120]:
+        d_ = subprocess.run(base + ["-n", "--quiet", t], cwd=str(work), env=envvars, capture_output=True, text=True,
+                            stdin=subprocess.DEVNULL, timeout=600)
+        txt = (d_.stdout or "") + (d_.stderr or "")
+        if d_.returncode == 0:
+            res["buildable"].append(t)
+        else:
+            why = _missing_inputs(txt)[:3] or [next((ln.strip() for ln in txt.splitlines()
+                                                    if "MissingRuleException" in ln or "No rule to produce" in ln),
+                                                   txt.strip().splitlines()[-1][:160] if txt.strip() else "")]
+            res["not_buildable"][t] = why
+    if res["buildable"]:
+        t0 = time.time()
+        with open(log, "a") as lf:
+            lf.write("\n---- targets the analyses asked for ----\n$ " + " ".join(base + res["buildable"]) + "\n")
+            lf.flush()
+            try:
+                p_ = subprocess.run(base + ["--keep-going", "--rerun-incomplete"] + res["buildable"], cwd=str(work),
+                                    env=envvars, stdout=lf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    timeout=timeout_min * 60)
+                res["exit"] = p_.returncode
+            except subprocess.TimeoutExpired:
+                res["exit"] = 124
+        res["seconds"] = round(time.time() - t0, 1)
+        res["built"] = [t for t in res["buildable"] if (work / t).exists()]
+    return res
+
+
 def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path, timeout_min: float,
                  cores: int) -> Dict[str, Any]:
     """Dry run (the plan and every missing input), then the real run with
@@ -1987,6 +2067,39 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                           "has_reference": bool(inv_e.get("reference")), "inputs_missing": inv_e.get("inputs_missing"),
                           "first_error": roots[0]["message"][:240] if roots else None,
                           "replay": sm.get("replay"), "seconds": sm.get("seconds")})
+    # The analyses name what they could not find; the workflow may be able to
+    # produce it (e.g. model runs from the deposited processed objects). Build
+    # those files, then run again only the analyses that were missing them.
+    if wf and wf.get("engine") == "snakemake" and not (wf_res or {}).get("error"):
+        need: Dict[str, List[str]] = {}
+        for x in summaries:
+            for f_ in missing_files(ROOT / x["dir"], x["entry"], run_dir / "work"):
+                need.setdefault(f_, []).append(x["entry"])
+        if need:
+            stage("workflow-targets", files=len(need))
+            wenv = envs.get("python") or next(iter(envs.values()))
+            bt = build_targets(run_dir / "work", wf, wenv, sorted(need), run_dir / "workflow.log",
+                               workflow_timeout_min, cores)
+            rerun = sorted({e for f_ in bt.get("built") or [] for e in need[f_]})
+            bt["analyses_rerun"] = rerun
+            (wf_res or {}).update({"second_pass": bt})
+            _write_json(run_dir / "workflow.json", wf_res)
+            for k, inv_e in enumerate(invs, 1):
+                if inv_e["entry"] not in rerun:
+                    continue
+                sub = run_dir / "entries" / f"{k:02d}_{_slug_path(inv_e['entry'])}"
+                env = envs[inv_e["language"]]
+                stage("rerun", entry=inv_e["entry"])
+                run = run_entry(src, inv_e, env, sub, tolerant=not strict, timeout_min=entry_timeout_min,
+                                reuse_work=True)
+                _write_json(sub / "run.json", run)
+                sm = write_report(sub, inv_e, env, src_meta, paper)["summary"]
+                roots = [e for e in sm.get("errors") or [] if e.get("kind") != "cascade"]
+                for x in summaries:
+                    if x["entry"] == inv_e["entry"]:
+                        x.update({"render": sm.get("render"), "chunks": sm.get("chunks"), "figures": sm.get("figures"),
+                                  "printed": sm.get("printed"), "first_error": roots[0]["message"][:240] if roots else None,
+                                  "rerun_after_workflow": True})
     stage("report")
     tot = _sum_summaries([x for x in summaries if x.get("chunks")])
     clean = sum(1 for x in summaries if x.get("chunks") and not x["chunks"].get("root_errors"))
@@ -2030,6 +2143,11 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                         f"({', '.join(wf_res['targets']['buildable'][:8])}); "
                         f"{len(wf_res['targets']['blocked'])} rule(s) need inputs that are not here"
                         if wf_res.get("targets") else "")
+                     + (f"; the analyses asked for {len(wf_res['second_pass']['requested'])} missing file(s), "
+                        f"{len(wf_res['second_pass']['buildable'])} buildable by the workflow, "
+                        f"{len(wf_res['second_pass'].get('built') or [])} built, "
+                        f"{len(wf_res['second_pass']['analyses_rerun'])} analyses re-run"
+                        if wf_res.get("second_pass") else "")
                      + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
                         f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
     for dd in (summary.get("data") or [])[-5:]:
@@ -2299,6 +2417,15 @@ def cmd_selftest() -> int:
                "        results/raw/A_R1.fastq.gz\n        results/raw/A_R2.fastq.gz\n")
         mi = _missing_inputs(txt)
         check("missing workflow inputs are listed", "results/raw/A_R1.fastq.gz" in mi and "results/raw/A_R2.fastq.gz" in mi)
+        sub = Path(td) / "sub"
+        sub.mkdir()
+        _write_json(sub / "summary.json", {"errors": [
+            {"message": "FileNotFoundError: [Errno 2] No such file or directory: '../../results/model_runs/x.csv'"},
+            {"message": "OSError: Unable to open file (unable to open file: name = '../../results/mapped/y.h5ad', errno 2)"},
+            {"message": "No such file or directory: '/etc/outside'"}]})
+        mf = missing_files(sub, "workflow/notebooks/Fig1/a.ipynb", repo_src)
+        check("files an analysis could not open are resolved against its own directory",
+              mf == ["workflow/results/model_runs/x.csv", "workflow/results/mapped/y.h5ad"])
         payload = Path(td) / "deposit.tsv"
         payload.write_text("a\tb\n1\t2\n")
         g = globals()
