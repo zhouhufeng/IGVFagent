@@ -847,6 +847,33 @@ def _conda_install(run, mm: Path, root: Path, prefix: Path, name: str) -> bool:
     return False
 
 
+def _release_archive(name: str, version: str) -> Optional[str]:
+    """`name @ <archive URL>` for a version that exists as a tag in the
+    project's GitHub repository but was never uploaded to PyPI (e.g. the
+    crispr-bean 0.2.9 a paper used). The repository comes from PyPI's
+    project URLs."""
+    try:
+        meta = _http_json(f"https://pypi.org/pypi/{name}/json")
+    except Exception:  # noqa: BLE001
+        return None
+    if version in (meta.get("releases") or {}) and meta["releases"][version]:
+        return None  # on PyPI after all: the normal install handles it
+    info = meta.get("info") or {}
+    urls = list((info.get("project_urls") or {}).values()) + [info.get("home_page") or "", info.get("download_url") or ""]
+    repos = [m.group(1) for u in urls for m in [re.search(r"github\.com/([\w.-]+/[\w.-]+?)(?:\.git)?/?$", u or "")] if m]
+    for repo in dict.fromkeys(repos):
+        for tag in (f"v{version}", version):
+            url = f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
+            try:
+                req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "igvfagent"})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    if r.status < 400:
+                        return f"{name} @ {url}"
+            except Exception:  # noqa: BLE001
+                continue
+    return None
+
+
 def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", run) -> Dict[str, Any]:
     """micromamba env from the authors' environment.yml. GPU-only packages are
     dropped on a CPU host; if the exact pins do not solve, pins are relaxed to
@@ -861,6 +888,7 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     # --pin pip:NAME==VER overrides the declared pip dependency (e.g. the paper
     # states it used bean 0.2.9 while the repository's environment says 0.2.5)
     pip_over = {_dep_name(p_[4:])[0].lower(): p_[4:] for p_ in pins if p_.startswith("pip:")}
+    explicit = set(pip_over.values())
     pip = [pip_over.pop(_dep_name(x)[0].lower(), x) for x in pip] + list(pip_over.values())
     pins = [p_ for p_ in pins if not p_.startswith("pip:")]
     gpu = bool(shutil.which("nvidia-smi"))
@@ -907,7 +935,7 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
         return {"ok": False, "error": f"the declared environment {yml.name} could not be solved even with pins relaxed",
                 "declared": _rel(yml)}
     py = prefix / "bin" / "python"
-    pip_failed, pip_relaxed, conda_fallback = [], [], []
+    pip_failed, pip_relaxed, conda_fallback, pin_failed = [], [], [], []
     # The env is never "activated", so point source builds at its own
     # compilers and headers (the system gcc lacks e.g. crypt.h for Python 3.8).
     benv = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
@@ -952,6 +980,16 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
                 n, v = _dep_name(x)
                 if n.lower() in PIP_SKIP:
                     continue
+                if x in explicit:
+                    # A version the user or the paper asked for is never swapped
+                    # for another: try the project's own release, else fail loudly.
+                    src_spec = _release_archive(n, v) if v and "==" in x else None
+                    if src_spec and run([str(py), "-m", "pip", "install", "--no-input", "--no-build-isolation",
+                                         src_spec]).returncode == 0:
+                        pip_relaxed.append(f"{x} (from the project's release archive: {src_spec.split(' @ ')[-1]})")
+                    else:
+                        pin_failed.append(x)
+                    continue
                 if _conda_install(run, mm, root, prefix, n):
                     conda_fallback.append(f"{x} (from conda-forge/bioconda)")
                 elif v and run([str(py), "-m", "pip", "install", "--no-input", n]).returncode == 0:
@@ -974,13 +1012,17 @@ def build_env_declared(yml: Path, inv: Dict[str, Any], pins: "Sequence[str]", ru
     pv = (run([str(py), "--version"]).stdout or "").strip()
     info = {"declared": _rel(yml), "relaxed_level": ["exact pins", "major.minor pins", "names only"][level_used],
             "dropped_gpu_only": dropped, "pip_failed": pip_failed, "pip_relaxed": pip_relaxed,
-            "conda_fallback": conda_fallback,
+            "conda_fallback": conda_fallback, "pin_failed": pin_failed,
             "python": pv, "versions": (pv + "\n" + vers)[-8000:], "missing": pip_failed}
     # Rebuild next time only if a DECLARED dependency failed; modules the
     # notebooks import that no index has (the authors' private helpers) will
     # not appear on a rebuild either.
-    if not [x for x in pip_failed if "(imported by the notebooks)" not in x]:
+    if not [x for x in pip_failed if "(imported by the notebooks)" not in x] and not pin_failed:
         _write_json(ok_marker, info)
+    if pin_failed:
+        return {"ok": False, "prefix": None, "reused": False, **info,
+                "error": f"requested version(s) could not be installed: {', '.join(pin_failed)} (not on PyPI and no "
+                         "matching release archive was found; pin 'pip:NAME @ URL' to a source archive)"}
     return {"ok": True, "prefix": str(prefix), "reused": False, **info,
             "error": (f"pip could not install: {', '.join(pip_failed)}" if pip_failed else None)}
 
