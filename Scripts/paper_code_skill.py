@@ -1122,7 +1122,77 @@ try:
         pass
 except Exception:
     pass
+
+
+# gpu_to_cpu: code written for the authors' GPUs (--cuda, .cuda(), CUDA
+# default tensor types) runs on a CPU-only host. Applied when torch is first
+# imported and only if CUDA is unavailable; logged once.
+import importlib.abc, importlib.machinery, sys
+
+
+def _patch_torch(torch):
+    try:
+        if torch.cuda.is_available():
+            return
+    except Exception:
+        pass
+    _orig_sdtt = torch.set_default_tensor_type
+
+    def _sdtt(t):
+        name = t if isinstance(t, str) else getattr(t, "__module__", "") + "." + getattr(t, "__name__", "")
+        if "cuda" in str(name):
+            _log(shim="gpu_to_cpu", call="set_default_tensor_type", requested=str(name))
+            cpu = str(name).replace("torch.cuda.", "torch.").replace("cuda.", "")
+            return _orig_sdtt(cpu if isinstance(t, str) else getattr(torch, getattr(t, "__name__", "FloatTensor")))
+        return _orig_sdtt(t)
+    torch.set_default_tensor_type = _sdtt
+
+    def _no_cuda(self, *a, **k):
+        if not getattr(_no_cuda, "logged", False):
+            _log(shim="gpu_to_cpu", call=".cuda()")
+            _no_cuda.logged = True
+        return self
+    torch.Tensor.cuda = _no_cuda
+    try:
+        torch.nn.Module.cuda = _no_cuda
+    except Exception:
+        pass
+
+
+class _TorchHook(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name != "torch":
+            return None
+        sys.meta_path.remove(self)
+        spec = importlib.machinery.PathFinder.find_spec(name, path)
+        if spec is None or spec.loader is None:
+            return spec
+        orig = spec.loader.exec_module
+
+        def exec_module(module):
+            orig(module)
+            try:
+                _patch_torch(module)
+            except Exception:
+                pass
+        spec.loader.exec_module = exec_module
+        return spec
+
+
+if "torch" in sys.modules:
+    _patch_torch(sys.modules["torch"])
+elif not any(isinstance(f, _TorchHook) for f in sys.meta_path):
+    sys.meta_path.insert(0, _TorchHook())
 '''
+
+
+def write_py_shims(d: Path, log_path: Path) -> Dict[str, str]:
+    """The shim module plus a sitecustomize that loads it, for processes that
+    are not notebook kernels (workflow rules, scripts). Returns env vars."""
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "igvf_py_shims.py").write_text(_PY_SHIMS)
+    (d / "sitecustomize.py").write_text("try:\n    import igvf_py_shims  # noqa: F401\nexcept Exception:\n    pass\n")
+    return {"PYTHONPATH": str(d), "IGVF_SHIM_LOG": str(log_path)}
 
 
 _NB_DRIVER = r'''"""Execute one notebook with nbclient (IGVF Agent paper-code).
@@ -1558,6 +1628,9 @@ def write_report(run_dir: Path, inv: Dict[str, Any], env: Dict[str, Any], src_me
         L.append("- **New data, the authors' code:** " + "; ".join(
             f"`{k}` ← `{v['from']}`" for k, v in run["inputs_substituted"].items())
                  + ". Comparison with the authors' rendering then measures how the results changed, not reproduction.")
+    if any(sh.get("shim") == "gpu_to_cpu" for sh in run.get("py_shims") or []):
+        L.append("- Compatibility shim `gpu_to_cpu`: code written for the authors' GPUs ran on this CPU-only host "
+                 "(CUDA tensor types and .cuda() mapped to CPU). Slower; results can differ in the last digits.")
     for sh in run.get("py_shims") or []:
         if sh.get("shim") == "mpl_missing_style":
             L.append(f"- Compatibility shim `mpl_missing_style`: matplotlib style {sh.get('style')} is the authors' own "
@@ -1801,7 +1874,8 @@ def build_targets(work: Path, wf: Dict[str, str], env: Dict[str, Any], targets: 
     res: Dict[str, Any] = {"requested": targets, "buildable": [], "not_buildable": {}}
     if wf.get("engine") != "snakemake" or not exe.exists() or not targets:
         return res
-    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
+    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+               **write_py_shims(log.parent / "_jupyter" / "shims", log.parent / "_shim_log.jsonl")}
     by_wd: Dict[Path, List[str]] = {}
     for t in targets[:120]:
         why: List[str] = []
@@ -1920,7 +1994,8 @@ def run_workflow(work: Path, wf: Dict[str, str], env: Dict[str, Any], log: Path,
     if not exe.exists():
         res["error"] = "snakemake is not in the analysis environment (add it to the declared env or --pin snakemake)"
         return res
-    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
+    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+               **write_py_shims(log.parent / "_jupyter" / "shims", log.parent / "_shim_log.jsonl")}
     wd = _workdirs(work, wf)[0]
     res["workdir"] = _rel(wd)
     base = _snk(exe, work, wf, wd, [], cores=cores)
@@ -2270,6 +2345,10 @@ def pipeline_multi(repo: str, entries: "List[str]", *, ref: Optional[str], pins:
                         if wf_res.get("second_pass") else "")
                      + (f"; **{len(dr['missing_inputs'])} missing inputs** (deposited data to fetch), e.g. "
                         f"`{dr['missing_inputs'][0]}`" if dr.get("missing_inputs") else ""))
+    wf_shims = _read_shim_log(run_dir / "_shim_log.jsonl")
+    if any(x.get("shim") == "gpu_to_cpu" for x in wf_shims):
+        L.append("- Compatibility shim `gpu_to_cpu` in the workflow: rules written for the authors' GPUs (`--cuda`) ran "
+                 "on this CPU-only host (slower; results can differ in the last digits)")
     for ps in summary.get("passes") or []:
         L.append(f"- Pass {ps['pass']}: {ps['missing']} missing input file(s)"
                  + (f", {ps['workflow_built']} built by the workflow" if "workflow_built" in ps else "")
