@@ -73,6 +73,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -245,12 +246,25 @@ def _pid_alive(pid: Optional[int]) -> bool:
         return False
 
 
+def _container_started() -> float:
+    """When this container (its PID 1) started; 0 where there is no /proc.
+    A heartbeat older than that came from a worker the restart killed."""
+    try:
+        return os.stat("/proc/1").st_ctime if os.path.exists("/.dockerenv") else 0.0
+    except OSError:
+        return 0.0
+
+
 def effective_status(job: dict) -> str:
     """'interrupted' when a running job's worker is gone (container restart, kill)."""
     st = job.get("status")
     if st in ("running", "queued"):
-        hb = job.get("heartbeat") or 0
-        if not _pid_alive(job.get("pid")) and (_now() - float(hb or 0)) > STALE_S:
+        # A worker recorded in another container (the one a redeploy replaced)
+        # is gone, however fresh its last heartbeat; its pid means nothing here.
+        if job.get("host") and job["host"] != socket.gethostname() and not os.environ.get("IGVF_JOBS_SHARED_HOSTS"):
+            return "interrupted"
+        hb = float(job.get("heartbeat") or 0)
+        if not _pid_alive(job.get("pid")) and ((_now() - hb) > STALE_S or hb < _container_started()):
             return "interrupted"
     return st
 
@@ -776,7 +790,7 @@ def run_worker(job_id: str, runner=None, verifier: "Optional[Callable]" = None, 
             pass
     # wait for a slot
     while sum(1 for j in list_jobs() if j["effective_status"] == "running" and j["id"] != job_id) >= MAX_RUNNING:
-        update_job(job_id, status="queued", heartbeat=_now(), pid=os.getpid())
+        update_job(job_id, status="queued", heartbeat=_now(), pid=os.getpid(), host=socket.gethostname())
         sleep(30)
     if job.get("orchestrator") == "internal" and (job.get("backend") or os.environ.get("IGVF_LLM_BACKEND") or
                                                    "anthropic") == "anthropic":
@@ -784,7 +798,7 @@ def run_worker(job_id: str, runner=None, verifier: "Optional[Callable]" = None, 
         # registry, not the parity subset chat uses for OpenAI-family models
         os.environ["IGVF_LLM_MAX_TOOLS"] = os.environ.get("IGVF_JOB_MAX_TOOLS", "700")
     runner = runner or make_runner(job)
-    job = update_job(job_id, status="running", pid=os.getpid(), heartbeat=_now(),
+    job = update_job(job_id, status="running", pid=os.getpid(), host=socket.gethostname(), heartbeat=_now(),
                      started_at=job.get("started_at") or _iso())
     stop_hb = threading.Event()
     hb = threading.Thread(target=_heartbeat, args=(job_id, stop_hb), daemon=True)
