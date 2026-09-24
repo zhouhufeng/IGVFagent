@@ -21,6 +21,7 @@ route for code-backed papers:
 - [Reading the result](#reading-the-result)
 - [Repairs are environment-only](#repairs-are-environment-only)
 - [Records, the Reproductions page and the forum](#records-the-reproductions-page-and-the-forum)
+- [Reusing a reproduced analysis on new data](#reusing-a-reproduced-analysis-on-new-data)
 - [Worked example: Matreyek et al. 2018](#worked-example-matreyek-et-al-2018)
 
 ## What it does
@@ -129,6 +130,21 @@ igvfagent repro backfill                         # every finished job (run by De
 igvfagent repro publish <paper_id> [--off]
 igvfagent repro post <paper_id>                  # preview; add --yes to post
 ```
+
+## Reusing a reproduced analysis on new data
+
+When a paper's authors' code has been reproduced, its record becomes a **tool**: `paper_<paper_id>`. It re-runs that code, at the same commit and with the same environment repairs and compatibility shims, using your files in place of the inputs it reads. It reports the result section by section, with every figure. The method stays the authors'; nothing is reimplemented. Paper2Agent's Paper2MCP delivers the same thing, reproduced analyses as tools.
+
+- The agent sees these tools like any other. For example: *"run paper_matreyek2018_pten_vampseq with my DMS table in place of PTEN_variant_data.tsv"*.
+- From the command line:
+  ```bash
+  igvfagent repro tools                                  # every reusable analysis and its inputs
+  igvfagent repro apply matreyek2018_pten_vampseq --pten-variant-data-tsv my_scores.tsv [--replay] [--detach]
+  ```
+- Each input takes a file in the same format as the authors' input; omitted inputs keep theirs.
+- The report states the substitution. Its comparison with the authors' rendering then measures how the results changed.
+
+Tested on Matreyek 2018 with every PTEN score multiplied by 0.9: all 67 chunks of the authors' code ran and produced 119 figures, and exactly the printed values that depend on the scores changed (7 blocks).
 
 ## Worked example: Matreyek et al. 2018
 

@@ -13018,6 +13018,64 @@ def _merge_user_tools() -> None:
         _USER_TOOL_NAMES.add(tool.name)
 
 
+def _merge_promoted_tools() -> None:
+    """Built-in tools promoted from reviewed extensions (Scripts/promoted/).
+
+    Same manifest format as user extensions, but these ship with the code,
+    passed Scripts/test_promoted.py, and count as built-ins: they are merged
+    before user tools, so a same-named unreviewed extension is shadowed.
+    """
+    pdir = Path(__file__).resolve().parent / "promoted" / "tools"
+    if not pdir.is_dir():
+        return
+    try:
+        try:
+            from igvfagent import _userext
+        except ImportError:
+            import _userext  # type: ignore[no-redef]
+    except Exception:
+        return
+    for path in sorted(pdir.glob("*.json")):
+        try:
+            spec = _userext._normalize_tool(_userext._load_manifest(path), path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("promoted tool %s unreadable: %s", path, exc)
+            continue
+        if not spec or spec["name"] in _BY_NAME:
+            continue
+        tool = Tool(name=spec["name"], description=spec["description"], parameters=spec["parameters"],
+                    cli=list(spec["cli"]), positional=list(spec["positional"]), flag_map=dict(spec["flag_map"]),
+                    flag_repeat=set(spec["flag_repeat"]), bool_flags=set(spec["bool_flags"]),
+                    command=list(spec["command"]))
+        _TOOLS.append(tool)
+        _BY_NAME[tool.name] = tool
+
+
+def _merge_paper_tools() -> None:
+    """One tool per reproduced paper (reproductions.tool_spec): the authors'
+    pinned analysis, run on new data. Read from Data/Reproductions/*/tool.json."""
+    try:
+        try:
+            from igvfagent import reproductions as _rp
+        except ImportError:
+            import reproductions as _rp  # type: ignore[no-redef]
+        specs = _rp.paper_tools()
+    except Exception:  # noqa: BLE001
+        return
+    for spec in specs:
+        name = spec.get("name")
+        if not name or name in _BY_NAME:
+            continue
+        tool = _T(name, spec["description"], spec["parameters"], spec["cli"],
+                  flag_map=spec.get("flag_map"), bool_flags=spec.get("bool_flags") or ())
+        _TOOLS.append(tool)
+        _BY_NAME[name] = tool
+        _PAPER_TOOL_NAMES.add(name)
+
+
+_PAPER_TOOL_NAMES: "set[str]" = set()
+_merge_promoted_tools()
+_merge_paper_tools()
 _merge_user_tools()
 
 
@@ -13030,6 +13088,7 @@ def refresh_user_tools() -> int:
     re-authored is replaced in place. Returns the number of tools added.
     """
     before = len(_TOOLS)
+    _merge_paper_tools()
     _merge_user_tools()
     return len(_TOOLS) - before
 

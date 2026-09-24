@@ -8,7 +8,7 @@ Add your own tools, skills, prompt skills and playbooks without editing the core
 - [Add a custom skill (Python subcommand)](#add-a-custom-skill-python-subcommand)
 - [Add a prompt skill or playbook](#add-a-prompt-skill-or-playbook)
 
-IGVFagent is **expandable by design**: the 120 built-in skills and 606
+IGVFagent is **expandable by design**: the 121 built-in skills and 606
 registered tools are a starting point, not a ceiling. A user-extension
 framework absorbs **your own skills and tools** at startup — no core-code
 edits, no re-install, no registration step. Anything you drop into an
@@ -124,6 +124,31 @@ Conventions worth copying from the template:
 To expose the same logic to the LLM agent as well, add a small `cli:`- or
 `command:`-style manifest next to it — the skill/tool split is the same
 one the built-ins use (human CLI surface vs. curated LLM tool surface).
+
+## From extension to core
+
+Extensions that agents author on a deployment work there, but nobody has reviewed them. One read its input from stdin and hung two hosted jobs. `igvfagent ext-review` is the path from an extension to IGVF Agent's core:
+
+```bash
+igvfagent ext-review list                     # usage, outcomes, safety flags, risk, hint
+igvfagent ext-review show <name>              # details and source
+igvfagent ext-review retire <name> --reason "a built-in does this"   # reversible
+igvfagent ext-review bundle <name>            # Docs/Extensions/bundles/<name>_<hash>.tar.gz
+igvfagent ext-review promote <bundle.tar.gz> --reviewer <you>        # in a checkout
+python3 Scripts/test_promoted.py              # then commit and deploy
+```
+
+- `list` counts each extension's calls, successes and failures across every job's log.
+- It scans the source for risky patterns: reading stdin, `eval`/`exec`, a shell, secrets, subprocesses, deletions, writes, network access and absolute paths.
+- It suggests an action: *promotion candidate*, *fix or retire*, *retire (a built-in does this)*, *keep* or *unused*.
+- Admins see the same table under **📊 Validation → 🧩 Extensions** on the site, with Bundle and Retire buttons.
+
+Promotion copies the manifest and module into `Scripts/promoted/`:
+- **What promotion gives it:** there it ships with the code, counts as a built-in and shadows the extension. Provenance (reviewer, date, source hash, usage at review, accepted risk) goes in `Scripts/promoted/registry.json`.
+- **When promotion is refused:** it needs a reviewer and must be done in a checkout, not on a deployment. It is refused for a high-risk pattern unless `--accept-risk` gives the reason it is safe.
+- **What keeps it honest afterwards:** `Scripts/test_promoted.py` checks that every promoted tool loads as a built-in, that its module answers `--help`, and that no unreviewed high-risk pattern has appeared since.
+
+A promoted extension is the first step. Anything that becomes central should follow the full standard for absorbing upstream pipelines: a named skill, typed tools, a self-test, credit to its source and docs.
 
 ## Add a prompt skill or playbook
 

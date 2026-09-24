@@ -318,6 +318,10 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "Benchmarks/<paper-id>/ that concordance.py scores. "
                           "Subcommands: resolve, harvest, route, scaffold, run, "
                           "score, report, pipeline, selftest, list-routes."),
+    "ext-review":       ("igvfagent.extension_review",
+                          "Review agent-authored extensions: usage, outcomes, "
+                          "safety flags; retire, bundle, or promote one to a "
+                          "reviewed built-in (Scripts/promoted/)"),
     "files":            ("igvfagent.workspace_files",
                           "Read/write plain-text files inside the workspace "
                           "(never secrets or code; content never from stdin)"),
@@ -673,7 +677,12 @@ def main(argv: Optional["list[str]"] = None) -> int:
     else:
         # Not a built-in — fall back to user-supplied skills discovered
         # under ~/.igvfagent/skills/ and UserExtensions/skills/.
-        entry = _user_skills().get(skill)
+        try:
+            from . import _userext as _ux
+            entry = _ux.discover_promoted_skills().get(skill)
+        except Exception:
+            entry = None
+        entry = entry or _user_skills().get(skill)
         if entry is None:
             sys.stderr.write(f"unknown skill: {skill}\n")
             sys.stderr.write("Run `igvfagent --help` for the skill list.\n")

@@ -173,6 +173,11 @@ include-package-data = true
 [tool.setuptools.package-dir]
 "igvfagent" = "Scripts"
 
+# Reviewed extensions promoted to built-ins (Scripts/promoted/{tools,skills});
+# not a Python package, so ship the files as package data.
+[tool.setuptools.package-data]
+"igvfagent" = ["promoted/tools/*.json", "promoted/skills/*.py", "promoted/*.json", "promoted/*.md"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"

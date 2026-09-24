@@ -289,8 +289,105 @@ def _refresh_record(d: Path) -> Dict[str, Any]:
     rec["owners"] = sorted({a["job"].get("owner") or "" for a in attempts})
     rec["published"] = bool(old.get("published"))
     rec["forum"] = old.get("forum") or {}
+    spec = tool_spec(rec)
+    if spec:
+        _write_json(d / "tool.json", spec)
+        rec["tool"] = spec["name"]
+    elif (d / "tool.json").exists():
+        (d / "tool.json").unlink()
     _write_json(d / "record.json", rec)
     return rec
+
+
+# ─── per-paper tools: the authors' analysis, reusable on new data ───────────
+#
+# Paper2MCP's end product is the reproduced analysis exposed as tools. Here a
+# paper whose authors' code was reproduced becomes one tool, paper_<id>, that
+# re-runs that pinned code (same commit, same environment repairs and shims)
+# with the user's files in place of the inputs it reads, and reports the
+# result section by section. The method stays the authors'; nothing is
+# re-implemented.
+
+def _param(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", Path(name).name.lower()).strip("_")[:40] or "input"
+
+
+def tool_spec(rec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    c = rec.get("code")
+    if rec.get("outcome") != "reproduced" or not c or not c.get("run_dir"):
+        return None
+    rd = _abs(c["run_dir"])
+    inv = _read_json(rd / "inventory.json") or {}
+    env = _read_json(rd / "env.json") or {}
+    if not inv.get("ok"):
+        return None
+    inputs = {}
+    for i in inv.get("inputs") or []:
+        if i.get("exists") and not i.get("is_url"):
+            k = _param(i["path"])
+            while k in inputs or k in ("replay", "label", "detach"):
+                k += "_"
+            inputs[k] = i["path"]
+    pins = [x for x in env.get("spec") or [] if x.startswith("cran:")]
+    title = rec["paper"].get("title") or rec["paper_id"]
+    secs = [s_["title"] for s_ in (inv.get("sections") or [])][:12]
+    name = ("paper_" + re.sub(r"[^a-z0-9_]", "_", rec["paper_id"].lower()))[:64]
+    props: Dict[str, Any] = {k: {"type": "string", "description": f"Your file in place of `{v}` (the authors' input "
+                                                                   f"of the same format). Omit to keep theirs."}
+                             for k, v in inputs.items()}
+    props["replay"] = {"type": "boolean", "description": "Execute twice and check the outputs are identical."}
+    desc = (f"Run the authors' own analysis from \"{title[:140]}\" ({c.get('repo')} @ {(c.get('commit') or '')[:10]}, "
+            f"entry {c.get('entry')}) on NEW DATA. Reproduced by IGVF Agent: {headline(rec)[:160]}. Pass your files in "
+            f"place of the inputs it reads ({', '.join(inputs.values())[:200]}); the same code, environment and "
+            f"compatibility shims run, and the report gives every section's figures and printed values"
+            + (f" (sections: {'; '.join(secs)[:300]})" if secs else "")
+            + ". Runs in the background: wait with job_wait on <run_dir>/done.json or paper_code_status.")
+    return {"name": name, "description": desc, "paper_id": rec["paper_id"], "repo": c.get("repo"),
+            "commit": c.get("commit"), "entry": c.get("entry"), "pins": pins, "inputs": inputs,
+            "parameters": {"type": "object", "properties": props},
+            "cli": ["repro", "apply", rec["paper_id"], "--detach"],
+            "flag_map": {k: "--" + k.replace("_", "-") for k in inputs}, "bool_flags": ["replay"]}
+
+
+def paper_tools() -> "List[Dict[str, Any]]":
+    out = []
+    if REPRO_DIR.is_dir():
+        for d in sorted(REPRO_DIR.iterdir()):
+            t = _read_json(d / "tool.json")
+            if t:
+                out.append(t)
+    return out
+
+
+def apply(paper_id: str, files: Dict[str, str], *, replay: bool = False, detach: bool = False,
+          label: str = "") -> Dict[str, Any]:
+    spec = _read_json(REPRO_DIR / _slug(paper_id) / "tool.json")
+    if not spec:
+        return {"ok": False, "error": f"{paper_id} has no reusable analysis (only papers whose authors' code was "
+                                      "reproduced do)"}
+    bad = [k for k in files if k not in spec["inputs"]]
+    if bad:
+        return {"ok": False, "error": f"unknown inputs {bad}; this analysis reads {sorted(spec['inputs'])}"}
+    for k, v in files.items():
+        if not _abs(v).is_file():
+            return {"ok": False, "error": f"{k}: file not found: {v}"}
+    argv = ["pipeline", spec["repo"], "--ref", spec["commit"], "--entry", spec["entry"],
+            "--paper", f"{spec['paper_id']} — the authors' analysis applied to new data"
+                       + (f" ({label})" if label else "")]
+    for pin in spec.get("pins") or []:
+        argv += ["--pin", pin]
+    for k, v in files.items():
+        argv += ["--input", f"{spec['inputs'][k]}={_abs(v)}"]
+    if replay:
+        argv.append("--replay")
+    if detach:
+        argv.append("--detach")
+    try:
+        from igvfagent import paper_code_skill as pc  # type: ignore
+    except Exception:
+        import paper_code_skill as pc  # type: ignore
+    rc = pc.main(argv)
+    return {"ok": rc == 0, "paper_id": spec["paper_id"], "argv": argv}
 
 
 def record_from_run(run_dir: str, *, paper_id: Optional[str] = None, doi: Optional[str] = None,
@@ -696,6 +793,12 @@ def render_record(st, rec: Dict[str, Any], viewer: Optional[str], is_admin: bool
                      help="Published records are visible to every signed-in user"):
             set_published(rec["paper_id"], not rec.get("published"))
             st.rerun()
+    spec = _read_json(REPRO_DIR / rec["paper_id"] / "tool.json")
+    if spec:
+        st.info(f"♻️ **Reusable analysis: `{spec['name']}`.** The authors' code for this paper can run on your data. "
+                f"Ask the agent, e.g. *\"run {spec['name']} with my file in place of {next(iter(spec['inputs'].values()), 'the input')}\"*, "
+                f"or: `igvfagent repro apply {rec['paper_id']} --{next(iter(spec['inputs']), 'input').replace('_', '-')} FILE`. "
+                f"Inputs: {', '.join('`' + v + '`' for v in spec['inputs'].values())}.")
     fr = rec.get("forum") or {}
     if fr.get("topic_url"):
         c3.markdown(f"💬 [Forum topic]({fr['topic_url']})")
@@ -759,6 +862,11 @@ def selftest() -> int:
                                                           "numerically_close": 0, "same_values_other_layout": 4,
                                                           "missing": 0, "fraction_matched": 1.0}})
             _write_json(pc / "run.json", {"r_shims": ["melt_reshape"]})
+            _write_json(pc / "inventory.json", {"ok": True, "inputs": [
+                {"path": "PTEN_variant_data.tsv", "exists": True, "is_url": False},
+                {"path": "https://x/y.tsv", "exists": False, "is_url": True}],
+                "sections": [{"title": "Setup"}]})
+            _write_json(pc / "env.json", {"spec": ["r-base", "cran:reshape2@1.4.4"]})
             jd = JOBS_DIR / "J20260924000000abcd"
             _write_json(jd / "job.json", {"id": jd.name, "title": "Reproduce Matreyek 2018", "query": "Reproduce it",
                                           "owner": "alice", "status": "done", "rounds": 2,
@@ -791,6 +899,14 @@ def selftest() -> int:
             r = load("matreyek2018_multiplex")
             check("attempts accumulate; the best one headlines; published flag kept",
                   len(r["attempts"]) == 2 and r["job"]["id"] == jd.name and r["latest_job"] == jd2.name and r["published"])
+            t = paper_tools()
+            check("a reproduced paper becomes one reusable tool with its inputs and pins",
+                  len(t) == 1 and t[0]["name"] == "paper_matreyek2018_multiplex"
+                  and t[0]["inputs"] == {"pten_variant_data_tsv": "PTEN_variant_data.tsv"}
+                  and t[0]["pins"] == ["cran:reshape2@1.4.4"] and t[0]["cli"][:3] == ["repro", "apply", "matreyek2018_multiplex"])
+            check("apply refuses unknown inputs and missing files",
+                  not apply("matreyek2018_multiplex", {"nope": "x"})["ok"]
+                  and not apply("matreyek2018_multiplex", {"pten_variant_data_tsv": "missing.tsv"})["ok"])
             prev = post_to_forum("matreyek2018_multiplex", yes=False)
             check("forum post is a preview unless confirmed, authored as the owner",
                   prev["preview"] and prev["as_user"] == "alice" and prev["category"] == FORUM_CATEGORY
@@ -824,8 +940,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("paper_id")
     s.add_argument("--as-user")
     s.add_argument("--yes", action="store_true", help="actually post (default: preview only)")
+    sub.add_parser("tools", help="reusable per-paper analyses (paper_<id> tools)")
+    s = sub.add_parser("apply", help="run a reproduced paper's analysis on new data: --<input> PATH ...")
+    s.add_argument("paper_id")
+    s.add_argument("--replay", action="store_true")
+    s.add_argument("--detach", action="store_true")
+    s.add_argument("--label", default="")
     sub.add_parser("selftest")
-    a = ap.parse_args(argv)
+    a, extra = ap.parse_known_args(argv)
+    if extra and a.cmd != "apply":
+        ap.error(f"unrecognized arguments: {' '.join(extra)}")
     viewer = os.environ.get("IGVF_ACTING_USER") or None
     admin = os.environ.get("IGVF_ACTING_ADMIN", "1" if not viewer else "0") == "1"
     if a.cmd == "selftest":
@@ -838,6 +962,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"{r['paper_id']}: {r['outcome']} — {headline(r)}")
         print(f"Report: {r['html']}")
         return 0
+    if a.cmd == "tools":
+        for t in paper_tools():
+            print(f"{t['name']:<44} {t['repo']}@{(t['commit'] or '')[:10]}  inputs: {', '.join(t['inputs'])}")
+        return 0
+    if a.cmd == "apply":
+        files, it = {}, iter(extra)
+        for tok in it:
+            if not tok.startswith("--"):
+                print(f"unexpected argument {tok!r}")
+                return 2
+            k, _, v = tok[2:].partition("=")
+            files[k.replace("-", "_")] = v or next(it, "")
+        r = apply(a.paper_id, files, replay=a.replay, detach=a.detach, label=a.label)
+        if not r.get("ok") and r.get("error"):
+            print(r["error"])
+        return 0 if r.get("ok") else 1
     if a.cmd == "record-run":
         r = record_from_run(a.run_dir, paper_id=a.paper_id, doi=a.doi, title=a.title, owner=a.owner or "")
         if not r:

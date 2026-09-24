@@ -2748,6 +2748,46 @@ def _reproductions_panel(focus: "str | None" = None) -> None:
         st.error(f"Reproductions panel failed: {exc}")
 
 
+def _extensions_panel() -> None:
+    """Admins: agent-authored extensions, their use and risk; retire or bundle
+    for promotion (promotion itself happens in a checkout and is committed)."""
+    try:
+        try:
+            from igvfagent import extension_review as _er  # type: ignore
+        except Exception:
+            import extension_review as _er  # type: ignore
+        rows = _er.inventory()
+    except Exception as exc:                                 # noqa: BLE001
+        st.error(f"Extension review failed: {exc}")
+        return
+    st.markdown("#### 🧩 Agent-authored extensions")
+    st.caption("Tools and skills agents wrote on this deployment. They are unreviewed: promotion to IGVF Agent's "
+               "core happens in a checkout (`igvfagent ext-review promote <bundle> --reviewer NAME`), is tested by "
+               "`Scripts/test_promoted.py` and committed. Retiring is reversible.")
+    if not rows:
+        st.info("No agent-authored extensions.")
+        return
+    st.dataframe([{"name": r["name"], "kind": r["kind"], "risk": r["risk"], "calls": r["usage"]["calls"],
+                   "ok": r["usage"]["ok"], "failed": r["usage"]["failed"], "jobs": r["usage"]["jobs"],
+                   "hint": r["hint"], "flags": ", ".join(f["flag"] for f in r["flags"]),
+                   "description": r["description"][:120]} for r in rows], hide_index=True, width="stretch")
+    pick = st.selectbox("Extension", [r["name"] for r in rows], key="ext_pick")
+    r = next(x for x in rows if x["name"] == pick)
+    for f in r["flags"]:
+        st.caption(f"{'🔴' if f['level'] == 'high' else '🟠' if f['level'] == 'medium' else '⚪'} {f['flag']} — "
+                   f"line {f['line']}: `{f['match']}`")
+    c1, c2 = st.columns(2)
+    if c1.button("📦 Bundle for promotion", key=f"ext_bundle_{pick}"):
+        res = _er.bundle(pick)
+        st.success(f"Bundle: `{res.get('bundle')}` — copy it to a checkout and run `ext-review promote`."
+                   if res.get("ok") else res.get("error"))
+    reason = c2.text_input("Reason to retire", key=f"ext_reason_{pick}", placeholder="e.g. a built-in does this")
+    if c2.button("🗄 Retire", key=f"ext_retire_{pick}", disabled=not reason.strip()):
+        res = _er.retire(pick, reason.strip())
+        st.success(f"Retired: {res.get('moved')}") if res.get("ok") else st.error(res.get("error"))
+        st.rerun()
+
+
 def repro_link_panel() -> None:
     """A forum post links to /?repro=<paper_id>: show that record on arrival."""
     pid = st.query_params.get("repro") if hasattr(st, "query_params") else None
@@ -3180,7 +3220,12 @@ def main() -> None:
                    allowed=_visible)
 
     with val_tab:
-        rp_sub, bm_sub = st.tabs(["📑 Reproductions", "🧪 Benchmark suite"])
+        _va, _adm = _viewer_admin()
+        _vtabs = st.tabs(["📑 Reproductions", "🧪 Benchmark suite"] + (["🧩 Extensions"] if _adm else []))
+        rp_sub, bm_sub = _vtabs[0], _vtabs[1]
+        if _adm:
+            with _vtabs[2]:
+                _extensions_panel()
         with rp_sub:
             _reproductions_panel()
         with bm_sub:

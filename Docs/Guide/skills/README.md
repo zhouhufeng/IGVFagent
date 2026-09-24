@@ -253,6 +253,7 @@ Skills without a worked example in the guide link to their module; `igvfagent <s
 
 | Skill | What it does | Documented in | Module |
 |---|---|---|---|
+| `ext-review` | Review agent-authored extensions (usage, outcomes, safety flags); retire, bundle, or promote to a reviewed built-in | [Extending](../extending.md#from-extension-to-core) | [`extension_review.py`](../../../Scripts/extension_review.py) |
 | `files` | Read and write plain-text files inside the workspace (`write_text_file`, `read_text_file`): never secrets, code or extension directories; content never read from stdin | [Long-running jobs](../jobs.md) | [`workspace_files.py`](../../../Scripts/workspace_files.py) |
 | `repro` | Per-paper reproduction records across attempts: outcome, route, agreement with the paper and the authors' outputs, verifier, a self-contained HTML report; publish; post to discussion.genohub.org | [Reproducing a paper](../paper-reproduction.md#records-the-reproductions-page-and-the-forum) | [`reproductions.py`](../../../Scripts/reproductions.py) |
 | `paper-code` | Reproduce a paper by running the authors' own code: repository from the Code Availability statement, pinned commit, R/Python environment, unmodified execution, comparison with the authors' rendered output, replay check, per-section report | [Reproducing a paper](../paper-reproduction.md) | [`paper_code_skill.py`](../../../Scripts/paper_code_skill.py) |

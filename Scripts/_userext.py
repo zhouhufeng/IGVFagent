@@ -226,6 +226,23 @@ def _first_docstring_line(path: Path) -> str:
     return (doc or "").strip().splitlines()[0].strip() if doc else ""
 
 
+def promoted_dir() -> Path:
+    """Reviewed extensions promoted into the code base (Scripts/promoted/)."""
+    return Path(__file__).resolve().parent / "promoted"
+
+
+def discover_promoted_skills() -> "dict[str, dict]":
+    """``Scripts/promoted/skills/*.py``: built-in skills promoted from reviewed
+    extensions. Same naming rule as user skills; they take precedence."""
+    found: "dict[str, dict]" = {}
+    sdir = promoted_dir() / "skills"
+    for path in sorted(sdir.glob("*.py")) if sdir.is_dir() else []:
+        if not path.name.startswith("_"):
+            found[path.stem.replace("_", "-")] = {"path": str(path), "promoted": True,
+                                                  "description": _first_docstring_line(path) or "(promoted skill)"}
+    return found
+
+
 def discover_skills() -> "dict[str, dict]":
     """Scan every extension dir for ``skills/*.py`` modules.
 
