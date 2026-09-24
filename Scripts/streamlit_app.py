@@ -253,10 +253,12 @@ _BACKEND_KIND_LABELS = {
     "local":      "🖥  Local LLM (Ollama)",
     "anthropic":  "🤖  Anthropic Claude API",
     "openai":     "⚡  OpenAI / Codex API",
-    "claude_cli": "🧠  Claude Code CLI (subprocess)",
-    "codex_cli":  "💻  Codex CLI (subprocess)",
     "advanced":   "🔧  Other (advanced)",
 }
+# claude_cli / codex_cli are still backends for the CLI (`--backend
+# claude_cli`), but not offered here: they only use the coding CLI as a text
+# generator, and the Orchestrator choice above offers Claude Code as the real
+# agent (claude_code), so a second, weaker "Claude Code" option only confused.
 
 _BACKEND_KIND_TO_NAME = {
     "local":      "ollama",
@@ -854,16 +856,15 @@ def _public_model_choices() -> "list[str]":
 
 
 _ORCHESTRATORS = {
-    "internal":   ("⚙  Internal (IGVFagent ReAct)", None),
-    "claude_cli": ("🧠  External — Claude Code CLI", "claude"),
-    "codex_cli":  ("💻  External — Codex CLI",       "codex"),
+    "internal":    ("⚙  IGVF Agent (planned, verified)", None),
+    "claude_code": ("🧠  Claude Code agent (Anthropic API)", "claude"),
 }
 
-# Which orchestrators a deployment offers. The hosted instance is an
-# Anthropic-only test bed, so it ships "internal,claude_cli" and never shows
-# Codex — an option that can only ever fail is worse than no option. Local
-# installs keep the full list.
-_DEFAULT_PUBLIC_ORCHESTRATORS = "internal,claude_cli"
+# Which orchestrators a deployment offers (IGVF_PUBLIC_ORCHESTRATORS
+# overrides). One choice drives every message: internal answers short
+# questions inline and runs long tasks as jobs; claude_code runs each message
+# as a Claude Code job on the Anthropic API (agent_jobs.py).
+_DEFAULT_PUBLIC_ORCHESTRATORS = "internal,claude_code"
 
 
 def _allowed_orchestrators() -> "list[str]":
@@ -876,14 +877,15 @@ def _allowed_orchestrators() -> "list[str]":
 
 
 def _sidebar_orchestrator() -> str:
-    """Choose who drives the Plan→Act loop.
+    """Choose who drives every message: the one orchestrator setting.
 
-    *Internal* is IGVFagent's own loop in ``_agent.py`` using native function
-    calling. *External* shells out to a coding CLI — but note what that does
-    and doesn't buy you: ``_llm._chat_claude_cli`` runs ``claude --print`` as a
-    **text-generation backend**, parsing tool calls back out of the reply. The
-    orchestration is still IGVFagent's, and the CLI's own file/shell tools are
-    not used. It is a different transport, not a more capable harness.
+    *IGVF Agent* is IGVFagent's own loop (``_agent.py``). Short questions are
+    answered in the chat; long tasks become planned, harness-checked,
+    verified background jobs (``agent_jobs.py``). *Claude Code* runs each
+    message as a Claude Code job on the Anthropic API, with its own session
+    and sub-agents and every IGVFagent tool over MCP; a short one is awaited
+    and answered in the chat. This replaced an "External — Claude Code CLI"
+    option that only used ``claude --print`` as a text generator.
 
     An external option whose binary is absent is shown disabled rather than
     hidden, so the choice is explicable instead of mysteriously missing.
@@ -896,7 +898,8 @@ def _sidebar_orchestrator() -> str:
         st.session_state["_orchestrator"] = keys[0]
         return keys[0]
     avail = {k: (_ORCHESTRATORS[k][1] is None
-                 or shutil.which(_ORCHESTRATORS[k][1]) is not None)
+                 or (shutil.which(_ORCHESTRATORS[k][1]) is not None
+                     and bool(os.environ.get("ANTHROPIC_API_KEY"))))
              for k in keys}
     labels = [_ORCHESTRATORS[k][0] + ("" if avail[k] else "  — not installed")
               for k in keys]
@@ -905,33 +908,37 @@ def _sidebar_orchestrator() -> str:
 
     chosen_label = st.radio(
         "Orchestrator", labels, index=idx, key="_orchestrator_radio",
-        help="Internal runs IGVFagent's own agent loop with native function "
-             "calling. External shells out to a coding CLI as the text "
-             "backend — same tools, different transport.")
+        help="Who drives every message, short or long. IGVF Agent answers "
+             "short questions in the chat and runs long tasks as planned, "
+             "harness-checked, verified background jobs. Claude Code runs "
+             "every message as a job on the Anthropic API with its own "
+             "session and sub-agents, calling all IGVF Agent tools over MCP; "
+             "short replies still appear in the chat.")
     chosen = keys[labels.index(chosen_label)]
 
     if not avail[chosen]:
         st.warning(
-            f"`{_ORCHESTRATORS[chosen][1]}` is not on PATH in this "
-            "deployment, so this orchestrator cannot run. Falling back to "
-            "the internal loop.")
+            "Claude Code needs the `claude` CLI and ANTHROPIC_API_KEY on "
+            "this deployment. Using the IGVF Agent orchestrator.")
         chosen = "internal"
     st.session_state["_orchestrator"] = chosen
     return chosen
 
 
 def _sidebar_long_jobs() -> None:
-    """When a message becomes a background job, and who orchestrates it.
+    """When a message becomes a background job (the orchestrator is chosen once, under Model).
 
     A job (agent_jobs.py) runs in its own process, plans its stages on disk,
     has each stage checked by the harness and the result reviewed by an
     independent verifier, and keeps going across rounds until it is done or
     its budget ends; closing the page does not stop it.
     """
-    import shutil
     if _jobsui is None:
         return
     st.subheader("🕒 Long tasks")
+    if st.session_state.get("_orchestrator") == "claude_code":
+        st.caption("Claude Code runs every message as a durable job; long tasks get the full budget.")
+        return
     modes = {"auto": "Auto: reproductions and pipelines run as jobs",
              "always": "Always run as a background job",
              "never": "Never (single reply)"}
@@ -940,30 +947,50 @@ def _sidebar_long_jobs() -> None:
         "Run as a background job", list(modes), index=list(modes).index(cur) if cur in modes else 0,
         format_func=lambda k: modes[k], key="_job_mode_select",
         help="Jobs survive closing the page, plan on disk, verify every stage, and resume on 'continue'.")
-    has_claude = shutil.which("claude") is not None
-    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    opts = {"internal": "IGVFagent orchestrator (planned, verified rounds)",
-            "claude_code": "Claude Code agent on the Anthropic API"
-                           + ("" if has_claude and has_key else " — unavailable here")}
-    cur_o = st.session_state.get("_job_orchestrator", "internal")
-    pick = st.radio("Job orchestrator", list(opts), index=list(opts).index(cur_o) if cur_o in opts else 0,
-                    format_func=lambda k: opts[k], key="_job_orch_radio",
-                    help="Claude Code drives the job with its own session, subagents and to-do list, calling "
-                         "every IGVFagent tool over MCP; the same plan gates and verifier apply.")
-    if pick == "claude_code" and not (has_claude and has_key):
-        st.caption("Needs the `claude` CLI and ANTHROPIC_API_KEY; using the IGVFagent orchestrator.")
-        pick = "internal"
-    st.session_state["_job_orchestrator"] = pick
+
+
+def _await_short_job(job_id: str, turn, limit_s: float = 900) -> str:
+    """Stream a short job's progress into the reply and return its answer.
+
+    The job is still durable: if the page closes it finishes anyway and its
+    answer stays in the jobs panel.
+    """
+    aj = _jobsui.aj
+    shown = 0
+    with turn.chat_message("assistant"):
+        status = st.status("🧠 Claude Code is working…", expanded=True)
+        t0 = time.time()
+        while time.time() - t0 < limit_s:
+            j = aj.load_job(job_id)
+            evs = aj.read_events(job_id, 400)
+            for e in evs[shown:]:
+                if e["kind"] in ("tool", "stage", "plan", "verify", "say", "round", "error"):
+                    status.write(f"`{e['kind']}` {e.get('text', '')[:240]}")
+            shown = len(evs)
+            if j.get("status") in aj.TERMINAL:
+                status.update(label=f"Done · {j['status'].replace('_', ' ')} · {j.get('rounds', 0)} round(s)"
+                                    + (f" · ${float(j.get('cost_usd') or 0):.2f}" if j.get("cost_usd") else ""),
+                              state="complete" if j["status"] == "done" else "error", expanded=False)
+                ans = aj.job_dir(job_id) / "answer.md"
+                text = ans.read_text() if ans.exists() else (j.get("last_answer") or "")
+                _render_markdown_with_images(text, base_dir=_PROJECT_ROOT)
+                return text
+            time.sleep(2)
+        status.update(label="Still running in the background — see the jobs panel", state="running")
+    return (f"Job `{job_id}` is still running in the background; its result will appear in the jobs panel.")
 
 
 def _maybe_run_as_job(query: str, cfg: dict) -> bool:
-    """Start or resume a background job for this message. True when handled."""
+    """Start, await or resume a job for this message. True when handled."""
     if _jobsui is None:
         return False
     user = current_user()
     viewer = user["username"] if user else None
     admin = bool(user and user.get("admin")) or user is None
     prior = [m for m in st.session_state.get("messages", [])]
+    orch = "claude_code" if st.session_state.get("_orchestrator") == "claude_code" else "internal"
+    turn = st.session_state.get("_turn_area") or st.container()
+    long_task = _jobsui.route(query, "auto")
     if _jobsui.is_continue(query):
         j = _jobsui.latest_unfinished(viewer, admin)
         if j and j["effective_status"] not in ("running", "queued"):
@@ -974,15 +1001,27 @@ def _maybe_run_as_job(query: str, cfg: dict) -> bool:
             msg = f"Job `{j['id']}` is still running; its progress is in the jobs panel above."
         else:
             return False
-    elif _jobsui.route(query, st.session_state.get("_job_mode", "auto")):
-        orch = st.session_state.get("_job_orchestrator", "internal")
+    elif orch == "claude_code" or _jobsui.route(query, st.session_state.get("_job_mode", "auto")):
         backend = (cfg.get("effective") or {}).get("backend") or cfg.get("backend")
         if backend in ("claude_cli", "codex_cli"):
             backend = "anthropic" if os.environ.get("ANTHROPIC_API_KEY") else None
         model = (cfg.get("effective") or {}).get("model") or cfg.get("model")
+        if orch == "claude_code" and model and "claude" not in str(model).lower():
+            model = None
         j = _jobsui.start_from_chat(query, prior, owner=viewer or "", owner_admin=bool(user and user.get("admin")),
                                     orchestrator=orch, backend=backend, model=model)
-        who = "Claude Code on the Anthropic API" if orch == "claude_code" else "the IGVFagent orchestrator"
+        if orch == "claude_code" and not long_task:
+            # a short question: answer in this reply, still as a durable job
+            _jobsui.aj.update_job(j["id"], max_rounds=3, budget_minutes=20)
+            st.session_state.messages.append({"role": "user", "content": query})
+            with turn:
+                with st.chat_message("user"):
+                    st.markdown(query)
+            answer = _await_short_job(j["id"], turn)
+            st.session_state.messages.append({"role": "assistant", "content": answer,
+                                              "meta": f"Claude Code job `{j['id']}`"})
+            return True
+        who = "Claude Code on the Anthropic API" if orch == "claude_code" else "the IGVF Agent orchestrator"
         msg = (f"🕒 Started background job `{j['id']}`, driven by {who}. It will plan the work in stages, "
                "check each stage's output, retry what fails, and have an independent verifier review the result "
                "before reporting. It keeps running if you close this page; follow it in the jobs panel above, "
@@ -991,7 +1030,6 @@ def _maybe_run_as_job(query: str, cfg: dict) -> bool:
         return False
     st.session_state.messages.append({"role": "user", "content": query})
     st.session_state.messages.append({"role": "assistant", "content": msg})
-    turn = st.session_state.get("_turn_area") or st.container()
     with turn:
         with st.chat_message("user"):
             st.markdown(query)
@@ -1020,13 +1058,12 @@ def _sidebar() -> dict:
         st.divider()
 
         st.subheader("Model")
+        # One orchestrator choice for every message, short or long.
+        _sidebar_orchestrator()
         if public:
             # Backend is fixed by the operator; the model is chosen from a
             # curated allowlist.
             backend = os.environ.get("IGVF_LLM_BACKEND", "anthropic")
-            orch = _sidebar_orchestrator()
-            if orch != "internal":
-                backend = orch
             choices = _public_model_choices()
             default_model = os.environ.get("IGVF_LLM_MODEL", "").strip()
             try:
@@ -2298,92 +2335,196 @@ def _sidebar_account() -> None:
         st.link_button("Sign out", "/_auth/logout", width="stretch")
 
 
-def _sidebar_projects() -> None:
-    """Pick or create the project that new runs are filed into.
+def _sidebar_job_row(j: dict, key: str, add_to: "dict | None" = None) -> None:
+    """One job in the projects panel: open it above the chat, stop/resume it,
+    or (in the Unfiled tab) file it into the active project."""
+    aj = _jobsui.aj
+    st_ = j.get("effective_status") or aj.effective_status(j)
+    c1, c2 = st.columns([5, 1])
+    if c1.button(_jobsui.job_line(j), key=f"pj_open_{key}_{j['id']}", width="stretch",
+                 help=f"{j['id']} · {st_.replace('_', ' ')} · round {j.get('rounds', 0)} · "
+                      f"{j.get('orchestrator')} — open it above the chat"):
+        st.session_state["job_focus"] = j["id"]
+        st.rerun()
+    if add_to is not None:
+        if c2.button("➕", key=f"pj_add_{key}_{j['id']}", help=f"File into {add_to['name']}"):
+            H = _history_store()
+            H.add_item(add_to["id"], "job", j["id"], title=j.get("title") or "", owner=j.get("owner") or "",
+                       viewer=_bind_actor())
+            aj.update_job(j["id"], project=add_to["id"], project_name=add_to["name"])
+            st.rerun()
+    elif st_ in ("running", "queued"):
+        if c2.button("⏹", key=f"pj_stop_{key}_{j['id']}", help="Stop after the current round"):
+            aj.stop_job(j["id"])
+            st.rerun()
+    elif st_ in aj.RESUMABLE:
+        if c2.button("▶", key=f"pj_resume_{key}_{j['id']}", help="Resume from the plan"):
+            aj.resume_job(j["id"])
+            st.session_state["job_focus"] = j["id"]
+            st.rerun()
 
-    A project is a permanent container: everything answered while it is
-    active is filed into it and stays there, and it can be renamed later
-    without breaking any reference, because items point at an immutable id.
+
+def _sidebar_chat_row(ref: str, title: str, when: str, key: str,
+                      add_to: "dict | None" = None) -> None:
+    """One past chat: open it in the reader, or file it into the active project."""
+    c1, c2 = st.columns([5, 1])
+    label = (title or Path(ref).name).strip().splitlines()[0][:52]
+    if c1.button(f"💬 {label}", key=f"pc_open_{key}_{ref}", width="stretch",
+                 help=f"{when} — open this answer"):
+        st.session_state["history_open"] = ref if Path(ref).is_absolute() else str(_PROJECT_ROOT / ref)
+        st.rerun()
+    if add_to is not None and c2.button("➕", key=f"pc_add_{key}_{ref}", help=f"File into {add_to['name']}"):
+        _history_store().add_item(add_to["id"], "session", ref, title=title, owner=_bind_actor() or "",
+                                  viewer=_bind_actor())
+        _history_index.clear()
+        st.rerun()
+
+
+def _sidebar_projects() -> None:
+    """🗂️ Projects & jobs: what belongs to which project, and the job controls.
+
+    The active project is where new chats AND new background jobs are filed,
+    automatically. The panel lists that project's jobs (status, stage
+    progress, stop/resume, open above the chat) and chats (open in the
+    reader), then everything of the user's that is not in any project, each
+    with ➕ to file it into the active one. Rename, sharing and new projects
+    sit in the last tab.
 
     Projects are private to their owner and the members they are shared
-    with; the store enforces that, not this panel. Collapsed by default;
-    nothing changes until someone opens it.
+    with; the store enforces that, not this panel.
     """
     H = _history_store()
     if H is None:
         return
-    with st.expander("🗂️ Project", expanded=False):
-        me = _bind_actor()
-        try:
-            projects = H.list_projects(viewer=me)
-            active = H.active_project(viewer=me) or {}
-        except Exception as exc:
+    me = _bind_actor()
+    user = current_user()
+    admin = bool(user and user.get("admin")) or user is None
+    try:
+        projects = H.list_projects(viewer=me)
+        active = H.active_project(viewer=me) or {}
+    except Exception as exc:                                 # noqa: BLE001
+        with st.expander("🗂️ Projects & jobs", expanded=False):
             st.caption(f"History store unavailable: {exc}")
-            return
+        return
+    try:
+        jobs = _jobsui.aj.list_jobs(me, admin, limit=40) if _jobsui else []
+    except Exception:                                        # noqa: BLE001
+        jobs = []
+    busy = any(j["effective_status"] in ("running", "queued") for j in jobs)
 
-        names = ["— none —"] + [p["name"] for p in projects]
+    with st.expander("🗂️ Projects & jobs", expanded=bool(active) or busy):
+        names = ["— no project (unfiled) —"] + [p["name"] for p in projects]
         current = active.get("name")
         idx = names.index(current) if current in names else 0
-        picked = st.selectbox("Active project", names, index=idx,
-                              key="project_pick",
-                              label_visibility="collapsed")
+        picked = st.selectbox("Active project", names, index=idx, key="project_pick",
+                              help="New chats and background jobs are filed into the active project.")
         if picked != names[idx]:
-            H.set_active(None if picked == "— none —" else picked, viewer=me)
+            H.set_active(None if picked == names[0] else picked, viewer=me)
             _history_index.clear()
             st.rerun()
 
-        if active:
+        # Which item belongs where: one pass over every project's contents.
+        filed: "dict[tuple, str]" = {}
+        mine: "list[dict]" = []
+        for p in projects:
             try:
-                items = H.project_items(active["id"], viewer=me)
-            except Exception:
-                items = []
-            st.caption(f"{len(items)} item(s) filed. New answers are added "
-                       f"automatically.")
-            for it in items[:8]:
-                st.markdown(f"- `{it['kind']}` {(it['title'] or it['ref'])[:60]}")
-            if len(items) > 8:
-                st.caption(f"…{len(items) - 8} more.")
-            new_name = st.text_input("Rename to", key="project_rename",
-                                     placeholder=active["name"])
-            if new_name.strip() and new_name.strip() != active["name"]:
-                if st.button("Rename", key="project_rename_go", width="stretch"):
-                    res = H.rename_project(active["id"], new_name.strip(),
-                                           viewer=me)
-                    if res.get("ok"):
-                        st.success("Renamed. The old name still resolves.")
-                        st.rerun()
-                    else:
-                        st.error(res.get("error", "rename failed"))
+                its = H.project_items(p["id"], viewer=me)
+            except Exception:                                # noqa: BLE001
+                its = []
+            for it in its:
+                filed.setdefault((it["kind"], it["ref"]), p["name"])
+            if active and p["id"] == active.get("id"):
+                mine = its
+        by_id = {j["id"]: j for j in jobs}
 
-            # Sharing. Filing a session into a project is private until this
-            # happens, so this control is the one place work crosses between
-            # people -- worth being explicit about, hence the caption.
-            if me:
-                try:
-                    members = H.project_members(active["id"], viewer=me)
-                except Exception:
-                    members = []
-                st.caption("Shared with: "
-                           + ", ".join(f"`{m['username']}`" for m in members))
-                who = st.text_input("Share with", key="project_share",
-                                    placeholder="forum username")
-                if who.strip() and st.button("Share", key="project_share_go",
-                                              width="stretch"):
-                    res = H.share_project(active["id"], who.strip(), viewer=me)
-                    if res.get("ok"):
-                        st.success(f"{who.strip()} can now see this project "
-                                   f"and everything in it.")
-                        st.rerun()
-                    else:
-                        st.error(res.get("error", "sharing failed"))
+        t_proj, t_unfiled, t_settings = st.tabs(
+            [f"📂 {active['name'][:18]}" if active else "📂 Project", "📥 Unfiled", "⚙️ Manage"])
 
-        created = st.text_input("New project", key="project_new",
-                                placeholder="name a new project")
-        if created.strip() and st.button("Create", key="project_new_go",
-                                          width="stretch"):
-            res = H.create_project(created.strip(), owner=me or "")
-            H.set_active(res["id"], viewer=me)
-            st.rerun()
+        with t_proj:
+            if not active:
+                st.caption("No project is active, so new chats and jobs are unfiled. Pick one above, "
+                           "or create one under ⚙️ Manage, to group them.")
+            else:
+                pj = [it for it in mine if it["kind"] == "job"]
+                pc = [it for it in mine if it["kind"] == "session"]
+                po = [it for it in mine if it["kind"] not in ("job", "session")]
+                st.caption(f"{len(pj)} job(s) · {len(pc)} chat(s) · {len(po)} other. "
+                           "New chats and jobs land here automatically.")
+                if pj and _jobsui:
+                    st.markdown("**🕒 Jobs**")
+                    for it in pj[:12]:
+                        j = by_id.get(it["ref"]) or _jobsui.aj.load_job(it["ref"])
+                        if j:
+                            j.setdefault("effective_status", _jobsui.aj.effective_status(j))
+                            _sidebar_job_row(j, "p")
+                        else:
+                            st.caption(f"🗑 {it['title'][:48] or it['ref']} (job files removed)")
+                if pc:
+                    st.markdown("**💬 Chats**")
+                    for it in pc[:15]:
+                        _sidebar_chat_row(it["ref"], it["title"], (it.get("added_at") or "")[:16], "p")
+                    if len(pc) > 15:
+                        st.caption(f"…{len(pc) - 15} more — search them in 📚 Past results.")
+                if po:
+                    st.markdown("**📎 Other**")
+                    for it in po[:10]:
+                        st.markdown(f"- `{it['kind']}` {(it['title'] or it['ref'])[:56]}")
+                if not mine:
+                    st.caption("Nothing filed yet.")
+
+        with t_unfiled:
+            uj = [j for j in jobs if ("job", j["id"]) not in filed]
+            try:
+                sess = H.recent_sessions(limit=60, viewer=me)
+            except Exception:                                # noqa: BLE001
+                sess = []
+            us = [r for r in sess if ("session", r["run_dir"]) not in filed][:20]
+            target = active or None
+            st.caption("Not in any project." + (f" ➕ files an item into **{active['name']}**."
+                                                if active else " Activate a project to file these."))
+            if uj and _jobsui:
+                st.markdown("**🕒 Jobs**")
+                for j in uj[:12]:
+                    _sidebar_job_row(j, "u", add_to=target)
+            if us:
+                st.markdown("**💬 Chats**")
+                for r in us:
+                    _sidebar_chat_row(r["run_dir"], r.get("query") or "",
+                                      (r.get("started_at") or "")[:16].replace("T", " "), "u", add_to=target)
+            if not uj and not us:
+                st.caption("Everything is filed.")
+
+        with t_settings:
+            if active:
+                new_name = st.text_input("Rename to", key="project_rename", placeholder=active["name"])
+                if new_name.strip() and new_name.strip() != active["name"]:
+                    if st.button("Rename", key="project_rename_go", width="stretch"):
+                        res = H.rename_project(active["id"], new_name.strip(), viewer=me)
+                        if res.get("ok"):
+                            st.success("Renamed. The old name still resolves.")
+                            st.rerun()
+                        else:
+                            st.error(res.get("error", "rename failed"))
+                # Sharing is the one place work crosses between people.
+                if me:
+                    try:
+                        members = H.project_members(active["id"], viewer=me)
+                    except Exception:                        # noqa: BLE001
+                        members = []
+                    st.caption("Shared with: " + (", ".join(f"`{m['username']}`" for m in members) or "nobody"))
+                    who = st.text_input("Share with", key="project_share", placeholder="forum username")
+                    if who.strip() and st.button("Share", key="project_share_go", width="stretch"):
+                        res = H.share_project(active["id"], who.strip(), viewer=me)
+                        if res.get("ok"):
+                            st.success(f"{who.strip()} can now see this project and everything in it.")
+                            st.rerun()
+                        else:
+                            st.error(res.get("error", "sharing failed"))
+            created = st.text_input("New project", key="project_new", placeholder="name a new project")
+            if created.strip() and st.button("Create and activate", key="project_new_go", width="stretch"):
+                res = H.create_project(created.strip(), owner=me or "")
+                H.set_active(res["id"], viewer=me)
+                st.rerun()
 
 
 def _sidebar_history() -> None:
@@ -2570,7 +2711,8 @@ else:
 def _agent_jobs_body() -> None:
     user = current_user()
     _jobsui.render_panel(st, user["username"] if user else None,
-                         bool(user and user.get("admin")) or user is None, render_file=_render_one)
+                         bool(user and user.get("admin")) or user is None, render_file=_render_one,
+                         focus=st.session_state.get("job_focus"))
 
 
 if hasattr(st, "fragment"):
@@ -2594,7 +2736,7 @@ def agent_jobs_panel() -> None:
         return
     if any(j["effective_status"] in ("running", "queued") for j in jobs):
         _agent_jobs_fragment()
-    elif jobs:
+    elif jobs or st.session_state.get("job_focus"):
         _agent_jobs_body()
 
 

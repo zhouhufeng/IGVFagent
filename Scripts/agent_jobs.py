@@ -847,10 +847,32 @@ def create_job(query: str, *, owner: str = "", owner_admin: bool = False, orches
            "allow_shell": allow_shell, "round_iterations": ROUND_ITERATIONS, "status": "queued",
            "created_at": _iso(), "rounds": 0, "cost_usd": 0.0}
     job_dir(jid).mkdir(parents=True, exist_ok=True)
+    proj = _file_into_active_project(job)
+    if proj:
+        job["project"], job["project_name"] = proj
     save_job(job)
     save_plan(jid, {"stages": [], "history": []})
-    event(jid, "created", f"job created by {owner or 'local'}: {job['title']}")
+    event(jid, "created", f"job created by {owner or 'local'}: {job['title']}"
+          + (f" (project {job.get('project_name')})" if proj else ""))
     return job
+
+
+def _file_into_active_project(job: dict) -> "Optional[Tuple[str, str]]":
+    """File a new job into its owner's active project, like a chat answer."""
+    try:
+        try:
+            from igvfagent import _history as H  # type: ignore
+        except Exception:
+            import _history as H  # type: ignore
+        viewer = job.get("owner") or None
+        act = H.active_project(viewer=viewer)
+        if not act:
+            return None
+        res = H.add_item(act["id"], "job", job["id"], title=job.get("title") or "", owner=job.get("owner") or "",
+                         viewer=viewer)
+        return (act["id"], act["name"]) if res.get("ok") else None
+    except Exception:  # noqa: BLE001  (no history store: jobs still work)
+        return None
 
 
 def start_job(query: str, **kw) -> dict:

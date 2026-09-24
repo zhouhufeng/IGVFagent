@@ -96,7 +96,7 @@ ACCESSION_RE = re.compile(
     r"\b(?:" + "|".join(_ACCESSION_PATTERNS) + r")\b")
 
 ITEM_KINDS = ("session", "analysis", "artifact", "dataset", "figure",
-              "paper", "note")
+              "paper", "note", "job")
 
 # ------------------------------- schema -------------------------------------
 
@@ -579,7 +579,10 @@ def record_session(run_dir, *, query: str, answer: str = "",
 
         # Auto-file into whichever project is active, so "everything in this
         # project" needs no bookkeeping from the user.
-        pid = active_project_id(con, viewer=owner or None)
+        # A long-running job's rounds are recorded as sessions, but the job
+        # itself is what gets filed (agent_jobs / the UI); filing every round
+        # would bury the project under dozens of "JOB CONTINUES" entries.
+        pid = None if os.environ.get("IGVF_JOB_ID") else active_project_id(con, viewer=owner or None)
         if pid:
             _add_item(con, pid, "session", rel, title=query, note="",
                       owner=owner)

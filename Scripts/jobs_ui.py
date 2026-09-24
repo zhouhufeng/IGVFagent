@@ -89,7 +89,17 @@ def _stage_lines(plan: dict) -> "List[str]":
     return out
 
 
-def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None, key: str = "") -> None:
+def job_line(j: dict) -> str:
+    """One-line summary for the sidebar: icon, title, stage progress."""
+    st_ = j.get("effective_status") or aj.effective_status(j)
+    stages = aj.load_plan(j["id"]).get("stages") or []
+    done = sum(1 for s in stages if s["status"] in ("done", "blocked"))
+    prog = f" · {done}/{len(stages)}" if stages else ""
+    return f"{STATUS_ICON.get(st_, '•')} {(j.get('title') or j['id'])[:48]}{prog}"
+
+
+def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None, key: str = "",
+               expanded: Optional[bool] = None) -> None:
     st_ = j.get("effective_status") or aj.effective_status(j)
     plan = aj.load_plan(j["id"])
     stages = plan.get("stages") or []
@@ -98,7 +108,9 @@ def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None,
             f"round {j.get('rounds', 0)} · {j.get('orchestrator')}")
     if float(j.get("cost_usd") or 0):
         head += f" · ${float(j['cost_usd']):.2f}"
-    with st.expander(head, expanded=st_ in ("running", "queued")):
+    if j.get("project_name"):
+        head += f" · 🗂️ {j['project_name']}"
+    with st.expander(head, expanded=st_ in ("running", "queued") if expanded is None else expanded):
         if stages:
             st.progress(done / len(stages), text=f"{done}/{len(stages)} stages done or blocked")
             st.markdown("\n\n".join(_stage_lines(plan)))
@@ -136,14 +148,26 @@ def render_job(st, j: dict, render_file: Optional[Callable[[str], None]] = None,
 
 
 def render_panel(st, viewer: Optional[str], is_admin: bool,
-                 render_file: Optional[Callable[[str], None]] = None, limit: int = 5) -> None:
+                 render_file: Optional[Callable[[str], None]] = None, limit: int = 5,
+                 focus: Optional[str] = None) -> None:
+    """The jobs above the chat. ``focus`` (a job opened from the sidebar) is
+    shown first and expanded, even when it is older than the latest ``limit``."""
     try:
         jobs = aj.list_jobs(viewer, is_admin, limit=limit)
+        if focus:
+            jobs = [j for j in jobs if j["id"] != focus]
+            fj = aj.load_job(focus)
+            if fj and (is_admin or not viewer or (fj.get("owner") or "") == viewer):
+                fj["effective_status"] = aj.effective_status(fj)
+                jobs.insert(0, fj)
+            else:
+                focus = None
     except Exception:  # noqa: BLE001
         return
     if not jobs:
         return
     st.markdown("#### 🕒 Your long-running jobs")
-    st.caption("Jobs keep running when you close this page. Say “continue” to resume the latest one.")
+    st.caption("Jobs keep running when you close this page. Say “continue” to resume the latest one. "
+               "The 🗂️ Projects panel in the sidebar lists them by project.")
     for j in jobs:
-        render_job(st, j, render_file)
+        render_job(st, j, render_file, expanded=True if focus and j["id"] == focus else None)

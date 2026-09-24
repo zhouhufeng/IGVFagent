@@ -30,7 +30,12 @@ depend on evidence, bounded retries, fresh verifiers, resumable state).
 
 ## Using jobs in the browser
 
-- In the sidebar under **🕒 Long tasks**, *Auto* (the default) turns messages that ask to reproduce, re-run, process from raw reads or run end to end into jobs. *Always* sends every message to a job; *Never* keeps single replies.
+- One **Orchestrator** choice in the sidebar's Model section applies to every message, short or long. *IGVF Agent* answers short questions directly and runs long tasks as jobs. *Claude Code agent* runs every message through Claude Code: a short question becomes a small job (3 rounds, 20 minutes) whose answer appears in the chat.
+- Under **🕒 Long tasks**, *Auto* (the default) turns messages that ask to reproduce, re-run, process from raw reads or run end to end into jobs. *Always* sends every message to a job; *Never* keeps single replies.
+- **🗂️ Projects & jobs** in the sidebar is where work is organised. New chats and new jobs are filed into the active project automatically.
+  - The project tab lists that project's jobs (status, stages done, ⏹ stop, ▶ resume; click one to open it above the chat) and its chats (click to reopen the answer).
+  - *Unfiled* lists your jobs and chats that are in no project; ➕ files one into the active project.
+  - *Manage* renames, shares or creates projects.
 - The jobs panel above the chat shows each of your jobs: its stages with harness-verified state, the latest events, the verifier's verdict and, when finished, the report and files. **Stop** and **Resume** buttons are there too.
 - Saying **continue** (or "keep going", "resume the reproduction") resumes your latest unfinished job instead of starting over.
 - The agent can also start a job itself (`job_start`) when a request turns out to need one.
