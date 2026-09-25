@@ -655,7 +655,11 @@ class ClaudeCodeRunner:
                 res.stop_reason = m.get("subtype") or ""
                 res.cost_usd = float(m.get("total_cost_usd") or 0.0)
                 res.session_id = m.get("session_id") or res.session_id
-                if m.get("is_error"):
+                # A round that used all its turns is a round boundary, not an
+                # LLM failure: the plan carries the work into the next round.
+                # Counted as an error, three long rounds in a row failed a job
+                # that was making progress (J202609250420500a7a6e).
+                if m.get("is_error") and res.stop_reason != "error_max_turns":
                     res.error = res.answer or res.stop_reason
         return res
 
@@ -1599,6 +1603,11 @@ def selftest() -> int:
         r = ClaudeCodeRunner.parse_stream(lines, lambda k, t, p: seen.append((k, t)))
         check("claude stream: session id, tool names, cost and result parsed",
               r.session_id == "S1" and r.cost_usd == 0.42 and r.answer == "all done" and ("tool", "plan_set") in seen)
+        r = ClaudeCodeRunner.parse_stream([json.dumps({"type": "result", "subtype": "error_max_turns", "result": "",
+                                                       "session_id": "S1", "total_cost_usd": 9.9, "is_error": True})],
+                                          lambda k, t, p: None)
+        check("claude stream: a round that ran out of turns is a round boundary, not an error",
+              r.error == "" and r.stop_reason == "error_max_turns" and r.cost_usd == 9.9)
         jcc = create_job("x", orchestrator="claude_code")
         argv = ClaudeCodeRunner(None).argv({**jcc, "session_id": "S1"}, "go")
         check("claude argv: MCP-only tools, no shell by default, session resumed",

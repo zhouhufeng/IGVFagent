@@ -223,7 +223,7 @@ def selected_log(job_id: str, limit: int = 60) -> "List[Dict[str, Any]]":
 
 
 def outcome(rec: Dict[str, Any]) -> str:
-    """reproduced | partial | not reproduced | running — from harness facts only."""
+    """reproduced | partial | not reproduced | incomplete | running — from harness facts only."""
     j = rec["job"]
     if j["status"] in ("running", "queued"):
         return "running"
@@ -239,6 +239,12 @@ def outcome(rec: Dict[str, Any]) -> str:
         if vs and all(v == "reproduced" for v in vs):
             return "reproduced" if (verdict_ok or j.get("standalone")) else "partial"
         return "partial" if any(v in ("reproduced", "partially reproduced") for v in vs) else "not reproduced"
+    # A job that stopped (failed, out of budget, stopped) before its plan was
+    # done, with nothing reproduced yet, has no verdict: "not reproduced" would
+    # read as a scientific result. Resuming it can still finish the plan.
+    if j["status"] in ("failed", "budget_exhausted", "stopped", "interrupted") and not (code_ok or data_ok) and any(
+            s.get("status") in ("pending", "running", "failed") for s in rec.get("stages") or []):
+        return "incomplete"
     code_named = bool((rec.get("paper") or {}).get("code_repositories"))
     if code_named and not code:  # the paper's own code was never run: a cross-check, not the reproduction
         return "partial" if (data_ok or j["status"] in ("done", "done_with_blocked")) else "not reproduced"
@@ -319,7 +325,7 @@ def _refresh_record(d: Path) -> Dict[str, Any]:
         a["paper"]["code_repositories"] = a["paper"].get("code_repositories") or named
         a["paper"]["doi"] = a["paper"].get("doi") or doi
         a["outcome"] = outcome(a)
-    rank = {"reproduced": 3, "partial": 2, "running": 1, "not reproduced": 0}
+    rank = {"reproduced": 3, "partial": 2, "running": 1, "incomplete": 0.5, "not reproduced": 0}
     latest = attempts[-1]
     best = max(attempts, key=lambda a: (rank.get(a["outcome"], 0), a["job"].get("created_at") or ""))
     rec = dict(best)
@@ -551,7 +557,7 @@ def headline(rec: Dict[str, Any]) -> str:
 
 # ─── the self-contained HTML report ─────────────────────────────────────────
 
-_ICON = {"reproduced": "✅", "partial": "🟡", "not reproduced": "❌", "running": "🔄"}
+_ICON = {"reproduced": "✅", "partial": "🟡", "not reproduced": "❌", "incomplete": "⏸", "running": "🔄"}
 
 
 def _md_html(md: str, base: Optional[Path] = None, max_img: int = 1_500_000) -> str:
@@ -720,7 +726,7 @@ def render_html(rec: Dict[str, Any]) -> str:
 body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,sans-serif;max-width:1150px;margin:24px auto;padding:0 16px;line-height:1.5}
 a{color:#3b82f6}.meta{color:var(--mut);font-size:14px}h1{font-size:26px;margin-bottom:4px}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;background:var(--card);font-weight:600;margin:8px 0}
-.badge.reproduced{background:#dcfce7;color:#14532d}.badge.partial{background:#fef9c3;color:#713f12}.badge.not_reproduced{background:#fee2e2;color:#7f1d1d}
+.badge.reproduced{background:#dcfce7;color:#14532d}.badge.partial{background:#fef9c3;color:#713f12}.badge.not_reproduced{background:#fee2e2;color:#7f1d1d}.badge.incomplete{background:#e5e7eb;color:#374151}
 table{border-collapse:collapse;margin:8px 0 16px;font-size:14px;width:100%}th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
 th{background:var(--card)}.kv th{width:190px}figure{display:inline-block;margin:6px;max-width:31%;vertical-align:top}
 figure img{max-width:100%;border:1px solid var(--line);background:#fff}figcaption{font-size:11px;color:var(--mut);word-break:break-all}
@@ -866,9 +872,11 @@ def render_streamlit_panel(st, viewer: Optional[str], is_admin: bool, focus: Opt
     if not recs:
         st.info("No reproduction records yet. They are written when a reproduction or benchmark job finishes.")
         return
-    counts = {k: sum(1 for r in recs if r["outcome"] == k) for k in ("reproduced", "partial", "not reproduced")}
+    counts = {k: sum(1 for r in recs if r["outcome"] == k)
+              for k in ("reproduced", "partial", "not reproduced", "incomplete")}
     st.caption(f"{len(recs)} paper(s): ✅ {counts['reproduced']} reproduced · 🟡 {counts['partial']} partial · "
-               f"❌ {counts['not reproduced']} not reproduced")
+               f"❌ {counts['not reproduced']} not reproduced"
+               + (f" · ⏸ {counts['incomplete']} incomplete (resume the job)" if counts["incomplete"] else ""))
     rows = [{"": _ICON.get(r["outcome"], ""), "paper": (r["paper"].get("title") or r["paper_id"])[:90],
              "year": r["paper"].get("year"), "route": r["route"].replace("_", " "), "result": headline(r)[:120],
              "verifier": (r["job"].get("verdict") or {}).get("verdict", ""), "attempts": len(r.get("attempts") or []),
@@ -1023,6 +1031,12 @@ def selftest() -> int:
             check("forum post is a preview unless confirmed, authored as the owner",
                   prev["preview"] and prev["as_user"] == "alice" and prev["category"] == FORUM_CATEGORY
                   and "110" in prev["raw"] and "?repro=matreyek2018_multiplex" in prev["raw"])
+            cut = {"job": {"status": "failed"}, "paper": {"code_repositories": ["x/y"]}, "code": None, "data": [],
+                   "stages": [{"id": "harvest", "status": "done"}, {"id": "run_code", "status": "done"},
+                              {"id": "report", "status": "pending"}]}
+            check("a job stopped mid-plan with nothing reproduced is incomplete, not 'not reproduced'",
+                  outcome(cut) == "incomplete"
+                  and outcome({**cut, "stages": [{"id": "report", "status": "done"}]}) == "not reproduced")
         finally:
             ROOT, REPRO_DIR, JOBS_DIR = saved
     print("all checks pass" if ok else "SOME CHECKS FAILED")
