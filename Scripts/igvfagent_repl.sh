@@ -25,17 +25,27 @@ cd "$ROOT"
 [ -f "$HOME/.env" ] && { set -a; source "$HOME/.env"; set +a; }
 
 # Find a working `igvfagent` executable. Tries, in order:
+#   0. $IGVFAGENT_BIN, if set             (say exactly which one to use)
 #   1. $ROOT/.venv/bin/igvfagent          (script's own repo .venv)
 #   2. .venv/bin/igvfagent in any worktree under $ROOT/.claude/worktrees/
 #   3. system `igvfagent` on PATH
 #   4. .venv/bin/python -m igvfagent      (as a last resort)
+# A .venv is used only if its Python actually runs here. A checkout copied
+# between machines (a laptop's macOS .venv on a Linux cluster, say) keeps the
+# other machine's .venv, and its `igvfagent` looks executable but fails with
+# "Exec format error" on every question.
+venv_runs() { "$1/bin/python" -c '' >/dev/null 2>&1; }
+
 find_igvfagent() {
-    if [ -x "$ROOT/.venv/bin/igvfagent" ]; then
+    if [ -n "${IGVFAGENT_BIN:-}" ]; then
+        echo "$IGVFAGENT_BIN"; return 0
+    fi
+    if [ -x "$ROOT/.venv/bin/igvfagent" ] && venv_runs "$ROOT/.venv"; then
         echo "$ROOT/.venv/bin/igvfagent"; return 0
     fi
     if [ -d "$ROOT/.claude/worktrees" ]; then
         for d in "$ROOT/.claude/worktrees"/*/; do
-            if [ -x "$d.venv/bin/igvfagent" ]; then
+            if [ -x "$d.venv/bin/igvfagent" ] && venv_runs "$d.venv"; then
                 echo "$d.venv/bin/igvfagent"; return 0
             fi
         done
@@ -43,7 +53,7 @@ find_igvfagent() {
     if command -v igvfagent >/dev/null 2>&1; then
         echo "$(command -v igvfagent)"; return 0
     fi
-    if [ -x "$ROOT/.venv/bin/python" ]; then
+    if [ -x "$ROOT/.venv/bin/python" ] && venv_runs "$ROOT/.venv"; then
         echo "$ROOT/.venv/bin/python -m igvfagent"; return 0
     fi
     return 1
@@ -55,6 +65,11 @@ IGVFAGENT_BIN="$(find_igvfagent)" || {
     printf '    %s/.venv/bin/igvfagent\n' "$ROOT" >&2
     printf '    %s/.claude/worktrees/*/.venv/bin/igvfagent\n' "$ROOT" >&2
     printf '    $(command -v igvfagent)\n' >&2
+    if [ -x "$ROOT/.venv/bin/python" ] && ! venv_runs "$ROOT/.venv"; then
+        printf '  (%s/.venv exists but its Python does not run on this machine;\n' "$ROOT" >&2
+        printf '   it was probably copied from another OS)\n' >&2
+    fi
+    printf '  or set IGVFAGENT_BIN=/path/to/igvfagent\n' >&2
     printf '\nTo fix:\n' >&2
     printf '  cd %s/.claude/worktrees/festive-volhard-60dea7/\n' "$ROOT" >&2
     printf '  bash Scripts/igvfagent_repl.sh\n' >&2
@@ -62,8 +77,19 @@ IGVFAGENT_BIN="$(find_igvfagent)" || {
     exit 2
 }
 
-BACKEND="${IGVF_LLM_BACKEND:-openai}"
-MODEL="${IGVF_LLM_MODEL:-gpt-5}"
+# Backend: IGVF_LLM_BACKEND / IGVF_LLM_MODEL when set. Otherwise OpenAI gpt-5
+# if there is an OpenAI key (the long-standing default), else Claude if there
+# is an Anthropic key, else leave the choice to `igvfagent ask`, which
+# auto-detects (a local Ollama model when no key is set at all).
+if [ -n "${IGVF_LLM_BACKEND:-}" ]; then
+    BACKEND="$IGVF_LLM_BACKEND"; MODEL="${IGVF_LLM_MODEL:-}"
+elif [ -n "${OPENAI_API_KEY:-}" ]; then
+    BACKEND=openai; MODEL="${IGVF_LLM_MODEL:-gpt-5}"
+elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    BACKEND=anthropic; MODEL="${IGVF_LLM_MODEL:-claude-opus-5-5}"
+else
+    BACKEND=""; MODEL="${IGVF_LLM_MODEL:-}"
+fi
 MAX_ITER="${IGVF_AGENT_MAX_ITER:-12}"
 MAX_TOK="${IGVF_AGENT_MAX_TOK:-4096}"
 TEMP="${IGVF_AGENT_TEMP:-0.0}"
@@ -71,7 +97,7 @@ QUIET_FLAG=""
 
 printf '\n┌──────────────────────────────────────────────────────────────┐\n'
 printf '│ IGVFagent terminal dialog                                    │\n'
-printf '│ backend: %-10s · model: %-30s │\n' "$BACKEND" "$MODEL"
+printf '│ backend: %-10s · model: %-30s │\n' "${BACKEND:-auto}" "${MODEL:-default}"
 printf '│ max_iter: %-3d · max_tok: %-5d · temp: %-3s · :help for menu │\n' "$MAX_ITER" "$MAX_TOK" "$TEMP"
 printf '└──────────────────────────────────────────────────────────────┘\n'
 printf '  exec: %s\n\n' "$IGVFAGENT_BIN"
@@ -125,9 +151,11 @@ EOF
     esac
     # Fire the agent — every turn is an independent run; if you want
     # cross-turn memory, use the Streamlit UI which keeps a session.
+    LLM_ARGS=()
+    [ -n "$BACKEND" ] && LLM_ARGS+=(--backend "$BACKEND")
+    [ -n "$MODEL" ] && LLM_ARGS+=(--model "$MODEL")
     $IGVFAGENT_BIN ask \
-        --backend "$BACKEND" \
-        --model "$MODEL" \
+        ${LLM_ARGS[@]+"${LLM_ARGS[@]}"} \
         --max-iterations "$MAX_ITER" \
         --max-tokens "$MAX_TOK" \
         --temperature "$TEMP" \
