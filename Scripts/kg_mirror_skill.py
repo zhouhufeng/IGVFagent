@@ -43,6 +43,7 @@ import csv
 import json
 import logging
 import os
+import shutil
 import sys
 import time
 import urllib.error
@@ -484,6 +485,260 @@ def cmd_pull(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Key-range pulls: the billion-row collections, in parallel
+# ---------------------------------------------------------------------------
+#
+# `pull` pages with `SORT d._key LIMIT @skip, @count`. That is correct but
+# the server walks every skipped row, so each page costs more than the last
+# (15 s per 5,000 rows at 130 M rows in); the multi-billion-row collections
+# would take years.
+#
+# The obvious fix, keyset paging (`FILTER d._key > @last SORT d._key`), LOSES
+# ROWS on the IGVF catalog. It is a sharded cluster: a key-range FILTER is
+# answered by each shard's primary index, which compares keys byte by byte,
+# while the SORT merging the shards uses a collation ("--IcY..." sorts before
+# "--IR_J...", yet the filter holds no key in between). A key that sorts
+# after a page's last row but is byte-wise smaller than it is excluded from
+# every later page.
+#
+# A key-range filter ON ITS OWN is consistent: [lo, hi) splits partition a
+# collection exactly (counts on both sides of a cut always sum to the
+# total), and byte order is Python's str order. So a collection is split
+# into byte-wise ranges, and each range is streamed by ONE cursor with no
+# SORT at all. A cursor cannot be resumed, so a range that fails part-way is
+# discarded and pulled again; ranges are kept small (~25 M rows, well under
+# an hour) so that costs little. Shards land in a private directory and are
+# moved into place only once the row count matches the plan, so `register`
+# never sees a partial range.
+
+_CUT_CHARS = [chr(c) for c in range(0x21, 0x7F)]
+
+
+def _range_filter(lo: str | None, hi: str | None) -> tuple[str, dict[str, Any]]:
+    parts, bind = [], {}
+    if lo is not None:
+        parts.append("d._key >= @lo")
+        bind["lo"] = lo
+    if hi is not None:
+        parts.append("d._key < @hi")
+        bind["hi"] = hi
+    return (f"FILTER {' AND '.join(parts)} " if parts else ""), bind
+
+
+def _range_count(client: ArangoClient, collection: str, lo: str | None,
+                 hi: str | None) -> int | None:
+    """Rows in [lo, hi) by the primary index, or None if counting timed out."""
+    where, bind = _range_filter(lo, hi)
+    try:
+        res = client.open_cursor(
+            f"FOR d IN {collection} {where}COLLECT WITH COUNT INTO n RETURN n",
+            batch_size=1, bind_vars=bind or None)
+        return int(res["result"][0])
+    except urllib.error.HTTPError as exc:
+        if exc.code in (502, 503, 504):
+            return None
+        raise
+
+
+def _range_edges(client: ArangoClient, collection: str, lo: str | None,
+                 hi: str | None) -> tuple[str | None, str | None]:
+    """Two keys from the range (byte-wise min/max of the ends of the sort).
+
+    Only a hint for where to cut: the sort order is the collation's, not the
+    filter's, so these are not guaranteed to be the byte-wise extremes.
+    """
+    where, bind = _range_filter(lo, hi)
+    keys: list[str] = []
+    for direction in ("", "DESC "):
+        res = client.open_cursor(
+            f"FOR d IN {collection} {where}SORT d._key {direction}LIMIT 1 RETURN d._key",
+            batch_size=1, bind_vars=bind or None)
+        keys += res["result"]
+    return (min(keys), max(keys)) if keys else (None, None)
+
+
+def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
+                 max_depth: int = 16) -> list[dict[str, Any]]:
+    """Contiguous byte-wise ranges of at most ~target_rows, measured by counts.
+
+    For a range that is too big: cut at P + each printable character, where
+    P is the common prefix of two keys inside it, count the pieces, recurse.
+    Cuts are ordered in Python (byte order, which is the filter's order), so
+    consecutive ranges share a boundary and every key lands in exactly one.
+    """
+    out: list[dict[str, Any]] = []
+
+    def split(lo: str | None, hi: str | None, n: int | None, depth: int) -> None:
+        if n is not None and (n <= target_rows or depth >= max_depth):
+            out.append({"lo": lo, "hi": hi, "rows": n})
+            return
+        a, b = _range_edges(client, collection, lo, hi)
+        if a is None:
+            out.append({"lo": lo, "hi": hi, "rows": 0})
+            return
+        cuts: list[str] = []
+        if a != b:
+            i = 0
+            while i < min(len(a), len(b)) and a[i] == b[i]:
+                i += 1
+            for prefix in (a[:i], a[:i + 1]):
+                cuts = sorted({prefix + ch for ch in _CUT_CHARS
+                               if (lo is None or prefix + ch > lo)
+                               and (hi is None or prefix + ch < hi)})
+                if cuts:
+                    break
+        if not cuts:
+            # One key, or no cut falls inside: take it whole.
+            out.append({"lo": lo, "hi": hi, "rows": n})
+            return
+        bounds = [lo] + cuts + [hi]
+        logging.info("plan %s: depth %d, [%r, %r) has %s rows -> %d pieces",
+                     collection, depth, lo, hi,
+                     f"{n:,}" if n is not None else "?", len(bounds) - 1)
+        for x, y in zip(bounds, bounds[1:]):
+            t0 = time.time()
+            m = _range_count(client, collection, x, y)
+            if m or time.time() - t0 > 5:
+                logging.info("  [%r, %r) = %s  (%.1fs)", x, y,
+                             f"{m:,}" if m is not None else "count timed out",
+                             time.time() - t0)
+            split(x, y, m, depth + 1)
+
+    split(None, None, client.collection_count(collection), 0)
+    # Fold empty pieces into a neighbour, keeping the plan contiguous: range
+    # i ends exactly where range i+1 begins, from the first key to the last.
+    merged: list[dict[str, Any]] = []
+    for r in out:
+        if merged and (r["rows"] == 0 or merged[-1]["rows"] == 0):
+            a, b = merged[-1]["rows"], r["rows"]
+            merged[-1]["hi"] = r["hi"]
+            merged[-1]["rows"] = None if a is None or b is None else a + b
+        else:
+            merged.append(dict(r))
+    for i, r in enumerate(merged):
+        r["tag"] = f"r{i:04d}"
+    return merged
+
+
+def _plan_path(collection: str) -> Path:
+    return _state_path(f"{collection}__ranges")
+
+
+def _stream_range(client: ArangoClient, collection: str, r: dict[str, Any], *,
+                  batch_size: int, attempts: int = 4) -> dict[str, Any]:
+    """Pull one planned range with a single streaming cursor; all or nothing."""
+    tag = r["tag"]
+    state_file = _state_path(f"{collection}__{tag}")
+    if state_file.exists():
+        state = json.loads(state_file.read_text())
+        if state.get("status") == "done":
+            return state
+    final_dir = _collection_dir(collection)
+    work = final_dir / f"_partial_{tag}"
+    where, bind = _range_filter(r["lo"], r["hi"])
+    batch = _pick_initial_batch_size(client, collection, batch_size)
+    state: dict[str, Any] = {"collection": collection, "tag": tag, "lo": r["lo"],
+                             "hi": r["hi"], "planned_rows": r["rows"]}
+    for attempt in range(1, attempts + 1):
+        # A cursor cannot be resumed: every attempt starts the range afresh.
+        if work.exists():
+            shutil.rmtree(work)
+        work.mkdir(parents=True)
+        started, n, idx, cursor_id = time.time(), 0, 0, None
+        try:
+            res = client._request("/_api/cursor", method="POST", timeout=600, body={
+                "query": f"FOR d IN {collection} {where}RETURN d",
+                "bindVars": bind, "batchSize": batch, "ttl": 1800,
+                "options": {"stream": True}})
+            while True:
+                cursor_id = res.get("id")
+                rows = res.get("result", [])
+                if rows:
+                    _write_rows(work / f"{idx:05d}.parquet", [_flatten_row(x) for x in rows])
+                    n += len(rows)
+                    idx += 1
+                if not res.get("hasMore"):
+                    break
+                res = client._request(f"/_api/cursor/{cursor_id}", method="PUT", timeout=600)
+        except Exception as exc:
+            if cursor_id:
+                try:
+                    client._request(f"/_api/cursor/{cursor_id}", method="DELETE", timeout=60)
+                except Exception:
+                    pass
+            if isinstance(exc, urllib.error.HTTPError) and exc.code in (502, 503, 504) and batch > 1:
+                batch = max(1, batch // 2)
+            logging.warning("%s[%s] attempt %d failed after %d rows: %s (batch now %d)",
+                            collection, tag, attempt, n, exc, batch)
+            time.sleep(min(300.0, 30.0 * attempt))
+            continue
+        if r["rows"] is not None and n != r["rows"]:
+            state.update(status="count_mismatch", rows=n)
+            logging.error("%s[%s]: streamed %d rows, plan counted %d; keeping it out.",
+                          collection, tag, n, r["rows"])
+            _state_path(f"{collection}__{tag}").write_text(json.dumps(state, indent=2))
+            return state
+        for shard in sorted(work.glob("*.parquet")):
+            shard.rename(final_dir / f"{tag}_{shard.name}")
+        work.rmdir()
+        state.update(status="done", rows=n, shards=idx,
+                     seconds=round(time.time() - started, 1))
+        state_file.write_text(json.dumps(state, indent=2))
+        logging.info("%s[%s] done: %d rows in %d shards, %.0f rows/s", collection, tag,
+                     n, idx, n / max(time.time() - started, 1e-3))
+        return state
+    state.update(status="failed")
+    state_file.write_text(json.dumps(state, indent=2))
+    return state
+
+
+def _write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    pa = _require_pkg("pyarrow", "Required to write Parquet shards.")
+    pq = __import__("pyarrow.parquet", fromlist=["parquet"])
+    keys = {k for row in rows for k in row.keys()}
+    cols = {k: _coerce_column([row.get(k) for row in rows]) for k in keys}
+    pq.write_table(pa.Table.from_pydict(cols), path, compression="zstd")
+
+
+def cmd_plan_ranges(args: argparse.Namespace) -> int:
+    setup_logging()
+    client = make_client()
+    p = _plan_path(args.collection)
+    if p.exists() and not args.replan:
+        plan = json.loads(p.read_text())
+        print(f"Plan exists: {p} ({len(plan['ranges'])} ranges); --replan to redo it.")
+        return 0
+    t0 = time.time()
+    ranges = _plan_ranges(client, args.collection, args.target_rows)
+    total = client.collection_count(args.collection)
+    p.write_text(json.dumps({"collection": args.collection, "target_rows": args.target_rows,
+                             "planned_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                             "total_rows": total, "ranges": ranges}, indent=2))
+    counted = sum(r["rows"] or 0 for r in ranges)
+    print(f"{args.collection}: {len(ranges)} ranges; {counted:,} of {total:,} rows counted; "
+          f"largest {max((r['rows'] or 0) for r in ranges):,}; "
+          f"{sum(r['rows'] is None for r in ranges)} uncounted  ({time.time() - t0:.0f}s)")
+    print(f"Wrote {p}")
+    return 0
+
+
+def cmd_pull_planned(args: argparse.Namespace) -> int:
+    setup_logging()
+    p = _plan_path(args.collection)
+    if not p.exists():
+        raise SystemExit(f"No plan at {p}; run `kg-mirror plan-ranges --collection "
+                         f"{args.collection}` first.")
+    ranges = json.loads(p.read_text())["ranges"]
+    if not 0 <= args.index < len(ranges):
+        raise SystemExit(f"--index {args.index} out of range (plan has {len(ranges)}).")
+    state = _stream_range(make_client(), args.collection, ranges[args.index],
+                          batch_size=args.batch_size)
+    print(f"\n{args.collection}[{state['tag']}]: status={state['status']}, "
+          f"rows={state.get('rows', 0):,} (planned {state['planned_rows'] or 0:,})")
+    return 0 if state["status"] == "done" else 1
+
+
+# ---------------------------------------------------------------------------
 # Pull-all orchestration
 # ---------------------------------------------------------------------------
 
@@ -685,6 +940,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--restart", action="store_true",
                     help="Ignore on-disk state and start over.")
 
+    p = sub.add_parser("plan-ranges",
+                        help="Split a collection into byte-wise key ranges of about "
+                             "--target-rows each (measured by counts), for parallel pulls.")
+    p.add_argument("--collection", required=True)
+    p.add_argument("--target-rows", type=int, default=25_000_000)
+    p.add_argument("--replan", action="store_true",
+                    help="Overwrite an existing plan (only before its ranges are pulled).")
+
+    p = sub.add_parser("pull-planned",
+                        help="Stream one range of a plan-ranges plan (all or nothing; "
+                             "a finished range is skipped on re-run).")
+    p.add_argument("--collection", required=True)
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--batch-size", type=int, default=50000)
+
     p = sub.add_parser("pull-all", help="Mirror everything except the skip list.")
     p.add_argument("--skip", default=",".join(DEFAULT_SKIP),
                     help=f"Comma-separated collections to skip (default: {','.join(DEFAULT_SKIP)}).")
@@ -708,6 +978,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_inventory(args)
     if args.command == "pull":
         return cmd_pull(args)
+    if args.command == "plan-ranges":
+        return cmd_plan_ranges(args)
+    if args.command == "pull-planned":
+        return cmd_pull_planned(args)
     if args.command == "pull-all":
         return cmd_pull_all(args)
     if args.command == "register":
