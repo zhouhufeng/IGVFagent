@@ -202,13 +202,20 @@ often; invoke one by name, e.g. `/igvf-catalog-gene-dossier APOE`:
 **IGVFagent's tools inside Claude Code, over MCP.** The repository's
 [`.mcp.json`](../../.mcp.json) registers the MCP server for everyone who opens
 it in Claude Code (Claude Code asks you to approve it once), provided
-`igvfagent` is on your `PATH`. If it is not, register the full path for
-yourself instead; a personal registration takes precedence:
+`igvfagent` is on your `PATH` — put its environment first on `PATH` before
+starting `claude`. If you register it yourself instead (`claude mcp add
+igvfagent -- /path/to/envs/igvfagent/bin/igvfagent mcp serve`), remove one of
+the two: Claude Code warns when the same server is defined in two scopes.
 
 ```bash
-claude mcp add igvfagent -- /path/to/envs/igvfagent/bin/igvfagent mcp serve
 claude mcp list                   # igvfagent: … ✔ Connected
 ```
+
+**On an HPC cluster, start Claude Code on a compute node**, not a login node:
+the MCP server runs where its client runs, so the tools execute there. For
+example with SLURM, inside `tmux`:
+`srun --pty -p <partition> -c 16 --mem=64G -t 3-00:00:00 bash`, then
+`cd IGVFagent && export PATH=/path/to/envs/igvfagent/bin:$PATH && claude`.
 
 Start a new Claude Code session (servers load at start-up), type `/mcp` to see
 the tools, then ask, e.g. *"Using the igvfagent tools, look up APOE in the
