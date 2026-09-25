@@ -746,29 +746,70 @@ def code_route_gap(job: dict, plan: dict) -> Optional[str]:
             "mark a code stage blocked with the reason.")
 
 
+VERIFIER_FALLBACK = [m.strip() for m in os.environ.get("IGVF_VERIFIER_FALLBACK",
+                                                        "claude-opus-5-5,claude-sonnet-5").split(",") if m.strip()]
+
+
+def _parse_verdict(text: str) -> Optional[dict]:
+    """The verifier's JSON, or None when there is no usable verdict (empty
+    reply, refusal, prose, JSON cut off at the token limit)."""
+    for m in re.finditer(r"\{", text or ""):
+        depth = 0
+        for j in range(m.start(), len(text)):
+            depth += {"{": 1, "}": -1}.get(text[j], 0)
+            if depth == 0:
+                try:
+                    v = json.loads(text[m.start():j + 1])
+                except ValueError:
+                    break
+                if isinstance(v, dict) and str(v.get("verdict", "")).lower() in ("pass", "fail"):
+                    return v
+                break
+    return None
+
+
 def verify(job: dict, plan: dict, answer: str, llm_call: "Optional[Callable]" = None) -> dict:
+    """An independent fresh model call judges the report against the evidence.
+    'pass' / 'fail' only come from a real verdict. A model that refuses (a
+    safety classifier can trip on genetics evidence), answers nothing or is
+    cut off does not count as 'fail': the next model in IGVF_VERIFIER_FALLBACK
+    is asked, and if none gives a verdict the result is 'error', never a fail
+    that sends the job into repair rounds nobody can satisfy."""
     user = (f"# Task\n{job['query']}\n\n# Plan and evidence\n{_evidence_digest(plan)}\n\n"
             f"# Final report under review\n{answer[:8000]}")
+    if llm_call is not None:
+        v = _parse_verdict(llm_call(VERIFIER_PROMPT, user) or "")
+        if v is None:
+            return {"verdict": "error", "issues": ["verifier gave no usable verdict"]}
+        return {"verdict": str(v["verdict"]).lower(), "issues": [str(i) for i in (v.get("issues") or [])][:12]}
     try:
-        if llm_call is None:
-            try:
-                from igvfagent import _llm  # type: ignore
-            except Exception:
-                import _llm  # type: ignore
-            backend = job.get("backend") if job.get("orchestrator") == "internal" else "anthropic"
+        from igvfagent import _llm  # type: ignore
+    except Exception:
+        import _llm  # type: ignore
+    backend = job.get("backend") if job.get("orchestrator") == "internal" else "anthropic"
+    first = job.get("verifier_model") or job.get("model") or None
+    models = [first] + [m for m in VERIFIER_FALLBACK if m != first] if backend in (None, "anthropic") else [first]
+    tried = []
+    for model in models:
+        try:
             msg = _llm.chat([{"role": "system", "content": VERIFIER_PROMPT}, {"role": "user", "content": user}],
-                            backend=backend or None, model=job.get("verifier_model") or job.get("model") or None,
-                            max_tokens=1500, temperature=0.0)
+                            backend=backend or None, model=model, max_tokens=4000, temperature=0.0)
             text = msg.content if isinstance(msg.content, str) else json.dumps(msg.content)
-        else:
-            text = llm_call(VERIFIER_PROMPT, user)
-        m = re.search(r"\{.*\}", text or "", re.S)
-        v = json.loads(m.group(0)) if m else {}
-        verdict = "pass" if str(v.get("verdict", "")).lower() == "pass" else "fail"
-        return {"verdict": verdict, "issues": [str(i) for i in (v.get("issues") or [])][:12]}
-    except Exception as e:  # noqa: BLE001
-        # an unavailable verifier must not pass work silently
-        return {"verdict": "error", "issues": [f"verifier unavailable: {type(e).__name__}: {e}"]}
+            why = getattr(msg, "stop_reason", None) or getattr(msg, "finish_reason", None) or ""
+        except Exception as e:  # noqa: BLE001
+            tried.append(f"{model or 'default'}: {type(e).__name__}: {str(e)[:120]}")
+            continue
+        v = _parse_verdict(text)
+        if v is not None:
+            out = {"verdict": str(v["verdict"]).lower(), "issues": [str(i) for i in (v.get("issues") or [])][:12],
+                   "model": model}
+            if tried:
+                out["fallback_from"] = tried
+            return out
+        tried.append(f"{model or 'default'}: " + ("refused" if "refus" in str(why).lower() else
+                                                  "empty reply" if not (text or "").strip() else "no JSON verdict"))
+    # an unavailable verifier must not pass work silently, nor fail it
+    return {"verdict": "error", "issues": ["independent verifier unavailable: " + "; ".join(tried)]}
 
 
 # ─── the worker: rounds until verifiably done ───────────────────────────────
@@ -907,15 +948,19 @@ def run_worker(job_id: str, runner=None, verifier: "Optional[Callable]" = None, 
             if gap:  # deterministic: the paper names its code and nobody ran it
                 verdict = {"verdict": "fail", "issues": [gap] + list(verdict.get("issues") or [])}
             event(job_id, "verify", f"verifier: {verdict['verdict']}", issues=verdict["issues"])
-            if verdict["verdict"] != "pass" and vc < MAX_VERIFY_CYCLES:
-                issues = [f"verifier: {i}" for i in verdict["issues"]] or ["verifier could not confirm the report"]
+            if verdict["verdict"] == "fail" and verdict["issues"] and vc < MAX_VERIFY_CYCLES:
+                # only a real verdict with reasons starts a repair round; an
+                # unavailable verifier ("error") is recorded, not "fixed"
+                issues = [f"verifier: {i}" for i in verdict["issues"]]
                 job = update_job(job_id, verify_cycles=vc + 1, history=history, pending_issues=issues,
                                  last_answer=last_answer, last_verdict=verdict)
                 continue
             blocked = any(s["status"] == "blocked" for s in plan.get("stages") or [])
             status = "done_with_blocked" if blocked else "done"
-            if verdict["verdict"] != "pass":
+            if verdict["verdict"] == "fail":
                 status = "done_with_blocked"
+            # "error": the stages are harness-verified but no independent model
+            # would judge the report; the job is done, marked unverified.
             (job_dir(job_id) / "answer.md").write_text(
                 f"# {job['query'][:200]}\n\n{res.answer}\n\n## Plan\n\n```\n{plan_summary(plan)}\n```\n\n"
                 f"Verifier: **{verdict['verdict']}**" + (": " + "; ".join(verdict["issues"]) if verdict["issues"] else "")
@@ -1182,6 +1227,35 @@ def cmd_resume(a) -> int:
     return 0
 
 
+def reverify(job_id: str) -> dict:
+    """Run the independent verifier again on a finished job's report (e.g.
+    after a verifier refusal) and record the verdict; the job is not re-run."""
+    job = load_job(job_id)
+    plan = load_plan(job_id)
+    answer = job.get("last_answer") or ""
+    v = verify(job, plan, answer)
+    st = job.get("status")
+    if st in ("done", "done_with_blocked"):
+        blocked = any(x["status"] == "blocked" for x in plan.get("stages") or [])
+        st = "done_with_blocked" if (blocked or v["verdict"] == "fail") else "done"
+    update_job(job_id, last_verdict=v, status=st)
+    event(job_id, "verify", f"re-verified: {v['verdict']}", issues=v["issues"])
+    ans = job_dir(job_id) / "answer.md"
+    if ans.exists():
+        t = re.sub(r"\nVerifier: \*\*[^*]+\*\*.*$", "", ans.read_text(), flags=re.S)
+        ans.write_text(t.rstrip() + f"\n\nVerifier: **{v['verdict']}**"
+                       + (" (" + v["model"] + ")" if v.get("model") else "")
+                       + (": " + "; ".join(v["issues"]) if v["issues"] else "") + "\n")
+    _record_reproduction(job_id)
+    return {**v, "status": st}
+
+
+def cmd_reverify(a) -> int:
+    r = reverify(a.job)
+    print(json.dumps(r, indent=2))
+    return 0 if r["verdict"] in ("pass", "fail") else 1
+
+
 def cmd_resume_interrupted(a) -> int:
     """After a container restart: restart every job whose worker vanished mid-run."""
     n = 0
@@ -1280,6 +1354,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--extra-rounds", type=int, default=0)
     s.add_argument("--note", help="Guidance added to the job before it continues.")
     s.set_defaults(func=cmd_resume)
+    s = sub.add_parser("reverify", help="Run the independent verifier again on a finished job's report.")
+    s.add_argument("job")
+    s.set_defaults(func=cmd_reverify)
     s = sub.add_parser("resume-interrupted", help="Restart jobs whose worker died (run after a redeploy).")
     s.set_defaults(func=cmd_resume_interrupted)
     s = sub.add_parser("plan-set", help="(inside a job) record the staged plan")
@@ -1426,6 +1503,23 @@ def selftest() -> int:
         o3 = run_worker(j3["id"], runner=b, verifier=lambda s, u: '{"verdict":"pass"}', sleep=lambda s: None)
         check("blocking needs a reason", b.allowed_without_reason is False)
         check("a blocked stage ends as done_with_blocked", o3["status"] == "done_with_blocked")
+        # 3b. a verifier that refuses or returns nothing is "unverified", never
+        # a "fail" that sends the job into repair rounds nobody can satisfy
+        j3b = create_job("verifier refuses", owner="alice")
+        class Done1:
+            def run_round(self, job, prompt, history):
+                os.environ["IGVF_JOB_ID"] = job["id"]
+                plan_set(job["id"], [{"id": "s1", "title": "one"}])
+                (tmp / "Docs/Run/x.txt").write_text("ok")
+                plan_update(job["id"], "s1", "done", ["Docs/Run/x.txt"])
+                return RoundResult(answer="final report")
+        o3b = run_worker(j3b["id"], runner=Done1(), verifier=lambda s, u: "", sleep=lambda s: None)
+        check("a refusing/empty verifier ends the job done (unverified) without repair rounds",
+              o3b["status"] == "done" and o3b.get("verify_cycles", 0) == 0 and o3b["rounds"] == 1
+              and (o3b.get("last_verdict") or {}).get("verdict") == "error")
+        check("a verdict inside prose is read; a cut-off one is not",
+              (_parse_verdict('ok: {"verdict": "pass", "issues": []}') or {}).get("verdict") == "pass"
+              and _parse_verdict('{"verdict": "fail", "issues": ["cut') is None)
         # 4. stop file stops between rounds
         j4 = create_job("stoppable", owner="alice")
         (job_dir(j4["id"]) / "STOP").write_text("x")
