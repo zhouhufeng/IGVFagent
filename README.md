@@ -33,7 +33,7 @@ with a built-in **Plan → Action → Results → Evaluation** loop.
 ## What IGVF Agent can do
 
 **Ask in plain language; it picks the method, runs it, and shows its
-working.** 121 skills and 614 typed tools, hosted or installed locally.
+working.** 121 skills and 613 typed tools, hosted or installed locally.
 
 ![What IGVF Agent can do](Docs/Figures/whatIGVFAgentcando.png)
 
