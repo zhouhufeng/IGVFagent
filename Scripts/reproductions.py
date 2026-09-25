@@ -175,7 +175,14 @@ def code_info(ev: "List[str]") -> Optional[Dict[str, Any]]:
         got = pr["identical"] + pr["numerically_close"] + pr["same_values_other_layout"]
         pr["fraction_matched"] = round(got / pr["reference_blocks"], 4) if pr["reference_blocks"] else None
         s = {**s, **tot, "entry": f"{len(entries)} analyses"}
-    return {"entries": entries, "runs": [_rel(x) for x in dirs],
+    claims = []
+    for x in reversed(dirs):  # the latest run with a claims ledger
+        cs = (_read_json(x / "claims_summary.json") or {}).get("claims")
+        if cs:
+            claims = cs
+            d = x
+            break
+    return {"claims": claims, "entries": entries, "runs": [_rel(x) for x in dirs],
             "run_dir": _rel(d), "repo": s.get("repo"), "commit": s.get("commit"), "entry": s.get("entry"),
             "language": s.get("language"), "render": s.get("render"), "seconds": s.get("seconds"),
             "chunks": s.get("chunks"), "figures": s.get("figures"), "printed": s.get("printed"),
@@ -227,6 +234,11 @@ def outcome(rec: Dict[str, Any]) -> str:
     code_ok = code_ok or bool(code and not (code.get("printed") or {}) and (code.get("figures") or {}).get("produced")
                               and not (code.get("chunks") or {}).get("root_errors"))
     data_ok = bool(data) and all(b.get("status") == "ok" for b in data)
+    if code and code.get("claims"):
+        vs = [x.get("verdict") for x in code["claims"]]
+        if vs and all(v == "reproduced" for v in vs):
+            return "reproduced" if (verdict_ok or j.get("standalone")) else "partial"
+        return "partial" if any(v in ("reproduced", "partially reproduced") for v in vs) else "not reproduced"
     code_named = bool((rec.get("paper") or {}).get("code_repositories"))
     if code_named and not code:  # the paper's own code was never run: a cross-check, not the reproduction
         return "partial" if (data_ok or j["status"] in ("done", "done_with_blocked")) else "not reproduced"
@@ -504,6 +516,13 @@ def set_published(paper_id: str, on: bool) -> Dict[str, Any]:
 
 def headline(rec: Dict[str, Any]) -> str:
     c, parts = rec.get("code"), []
+    if c and c.get("claims"):
+        cl = c["claims"]
+        n_ok = sum(1 for x in cl if x.get("verdict") == "reproduced")
+        n_part = sum(1 for x in cl if x.get("verdict") == "partially reproduced")
+        return (f"{n_ok} of {len(cl)} of the paper's results reproduced" + (f", {n_part} partially" if n_part else "")
+                + ": " + "; ".join(f"{x['title']} ({x['verdict']}, r = {x['primary_pearson']:.3f})"
+                                   for x in cl if x.get("primary_pearson") is not None))[:400]
     if c and len(c.get("entries") or []) > 1:
         ents = c["entries"]
         clean = sum(1 for e in ents if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors"))
@@ -581,6 +600,44 @@ def _md_html(md: str, base: Optional[Path] = None, max_img: int = 1_500_000) -> 
     return "\n".join(out)
 
 
+def _strip_env(md: str) -> str:
+    """The per-run environment dump (hundreds of pip lines) and raw stdout
+    fragments belong in the run directory, not in the paper's record."""
+    md = re.sub(r"\n## Environment\n.*?(?=\n## |\Z)", "\n", md, flags=re.S)
+    return re.sub(r"\n## Printed values missing from this run.*?(?=\n## |\Z)", "\n", md, flags=re.S)
+
+
+def _notebook_digest(c: Dict[str, Any]) -> str:
+    """Many analyses: a table (one line each) and the failures grouped by
+    cause, not every notebook's report inline."""
+    ents = c.get("entries") or []
+    groups: Dict[str, List[str]] = {}
+    causes = [("a missing input file", r"FileNotFoundError|No such file|Unable to open file|does not exist"),
+              ("a missing module", r"ModuleNotFoundError|ImportError|no package called"),
+              ("a missing column or key", r"KeyError|not in index|undefined columns"),
+              ("did not execute", r"did not execute")]
+    for e in ents:
+        m = e.get("first_error") or ""
+        if m:
+            cause = next((k for k, rx in causes if re.search(rx, m)), "another error")
+            groups.setdefault(cause, []).append(e.get("entry") or "")
+    clean = [e for e in ents if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors")]
+    L = [f"{len(ents)} analyses were run unmodified; **{len(clean)}** ran without errors"
+         + (f" ({', '.join('`' + Path(e['entry']).name + '`' for e in clean[:6])})" if clean else "") + ".", "",
+         "Failures by cause:", ""]
+    L += [f"- **{k}**: {len(v)} analyses (e.g. `{Path(v[0]).name}`)" for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1]))]
+    L += ["", "| analysis | ran clean | printed values matched | first error |", "|---|---|---|---|"]
+    for e in ents:
+        ch, pr = e.get("chunks") or {}, e.get("printed") or {}
+        got = (pr.get("identical") or 0) + (pr.get("numerically_close") or 0) + (pr.get("same_values_other_layout") or 0)
+        matched = f"{got}/{pr['reference_blocks']}" if pr.get("reference_blocks") else "-"
+        ok = "yes" if ch.get("total") and not ch.get("root_errors") else "no"
+        err = (e.get("first_error") or "").replace("|", "/")[:90]
+        L.append(f"| `{Path(e.get('entry') or '').name}` | {ok} | {matched} | {err} |")
+    L.append(f"\nFull per-analysis reports: `{c.get('report_md')}`.")
+    return "\n".join(L)
+
+
 def render_html(rec: Dict[str, Any]) -> str:
     p, j, c = rec["paper"], rec["job"], rec.get("code")
     esc = _html.escape
@@ -630,10 +687,17 @@ def render_html(rec: Dict[str, Any]) -> str:
         + "</table>")
     if rec.get("answer"):
         h.append("<h2>Final report</h2><div class='answer'>" + _md_html(rec["answer"]) + "</div>")
-    if c and _abs(c["report_md"]).exists():
-        rd = _abs(c["report_md"]).parent
-        h.append("<h2>Authors' code, section by section</h2><div class='code'>"
-                 + _md_html(_abs(c["report_md"]).read_text(), base=rd) + "</div>")
+    if c:
+        rd = _abs(c["run_dir"])
+        claims_md = rd / "REPRODUCTION_REPORT.md"
+        if claims_md.exists():
+            # the paper's results against ours: verdicts, metrics, deviations
+            h.append("<div class='code'>" + _md_html(claims_md.read_text(), base=rd) + "</div>")
+        elif len(c.get("entries") or []) > 1:
+            h.append("<h2>The repository's analyses</h2>" + _md_html(_notebook_digest(c), base=rd))
+        elif _abs(c["report_md"]).exists():
+            h.append("<h2>Authors' code, section by section</h2><div class='code'>"
+                     + _md_html(_strip_env(_abs(c["report_md"]).read_text()), base=rd) + "</div>")
     if rec.get("log"):
         h.append("<details><summary>Selected run log</summary><pre>" + "\n".join(
             esc(f"{e['t']}  {e['kind']:<8} {e['text']}" + (f"  issues: {'; '.join(e['issues'])}" if e.get("issues") else ""))

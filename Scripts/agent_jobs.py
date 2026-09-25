@@ -133,6 +133,27 @@ early is a failure, not a courtesy.
    reproduced (with numbers and file paths), what differs from the paper and
    why, and what is blocked.
 
+REPRODUCING A PAPER: CLAIMS FIRST (as Paper2Agent does). A reproduction is
+judged on the paper's RESULTS, not on how many notebooks run. Figure notebooks
+are plotting layers; the results come from the authors' method.
+  1. List 2-5 key quantitative results and, for each, the published table
+     that holds it: paper_code_fetch_supplementary gives the Supplementary
+     Tables and Source Data (one sheet per result, e.g. "6. LDLvar GWAS BEAN
+     result").
+  2. For each, run the authors' METHOD the way their workflow does
+     (paper_code_exec with the command from their Snakefile/README, on the
+     deposited processed data; paper_code_fetch_data for deposits). A needed
+     deviation (e.g. masking a sample that failed QC) is passed as `note`.
+  3. paper_code_claim compares our table with the published one on the column
+     the claim rests on; run the same command again with seed=202 and pass it
+     as `noise` so "reproduced" means "within seed noise".
+  4. When a claim falls short, diagnose it scientifically with the authors'
+     own tools (rebuild an input the deposit lacks, recover parameters by
+     reproducing a deposited intermediate exactly) and document it.
+  5. paper_code_report_claims writes the report: a verdict table per claim,
+     metrics, deviations. paper_code_reproduce with all_entries (running every
+     notebook) is a supplementary check, not the reproduction.
+
 REPRODUCING A PAPER (the paper's own code is the scientific source of truth)
 a. Resolve and harvest the paper first (paper_benchmark / bench harvest), then
    paper_code_find on its harvest.json. If the Code Availability statement

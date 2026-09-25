@@ -18,6 +18,7 @@ route for code-backed papers:
 - [What it does](#what-it-does)
 - [From the browser or a job](#from-the-browser-or-a-job)
 - [From the command line](#from-the-command-line)
+- [Claims first: checking the paper's results](#claims-first-checking-the-papers-results)
 - [Reading the result](#reading-the-result)
 - [Repairs are environment-only](#repairs-are-environment-only)
 - [Records, the Reproductions page and the forum](#records-the-reproductions-page-and-the-forum)
@@ -119,6 +120,62 @@ Useful options:
 - `--pin` sets environment pins, repeatable.
 - `--strict` stops at the first failing chunk.
 - `--timeout-min` limits the run time.
+
+## Claims first: checking the paper's results
+
+Running every notebook shows whether the code runs. It does not show whether the
+paper's results hold. For a paper whose repository is a pipeline plus dozens of
+figure notebooks, the report that matters is a short table of the paper's key
+quantitative results, each checked against the authors' published numbers.
+This is how Paper2Agent reproduced Ryu et al. 2024 (bean), and a reproduction
+job now works the same way:
+
+1. **Pick the claims.** Choose 1–3 key results, each with a published reference
+   table: a Supplementary Table or a Source Data sheet (`paper-code supp` fetches
+   them and lists every sheet).
+2. **Run the authors' method** on the deposited processed data, with the exact
+   command their workflow uses (`paper-code exec`). Only tools in the authors'
+   environment run, and interpreters only run script files from the repository.
+3. **Measure the noise floor.** Run it again with another seed (`--seed 202`;
+   the `seed_override` shim replaces the seed the authors' code sets).
+4. **Compare** (`paper-code claim`). Rows are joined on their identifier, and
+   every shared column gets Pearson, Spearman, median |diff| and sign agreement.
+   Optionally the hit set is compared too (95% CI excludes 0, from a mean and SD
+   column pair), with its Jaccard.
+5. **Diagnose gaps with the authors' own tools**, such as a filter step or a
+   sample mask, and record each change as a deviation (`--note`).
+6. **Write the report** (`paper-code report-claims`).
+
+```bash
+igvfagent paper-code exec Docs/PaperCode/<run> --cwd workflow \
+    --note "mask the failed rep9 sample, as Paper2Agent" -- \
+    bean-run variant results/filtered_annotated/LDLvar/bean_count_LDLvar_annotated.h5ad \
+    --scale-by-acc --acc-bw-path resources/accessibility/ENCFF262URW.hg19.bw \
+    -o results/model_runs/bean_negctrl/ --fit-negctrl --sample-mask-col mask
+igvfagent paper-code claim Docs/PaperCode/<run> --id ldlvar \
+    --title "LDL variant effects (Supplementary Table 6)" \
+    --reference "supplementary/41588_2024_1726_MOESM4_ESM.xlsx:6. LDLvar GWAS BEAN result" \
+    --ours work/workflow/results/model_runs/bean_negctrl/bean_element_result.MixtureNormal+Acc.csv \
+    --primary mu_z_adj --hit-mean-sd mu_adj,mu_sd_adj --noise <seed-202 table>
+igvfagent paper-code report-claims Docs/PaperCode/<run>
+```
+
+A claim is **reproduced** when the primary column's correlation with the
+published table is within 0.01 of the seed-to-seed correlation (or at least
+0.98 when no second seed was run). It is **partially reproduced** at 0.80 or
+more, and **not reproduced** below that. Reference tables can be CSV/TSV, an
+Excel sheet (`file.xlsx:SHEET`, with title rows above the header detected) or an
+AnnData table (`file.h5ad:obs`).
+
+`REPRODUCTION_REPORT.md` and `.html` lead with the verdict table. Then come the
+per-claim metrics, every deviation (environment repairs, shims, seeds, command
+notes), the exact commands, and last an appendix of notebook failures grouped by
+cause. When a run has a claims report, its reproduction record shows that report
+and its headline reads "k of n of the paper's results reproduced".
+
+The comparison was checked on Paper2Agent's own LDLvar output against
+Supplementary Table 6: `mu_z_adj` r = 0.998, `mu_adj` r = 0.973, and hits 93 vs
+93 with 87 shared (Jaccard 0.879). Their script gives the same numbers.
 
 ## Reading the result
 

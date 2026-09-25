@@ -1248,16 +1248,71 @@ class _TorchHook(importlib.abc.MetaPathFinder):
             orig(module)
             try:
                 _patch_torch(module)
+                _patch_seeds("torch", module)
             except Exception:
                 pass
         spec.loader.exec_module = exec_module
         return spec
 
 
+# seed_override: a noise-floor run with another seed, without editing the
+# authors' code (IGVF_SEED_OVERRIDE); every seeding call is redirected and logged.
+_SEED = os.environ.get("IGVF_SEED_OVERRIDE")
+
+
+def _seeded(mod, name):
+    f = getattr(mod, name, None)
+    if f is None or getattr(f, "_igvf", False):
+        return
+
+    def g(*a, **k):
+        _log(shim="seed_override", call=f"{mod.__name__}.{name}", requested=str(a[:1]), used=_SEED)
+        return f(int(_SEED))
+    g._igvf = True
+    setattr(mod, name, g)
+
+
+def _patch_seeds(name, module):
+    if not _SEED:
+        return
+    targets = {"random": ["seed"], "numpy.random": ["seed"], "torch": ["manual_seed"], "pyro": ["set_rng_seed"]}
+    for n in targets.get(name, []):
+        _seeded(module, n)
+
+
 if "torch" in sys.modules:
     _patch_torch(sys.modules["torch"])
 elif not any(isinstance(f, _TorchHook) for f in sys.meta_path):
     sys.meta_path.insert(0, _TorchHook())
+
+
+class _SeedHook(importlib.abc.MetaPathFinder):
+    names = ("random", "numpy.random", "pyro")
+
+    def find_spec(self, name, path, target=None):
+        if name not in self.names or not _SEED:
+            return None
+        self.names = tuple(n for n in self.names if n != name)
+        spec = importlib.machinery.PathFinder.find_spec(name, path)
+        if spec is None or spec.loader is None:
+            return spec
+        orig = spec.loader.exec_module
+
+        def exec_module(module):
+            orig(module)
+            try:
+                _patch_seeds(name, module)
+            except Exception:
+                pass
+        spec.loader.exec_module = exec_module
+        return spec
+
+
+if _SEED:
+    for _n in ("random", "numpy.random", "pyro"):
+        if _n in sys.modules:
+            _patch_seeds(_n, sys.modules[_n])
+    sys.meta_path.insert(0, _SeedHook())
 '''
 
 
@@ -2297,6 +2352,331 @@ def fetch_reads(repo: str, accession: str, layout: str, *, into: str = "", match
     return out
 
 
+# ─── claims: the paper's results against ours (Paper2Agent's method) ───────
+#
+# A reproduction is judged on the paper's RESULTS, not on how many of the
+# repository's notebooks run: pick the key results (a supplementary table, a
+# Source Data sheet), run the authors' method to produce the same table, join
+# on the shared identifier and compare every shared numeric column, measure
+# the noise floor with a second seed, and give each claim a verdict.
+
+def _norm_col(c: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(c).strip().lower()).strip("_")
+
+
+def read_table(spec: str, base: Optional[Path] = None):
+    """A table from CSV/TSV/TXT, XLSX[:SHEET] or H5AD[:obs|var|uns_key]. For
+    journal workbooks the header row is found below their title rows."""
+    import pandas as pd  # type: ignore
+    path, _, sheet = spec.partition(":") if not re.match(r"^[A-Za-z]:\\\\", spec) else (spec, "", "")
+    p = Path(path)
+    if base is not None and not p.is_absolute():
+        p = base / p
+    suf = p.suffix.lower()
+    if suf in (".xlsx", ".xls"):
+        raw = pd.read_excel(p, sheet_name=sheet or 0, header=None)
+        hdr = _header_row(raw)
+        df = pd.read_excel(p, sheet_name=sheet or 0, header=hdr)
+    elif suf in (".h5ad",):
+        import anndata  # type: ignore
+        ad = anndata.read_h5ad(p, backed="r")
+        df = (ad.var if sheet == "var" else ad.uns[sheet] if sheet and sheet not in ("obs",) else ad.obs).copy()
+        df = df.reset_index()
+    else:
+        sep = "\t" if suf in (".tsv", ".txt") else ","
+        df = pd.read_csv(p, sep=sep)
+    df = df.loc[:, [c for c in df.columns if not str(c).startswith("Unnamed")]]
+    return df
+
+
+def _header_row(raw) -> int:
+    """First row that looks like a header: mostly text, as wide as the data,
+    and followed by a row with numbers (journal sheets start with titles)."""
+    width = int(raw.notna().sum(axis=1).max() or 1)
+    for i in range(min(len(raw) - 1, 15)):
+        row, nxt = raw.iloc[i], raw.iloc[i + 1]
+        filled = row.notna().sum()
+        texty = sum(isinstance(v, str) for v in row.dropna())
+        nums = sum(isinstance(v, (int, float)) and not isinstance(v, bool) for v in nxt.dropna())
+        if filled >= max(2, 0.6 * width) and texty >= 0.7 * filled and nums >= 1:
+            return i
+    return 0
+
+
+def _choose_key(a, b) -> Optional[Tuple[str, str]]:
+    best, score = None, 0.0
+    for ca in a.columns:
+        va = set(a[ca].dropna().astype(str))
+        if len(va) < max(5, 0.5 * len(a)):  # identifiers are (nearly) unique
+            continue
+        for cb in b.columns:
+            vb = set(b[cb].dropna().astype(str))
+            if len(vb) < max(5, 0.5 * len(b)):
+                continue
+            ov = len(va & vb) / max(1, min(len(va), len(vb)))
+            bonus = 0.05 if _norm_col(ca) == _norm_col(cb) else 0.0
+            if ov + bonus > score:
+                best, score = (ca, cb), ov + bonus
+    return best if score >= 0.3 else None
+
+
+def _rank(x):
+    import numpy as np  # type: ignore
+    return x.rank(method="average").to_numpy(dtype=float) if hasattr(x, "rank") else np.argsort(np.argsort(x))
+
+
+def compare_tables(ours_spec: str, ref_spec: str, *, key: Optional[str] = None, columns: "Sequence[str]" = (),
+                   hit_mean_sd: Optional[str] = None, hit_ci: Optional[str] = None, base: Optional[Path] = None
+                   ) -> Dict[str, Any]:
+    """Join our table with the published one and compare every shared numeric
+    column: Pearson, Spearman, median and max |difference|, sign agreement;
+    optionally a hit set (95% interval excludes 0) and its Jaccard overlap."""
+    import numpy as np  # type: ignore
+    import pandas as pd  # type: ignore
+    a, b = read_table(ours_spec, base), read_table(ref_spec, base)
+    if key:
+        ka, _, kb = key.partition("=")
+        kb = kb or ka
+        pair = (ka, kb)
+    else:
+        pair = _choose_key(a, b)
+    if not pair or pair[0] not in a.columns or pair[1] not in b.columns:
+        return {"ok": False, "error": f"no shared identifier column (ours: {list(a.columns)[:12]}; published: "
+                                      f"{list(b.columns)[:12]}); pass --key OURS=PUBLISHED"}
+    a2 = a.drop_duplicates(pair[0]).set_index(a[pair[0]].astype(str).loc[a.drop_duplicates(pair[0]).index])
+    b2 = b.drop_duplicates(pair[1]).set_index(b[pair[1]].astype(str).loc[b.drop_duplicates(pair[1]).index])
+    shared = a2.index.intersection(b2.index)
+    ma = {_norm_col(c): c for c in a2.columns}
+    mb = {_norm_col(c): c for c in b2.columns}
+    cols = [c for c in (columns or sorted(set(ma) & set(mb))) if c in ma and c in mb and c != _norm_col(pair[0])]
+    metrics: Dict[str, Any] = {}
+    for c in cols:
+        x = pd.to_numeric(a2.loc[shared, ma[c]], errors="coerce")
+        y = pd.to_numeric(b2.loc[shared, mb[c]], errors="coerce")
+        ok = x.notna() & y.notna() & np.isfinite(x) & np.isfinite(y)
+        if ok.sum() < 5 or x[ok].std() == 0 or y[ok].std() == 0:
+            continue
+        xv, yv = x[ok].to_numpy(dtype=float), y[ok].to_numpy(dtype=float)
+        d = np.abs(xv - yv)
+        both_signed = (xv < 0).any() and (yv < 0).any()
+        metrics[c] = {"n": int(ok.sum()), "pearson": float(np.corrcoef(xv, yv)[0, 1]),
+                      "spearman": float(np.corrcoef(_rank(x[ok]), _rank(y[ok]))[0, 1]),
+                      "median_abs_diff": float(np.median(d)), "max_abs_diff": float(d.max()),
+                      **({"sign_agreement": float((np.sign(xv) == np.sign(yv)).mean())} if both_signed else {})}
+    out: Dict[str, Any] = {"ok": True, "ours": ours_spec, "reference": ref_spec, "key": list(pair),
+                           "n_ours": int(len(a2)), "n_reference": int(len(b2)), "n_matched": int(len(shared)),
+                           "only_ours": int(len(a2.index.difference(b2.index))),
+                           "only_reference": int(len(b2.index.difference(a2.index))), "metrics": metrics}
+
+    def hits(df, m: Dict[str, str]) -> "set":
+        if hit_ci:
+            lo, hi = [m.get(_norm_col(x)) for x in hit_ci.split(",")]
+            if lo and hi:
+                L, H = pd.to_numeric(df[lo], errors="coerce"), pd.to_numeric(df[hi], errors="coerce")
+                return set(df.index[(L * H) > 0])
+        if hit_mean_sd:
+            mu, sd = [m.get(_norm_col(x)) for x in hit_mean_sd.split(",")]
+            if mu and sd:
+                M, S = pd.to_numeric(df[mu], errors="coerce"), pd.to_numeric(df[sd], errors="coerce")
+                lo, hi = M - 1.959964 * S, M + 1.959964 * S
+                return set(df.index[(lo * hi) > 0])
+        return set()
+    if hit_ci or hit_mean_sd:
+        ha, hb = hits(a2.loc[shared], ma), hits(b2.loc[shared], mb)
+        out["hits"] = {"ours": len(ha), "reference": len(hb), "shared": len(ha & hb),
+                       "jaccard": round(len(ha & hb) / max(1, len(ha | hb)), 4),
+                       "only_reference": sorted(hb - ha)[:25], "only_ours": sorted(ha - hb)[:25]}
+    return out
+
+
+def claim_verdict(primary_r: Optional[float], noise_r: Optional[float]) -> str:
+    """reproduced: at the seed-noise level (or r >= 0.98 without a noise run);
+    partially reproduced: r >= 0.80; else not reproduced."""
+    if primary_r is None:
+        return "not assessed"
+    if noise_r is not None and primary_r >= noise_r - 0.01:
+        return "reproduced"
+    if noise_r is None and primary_r >= 0.98:
+        return "reproduced"
+    return "partially reproduced" if primary_r >= 0.80 else "not reproduced"
+
+
+def add_claim(run_dir: Path, cid: str, title: str, reference: str, ours: str, primary: str, *,
+              key: Optional[str] = None, noise: Optional[str] = None, hit_mean_sd: Optional[str] = None,
+              hit_ci: Optional[str] = None, note: str = "", base: Optional[Path] = None) -> Dict[str, Any]:
+    cmp_ = compare_tables(ours, reference, key=key, hit_mean_sd=hit_mean_sd, hit_ci=hit_ci, base=base)
+    if not cmp_.get("ok"):
+        return cmp_
+    pk = _norm_col(primary)
+    pr = (cmp_["metrics"].get(pk) or {}).get("pearson")
+    nz = None
+    if noise:
+        nc = compare_tables(ours, noise, key=key.split("=")[0] + "=" + key.split("=")[0] if key else None,
+                            hit_mean_sd=hit_mean_sd, hit_ci=hit_ci, base=base)
+        nz = (nc.get("metrics", {}).get(pk) or {}).get("pearson") if nc.get("ok") else None
+        cmp_["noise_floor"] = {"run": noise, "primary_pearson": nz, "hits": nc.get("hits")}
+    rec = {"id": cid, "title": title, "reference": reference, "ours": ours, "primary": pk, "primary_pearson": pr,
+           "noise_pearson": nz, "verdict": claim_verdict(pr, nz), "note": note, "comparison": cmp_,
+           "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    led = run_dir / "claims.json"
+    claims = [c for c in (_read_json(led, []) or []) if c.get("id") != cid] + [rec]
+    _write_json(led, claims)
+    return {"ok": True, **rec}
+
+
+# ─── exec: one of the environment's own tools, logged ───────────────────────
+
+EXEC_DENY = {"python", "python3", "R", "Rscript", "bash", "sh", "zsh", "perl", "ruby", "node", "env", "sudo", "curl",
+             "wget", "rm", "mv", "cp", "chmod", "chown", "ssh", "scp", "nc"}
+
+
+def exec_in_env(run_dir: Path, argv: "List[str]", *, cwd: str = "", note: str = "", seed: Optional[int] = None,
+                timeout_min: float = 240) -> Dict[str, Any]:
+    """Run a tool of the analysis environment (e.g. bean-run, snakemake) in
+    the run's work copy, as the authors' code would call it, and record the
+    command, exit status and log. Interpreters and shells only run a script
+    that lives in the repository, never inline code; nothing outside the
+    environment's bin/ runs."""
+    envs = sorted(run_dir.glob("env_*.json")) + ([run_dir / "env.json"] if (run_dir / "env.json").exists() else [])
+    env = next((_read_json(e) for e in envs if (_read_json(e) or {}).get("prefix")), None)
+    if not env:
+        return {"ok": False, "error": f"no analysis environment recorded in {run_dir}"}
+    prefix = Path(env["prefix"])
+    work = (run_dir / "work").resolve()
+    wd = (work / cwd).resolve()
+    try:
+        wd.relative_to(work)
+    except ValueError:
+        return {"ok": False, "error": "--cwd must stay inside the work copy"}
+    if not argv:
+        return {"ok": False, "error": "no command"}
+    tool = argv[0]
+    exe = prefix / "bin" / tool
+    if "/" in tool or not exe.exists():
+        return {"ok": False, "error": f"{tool} is not a tool of the analysis environment ({prefix / 'bin'})"}
+    if tool in EXEC_DENY:
+        script = next((x for x in argv[1:] if not x.startswith("-")), None)
+        if tool not in ("python", "python3", "Rscript", "R") or not script or "-c" in argv or "-e" in argv:
+            return {"ok": False, "error": f"{tool} may only run a script file from the repository"}
+        sp = (wd / script).resolve()
+        try:
+            sp.relative_to(work)
+        except ValueError:
+            return {"ok": False, "error": "the script must be inside the work copy"}
+        if not sp.is_file():
+            return {"ok": False, "error": f"no script {script}"}
+    envvars = {**os.environ, "PATH": f"{prefix / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+               **write_py_shims(run_dir / "_jupyter" / "shims", run_dir / "_shim_log.jsonl")}
+    if seed is not None:
+        envvars["IGVF_SEED_OVERRIDE"] = str(int(seed))
+    n = len(_read_json(run_dir / "commands.json", []) or []) + 1
+    log = run_dir / f"exec_{n:02d}.log"
+    t0 = time.time()
+    with open(log, "w") as lf:
+        lf.write("$ " + " ".join(argv) + f"\n(cwd {wd})\n")
+        lf.flush()
+        try:
+            rc = subprocess.run([str(exe), *argv[1:]], cwd=str(wd), env=envvars, stdout=lf, stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL, timeout=timeout_min * 60).returncode
+        except subprocess.TimeoutExpired:
+            rc = 124
+    rec = {"n": n, "argv": argv, "cwd": _rel(wd), "exit": rc, "seconds": round(time.time() - t0, 1), "log": _rel(log),
+           "note": note, "seed_override": seed, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    _write_json(run_dir / "commands.json", (_read_json(run_dir / "commands.json", []) or []) + [rec])
+    tail = [ln for ln in log.read_text(errors="replace").splitlines() if ln.strip()][-12:]
+    return {"ok": rc == 0, **rec, "tail": tail}
+
+
+# ─── the claims report (Paper2Agent's REPRODUCTION_REPORT) ──────────────────
+
+_ERR_CAUSES = [("missing input file", re.compile(r"FileNotFoundError|No such file|Unable to open file|does not exist")),
+               ("missing module", re.compile(r"ModuleNotFoundError|ImportError|no package called")),
+               ("missing column / key", re.compile(r"KeyError|not in index|undefined columns")),
+               ("did not execute", re.compile(r"did not execute")),
+               ("other", re.compile(r"."))]
+
+
+def error_causes(summary: Dict[str, Any]) -> "List[Tuple[str, int, List[str]]]":
+    groups: Dict[str, List[str]] = {}
+    for e in summary.get("entries") or [summary]:
+        msg = e.get("first_error") or ""
+        if not msg:
+            continue
+        cause = next(c for c, rx in _ERR_CAUSES if rx.search(msg))
+        groups.setdefault(cause, []).append(f"{e.get('entry')}: {msg[:140]}")
+    return sorted(((c, len(v), v[:6]) for c, v in groups.items()), key=lambda x: -x[1])
+
+
+def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
+    claims = _read_json(run_dir / "claims.json", []) or []
+    sm = _read_json(run_dir / "summary.json", {}) or {}
+    cmds = _read_json(run_dir / "commands.json", []) or []
+    envs = [(_read_json(e) or {}) for e in sorted(run_dir.glob("env_*.json"))] or [_read_json(run_dir / "env.json") or {}]
+    shims = _read_shim_log(run_dir / "_shim_log.jsonl")
+    L = [f"# Reproduction report: {paper or sm.get('paper') or sm.get('repo')}", "",
+         f"Authors' code: [{sm.get('repo')}](https://github.com/{sm.get('repo')}) at `{(sm.get('commit') or '')[:12]}`", "",
+         "## Verdict", "", "| Result | Paper reference | Primary metric | Noise floor | Status |", "|---|---|---|---|---|"]
+    for c in claims:
+        pr = c.get("primary_pearson")
+        nz = c.get("noise_pearson")
+        L.append(f"| {c['title']} | {c['reference'].split('/')[-1]} | {c['primary']} r = "
+                 f"{'%.3f' % pr if pr is not None else '-'} | {'%.3f' % nz if nz is not None else '-'} | "
+                 f"**{c['verdict']}** |")
+    if not claims:
+        L.append("| (no claims assessed yet) | | | | |")
+    for i, c in enumerate(claims, 1):
+        cm = c["comparison"]
+        L += ["", f"## {i}. {c['title']}", "",
+              f"Reference `{c['reference']}` vs ours `{c['ours']}` joined on `{cm['key'][0]}`: **{cm['n_matched']}** "
+              f"matched ({cm['only_reference']} only in the paper, {cm['only_ours']} only ours).", "",
+              "| Column | n | Pearson | Spearman | median abs diff | sign agreement |", "|---|---|---|---|---|---|"]
+        for col, m in sorted(cm["metrics"].items(), key=lambda kv: kv[0] != c["primary"]):
+            L.append(f"| {'**' + col + '**' if col == c['primary'] else col} | {m['n']} | {m['pearson']:.3f} | "
+                     f"{m['spearman']:.3f} | {m['median_abs_diff']:.3g} | "
+                     f"{'%.1f%%' % (100 * m['sign_agreement']) if 'sign_agreement' in m else '-'} |")
+        if cm.get("hits"):
+            h = cm["hits"]
+            L.append(f"\nHits (95% interval excludes 0): {h['ours']} ours vs {h['reference']} published, "
+                     f"{h['shared']} shared (Jaccard {h['jaccard']:.2f}).")
+        if cm.get("noise_floor"):
+            nf = cm["noise_floor"]
+            L.append(f"Noise floor (same run, another seed: `{nf['run']}`): {c['primary']} r = "
+                     f"{nf['primary_pearson'] if nf['primary_pearson'] is None else round(nf['primary_pearson'], 4)}"
+                     + (f", hits Jaccard {nf['hits']['jaccard']:.2f}" if nf.get("hits") else "") + ".")
+        if c.get("note"):
+            L.append("\n" + c["note"])
+    L += ["", "## Deviations (documented; no scientific code changed)", ""]
+    for e in envs:
+        if e.get("declared"):
+            L.append(f"- Environment from the authors' `{e['declared']}` ({e.get('relaxed_level')}); "
+                     + (f"GPU-only packages dropped: {', '.join(e.get('dropped_gpu_only') or [])}; " if e.get("dropped_gpu_only") else "")
+                     + (f"from release archives: {'; '.join(x for x in e.get('pip_relaxed') or [] if 'archive' in x)}; "
+                        if any('archive' in x for x in e.get('pip_relaxed') or []) else "")
+                     + (f"shebangs repaired: {', '.join(e['fixed_crlf_shebangs'])}" if e.get("fixed_crlf_shebangs") else ""))
+    for s_ in {x.get("shim") for x in shims}:
+        L.append(f"- Compatibility shim `{s_}` (logged in `_shim_log.jsonl`).")
+    for c in cmds:
+        if c.get("note") or c.get("seed_override") is not None:
+            L.append(f"- Command {c['n']}: `{' '.join(c['argv'])}`: {c.get('note') or ''}"
+                     + (f" (seed overridden to {c['seed_override']} for the noise floor)" if c.get("seed_override") is not None else ""))
+    L += ["", "## Commands", ""] + [f"{c['n']}. `{' '.join(c['argv'])}` in `{c['cwd']}` → exit {c['exit']}, "
+                                   f"{c['seconds']} s (log `{c['log']}`)" for c in cmds]
+    if sm.get("entries"):
+        causes = error_causes(sm)
+        clean = sum(1 for e in sm["entries"] if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors"))
+        L += ["", "## Appendix: the repository's figure notebooks", "",
+              f"{len(sm['entries'])} notebooks were also run unmodified; {clean} ran without errors. Their failures, by cause:", ""]
+        L += [f"- {c}: {n} notebook(s), e.g. {ex[0]}" for c, n, ex in causes]
+        L.append(f"\nFull per-notebook report: `{_rel(run_dir / 'report.md')}`.")
+    md = run_dir / "REPRODUCTION_REPORT.md"
+    md.write_text("\n".join(L) + "\n")
+    (run_dir / "REPRODUCTION_REPORT.html").write_text(_md_to_html("\n".join(L), f"Reproduction: {paper or sm.get('repo')}"))
+    summ = {"claims": [{k: c.get(k) for k in ("id", "title", "reference", "primary", "primary_pearson", "noise_pearson",
+                                               "verdict")} for c in claims]}
+    _write_json(run_dir / "claims_summary.json", summ)
+    return {"ok": True, "report": _rel(md), "html": _rel(run_dir / "REPRODUCTION_REPORT.html"), **summ}
+
+
 # ─── supplementary files and source data of the paper ───────────────────────
 
 SUPP_EXT = (".xlsx", ".xls", ".csv", ".tsv", ".txt", ".zip", ".gz", ".pdf", ".docx")
@@ -3191,6 +3571,66 @@ def cmd_selftest() -> int:
         real = Path(td) / "t.pdf"
         real.write_bytes(b"%PDF-1.7\n")
         check("an HTML challenge page saved under a file's name is rejected", looks_like(fake) and not looks_like(real))
+    # claims: our table vs a journal sheet (title rows above the header)
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td).resolve()
+        try:
+            import numpy as np  # type: ignore
+            import openpyxl  # type: ignore
+            import pandas as pd  # type: ignore
+            rng = np.random.default_rng(0)
+            n = 60
+            mu = rng.normal(0, 1, n)
+            sd = np.abs(rng.normal(0.3, 0.05, n))
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "6. Result"
+            ws.append(["Supplementary Table 6. BEAN output"])
+            ws.append([None])
+            ws.append(["target", "mu_adj", "mu_sd_adj", "mu_z_adj"])
+            for i in range(n):
+                ws.append([f"rs{i}", float(mu[i]), float(sd[i]), float(mu[i] / sd[i])])
+            wb.save(td / "supp.xlsx")
+            ours = pd.DataFrame({"target": [f"rs{i}" for i in range(n)], "mu_adj": mu + rng.normal(0, 0.02, n),
+                                 "mu_sd_adj": sd, "mu_z_adj": (mu + rng.normal(0, 0.02, n)) / sd})
+            ours.to_csv(td / "ours.csv", index=False)
+            noise = ours.copy()
+            noise["mu_z_adj"] = noise["mu_z_adj"] + rng.normal(0, 0.01, n)
+            noise.to_csv(td / "noise.csv", index=False)
+            cm = compare_tables("ours.csv", "supp.xlsx:6. Result", hit_mean_sd="mu_adj,mu_sd_adj", base=td)
+            check("journal sheet: header found below the title rows, key detected, columns compared",
+                  cm["ok"] and cm["key"] == ["target", "target"] and cm["n_matched"] == n
+                  and cm["metrics"]["mu_z_adj"]["pearson"] > 0.99 and "hits" in cm)
+            rd = td / "run"
+            rd.mkdir()
+            (rd / "ours.csv").write_bytes((td / "ours.csv").read_bytes())
+            (rd / "noise.csv").write_bytes((td / "noise.csv").read_bytes())
+            (rd / "supp.xlsx").write_bytes((td / "supp.xlsx").read_bytes())
+            r = add_claim(rd, "c1", "Variant effects", "supp.xlsx:6. Result", "ours.csv", "mu_z_adj",
+                          noise="noise.csv", hit_mean_sd="mu_adj,mu_sd_adj", base=rd)
+            check("a claim gets a verdict from the numbers and its noise floor",
+                  r["ok"] and r["verdict"] in ("reproduced", "partially reproduced") and r["noise_pearson"])
+            rep_ = claims_report(rd, "Test paper")
+            txt = (rd / "REPRODUCTION_REPORT.md").read_text()
+            check("the reproduction report leads with a verdict table", txt.index("## Verdict") < 200
+                  and "Variant effects" in txt and rep_["claims"][0]["id"] == "c1")
+        except ImportError:
+            print("  (pandas/numpy/openpyxl missing: claims checks skipped)")
+    check("verdicts: at the noise floor is reproduced; r 0.85 is partial; r 0.5 is not",
+          claim_verdict(0.997, 0.998) == "reproduced" and claim_verdict(0.85, 0.999) == "partially reproduced"
+          and claim_verdict(0.5, None) == "not reproduced")
+    with tempfile.TemporaryDirectory() as td:
+        rd = Path(td).resolve()
+        (rd / "work").mkdir()
+        (rd / "bin").mkdir()
+        (rd / "bin" / "python").symlink_to(sys.executable)
+        _write_json(rd / "env_python.json", {"prefix": str(rd)})
+        bad1 = exec_in_env(rd, ["python", "-c", "print(1)"])
+        bad2 = exec_in_env(rd, ["curl", "http://x"])
+        (rd / "work" / "s.py").write_text("print('from the repository')\n")
+        good = exec_in_env(rd, ["python", "s.py"])
+        check("exec: no inline interpreter code, no tools outside the env; repository scripts run and are logged",
+              not bad1["ok"] and not bad2["ok"] and good["ok"] and (rd / "commands.json").exists())
     gy = GPU_ONLY
     check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
           and not gy.match("pytorch") and not gy.match("numpy"))
@@ -3270,6 +3710,37 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from-run", help="take --missing from a run directory's summary.json (still_missing)")
     s.add_argument("--place", action="append", default=[], metavar="FILE[:SHEET]=DEST",
                    help="copy a downloaded supplementary file (or one sheet) to DEST inside the repository")
+    s = sub.add_parser("compare", help="Our result table vs the paper's (join key, per-column r, hits)")
+    s.add_argument("--ours", required=True, help="CSV/TSV/XLSX[:SHEET]/H5AD[:obs]")
+    s.add_argument("--reference", required=True, help="the published table, e.g. supplementary/MOESM4.xlsx:6. Sheet")
+    s.add_argument("--key", help="OURS[=PUBLISHED] identifier column (default: detected)")
+    s.add_argument("--columns", help="comma-separated columns to compare (default: all shared numeric)")
+    s.add_argument("--hit-mean-sd", help="MEAN,SD columns: a hit's 95%% normal interval excludes 0")
+    s.add_argument("--hit-ci", help="LO,HI columns: a hit's interval excludes 0")
+    s.add_argument("--base", help="directory relative paths are resolved against")
+    s = sub.add_parser("claim", help="Assess one of the paper's results into a run's claims ledger")
+    s.add_argument("run_dir")
+    s.add_argument("--id", required=True)
+    s.add_argument("--title", required=True)
+    s.add_argument("--reference", required=True)
+    s.add_argument("--ours", required=True)
+    s.add_argument("--primary", required=True, help="the column the claim rests on (e.g. mu_z_adj)")
+    s.add_argument("--noise", help="the same result from a second seed (the noise floor)")
+    s.add_argument("--key")
+    s.add_argument("--hit-mean-sd")
+    s.add_argument("--hit-ci")
+    s.add_argument("--note", default="")
+    s = sub.add_parser("exec", help="Run one tool of the analysis environment in a run's work copy (logged)")
+    s.add_argument("run_dir")
+    s.add_argument("--cwd", default="", help="directory inside the work copy")
+    s.add_argument("--note", default="", help="why (e.g. the documented deviation this command makes)")
+    s.add_argument("--seed", type=int, help="override seeds for a noise-floor run (seed_override shim)")
+    s.add_argument("--timeout-min", type=float, default=240)
+    s.add_argument("--cmd", action="append", dest="cmd_items", default=[],
+                   help="the command, one token per --cmd (what tools pass); or give it after --")
+    s = sub.add_parser("report-claims", help="Write REPRODUCTION_REPORT.md/html from a run's claims ledger")
+    s.add_argument("run_dir")
+    s.add_argument("--paper", default="")
     s = sub.add_parser("report", help="Re-write the report of a finished run directory")
     s.add_argument("run_dir")
     s = sub.add_parser("status", help="State of a run directory")
@@ -3279,7 +3750,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
+    raw = list(sys.argv[1:] if argv is None else argv)
+    tail: List[str] = []
+    if raw[:1] == ["exec"] and "--" in raw:  # `paper-code exec RUN [opts] -- TOOL ARGS...`
+        i = raw.index("--")
+        raw, tail = raw[:i], raw[i + 1:]
+    args = build_parser().parse_args(raw)
+    if args.cmd == "exec":
+        args.cmd_items = list(args.cmd_items) + tail
     if args.cmd == "selftest":
         return cmd_selftest()
     if args.cmd == "find":
@@ -3339,6 +3817,52 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if res.get("ok"):
             _announce(res)
         return 0 if res.get("ok") else 1
+    if args.cmd in ("compare", "claim", "exec", "report-claims"):
+        rd = Path(getattr(args, "run_dir", "") or ".")
+        rd = rd if rd.is_absolute() else ROOT / rd
+    if args.cmd == "compare":
+        base = Path(args.base) if args.base else ROOT
+        res = compare_tables(args.ours, args.reference, key=args.key,
+                             columns=[_norm_col(c) for c in args.columns.split(",")] if args.columns else (),
+                             hit_mean_sd=args.hit_mean_sd, hit_ci=args.hit_ci, base=base)
+        if not res.get("ok"):
+            print(res["error"])
+            return 1
+        print(f"joined on {res['key'][0]} = {res['key'][1]}: {res['n_matched']} matched "
+              f"({res['only_reference']} only published, {res['only_ours']} only ours)")
+        for c, m in res["metrics"].items():
+            print(f"  {c:<28} n={m['n']:<6} r={m['pearson']:.4f}  rho={m['spearman']:.4f}  med|d|={m['median_abs_diff']:.4g}"
+                  + (f"  sign={100 * m['sign_agreement']:.1f}%" if "sign_agreement" in m else ""))
+        if res.get("hits"):
+            h = res["hits"]
+            print(f"  hits: {h['ours']} ours vs {h['reference']} published, {h['shared']} shared, Jaccard {h['jaccard']}")
+        return 0
+    if args.cmd == "claim":
+        res = add_claim(rd, args.id, args.title, args.reference, args.ours, args.primary, key=args.key, noise=args.noise,
+                        hit_mean_sd=args.hit_mean_sd, hit_ci=args.hit_ci, note=args.note, base=rd)
+        if not res.get("ok"):
+            print(res.get("error"))
+            return 1
+        print(f"{res['id']}: {res['verdict']}: {res['primary']} r = {res['primary_pearson']}"
+              + (f" (noise floor r = {res['noise_pearson']})" if res.get("noise_pearson") is not None else ""))
+        say("JSON", _rel(rd / "claims.json"))
+        return 0
+    if args.cmd == "exec":
+        cmd = list(args.cmd_items)
+        res = exec_in_env(rd, cmd, cwd=args.cwd, note=args.note, seed=args.seed, timeout_min=args.timeout_min)
+        if res.get("error"):
+            print(res["error"])
+            return 2
+        print(f"exit {res['exit']} in {res['seconds']} s (log {res['log']})")
+        print("\n".join(res.get("tail") or []))
+        return 0 if res["ok"] else 1
+    if args.cmd == "report-claims":
+        res = claims_report(rd, args.paper)
+        for c in res["claims"]:
+            print(f"  {c['verdict']:<22} {c['title']}")
+        say("Report", res["report"])
+        say("Report", res["html"])
+        return 0
     if args.cmd == "supp":
         repo = find(repo=args.repo)["candidates"][0]["repo"]
         missing = list(args.missing)

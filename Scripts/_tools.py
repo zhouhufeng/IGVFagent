@@ -6187,6 +6187,56 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "paper_code_exec",
+        "Run ONE tool of a paper-code run's analysis environment (e.g. bean-run, snakemake, bean-filter) in its "
+        "work copy, exactly as the authors' workflow calls it, to produce one of the paper's result tables. "
+        "Interpreters only run a script file from the repository; commands, exits and logs are recorded for the "
+        "report. note: why (e.g. the documented deviation this command makes). seed: override seeds for a "
+        "noise-floor run (no code change).",
+        {"type": "object", "properties": {
+            "run_dir": {**_S_STRING}, "cmd": {**_S_ARRAY_S, "description": "The tool and its arguments."},
+            "cwd": {**_S_STRING, "description": "Directory inside the work copy (e.g. workflow)."},
+            "note": {**_S_STRING}, "seed": {**_S_INTEGER}, "timeout_min": {**_S_NUMBER}},
+         "required": ["run_dir", "cmd"]},
+        cli=["paper-code", "exec"], positional=["run_dir"], flag_map={"timeout_min": "--timeout-min", "cmd": "--cmd"},
+        flag_repeat={"cmd"},
+    ),
+
+    _T(
+        "paper_code_compare",
+        "Compare OUR result table with the PAPER'S (a supplementary table sheet or Source Data): join on the "
+        "shared identifier (detected), then Pearson/Spearman/median |difference|/sign agreement for every shared "
+        "numeric column, and optionally the hit set (hit_mean_sd MEAN,SD or hit_ci LO,HI) with its Jaccard overlap.",
+        {"type": "object", "properties": {
+            "ours": {**_S_STRING}, "reference": {**_S_STRING, "description": "FILE[:SHEET], e.g. .../MOESM4.xlsx:6. Sheet"},
+            "key": {**_S_STRING}, "columns": {**_S_STRING}, "hit_mean_sd": {**_S_STRING}, "hit_ci": {**_S_STRING},
+            "base": {**_S_STRING}}, "required": ["ours", "reference"]},
+        cli=["paper-code", "compare"], flag_map={"hit_mean_sd": "--hit-mean-sd", "hit_ci": "--hit-ci"},
+    ),
+
+    _T(
+        "paper_code_claim",
+        "★ ASSESS ONE OF THE PAPER'S RESULTS ★ (the unit of a reproduction): record claim `id`/`title` into the "
+        "run's ledger, comparing `ours` with the paper's `reference` table on the `primary` column; `noise` is the "
+        "same result from a second seed (the noise floor). Verdict: reproduced (at noise level, or r>=0.98), "
+        "partially reproduced (r>=0.80), not reproduced.",
+        {"type": "object", "properties": {
+            "run_dir": {**_S_STRING}, "id": {**_S_STRING}, "title": {**_S_STRING}, "reference": {**_S_STRING},
+            "ours": {**_S_STRING}, "primary": {**_S_STRING}, "noise": {**_S_STRING}, "key": {**_S_STRING},
+            "hit_mean_sd": {**_S_STRING}, "hit_ci": {**_S_STRING}, "note": {**_S_STRING}},
+         "required": ["run_dir", "id", "title", "reference", "ours", "primary"]},
+        cli=["paper-code", "claim"], positional=["run_dir"], flag_map={"hit_mean_sd": "--hit-mean-sd", "hit_ci": "--hit-ci"},
+    ),
+
+    _T(
+        "paper_code_report_claims",
+        "Write the reproduction report from a run's claims ledger (REPRODUCTION_REPORT.md/.html): verdict table per "
+        "claim, per-claim metrics, documented deviations, commands; the notebook sweep only as a short appendix.",
+        {"type": "object", "properties": {"run_dir": {**_S_STRING}, "paper": {**_S_STRING}}, "required": ["run_dir"]},
+        cli=["paper-code", "report-claims"], positional=["run_dir"],
+    ),
+
+    _T(
         "paper_code_status",
         "State of a paper_code_reproduce run directory (running stage, or the "
         "final result with report, summary and figure counts).",
