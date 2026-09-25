@@ -7,6 +7,7 @@ to try it. These pages hold the detail.
 
 | Page | Read it when you want to… |
 |---|---|
+| [Ways to use IGVFagent](interfaces.md) | choose an interface — hosted or local web UI, terminal chat, `igvfagent ask`, direct commands, the MCP server, Claude Code — and set it up |
 | [Installation and first run](installation.md) | install locally (pip, pipx or Docker), configure credentials, run the smoke test |
 | [The browser UI, accounts and history](web-ui.md) | know what each tab does, how sign-in works, and how past results and projects are kept |
 | [LLM backends](llm-backends.md) | choose a model (Claude, OpenAI, Ollama, Claude Code), keep results consistent across models, or drive IGVFagent from another agent |

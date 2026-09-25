@@ -26,7 +26,7 @@ with a built-in **Plan → Action → Results → Evaluation** loop.
 
 **Contents:** [What it can do](#what-igvf-agent-can-do) ·
 [Try it online](#-try-it-online--no-install-required) ·
-[Quick start](#quick-start) · [How it works](#how-it-works) ·
+[Quick start](#quick-start) · [Ways to use it](#ways-to-use-it) · [How it works](#how-it-works) ·
 [Skills](#skills) · [Documentation](#documentation) ·
 [What's new](Docs/Guide/whats-new.md) · [Citing and licence](#citing-and-licence)
 
@@ -118,7 +118,9 @@ needs approval, so email
 > [The browser UI, accounts and history](Docs/Guide/web-ui.md#projects-and-permanent-history).
 
 Heavy or long-running analyses (full multiome pipelines, large downloads) are
-better run locally; see [Quick start](#quick-start). Operators: deployment
+better run locally; see [Quick start](#quick-start). The hosted site is the web
+UI; the terminal chat, MCP server and Claude Code routes run on a local install
+([Ways to use IGVFagent](Docs/Guide/interfaces.md)). Operators: deployment
 details are in [`Deploy/README.md`](Deploy/README.md) and
 [Operating the hosted deployment](Docs/Guide/deployment.md).
 
@@ -141,6 +143,22 @@ Without an API key the agent uses a local Ollama model; set
 pipx and Docker installs, configuration and the smoke test:
 [Installation and first run](Docs/Guide/installation.md). Choosing a model:
 [LLM backends](Docs/Guide/llm-backends.md).
+
+### Ways to use it
+
+The same agent and skills, hosted or on your own machine:
+
+| Interface | Hosted | Local |
+|---|:---:|---|
+| Web UI | ✅ [igvfagent.genohub.org](https://igvfagent.genohub.org) | `igvfagent ui` |
+| Terminal chat | — | `bash Scripts/igvfagent_repl.sh` |
+| One question | — | `igvfagent ask "…"` |
+| Direct skill commands (no LLM) | — | `igvfagent <skill> <subcommand>` |
+| MCP server for Claude Desktop, IDEs, other agents | — | `igvfagent mcp serve` |
+| Claude Code and other coding agents | — | open the repository; 8 bundled [Claude Code skills](.claude/skills/) |
+
+Which to pick, and how to set each one up:
+**[Ways to use IGVFagent](Docs/Guide/interfaces.md)**.
 
 ## How it works
 
@@ -182,7 +200,7 @@ checks ([dashboard](Benchmarks/README.md)).
 
 | | |
 |---|---|
-| **Use it** | [Installation](Docs/Guide/installation.md) · [Browser UI, accounts and history](Docs/Guide/web-ui.md) · [Long-running jobs](Docs/Guide/jobs.md) · [Reproducing a paper](Docs/Guide/paper-reproduction.md) · [LLM backends](Docs/Guide/llm-backends.md) · [Skills](Docs/Guide/skills/README.md) |
+| **Use it** | [Ways to use it: web, terminal, MCP, Claude Code](Docs/Guide/interfaces.md) · [Installation](Docs/Guide/installation.md) · [Browser UI, accounts and history](Docs/Guide/web-ui.md) · [Long-running jobs](Docs/Guide/jobs.md) · [Reproducing a paper](Docs/Guide/paper-reproduction.md) · [LLM backends](Docs/Guide/llm-backends.md) · [Skills](Docs/Guide/skills/README.md) |
 | **Understand it** | [Architecture](Docs/Guide/architecture.md) · [Benchmarks](Docs/Guide/benchmarks.md) · [Security](Docs/Guide/security.md) · [Threat model](Docs/THREAT_MODEL.md) · [Evaluation](Docs/EVALUATION.md) |
 | **Extend or run it** | [Extending IGVFagent](Docs/Guide/extending.md) · [Operating the hosted deployment](Docs/Guide/deployment.md) · [Server setup](Deploy/README.md) · [Accounts and sign-in](Docs/AUTH.md) |
 | **Provenance** | [References and attribution](Docs/Guide/references.md) · [Pinned upstream projects](Docs/Guide/references.md#pinned-upstream-projects) · [What's new](Docs/Guide/whats-new.md) |
