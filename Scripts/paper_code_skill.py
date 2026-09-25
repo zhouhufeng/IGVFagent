@@ -2418,6 +2418,26 @@ def _code_tokens(src: Path, basename: str) -> "set[str]":
     return toks
 
 
+_MAGIC = {".pdf": [b"%PDF"], ".xlsx": [b"PK"], ".docx": [b"PK"], ".zip": [b"PK"], ".gz": [b"\x1f\x8b"],
+          ".xls": [b"\xd0\xcf\x11\xe0", b"PK"]}
+
+
+def looks_like(path: Path) -> Optional[str]:
+    """None if the file is what its extension says; else why not (a server
+    that answers robots with an HTML challenge page under the file's URL)."""
+    try:
+        head = path.read_bytes()[:512]
+    except OSError as e:
+        return str(e)
+    want = _MAGIC.get(path.suffix.lower())
+    if want and not any(head.startswith(m) for m in want):
+        return "not a real file (the server returned an HTML page, e.g. a bot check)" \
+            if b"<html" in head.lower() or b"<!doctype" in head.lower() else "unexpected content"
+    if path.suffix.lower() in (".csv", ".tsv", ".txt") and (b"<!doctype html" in head.lower() or b"<html" in head.lower()):
+        return "not a real file (the server returned an HTML page, e.g. a bot check)"
+    return None
+
+
 _STOP = {"data", "table", "tables", "result", "results", "file", "files", "sheet", "index", "name", "value", "values",
          "csv", "xlsx", "tsv", "txt", "path", "read", "info", "information", "sample", "samples", "none", "true",
          "false", "supplementary", "source", "figure", "fig", "plot", "count", "counts", "score", "scores", "type",
@@ -2449,6 +2469,11 @@ def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), p
             except Exception as e:  # noqa: BLE001
                 files.append({**ln, "error": str(e)[:160]})
                 continue
+        bad = looks_like(q)
+        if bad:
+            q.unlink(missing_ok=True)
+            files.append({**ln, "error": bad})
+            continue
         inv = sheet_inventory(q)
         if ln.get("via") == "probe" and inv and inv[0].get("top"):
             first = " ".join(inv[0]["top"][0])[:80]
@@ -3150,6 +3175,12 @@ def cmd_selftest() -> int:
     check("supplementary and source-data links are found with their labels, other links ignored",
           [(x["name"], x["label"]) for x in sl] == [("41588_2024_1726_MOESM4_ESM.xlsx", "Supplementary Tables"),
                                                    ("MOESM6_ESM.xlsx", "Source Data Fig. 1")])
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "Supplementary_Data.xlsx"
+        fake.write_bytes(b"<!DOCTYPE html><html><body>Client Challenge</body></html>")
+        real = Path(td) / "t.pdf"
+        real.write_bytes(b"%PDF-1.7\n")
+        check("an HTML challenge page saved under a file's name is rejected", looks_like(fake) and not looks_like(real))
     gy = GPU_ONLY
     check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
           and not gy.match("pytorch") and not gy.match("numpy"))
@@ -3309,8 +3340,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             missing += [m for m in sm.get("still_missing") or [] if m.lower().endswith((".xlsx", ".xls", ".csv",
                                                                                          ".tsv", ".txt"))]
         res = fetch_supplementary(repo, args.doi, missing=missing, place=args.place)
-        print(json.dumps(res, indent=2, default=str)[:20000])
-        return 0 if res.get("ok") else 1
+        if not res.get("ok"):
+            print(res.get("error"))
+            return 1
+        out = repo_dir(repo) / "supplementary" / "result.json"
+        _write_json(out, res)
+        print(f"{len(res['files'])} supplementary file(s):")
+        for f in res["files"]:
+            print(f"  {f['name']:<44} {f['label'][:70]}" + (f"  [error: {f['error']}]" if f.get("error") else ""))
+        with_c = {k: v for k, v in res["suggestions"].items() if v}
+        print(f"\nCandidates for {len(with_c)} of {len(res['suggestions'])} missing file(s):")
+        for mf, c in with_c.items():
+            print(f"  {mf}")
+            for x in c:
+                print(f"      {x['score']:>2}  {x['file']}{':' + x['sheet'] if x['sheet'] else ''}  ({x['label'][:50]})  "
+                      f"matched: {', '.join(x['matched'][:6])}")
+        for x in res["placed"]:
+            print(f"placed (substitution): {x['from']} -> {x['to']}")
+        say("JSON", _rel(out))
+        return 0
     if args.cmd == "reads":
         repo = find(repo=args.repo)["candidates"][0]["repo"]
         if args.guess_layout:
