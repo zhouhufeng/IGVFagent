@@ -75,6 +75,7 @@ igvfagent paper-code reads pinellolab/bean_manuscript --accession PRJNA1042659 -
 - With `--missing FILE` or `--from-run <run>`, candidates for each file the analyses couldn't open are ranked. The ranking uses the sheet names and column names the authors' code uses near that file.
 - A journal's supplementary table is a reformatted presentation of the data, not the file the code read. So nothing is placed automatically: `--place FILE[:SHEET]=DEST` copies a chosen workbook, or one sheet exported to CSV/XLSX, into the repository, recorded as a **substitution**.
 - Source Data files hold the numbers behind each figure panel, which makes them the reference to check reproduced figures against.
+- From a server, publisher and PMC pages often serve a JavaScript bot check instead of the article. For Springer Nature DOIs, the files are then found at their deterministic `MOESM{n}_ESM` URLs instead, taking only non-HTML responses. Every download is checked against its file type's signature, so a challenge page saved under a file's name is rejected and reported, never inventoried.
 
 **The paper's own statements win.** When a paper states a software version that differs from its repository's environment, pin it with `--pin pip:NAME==VERSION`. For example, Ryu 2024 says "the version (0.2.9) of bean used for the analyses", while `environment.yml` pins 0.2.5.
 
