@@ -810,12 +810,14 @@ def render_streamlit_panel(st, viewer: Optional[str], is_admin: bool, focus: Opt
     render_record(st, rec, viewer, is_admin)
 
 
-def render_record(st, rec: Dict[str, Any], viewer: Optional[str], is_admin: bool) -> None:
+def render_record(st, rec: Dict[str, Any], viewer: Optional[str], is_admin: bool, key: str = "tab") -> None:
+    """One record. `key` separates copies: the same record can be drawn twice on
+    a page (the ?repro= banner and the Reproductions tab)."""
     mine = is_admin or viewer is None or viewer in (rec.get("owners") or [])
     attempts = rec.get("attempts") or []
     choice = rec["job"]["id"]
     if len(attempts) > 1:
-        choice = st.selectbox("Attempt", [a["job"] for a in reversed(attempts)], key=f"repro_att_{rec['paper_id']}",
+        choice = st.selectbox("Attempt", [a["job"] for a in reversed(attempts)], key=f"repro_{key}_att_{rec['paper_id']}",
                               format_func=lambda jid: next(f"{a['created_at']} · {a['outcome']} · {a['route']} · {jid}"
                                                            for a in attempts if a["job"] == jid))
     att = _read_json(REPRO_DIR / rec["paper_id"] / "attempts" / f"{choice}.json") or rec
@@ -823,9 +825,9 @@ def render_record(st, rec: Dict[str, Any], viewer: Optional[str], is_admin: bool
     c1, c2, c3 = st.columns([1, 1, 2])
     if html_p.is_file():
         c1.download_button("⬇ Report (HTML)", html_p.read_bytes(), file_name=f"{rec['paper_id']}_{choice}.html",
-                           mime="text/html", key=f"repro_dl_{rec['paper_id']}_{choice}")
+                           mime="text/html", key=f"repro_{key}_dl_{rec['paper_id']}_{choice}")
     if mine:
-        if c2.button("🌐 Unpublish" if rec.get("published") else "🌐 Publish", key=f"repro_pub_{rec['paper_id']}",
+        if c2.button("🌐 Unpublish" if rec.get("published") else "🌐 Publish", key=f"repro_{key}_pub_{rec['paper_id']}",
                      help="Published records are visible to every signed-in user"):
             set_published(rec["paper_id"], not rec.get("published"))
             st.rerun()
@@ -846,8 +848,8 @@ def render_record(st, rec: Dict[str, Any], viewer: Optional[str], is_admin: bool
                        + f", with {len(prev.get('figures') or [])} key figure(s). The forum is public: check the text.")
             st.markdown(f"**{prev.get('title')}**")
             st.code(prev.get("raw", "")[:6000], language="markdown")
-            ok = st.checkbox("I have read this and want to post it", key=f"repro_ok_{rec['paper_id']}")
-            if st.button("Post", key=f"repro_post_{rec['paper_id']}", disabled=not ok):
+            ok = st.checkbox("I have read this and want to post it", key=f"repro_{key}_ok_{rec['paper_id']}")
+            if st.button("Post", key=f"repro_{key}_post_{rec['paper_id']}", disabled=not ok):
                 res = post_to_forum(rec["paper_id"], as_user=viewer, yes=True)
                 if res.get("ok"):
                     st.success(f"Posted: {res['url']}")

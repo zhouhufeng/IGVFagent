@@ -2805,7 +2805,7 @@ def repro_link_panel() -> None:
             del st.query_params["repro"]
             st.rerun()
         if rec and _repro.visible(rec, viewer, admin):
-            _repro.render_record(st, rec, viewer, admin)
+            _repro.render_record(st, rec, viewer, admin, key="link")
 
 
 def agent_jobs_panel() -> None:
