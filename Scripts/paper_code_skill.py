@@ -2570,9 +2570,15 @@ def exec_in_env(run_dir: Path, argv: "List[str]", *, cwd: str = "", note: str = 
     if seed is not None:
         envvars["IGVF_SEED_OVERRIDE"] = str(int(seed))
     n = len(_read_json(run_dir / "commands.json", []) or []) + 1
-    log = run_dir / f"exec_{n:02d}.log"
+    while True:  # concurrent runs (a seed and its noise run) each reserve their own log
+        log = run_dir / f"exec_{n:02d}.log"
+        try:
+            fd = os.open(log, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            n += 1
     t0 = time.time()
-    with open(log, "w") as lf:
+    with os.fdopen(fd, "w") as lf:
         lf.write("$ " + " ".join(argv) + f"\n(cwd {wd})\n")
         lf.flush()
         try:
@@ -2582,7 +2588,14 @@ def exec_in_env(run_dir: Path, argv: "List[str]", *, cwd: str = "", note: str = 
             rc = 124
     rec = {"n": n, "argv": argv, "cwd": _rel(wd), "exit": rc, "seconds": round(time.time() - t0, 1), "log": _rel(log),
            "note": note, "seed_override": seed, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    _write_json(run_dir / "commands.json", (_read_json(run_dir / "commands.json", []) or []) + [rec])
+    with open(run_dir / ".commands.lock", "w") as lk:
+        try:
+            import fcntl
+            fcntl.flock(lk, fcntl.LOCK_EX)
+        except ImportError:
+            pass
+        cmds = [c for c in (_read_json(run_dir / "commands.json", []) or []) if c.get("n") != n]
+        _write_json(run_dir / "commands.json", sorted(cmds + [rec], key=lambda c: c.get("n") or 0))
     tail = [ln for ln in log.read_text(errors="replace").splitlines() if ln.strip()][-12:]
     return {"ok": rc == 0, **rec, "tail": tail}
 
@@ -3629,6 +3642,9 @@ def cmd_selftest() -> int:
         bad2 = exec_in_env(rd, ["curl", "http://x"])
         (rd / "work" / "s.py").write_text("print('from the repository')\n")
         good = exec_in_env(rd, ["python", "s.py"])
+        again = exec_in_env(rd, ["python", "s.py"])
+        check("exec: each run gets its own log, even when a run is still going",
+              again.get("n") == 2 and (rd / "exec_02.log").exists() and len(_read_json(rd / "commands.json")) == 2)
         check("exec: no inline interpreter code, no tools outside the env; repository scripts run and are logged",
               not bad1["ok"] and not bad2["ok"] and good["ok"] and (rd / "commands.json").exists())
     gy = GPU_ONLY
