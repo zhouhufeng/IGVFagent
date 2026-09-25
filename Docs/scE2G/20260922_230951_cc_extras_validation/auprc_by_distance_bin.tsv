@@ -1,0 +1,19 @@
+pred_id	dist_bin_kb	n_pairs	n_positive	auprc	auprc_crispr_comparison	precision_at_70_recall
+scE2G	[0,20)	417	192	0.7613	0.6739	0.6818
+baseline.distToTSS	[0,20)	421	196	0.6518	0.6456	0.5897
+baseline.distToGene	[0,20)	421	196	0.6339	0.6092	0.5798
+baseline.nearestTSS	[0,20)	421	196	0.5506		0.5684
+baseline.nearestGene	[0,20)	421	196	0.574		0.6073
+baseline.within100kbTSS	[0,20)	421	196	0.4656		0.4656
+scE2G	[20,100)	1377	179	0.542	0.5112	0.4065
+baseline.distToTSS	[20,100)	1399	193	0.2423	0.2395	0.2138
+baseline.distToGene	[20,100)	1399	193	0.1973	0.1901	0.1876
+baseline.nearestTSS	[20,100)	1399	193	0.255		0.138
+baseline.nearestGene	[20,100)	1399	193	0.2634		0.138
+baseline.within100kbTSS	[20,100)	1399	193	0.138		0.138
+scE2G	[100,2500)	8486	81	0.22	0.2036	0.0211
+baseline.distToTSS	[100,2500)	8536	82	0.026	0.0241	0.0138
+baseline.distToGene	[100,2500)	8536	82	0.0331	0.0297	0.0138
+baseline.nearestTSS	[100,2500)	8536	82	0.0254		0.0096
+baseline.nearestGene	[100,2500)	8536	82	0.0224		0.0096
+baseline.within100kbTSS	[100,2500)	8536	82	0.0096		0.0096

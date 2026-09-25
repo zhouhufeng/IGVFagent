@@ -1,0 +1,2 @@
+pred1	pred2	n_pairs	delta_auprc	delta_ci95_low	delta_ci95_high	pvalue
+scE2G	baseline.distToTSS	10280	0.1071	0.0515	0.1634	0.01

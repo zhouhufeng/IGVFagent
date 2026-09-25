@@ -1,0 +1,8 @@
+# written by igvfagent sce2g benchmark -- drop into CRISPR_comparison/config/config.yml
+comparisons:
+  cc_tssfilter_validation:
+    pred:
+      scE2G: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/Interpreted/Downloads/20260922_150656_sce2g_k562/IGVFFI1706PNVV.tsv.gz"
+    expt:
+      crispr: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Data/scE2G/resources/EPCrisprBenchmark_ensemble_data_GRCh38.intGENCODEv43.tsv.gz"
+    pred_config: "/Users/hzhou/Research/Projects/Compute/IGVFagent/Docs/scE2G/20260922_231032_cc_tssfilter_validation/pred_config.txt"

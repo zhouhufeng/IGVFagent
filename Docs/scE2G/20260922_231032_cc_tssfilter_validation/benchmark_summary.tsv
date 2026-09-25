@@ -1,0 +1,2 @@
+pred_id	pred_col	aggregate	fill_value	inverse	n_pairs	n_positive	baseline_precision	n_pairs_dropped_missing_gene	pairs_overlapping_prediction	frac_overlapping	auprc	auprc_ci95_low	auprc_ci95_high	auprc_trapz	auprc_crispr_comparison	precision_at_70_recall	auprc_negated	n_nonmissing_scores
+scE2G	Score	max	0.0	False	10356	471	0.0455	0	9175	0.886	0.5304			0.5278	0.519	0.2538	0.0319	8335

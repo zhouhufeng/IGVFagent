@@ -1,0 +1,2 @@
+pred_id	pred_col	boolean	alpha	aggregate_function	fill_value	inverse_predictor	pred_name_long	color
+scE2G	Score	FALSE	0.177	max	0.0	FALSE	scE2G multiome v1.2 (E2G.Score.qnorm)	blue

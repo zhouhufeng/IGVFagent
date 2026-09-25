@@ -209,3 +209,9 @@ Scripts/_make_overview_slides.py
 # transient run logs (Claude Code sessions)
 scratch_*.log
 Docs/AlphaGenome/2*
+Docs/PaperCode/2*
+Docs/PerturbTools/2*
+Docs/Synapse/2*
+Docs/TFPerturbSeq/2*
+Docs/eQTLEnrichment/2*
+Docs/Benchmark/*.pdf

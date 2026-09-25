@@ -1,0 +1,91 @@
+Report: Data/Reproductions/ryu2024_joint_genotypic/run-20260924_213418_pinellolab_bean_manuscript.html
+<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>ryu2024_joint_genotypic reproduction</title><style>
+:root{--bg:#fff;--fg:#1d1d1f;--mut:#666;--line:#ddd;--card:#f6f7f9}
+@media (prefers-color-scheme:dark){:root{--bg:#141517;--fg:#e8e8ea;--mut:#9a9aa0;--line:#333;--card:#1e1f22}}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,sans-serif;max-width:1150px;margin:24px auto;padding:0 16px;line-height:1.5}
+a{color:#3b82f6}.meta{color:var(--mut);font-size:14px}h1{font-size:26px;margin-bottom:4px}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;background:var(--card);font-weight:600;margin:8px 0}
+.badge.reproduced{background:#dcfce7;color:#14532d}.badge.partial{background:#fef9c3;color:#713f12}.badge.not_reproduced{background:#fee2e2;color:#7f1d1d}
+table{border-collapse:collapse;margin:8px 0 16px;font-size:14px;width:100%}th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+th{background:var(--card)}.kv th{width:190px}figure{display:inline-block;margin:6px;max-width:31%;vertical-align:top}
+figure img{max-width:100%;border:1px solid var(--line);background:#fff}figcaption{font-size:11px;color:var(--mut);word-break:break-all}
+pre{background:var(--card);padding:10px;overflow:auto;font-size:12px}blockquote{color:var(--mut);border-left:3px solid var(--line);margin:0;padding-left:10px}
+.trow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:13px}
+@media (max-width:700px){figure{max-width:100%}.kv th{width:auto}}</style></head><body><h1>Ryu et al. 2024 Nat Genet, Joint genotypic and phenotypic outcome modeling improves base editing variant effect quantification (BEAN)</h1>
+<p class='meta'></p>
+<div class='badge partial'>🟡 partial</div><p><b>1 of 2 of the paper&#x27;s results reproduced, 1 not attempted: LDL/LDLR variant effects: BEAN on the LDLvar base-editing screen (reproduced, r = 0.998)</b></p>
+<table class='kv'><tr><th>Route</th><td>authors code</td></tr><tr><th>Authors&#x27; code</th><td>pinellolab/bean_manuscript @ 63dc7a8ac6bb · 35 analyses</td></tr><tr><th>Job</th><td>run-20260924_213418_pinellolab_bean_manuscript · done · paper-code (standalone)</td></tr><tr><th>Owner</th><td>HZHOU</td></tr><tr><th>Finished</th><td>2026-09-24T21:43:02Z</td></tr><tr><th>Independent verifier</th><td>- (standalone run)</td></tr></table>
+<div class='code'><h2>Reproduction report: Ryu et al. 2024, Joint genotypic and phenotypic outcome modeling improves base editing variant effect quantification (Nat Genet)</h2>
+
+<p>Authors&#x27; code: <a href="https://github.com/pinellolab/bean_manuscript">pinellolab/bean_manuscript</a> at <code>63dc7a8ac6bb</code></p>
+
+<h3>Verdict</h3>
+
+<div class='trow'><span>Result</span><span>Paper reference</span><span>Primary metric</span><span>Noise floor</span><span>Status</span></div>
+
+<div class='trow'><span>LDL/LDLR variant effects: BEAN on the LDLvar base-editing screen</span><span>41588_2024_1726_MOESM4_ESM.xlsx:6. LDLvar GWAS BEAN result</span><span>mu_z_adj r = 0.998</span><span>0.999</span><span><b>reproduced</b></span></div>
+<div class='trow'><span>LDLR tiling screen variant effects (Fig. 5)</span><span>41588_2024_1726_MOESM4_ESM.xlsx:9. LDLR tiling BEAN result</span><span>-</span><span>-</span><span><b>not attempted</b></span></div>
+
+<h3>1. LDL/LDLR variant effects: BEAN on the LDLvar base-editing screen</h3>
+
+<p>Reference <code>Data/PaperCode/pinellolab__bean_manuscript/supplementary/41588_2024_1726_MOESM4_ESM.xlsx:6. LDLvar GWAS BEAN result</code> vs ours <code>work/workflow/results/model_runs/bean_negctrl/bean_run_result.bean_count_LDLvar_annotated/bean_element_result.MixtureNormal+Acc.csv</code> joined on <code>target</code>: <b>694</b> matched (0 only in the paper, 0 only ours).</p>
+
+<div class='trow'><span>Column</span><span>n</span><span>Pearson</span><span>Spearman</span><span>median abs diff</span><span>sign agreement</span></div>
+
+<div class='trow'><span><b>mu_z_adj</b></span><span>694</span><span>0.998</span><span>0.996</span><span>0.0662</span><span>98.8%</span></div>
+<div class='trow'><span>0_975</span><span>694</span><span>0.938</span><span>0.922</span><span>0.0462</span><span>99.1%</span></div>
+<div class='trow'><span>ci_0_025</span><span>694</span><span>0.948</span><span>0.935</span><span>0.0501</span><span>98.7%</span></div>
+<div class='trow'><span>edit_rate_mean</span><span>694</span><span>1.000</span><span>1.000</span><span>3.89e-16</span><span>-</span></div>
+<div class='trow'><span>edit_rate_std</span><span>694</span><span>1.000</span><span>1.000</span><span>1.11e-16</span><span>-</span></div>
+<div class='trow'><span>mu</span><span>694</span><span>0.972</span><span>0.984</span><span>0.0255</span><span>99.0%</span></div>
+<div class='trow'><span>mu_adj</span><span>694</span><span>0.972</span><span>0.984</span><span>0.0259</span><span>98.8%</span></div>
+<div class='trow'><span>mu_scaled</span><span>694</span><span>0.972</span><span>0.984</span><span>0.0259</span><span>98.8%</span></div>
+<div class='trow'><span>mu_sd</span><span>694</span><span>0.916</span><span>0.856</span><span>0.0201</span><span>-</span></div>
+<div class='trow'><span>mu_sd_adj</span><span>694</span><span>0.916</span><span>0.856</span><span>0.0219</span><span>-</span></div>
+<div class='trow'><span>mu_sd_scaled</span><span>694</span><span>0.916</span><span>0.856</span><span>0.0202</span><span>-</span></div>
+<div class='trow'><span>mu_z</span><span>694</span><span>0.998</span><span>0.996</span><span>0.0643</span><span>99.0%</span></div>
+<div class='trow'><span>mu_z_scaled</span><span>694</span><span>0.998</span><span>0.996</span><span>0.0636</span><span>98.8%</span></div>
+<div class='trow'><span>novl</span><span>694</span><span>0.883</span><span>0.863</span><span>0.0172</span><span>-</span></div>
+<div class='trow'><span>novl_adj</span><span>694</span><span>0.883</span><span>0.863</span><span>0.0192</span><span>-</span></div>
+<div class='trow'><span>novl_scaled</span><span>694</span><span>0.883</span><span>0.864</span><span>0.0171</span><span>-</span></div>
+<div class='trow'><span>sd</span><span>694</span><span>0.063</span><span>0.048</span><span>0.00268</span><span>-</span></div>
+<div class='trow'><span>sd_scaled</span><span>694</span><span>0.063</span><span>0.048</span><span>0.00278</span><span>-</span></div>
+
+<p>Hits (95% interval excludes 0): 86 ours vs 93 published, 82 shared (Jaccard 0.85).</p>
+<p>Noise floor (same run, another seed: <code>work/workflow/results/model_runs/bean_negctrl_seed202/bean_run_result.bean_count_LDLvar_annotated/bean_element_result.MixtureNormal+Acc.csv</code>): mu_z_adj r = 0.9986, hits Jaccard 0.91.</p>
+
+<p>authors rule run_bean_var_mixnormal_acc_negctrl on the deposited filtered_annotated LDLvar counts; rep9 masked</p>
+
+<h3>2. LDLR tiling screen variant effects (Fig. 5): not attempted</h3>
+
+<p>Reference <code>41588_2024_1726_MOESM4_ESM.xlsx:9. LDLR tiling BEAN result</code>.</p>
+
+<p>The authors rule reads a spacer_0_19 allele table the Zenodo deposit lacks. Rebuilding it with bean-filter crashes inside crispr-bean v0.2.9 (CDS.edit_single fails while formatting an error message). Paper2Agent patched that code; IGVF Agent repairs only the environment, so this result stays open. Paper2Agent with the patch: partially reproduced, z r = 0.89.</p>
+
+<h3>Deviations (documented; no scientific code changed)</h3>
+
+<ul>
+<li>Environment from the authors&#x27; <code>Data/PaperCode/pinellolab__bean_manuscript/src/workflow/envs/environment.yml</code> (exact pins); GPU-only packages dropped: cudatoolkit=11.1.74, cudnn=8.4.1.50, pytorch-mutex=1.0; from release archives: crispr-bean==0.2.9 (from the project&#x27;s release archive: https://github.com/pinellolab/crispr-bean/archive/refs/tags/v0.2.9.tar.gz); shebangs repaired: bean-count-samples, bean-create-screen, bean-filter, bean-profile, bean-run</li>
+<li>Compatibility shim <code>seed_override</code> (logged in <code>_shim_log.jsonl</code>).</li>
+<li>Command 1: <code>bean-run variant results/filtered_annotated/LDLvar/bean_count_LDLvar_annotated.h5ad --scale-by-acc --acc-bw-path resources/accessibility/ENCFF262URW.hg19.bw --fit-negctrl --sample-mask-col mask -o results/model_runs/bean_negctrl_seed202/</code>: noise floor: same command, seed 202 (seed overridden to 202 for the noise floor)</li>
+<li>Command 2: <code>bean-run variant results/filtered_annotated/LDLvar/bean_count_LDLvar_annotated.h5ad --scale-by-acc --acc-bw-path resources/accessibility/ENCFF262URW.hg19.bw --fit-negctrl --sample-mask-col mask -o results/model_runs/bean_negctrl/</code>: the authors run_bean_var_mixnormal_acc_negctrl rule; --sample-mask-col mask excludes the failed rep9 sample, as Paper2Agent did</li>
+</ul>
+
+<h3>Commands</h3>
+
+<p>1. <code>bean-run variant results/filtered_annotated/LDLvar/bean_count_LDLvar_annotated.h5ad --scale-by-acc --acc-bw-path resources/accessibility/ENCFF262URW.hg19.bw --fit-negctrl --sample-mask-col mask -o results/model_runs/bean_negctrl_seed202/</code> in <code>Docs/PaperCode/20260924_213418_pinellolab_bean_manuscript/work/workflow</code> → exit 0, 1284.4 s (log <code>Docs/PaperCode/20260924_213418_pinellolab_bean_manuscript/exec_01.log</code>)</p>
+<p>2. <code>bean-run variant results/filtered_annotated/LDLvar/bean_count_LDLvar_annotated.h5ad --scale-by-acc --acc-bw-path resources/accessibility/ENCFF262URW.hg19.bw --fit-negctrl --sample-mask-col mask -o results/model_runs/bean_negctrl/</code> in <code>Docs/PaperCode/20260924_213418_pinellolab_bean_manuscript/work/workflow</code> → exit 0, 1368.1 s (log <code>Docs/PaperCode/20260924_213418_pinellolab_bean_manuscript/exec_02.log</code>)</p>
+
+<h3>Appendix: the repository&#x27;s figure notebooks</h3>
+
+<p>35 notebooks were also run unmodified; 3 ran without errors. Their failures, by cause:</p>
+
+<ul>
+<li>missing input file: 25 notebook(s), e.g. workflow/notebooks/Fig5f/f_regional_score_spacer0.1_0.3.ipynb: FileNotFoundError: [Errno 2] No such file or directory: &#x27;../../resources/LDLR/ldlr_aa.fa&#x27;</li>
+<li>missing module: 4 notebook(s), e.g. workflow/notebooks/Fig5d/d_evaluate_negctrl_spacer0.1_0.3.ipynb: ModuleNotFoundError: No module named &#x27;anbe_tool&#x27;</li>
+<li>missing column / key: 2 notebook(s), e.g. workflow/notebooks/Suppl/S30_overdispersion/cds_overdispersion.ipynb: KeyError: &#x27;sig_allele_counts_spacer_0_19_A.G_translated_prop0.1_0.3&#x27;</li>
+<li>other: 1 notebook(s), e.g. workflow/notebooks/Fig1e/1e_gwas_schema.ipynb: NameError: name &#x27;gwas_tbl&#x27; is not defined</li>
+</ul>
+
+<p>Full per-notebook report: <code>Docs/PaperCode/20260924_213418_pinellolab_bean_manuscript/report.md</code>.</p></div>
+<p class='meta'>Recorded 2026-09-25T04:55:16Z by IGVF Agent · <a href='https://igvfagent.genohub.org/?repro=ryu2024_joint_genotypic'>open on igvfagent.genohub.org</a></p></body></html>
