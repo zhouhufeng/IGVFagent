@@ -70,6 +70,12 @@ igvfagent paper-code reads pinellolab/bean_manuscript --accession PRJNA1042659 -
 - The preview shows the mapping, the total size, skipped runs and any file that would receive several runs, before anything is downloaded.
 - A manifest and the provenance go to `Data/PaperCode/<repo>/`.
 
+**Supplementary files and Source Data.** `paper-code supp <repo> --doi <DOI>` collects the paper's supplementary files and Source Data from its landing page and PMC. It works with Springer Nature, Cell/Elsevier, Science, bioRxiv and PMC.
+- The files are downloaded to `Data/PaperCode/<repo>/supplementary/`, and every sheet is inventoried with its header rows.
+- With `--missing FILE` or `--from-run <run>`, candidates for each file the analyses couldn't open are ranked. The ranking uses the sheet names and column names the authors' code uses near that file.
+- A journal's supplementary table is a reformatted presentation of the data, not the file the code read. So nothing is placed automatically: `--place FILE[:SHEET]=DEST` copies a chosen workbook, or one sheet exported to CSV/XLSX, into the repository, recorded as a **substitution**.
+- Source Data files hold the numbers behind each figure panel, which makes them the reference to check reproduced figures against.
+
 **The paper's own statements win.** When a paper states a software version that differs from its repository's environment, pin it with `--pin pip:NAME==VERSION`. For example, Ryu 2024 says "the version (0.2.9) of bean used for the analyses", while `environment.yml` pins 0.2.5.
 
 **Compatibility shims for Python notebooks.** Like the R shims, these are loaded into the kernel without editing the notebook, and they are listed in the report whenever they fire. `mpl_missing_style` falls back to the default style when a notebook uses the authors' unpublished matplotlib style, such as `jr`: figures look different, values are unchanged.

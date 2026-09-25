@@ -6171,6 +6171,22 @@ _TOOLS: "list[Tool]" = [
     ),
 
     _T(
+        "paper_code_fetch_supplementary",
+        "A paper's supplementary files and Source Data (from its landing page and PMC): download next to the "
+        "authors' checkout, inventory every sheet, and rank candidates for files the analyses could not find "
+        "(from_run takes them from a paper_code_reproduce run). A journal's supplementary table is a reformatted "
+        "presentation: only `place` FILE[:SHEET]=DEST puts one where the code reads it, recorded as a substitution. "
+        "Source Data files hold the numbers behind each figure panel, for checking reproduced figures.",
+        {"type": "object", "properties": {
+            "repo": {**_S_STRING}, "doi": {**_S_STRING},
+            "missing": {**_S_ARRAY_S, "description": "Files the analyses could not find."},
+            "from_run": {**_S_STRING, "description": "A paper-code run directory (uses its still_missing list)."},
+            "place": {**_S_ARRAY_S, "description": "FILE[:SHEET]=DEST inside the repository."}},
+         "required": ["repo", "doi"]},
+        cli=["paper-code", "supp"], positional=["repo"], flag_repeat={"missing", "place"},
+    ),
+
+    _T(
         "paper_code_status",
         "State of a paper_code_reproduce run directory (running stage, or the "
         "final result with report, summary and figure counts).",

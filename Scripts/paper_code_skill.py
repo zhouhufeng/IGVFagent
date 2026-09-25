@@ -2297,6 +2297,170 @@ def fetch_reads(repo: str, accession: str, layout: str, *, into: str = "", match
     return out
 
 
+# ─── supplementary files and source data of the paper ───────────────────────
+
+SUPP_EXT = (".xlsx", ".xls", ".csv", ".tsv", ".txt", ".zip", ".gz", ".pdf", ".docx")
+_SUPP_HINT = re.compile(r"esm|MOESM|suppl|mmc\d|media-\d|/bin/|attachment|SourceData|source.data|supplementary", re.I)
+
+
+def _get(url: str, timeout: int = 60) -> "Tuple[str, str]":
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (igvfagent)"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.geturl(), r.read().decode(errors="replace")
+
+
+def supplementary_links(doi: str) -> "List[Dict[str, str]]":
+    """Supplementary and source-data files of a paper: links on its landing
+    page (Springer Nature esm/MOESM, Cell/Elsevier mmc, Science suppl, bioRxiv
+    media-N) and on its PMC page, each with the label the page gives it."""
+    import html as H
+    pages = []
+    try:
+        pages.append(_get(f"https://doi.org/{doi}"))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        es = _http_json("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:"
+                        f"{urllib.parse.quote(doi)}&format=json&resultType=lite")
+        pmc = next((r.get("pmcid") for r in es.get("resultList", {}).get("result", []) if r.get("pmcid")), None)
+        if pmc:
+            pages.append(_get(f"https://pmc.ncbi.nlm.nih.gov/articles/{pmc}/"))
+    except Exception:  # noqa: BLE001
+        pass
+    out: Dict[str, Dict[str, str]] = {}
+    for base, page in pages:
+        for m in re.finditer(r"<a\b([^>]*)>(.*?)</a>", page, re.S | re.I):
+            attrs, text = m.group(1), m.group(2)
+            h = re.search(r'href="([^"]+)"', attrs)
+            if not h:
+                continue
+            url = urllib.parse.urljoin(base, H.unescape(h.group(1)))
+            path = urllib.parse.urlparse(url).path.lower()
+            if not path.endswith(SUPP_EXT) or not (_SUPP_HINT.search(url) or _SUPP_HINT.search(text)):
+                continue
+            label = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", text))).strip()
+            label = re.sub(r"\(download \w+.*$", "", label).strip() or Path(path).name
+            name = Path(urllib.parse.unquote(urllib.parse.urlparse(url).path)).name
+            out.setdefault(url, {"url": url, "label": label[:120], "name": name})
+    return list(out.values())
+
+
+def sheet_inventory(path: Path, rows: int = 6) -> "List[Dict[str, Any]]":
+    """Sheets (or the table) of a supplementary file with its first rows: the
+    title rows journals add come first, the real header is among them."""
+    out = []
+    try:
+        if path.suffix.lower() in (".xlsx", ".xls"):
+            import openpyxl  # type: ignore
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            for ws in wb.worksheets:
+                top = [[str(c) for c in r if c is not None] for r in ws.iter_rows(max_row=rows, values_only=True)]
+                out.append({"sheet": ws.title, "top": [r for r in top if r][:rows]})
+        elif path.suffix.lower() in (".csv", ".tsv", ".txt"):
+            sep = "\t" if path.suffix.lower() == ".tsv" else ","
+            with open(path, errors="replace") as fh:
+                top = [ln.rstrip("\n").split(sep) for _, ln in zip(range(rows), fh)]
+            out.append({"sheet": None, "top": top})
+    except Exception as e:  # noqa: BLE001
+        out.append({"sheet": None, "top": [], "error": str(e)[:200]})
+    return out
+
+
+def _code_tokens(src: Path, basename: str) -> "set[str]":
+    """Words the authors' code uses around a file it reads: sheet names,
+    column names, variable names (to rank supplementary candidates)."""
+    toks: set = set()
+    for f in list(src.rglob("*.ipynb")) + list(src.rglob("*.py")) + list(src.rglob("*.R")) + list(src.rglob("*.Rmd")):
+        if ".git" in f.parts or f.stat().st_size > 20_000_000:
+            continue
+        t = f.read_text(errors="replace")
+        for m in re.finditer(re.escape(basename), t):
+            win = t[max(0, m.start() - 400): m.end() + 1500]
+            toks |= {w.lower() for w in re.findall(r"['\"]([A-Za-z][\w .%+-]{2,40})['\"]", win)}
+            toks |= {w.lower() for w in re.findall(r"\[['\"]([^'\"]{2,40})['\"]\]", win)}
+    toks.discard(basename.lower())
+    return toks
+
+
+def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), place: "Sequence[str]" = (),
+                        into: str = "supplementary") -> Dict[str, Any]:
+    """Download a paper's supplementary files next to its checkout, inventory
+    their sheets, and rank candidates for files the analyses could not find.
+    Nothing is placed into the analysis paths unless asked (--place
+    FILE[:SHEET]=DEST): a journal's supplementary table is a reformatted
+    presentation, so using one as an input is a recorded substitution."""
+    d = repo_dir(repo)
+    src = d / "src"
+    sdir = d / into
+    sdir.mkdir(parents=True, exist_ok=True)
+    links = supplementary_links(doi)
+    files = []
+    for ln in links:
+        q = sdir / ln["name"]
+        if not q.exists():
+            try:
+                req = urllib.request.Request(ln["url"], headers={"User-Agent": "Mozilla/5.0 (igvfagent)"})
+                with urllib.request.urlopen(req, timeout=300) as r:
+                    q.write_bytes(r.read())
+            except Exception as e:  # noqa: BLE001
+                files.append({**ln, "error": str(e)[:160]})
+                continue
+        files.append({**ln, "path": _rel(q), "bytes": q.stat().st_size, "sheets": sheet_inventory(q)})
+    _write_json(sdir / "index.json", {"doi": doi, "files": files})
+    suggestions = {}
+    for mf in missing:
+        toks = _code_tokens(src, Path(mf).name) | {w.lower() for w in re.split(r"[_\W]+", Path(mf).stem) if len(w) > 2}
+        scored = []
+        for f in files:
+            for sh in f.get("sheets") or []:
+                hay = " ".join([f["label"], sh.get("sheet") or ""] + [c for r in sh.get("top") or [] for c in r]).lower()
+                hit = sorted(t for t in toks if t in hay)
+                if hit:
+                    scored.append({"file": f["name"], "label": f["label"], "sheet": sh.get("sheet"),
+                                   "score": len(hit), "matched": hit[:10]})
+        suggestions[mf] = sorted(scored, key=lambda x: -x["score"])[:3]
+    placed = []
+    for spec in place:
+        left, _, dest = spec.partition("=")
+        fname, _, sheet = left.partition(":")
+        srcf = sdir / fname
+        dst = (src / dest).resolve()
+        try:
+            dst.relative_to(src.resolve())
+        except ValueError:
+            return {"ok": False, "error": f"--place destination outside the repository: {dest}"}
+        if not srcf.exists():
+            return {"ok": False, "error": f"no downloaded supplementary file {fname}"}
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if sheet and srcf.suffix.lower() in (".xlsx", ".xls") and dst.suffix.lower() in (".csv", ".tsv", ".xlsx"):
+            import openpyxl  # type: ignore
+            ws = openpyxl.load_workbook(srcf, read_only=True, data_only=True)[sheet]
+            if dst.suffix.lower() == ".xlsx":
+                out_wb = openpyxl.Workbook()
+                ow = out_wb.active
+                ow.title = sheet[:31]
+                for r in ws.iter_rows(values_only=True):
+                    ow.append(list(r))
+                out_wb.save(dst)
+            else:
+                import csv
+                with open(dst, "w", newline="") as fh:
+                    w = csv.writer(fh, delimiter="\t" if dst.suffix.lower() == ".tsv" else ",")
+                    for r in ws.iter_rows(values_only=True):
+                        w.writerow(["" if c is None else c for c in r])
+        else:
+            shutil.copyfile(srcf, dst)
+        placed.append({"from": f"{fname}{':' + sheet if sheet else ''}", "to": _rel(dst)})
+    if placed:
+        prov = _read_json(d / "data.json", []) or []
+        prov += [{"source": f"supplementary of doi:{doi} ({x['from']})", "file": x["to"], "substitution": True,
+                  "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())} for x in placed]
+        _write_json(d / "data.json", prov)
+    return {"ok": True, "files": [{k: v for k, v in f.items() if k != "sheets"} | {
+        "sheets": [sh.get("sheet") for sh in f.get("sheets") or []]} for f in files],
+            "suggestions": suggestions, "placed": placed, "index": _rel(sdir / "index.json")}
+
+
 # ─── deposited data (Zenodo, URLs) into the checkout ────────────────────────
 
 def _zenodo_id(ref: str) -> Optional[str]:
@@ -2923,6 +3087,20 @@ def cmd_selftest() -> int:
           ("SRR1", "results/raw/LDLvar/LDLvar_rep1_top_R2.fastq.gz", None) in got
           and ("SRR2", "results/raw/LDLRCDS_CBE_SpRY/LDLRCDS_CBE_SpRY_rep2_R1.fastq.gz", None) in got
           and any(r == "SRR3" and sk for r, _, sk in got))
+    g = globals()
+    saved_get, saved_json = g["_get"], g["_http_json"]
+    page = ('<a href="/x/41588_2024_1726_MOESM4_ESM.xlsx">Supplementary Tables (download XLSX )</a>'
+            '<a href="https://media.example/esm/MOESM6_ESM.xlsx">Source Data Fig. 1</a>'
+            '<a href="/articles/x/figures/1">Fig 1</a><a href="/about.pdf">About</a>')
+    g["_get"] = lambda url, timeout=60: ("https://www.nature.com/articles/x", page)
+    g["_http_json"] = lambda url: {"resultList": {"result": []}}
+    try:
+        sl = supplementary_links("10.1/x")
+    finally:
+        g["_get"], g["_http_json"] = saved_get, saved_json
+    check("supplementary and source-data links are found with their labels, other links ignored",
+          [(x["name"], x["label"]) for x in sl] == [("41588_2024_1726_MOESM4_ESM.xlsx", "Supplementary Tables"),
+                                                   ("MOESM6_ESM.xlsx", "Source Data Fig. 1")])
     gy = GPU_ONLY
     check("GPU-only conda packages are recognised", all(gy.match(n) for n in ("cudatoolkit", "cudnn", "pytorch-mutex"))
           and not gy.match("pytorch") and not gy.match("numpy"))
@@ -2994,6 +3172,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--guess-layout", action="store_true", help="show the FASTQ path patterns in the authors' code")
     s.add_argument("--yes", action="store_true", help="download (default: preview the mapping only)")
     s.add_argument("--max-gb", type=float, default=200)
+    s = sub.add_parser("supp", help="The paper's supplementary files and source data: download, inventory, "
+                                    "rank candidates for missing inputs, place a chosen one (recorded substitution)")
+    s.add_argument("repo")
+    s.add_argument("--doi", required=True)
+    s.add_argument("--missing", action="append", default=[], help="a file the analyses could not find (repeatable)")
+    s.add_argument("--from-run", help="take --missing from a run directory's summary.json (still_missing)")
+    s.add_argument("--place", action="append", default=[], metavar="FILE[:SHEET]=DEST",
+                   help="copy a downloaded supplementary file (or one sheet) to DEST inside the repository")
     s = sub.add_parser("report", help="Re-write the report of a finished run directory")
     s.add_argument("run_dir")
     s = sub.add_parser("status", help="State of a run directory")
@@ -3062,6 +3248,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(json.dumps({k: v for k, v in res.items()}, indent=2, default=str))
         if res.get("ok"):
             _announce(res)
+        return 0 if res.get("ok") else 1
+    if args.cmd == "supp":
+        repo = find(repo=args.repo)["candidates"][0]["repo"]
+        missing = list(args.missing)
+        if args.from_run:
+            rd = Path(args.from_run)
+            rd = rd if rd.is_absolute() else ROOT / rd
+            sm = _read_json(rd / "summary.json", {}) or {}
+            wf_dir = (sm.get("workflow") or {}).get("workdir")
+            missing += [m for m in sm.get("still_missing") or [] if m.lower().endswith((".xlsx", ".xls", ".csv",
+                                                                                         ".tsv", ".txt"))]
+        res = fetch_supplementary(repo, args.doi, missing=missing, place=args.place)
+        print(json.dumps(res, indent=2, default=str)[:20000])
         return 0 if res.get("ok") else 1
     if args.cmd == "reads":
         repo = find(repo=args.repo)["candidates"][0]["repo"]
