@@ -2345,6 +2345,42 @@ def supplementary_links(doi: str) -> "List[Dict[str, str]]":
     return list(out.values())
 
 
+def springer_esm_probe(doi: str, max_n: int = 80, misses: int = 4) -> "List[Dict[str, str]]":
+    """Springer Nature (Nature journals, Springer, BMC) supplementary files at
+    their deterministic URLs, for when the article page cannot be read (it
+    serves a JavaScript check to servers). HEAD requests only, stopping after
+    a run of missing numbers."""
+    m = re.match(r"^10\.(1038|1007|1186)/s(\d{5})-(\d{3})-(\d{5})-", doi, re.I)
+    if not m:
+        return []
+    jid, yy, num = m.group(2), m.group(3), str(int(m.group(4)))
+    year = "2" + yy  # s41588-024-...: the DOI carries the year as 024
+    base = ("https://media.springernature.com/original/springer-static/esm/art%3A"
+            + urllib.parse.quote(doi, safe="") + f"/MediaObjects/{jid}_{year}_{num}_MOESM")
+    out, miss = [], 0
+    for n in range(1, max_n + 1):
+        hit = None
+        for ext in ("xlsx", "pdf", "csv", "zip", "docx", "xls", "txt", "tsv", "gz"):
+            url = f"{base}{n}_ESM.{ext}"
+            try:
+                req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (igvfagent)"})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    if r.status < 400:
+                        hit = url
+                        break
+            except Exception:  # noqa: BLE001
+                continue
+        if hit:
+            miss = 0
+            out.append({"url": hit, "label": f"Supplementary file {n} (MOESM{n})", "name": Path(urllib.parse.unquote(
+                urllib.parse.urlparse(hit).path)).name, "via": "probe"})
+        else:
+            miss += 1
+            if miss >= misses:
+                break
+    return out
+
+
 def sheet_inventory(path: Path, rows: int = 6) -> "List[Dict[str, Any]]":
     """Sheets (or the table) of a supplementary file with its first rows: the
     title rows journals add come first, the real header is among them."""
@@ -2382,6 +2418,12 @@ def _code_tokens(src: Path, basename: str) -> "set[str]":
     return toks
 
 
+_STOP = {"data", "table", "tables", "result", "results", "file", "files", "sheet", "index", "name", "value", "values",
+         "csv", "xlsx", "tsv", "txt", "path", "read", "info", "information", "sample", "samples", "none", "true",
+         "false", "supplementary", "source", "figure", "fig", "plot", "count", "counts", "score", "scores", "type",
+         "the", "and", "for", "with", "from", "rep", "all", "new", "old", "list", "id", "ids"}
+
+
 def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), place: "Sequence[str]" = (),
                         into: str = "supplementary") -> Dict[str, Any]:
     """Download a paper's supplementary files next to its checkout, inventory
@@ -2394,6 +2436,8 @@ def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), p
     sdir = d / into
     sdir.mkdir(parents=True, exist_ok=True)
     links = supplementary_links(doi)
+    if not any("MOESM" in ln["name"].upper() for ln in links):
+        links += springer_esm_probe(doi)  # article page unreadable from here (e.g. a bot check)
     files = []
     for ln in links:
         q = sdir / ln["name"]
@@ -2405,17 +2449,22 @@ def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), p
             except Exception as e:  # noqa: BLE001
                 files.append({**ln, "error": str(e)[:160]})
                 continue
-        files.append({**ln, "path": _rel(q), "bytes": q.stat().st_size, "sheets": sheet_inventory(q)})
+        inv = sheet_inventory(q)
+        if ln.get("via") == "probe" and inv and inv[0].get("top"):
+            first = " ".join(inv[0]["top"][0])[:80]
+            ln = {**ln, "label": f"{ln['label']}: {first}" if first else ln["label"]}
+        files.append({**ln, "path": _rel(q), "bytes": q.stat().st_size, "sheets": inv})
     _write_json(sdir / "index.json", {"doi": doi, "files": files})
     suggestions = {}
     for mf in missing:
-        toks = _code_tokens(src, Path(mf).name) | {w.lower() for w in re.split(r"[_\W]+", Path(mf).stem) if len(w) > 2}
+        own = {w.lower() for w in re.split(r"[_\W]+", Path(mf).stem) if len(w) > 3 and not w.isdigit()} - _STOP
+        toks = (_code_tokens(src, Path(mf).name) - _STOP) | own
         scored = []
         for f in files:
             for sh in f.get("sheets") or []:
                 hay = " ".join([f["label"], sh.get("sheet") or ""] + [c for r in sh.get("top") or [] for c in r]).lower()
                 hit = sorted(t for t in toks if t in hay)
-                if hit:
+                if len(hit) >= 2 or set(hit) & own:
                     scored.append({"file": f["name"], "label": f["label"], "sheet": sh.get("sheet"),
                                    "score": len(hit), "matched": hit[:10]})
         suggestions[mf] = sorted(scored, key=lambda x: -x["score"])[:3]
