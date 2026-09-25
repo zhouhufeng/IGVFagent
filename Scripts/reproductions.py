@@ -520,7 +520,9 @@ def headline(rec: Dict[str, Any]) -> str:
         cl = c["claims"]
         n_ok = sum(1 for x in cl if x.get("verdict") == "reproduced")
         n_part = sum(1 for x in cl if x.get("verdict") == "partially reproduced")
+        n_na = sum(1 for x in cl if x.get("verdict") == "not attempted")
         return (f"{n_ok} of {len(cl)} of the paper's results reproduced" + (f", {n_part} partially" if n_part else "")
+                + (f", {n_na} not attempted" if n_na else "")
                 + ": " + "; ".join(f"{x['title']} ({x['verdict']}, r = {x['primary_pearson']:.3f})"
                                    for x in cl if x.get("primary_pearson") is not None))[:400]
     if c and len(c.get("entries") or []) > 1:
@@ -650,17 +652,20 @@ def render_html(rec: Dict[str, Any]) -> str:
     h.append(f"<div class='badge {esc(rec['outcome'].replace(' ', '_'))}'>{_ICON.get(rec['outcome'], '')} "
              f"{esc(rec['outcome'])}</div><p><b>{esc(headline(rec))}</b></p>")
     v = j.get("verdict") or {}
+    has_claims = bool(c and c.get("claims"))  # then the claims report is the result; notebook tallies are an appendix
     rows = [("Route", rec["route"].replace("_", " ").replace("+", " + ")),
-            ("Job", f"{j['id']} · {j['status']} · {j.get('rounds')} round(s) · {j.get('orchestrator')}"
+            ("Job", f"{j['id']} · {j['status']}" + (f" · {j['rounds']} round(s)" if j.get("rounds") else "")
+                    + f" · {j.get('orchestrator')}"
                     + (f" · ${float(j['cost_usd']):.2f}" if j.get("cost_usd") else "")),
             ("Owner", j.get("owner") or "local"), ("Finished", j.get("finished_at") or "-"),
-            ("Independent verifier", (v.get("verdict") or "-") + ("; " + "; ".join(v.get("issues") or []) if v.get("issues") else ""))]
+            ("Independent verifier", (v.get("verdict") or ("- (standalone run)" if j.get("standalone") else "-"))
+             + ("; " + "; ".join(v.get("issues") or []) if v.get("issues") else ""))]
     if c:
         rows.insert(1, ("Authors' code", f"{c.get('repo')} @ {(c.get('commit') or '')[:12]} · {c.get('entry')}"
                                          + (f" · shims: {', '.join(c['shims'])}" if c.get("shims") else "")))
     h.append("<table class='kv'>" + "".join(f"<tr><th>{esc(k)}</th><td>{esc(str(v_))}</td></tr>" for k, v_ in rows)
              + "</table>")
-    if c and c.get("printed"):
+    if c and c.get("printed") and not has_claims:
         pr = c["printed"]
         h.append("<h2>Printed values against the authors' rendering</h2><table class='grid'><tr>"
                  "<th>reference blocks</th><th>identical</th><th>numerically close</th><th>same values, other layout</th>"
@@ -680,11 +685,13 @@ def render_html(rec: Dict[str, Any]) -> str:
                      f"<tr><td>{esc(str(cl.get('value')))}</td><td>{esc(str(cl.get('unit') or ''))}</td>"
                      f"<td>{esc(str(cl.get('section') or cl.get('source')))}</td><td>{esc(cl.get('quote') or '')}</td></tr>"
                      for cl in p["claims"][:25]) + "</table>")
-    h.append("<h2>Plan (harness-verified)</h2><table class='grid'><tr><th></th><th>stage</th><th>harness</th></tr>" + "".join(
-        f"<tr><td>{ {'done': '✅', 'blocked': '⛔', 'failed': '❌'}.get(s['status'], '▫️') }</td>"
-        f"<td><b>{esc(s['id'])}</b> {esc(s.get('title') or '')}</td><td>{esc(str(s.get('reason') or ''))}"
-        + (" — " + esc("; ".join(s["notes"])) if s.get("notes") else "") + "</td></tr>" for s in rec["stages"])
-        + "</table>")
+    if rec["stages"]:
+        h.append("<h2>Plan (harness-verified)</h2><table class='grid'><tr><th></th><th>stage</th><th>harness</th></tr>"
+                 + "".join(
+            f"<tr><td>{ {'done': '✅', 'blocked': '⛔', 'failed': '❌'}.get(s['status'], '▫️') }</td>"
+            f"<td><b>{esc(s['id'])}</b> {esc(s.get('title') or '')}</td><td>{esc(str(s.get('reason') or ''))}"
+            + (" — " + esc("; ".join(s["notes"])) if s.get("notes") else "") + "</td></tr>" for s in rec["stages"])
+                 + "</table>")
     if rec.get("answer"):
         h.append("<h2>Final report</h2><div class='answer'>" + _md_html(rec["answer"]) + "</div>")
     if c:

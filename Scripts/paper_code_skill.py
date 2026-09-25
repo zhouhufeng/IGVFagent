@@ -2503,7 +2503,15 @@ def claim_verdict(primary_r: Optional[float], noise_r: Optional[float]) -> str:
 
 def add_claim(run_dir: Path, cid: str, title: str, reference: str, ours: str, primary: str, *,
               key: Optional[str] = None, noise: Optional[str] = None, hit_mean_sd: Optional[str] = None,
-              hit_ci: Optional[str] = None, note: str = "", base: Optional[Path] = None) -> Dict[str, Any]:
+              hit_ci: Optional[str] = None, note: str = "", base: Optional[Path] = None,
+              not_attempted: str = "") -> Dict[str, Any]:
+    led = run_dir / "claims.json"
+    if not_attempted:  # a key result that could not be checked stays in the verdict table, with why
+        rec = {"id": cid, "title": title, "reference": reference, "ours": None, "primary": _norm_col(primary or ""),
+               "primary_pearson": None, "noise_pearson": None, "verdict": "not attempted", "note": not_attempted,
+               "comparison": None, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        _write_json(led, [c for c in (_read_json(led, []) or []) if c.get("id") != cid] + [rec])
+        return {"ok": True, **rec}
     cmp_ = compare_tables(ours, reference, key=key, hit_mean_sd=hit_mean_sd, hit_ci=hit_ci, base=base)
     if not cmp_.get("ok"):
         return cmp_
@@ -2518,7 +2526,6 @@ def add_claim(run_dir: Path, cid: str, title: str, reference: str, ours: str, pr
     rec = {"id": cid, "title": title, "reference": reference, "ours": ours, "primary": pk, "primary_pearson": pr,
            "noise_pearson": nz, "verdict": claim_verdict(pr, nz), "note": note, "comparison": cmp_,
            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    led = run_dir / "claims.json"
     claims = [c for c in (_read_json(led, []) or []) if c.get("id") != cid] + [rec]
     _write_json(led, claims)
     return {"ok": True, **rec}
@@ -2632,15 +2639,18 @@ def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
     for c in claims:
         pr = c.get("primary_pearson")
         nz = c.get("noise_pearson")
-        L.append(f"| {c['title']} | {c['reference'].split('/')[-1]} | {c['primary']} r = "
-                 f"{'%.3f' % pr if pr is not None else '-'} | {'%.3f' % nz if nz is not None else '-'} | "
+        L.append(f"| {c['title']} | {c['reference'].split('/')[-1]} | "
+                 f"{c['primary'] + ' r = ' + '%.3f' % pr if pr is not None else '-'} | {'%.3f' % nz if nz is not None else '-'} | "
                  f"**{c['verdict']}** |")
     if not claims:
         L.append("| (no claims assessed yet) | | | | |")
     for i, c in enumerate(claims, 1):
         cm = c["comparison"]
+        if not cm:
+            L += ["", f"## {i}. {c['title']}: not attempted", "", f"Reference `{c['reference']}`.", "", c.get("note") or ""]
+            continue
         L += ["", f"## {i}. {c['title']}", "",
-              f"Reference `{c['reference']}` vs ours `{c['ours']}` joined on `{cm['key'][0]}`: **{cm['n_matched']}** "
+              f"Reference `{c['reference'].replace(str(ROOT) + '/', '')}` vs ours `{c['ours']}` joined on `{cm['key'][0]}`: **{cm['n_matched']}** "
               f"matched ({cm['only_reference']} only in the paper, {cm['only_ours']} only ours).", "",
               "| Column | n | Pearson | Spearman | median abs diff | sign agreement |", "|---|---|---|---|---|---|"]
         for col, m in sorted(cm["metrics"].items(), key=lambda kv: kv[0] != c["primary"]):
@@ -3623,10 +3633,12 @@ def cmd_selftest() -> int:
                           noise="noise.csv", hit_mean_sd="mu_adj,mu_sd_adj", base=rd)
             check("a claim gets a verdict from the numbers and its noise floor",
                   r["ok"] and r["verdict"] in ("reproduced", "partially reproduced") and r["noise_pearson"])
+            add_claim(rd, "c2", "Tiling screen", "supp.xlsx:9. Tiling", "", "", not_attempted="input table not deposited")
             rep_ = claims_report(rd, "Test paper")
             txt = (rd / "REPRODUCTION_REPORT.md").read_text()
             check("the reproduction report leads with a verdict table", txt.index("## Verdict") < 200
-                  and "Variant effects" in txt and rep_["claims"][0]["id"] == "c1")
+                  and "Variant effects" in txt and rep_["claims"][0]["id"] == "c1"
+                  and "| Tiling screen | supp.xlsx:9. Tiling | - | - | **not attempted** |" in txt)
         except ImportError:
             print("  (pandas/numpy/openpyxl missing: claims checks skipped)")
     check("verdicts: at the noise floor is reproduced; r 0.85 is partial; r 0.5 is not",
@@ -3739,13 +3751,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--id", required=True)
     s.add_argument("--title", required=True)
     s.add_argument("--reference", required=True)
-    s.add_argument("--ours", required=True)
-    s.add_argument("--primary", required=True, help="the column the claim rests on (e.g. mu_z_adj)")
+    s.add_argument("--ours")
+    s.add_argument("--primary", help="the column the claim rests on (e.g. mu_z_adj)")
     s.add_argument("--noise", help="the same result from a second seed (the noise floor)")
     s.add_argument("--key")
     s.add_argument("--hit-mean-sd")
     s.add_argument("--hit-ci")
     s.add_argument("--note", default="")
+    s.add_argument("--not-attempted", default="", metavar="WHY",
+                   help="record a key result that could not be checked, and why (it stays in the verdict table)")
     s = sub.add_parser("exec", help="Run one tool of the analysis environment in a run's work copy (logged)")
     s.add_argument("run_dir")
     s.add_argument("--cwd", default="", help="directory inside the work copy")
@@ -3854,12 +3868,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"  hits: {h['ours']} ours vs {h['reference']} published, {h['shared']} shared, Jaccard {h['jaccard']}")
         return 0
     if args.cmd == "claim":
-        res = add_claim(rd, args.id, args.title, args.reference, args.ours, args.primary, key=args.key, noise=args.noise,
-                        hit_mean_sd=args.hit_mean_sd, hit_ci=args.hit_ci, note=args.note, base=rd)
+        if not args.not_attempted and not (args.ours and args.primary):
+            print("--ours and --primary are required unless --not-attempted")
+            return 2
+        res = add_claim(rd, args.id, args.title, args.reference, args.ours or "", args.primary or "", key=args.key,
+                        noise=args.noise, hit_mean_sd=args.hit_mean_sd, hit_ci=args.hit_ci, note=args.note, base=rd,
+                        not_attempted=args.not_attempted)
         if not res.get("ok"):
             print(res.get("error"))
             return 1
-        print(f"{res['id']}: {res['verdict']}: {res['primary']} r = {res['primary_pearson']}"
+        print(f"{res['id']}: {res['verdict']}" + (f": {res['primary']} r = {res['primary_pearson']}" if res.get("ours") else "")
               + (f" (noise floor r = {res['noise_pearson']})" if res.get("noise_pearson") is not None else ""))
         say("JSON", _rel(rd / "claims.json"))
         return 0

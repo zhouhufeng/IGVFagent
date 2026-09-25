@@ -149,7 +149,9 @@ are plotting layers; the results come from the authors' method.
      as `noise` so "reproduced" means "within seed noise".
   4. When a claim falls short, diagnose it scientifically with the authors'
      own tools (rebuild an input the deposit lacks, recover parameters by
-     reproducing a deposited intermediate exactly) and document it.
+     reproducing a deposited intermediate exactly) and document it. A key
+     result you could not check is still recorded (paper_code_claim with
+     not_attempted = why), so the verdict never overstates coverage.
   5. paper_code_report_claims writes the report: a verdict table per claim,
      metrics, deviations. paper_code_reproduce with all_entries (running every
      notebook) is a supplementary check, not the reproduction.

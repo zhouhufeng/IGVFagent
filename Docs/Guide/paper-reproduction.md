@@ -155,7 +155,7 @@ igvfagent paper-code exec Docs/PaperCode/<run> --cwd workflow \
 igvfagent paper-code claim Docs/PaperCode/<run> --id ldlvar \
     --title "LDL variant effects (Supplementary Table 6)" \
     --reference "supplementary/41588_2024_1726_MOESM4_ESM.xlsx:6. LDLvar GWAS BEAN result" \
-    --ours work/workflow/results/model_runs/bean_negctrl/bean_element_result.MixtureNormal+Acc.csv \
+    --ours work/workflow/results/model_runs/bean_negctrl/bean_run_result.bean_count_LDLvar_annotated/bean_element_result.MixtureNormal+Acc.csv \
     --primary mu_z_adj --hit-mean-sd mu_adj,mu_sd_adj --noise <seed-202 table>
 igvfagent paper-code report-claims Docs/PaperCode/<run>
 ```
@@ -163,7 +163,7 @@ igvfagent paper-code report-claims Docs/PaperCode/<run>
 A claim is **reproduced** when the primary column's correlation with the
 published table is within 0.01 of the seed-to-seed correlation (or at least
 0.98 when no second seed was run). It is **partially reproduced** at 0.80 or
-more, and **not reproduced** below that. Reference tables can be CSV/TSV, an
+more, and **not reproduced** below that. A key result that could not be checked is recorded with `--not-attempted "why"`. It stays in the verdict table and the headline ("1 of 2 … reproduced, 1 not attempted"), so the record never overstates coverage. Reference tables can be CSV/TSV, an
 Excel sheet (`file.xlsx:SHEET`, with title rows above the header detected) or an
 AnnData table (`file.h5ad:obs`).
 
