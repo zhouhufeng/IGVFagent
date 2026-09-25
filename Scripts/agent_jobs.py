@@ -689,29 +689,46 @@ Reply with ONLY a JSON object: {"verdict": "pass" | "fail", "issues": ["..."]}.
 """
 
 
-def _evidence_digest(plan: dict, limit_chars: int = 12000) -> str:
-    out, used = [], 0
+def _evidence_digest(plan: dict, limit_chars: int = int(os.environ.get("IGVF_VERIFIER_EVIDENCE_CHARS", "60000"))) -> str:
+    """What the verifier sees: EVERY evidence path of every stage (with its
+    size, or "missing"), then excerpts within a budget, most informative
+    first (small JSON summaries, then reports and logs), a fair share per
+    file. Listing only the first few files per stage made later evidence
+    invisible and got a correct report rejected as unsupported."""
+    out, excerpts = [], []
     for s in plan.get("stages") or []:
         out.append(f"## stage {s['id']} [{s['status']}] {s['title']}\nsuccess: {s.get('success')}\n"
                    f"harness: {(s.get('verified') or {}).get('reason', '-')}")
-        for e in (s.get("evidence") or [])[:6]:
+        for e in s.get("evidence") or []:
             q = _safe_path(e)
             if not q or not q.is_file():
                 out.append(f"- {e}: (missing)")
                 continue
-            head = ""
+            out.append(f"- {e} ({q.stat().st_size:,} bytes)")
             if q.suffix.lower() in (".md", ".json", ".tsv", ".csv", ".txt", ".log"):
-                try:
-                    head = q.read_text(errors="replace")[:1200]
-                except OSError:
-                    head = ""
-            chunk = f"- {e} ({q.stat().st_size:,} bytes)\n" + ("```\n" + head + "\n```" if head else "")
-            if used + len(chunk) > limit_chars:
-                out.append(f"- {e} ({q.stat().st_size:,} bytes; excerpt omitted, budget)")
-                continue
-            used += len(chunk)
-            out.append(chunk)
-    return "\n".join(out)
+                rank = (0 if q.suffix.lower() == ".json" and q.stat().st_size < 200_000 else
+                        1 if q.suffix.lower() == ".md" else 2)
+                excerpts.append((rank, e, q))
+    listing = "\n".join(out)
+    budget = max(limit_chars - len(listing), 4000)
+    excerpts.sort(key=lambda x: x[0])
+    seen: set = set()
+    uniq = [x for x in excerpts if not (x[1] in seen or seen.add(x[1]))]
+    per = max(budget // max(len(uniq), 1), 600)
+    parts, used = [], 0
+    for _, e, q in uniq:
+        if used >= budget:
+            parts.append(f"(further excerpts omitted: budget; {len(uniq) - len(parts)} file(s) listed above)")
+            break
+        try:
+            text = q.read_text(errors="replace")
+        except OSError:
+            continue
+        take = min(per, budget - used, len(text))
+        head = text[:take] + ("\n…" if len(text) > take else "")
+        parts.append(f"### {e}\n```\n{head}\n```")
+        used += len(head) + len(e) + 20
+    return listing + "\n\n# Evidence excerpts\n" + "\n".join(parts)
 
 
 _REPRO = re.compile(r"\b(reproduc\w*|replicat\w*|re-?run the (?:paper|analysis))\b", re.I)
@@ -1520,6 +1537,14 @@ def selftest() -> int:
         check("a verdict inside prose is read; a cut-off one is not",
               (_parse_verdict('ok: {"verdict": "pass", "issues": []}') or {}).get("verdict") == "pass"
               and _parse_verdict('{"verdict": "fail", "issues": ["cut') is None)
+        many = []
+        for i in range(10):
+            f = tmp / "Docs/Run" / f"e{i}.json"
+            f.write_text(json.dumps({"k": i}))
+            many.append(f"Docs/Run/e{i}.json")
+        dg = _evidence_digest({"stages": [{"id": "r", "status": "done", "title": "t", "evidence": many}]})
+        check("the verifier sees every evidence file of a stage, not just the first few",
+              all(e in dg for e in many) and '"k": 9' in dg)
         # 4. stop file stops between rounds
         j4 = create_job("stoppable", owner="alice")
         (job_dir(j4["id"]) / "STOP").write_text("x")
