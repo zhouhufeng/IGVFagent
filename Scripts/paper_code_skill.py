@@ -2365,7 +2365,8 @@ def springer_esm_probe(doi: str, max_n: int = 80, misses: int = 4) -> "List[Dict
             try:
                 req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (igvfagent)"})
                 with urllib.request.urlopen(req, timeout=30) as r:
-                    if r.status < 400:
+                    # a CDN may answer robots with 200 + an HTML challenge for any URL
+                    if r.status < 400 and "text/html" not in (r.headers.get("Content-Type") or "").lower():
                         hit = url
                         break
             except Exception:  # noqa: BLE001
@@ -2480,6 +2481,15 @@ def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), p
             ln = {**ln, "label": f"{ln['label']}: {first}" if first else ln["label"]}
         files.append({**ln, "path": _rel(q), "bytes": q.stat().st_size, "sheets": inv})
     _write_json(sdir / "index.json", {"doi": doi, "files": files})
+    # Words in many sheets (the gene, the library, "code") say nothing about
+    # which sheet a file came from: they carry no weight.
+    sheets_text = [" ".join([f["label"], sh.get("sheet") or ""] + [c for r in sh.get("top") or [] for c in r]).lower()
+                   for f in files for sh in f.get("sheets") or []]
+    n_sheets = max(len(sheets_text), 1)
+
+    def common(t: str) -> bool:
+        df = sum(1 for h in sheets_text if t in h)
+        return df >= 3 and df / n_sheets > 0.3
     suggestions = {}
     for mf in missing:
         own = {w.lower() for w in re.split(r"[_\W]+", Path(mf).stem) if len(w) > 3 and not w.isdigit()} - _STOP
@@ -2488,7 +2498,7 @@ def fetch_supplementary(repo: str, doi: str, *, missing: "Sequence[str]" = (), p
         for f in files:
             for sh in f.get("sheets") or []:
                 hay = " ".join([f["label"], sh.get("sheet") or ""] + [c for r in sh.get("top") or [] for c in r]).lower()
-                hit = sorted(t for t in toks if t in hay)
+                hit = sorted(t for t in toks if t in hay and not common(t))
                 if len(hit) >= 2 or set(hit) & own:
                     scored.append({"file": f["name"], "label": f["label"], "sheet": sh.get("sheet"),
                                    "score": len(hit), "matched": hit[:10]})
