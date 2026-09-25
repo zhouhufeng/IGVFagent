@@ -146,7 +146,10 @@ are plotting layers; the results come from the authors' method.
      deviation (e.g. masking a sample that failed QC) is passed as `note`.
   3. paper_code_claim compares our table with the published one on the column
      the claim rests on; run the same command again with seed=202 and pass it
-     as `noise` so "reproduced" means "within seed noise".
+     as `noise` so "reproduced" means "within seed noise". A result the paper
+     states as a number (a count, r, a percentage) is a claim too: `published`
+     + the paper's `quote`, with our value read by `pattern` from what the
+     authors' code printed (never typed in).
   4. When a claim falls short, diagnose it scientifically with the authors'
      own tools (rebuild an input the deposit lacks, recover parameters by
      reproducing a deposited intermediate exactly) and document it. A key

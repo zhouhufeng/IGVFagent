@@ -2501,11 +2501,77 @@ def claim_verdict(primary_r: Optional[float], noise_r: Optional[float]) -> str:
     return "partially reproduced" if primary_r >= 0.80 else "not reproduced"
 
 
+def _num(s: str) -> "Tuple[float, int]":
+    """A number as the paper prints it ('4,112', '0.96', '-0.26', '10.4%') ->
+    (value, decimals shown)."""
+    t = s.strip().replace(",", "").replace("−", "-").rstrip("%")
+    return float(t), len(t.split(".")[1]) if "." in t else 0
+
+
+def _rel_to(p: Path, base: Path) -> str:
+    try:
+        return str(p.resolve().relative_to(base.resolve()))
+    except ValueError:
+        return _rel(p)
+
+
+def scalar_verdict(ours: float, published: str) -> str:
+    """reproduced: equal at the paper's printed precision; partially
+    reproduced: within 5% of the published value; else not reproduced."""
+    pv, d = _num(published)
+    if abs(ours - pv) <= 0.5 * 10 ** -d + 1e-9:
+        return "reproduced"
+    return "partially reproduced" if abs(ours - pv) <= 0.05 * max(abs(pv), 1e-12) else "not reproduced"
+
+
+def scalar_from_output(path: Path, pattern: str) -> Dict[str, Any]:
+    """Our value of a published number, read from what the run printed or
+    wrote (the first capture group of the first match), never typed in."""
+    try:
+        txt = path.read_text(errors="replace")
+    except OSError as e:
+        return {"ok": False, "error": f"cannot read {path}: {e}"}
+    try:
+        m = re.search(pattern, txt, re.M)
+    except re.error as e:
+        return {"ok": False, "error": f"bad --pattern: {e}"}
+    if not m or not m.groups():
+        return {"ok": False, "error": f"--pattern matched nothing (or has no capture group) in {_rel(path)}"}
+    line = txt[:m.start(1)].count("\n") + 1  # the line holding the value, not where the match began
+    try:
+        val = _num(m.group(1))[0]
+    except ValueError:
+        return {"ok": False, "error": f"captured {m.group(1)!r} is not a number"}
+    return {"ok": True, "value": val, "raw": m.group(1), "line": line,
+            "text": txt.splitlines()[line - 1].strip()[:300] if txt else ""}
+
+
 def add_claim(run_dir: Path, cid: str, title: str, reference: str, ours: str, primary: str, *,
               key: Optional[str] = None, noise: Optional[str] = None, hit_mean_sd: Optional[str] = None,
               hit_ci: Optional[str] = None, note: str = "", base: Optional[Path] = None,
-              not_attempted: str = "") -> Dict[str, Any]:
+              not_attempted: str = "", published: str = "", pattern: str = "", quote: str = "",
+              scale: float = 1.0) -> Dict[str, Any]:
     led = run_dir / "claims.json"
+    if published and not not_attempted:  # one number the paper states, vs the same number from our run
+        try:
+            _num(published)
+        except ValueError:
+            return {"ok": False, "error": f"--published {published!r} is not a number"}
+        if quote and published.strip() not in quote.replace("−", "-"):
+            return {"ok": False, "error": f"--quote must contain the published value {published!r} as the paper prints it"}
+        src = Path(ours) if Path(ours).is_absolute() else (base or run_dir) / ours
+        got = scalar_from_output(src, pattern)
+        if not got.get("ok"):
+            return got
+        val = got["value"] * scale
+        rec = {"id": cid, "title": title, "reference": reference, "ours": ours, "primary": primary or "value",
+               "primary_pearson": None, "noise_pearson": None, "kind": "scalar", "published": published.strip(),
+               "ours_value": round(val, 10), "verdict": scalar_verdict(val, published), "note": note,
+               "comparison": {"kind": "scalar", "quote": quote, "pattern": pattern, "scale": scale,
+                              "source": _rel_to(src, run_dir), "line": got["line"], "text": got["text"]},
+               "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        _write_json(led, [c for c in (_read_json(led, []) or []) if c.get("id") != cid] + [rec])
+        return {"ok": True, **rec}
     if not_attempted:  # a key result that could not be checked stays in the verdict table, with why
         rec = {"id": cid, "title": title, "reference": reference, "ours": None, "primary": _norm_col(primary or ""),
                "primary_pearson": None, "noise_pearson": None, "verdict": "not attempted", "note": not_attempted,
@@ -2627,6 +2693,11 @@ def error_causes(summary: Dict[str, Any]) -> "List[Tuple[str, int, List[str]]]":
     return sorted(((c, len(v), v[:6]) for c, v in groups.items()), key=lambda x: -x[1])
 
 
+def _fmt_like(v: float, published: str) -> str:
+    d = _num(published)[1]
+    return f"{v:,.{d}f}" if "," in published else f"{v:.{d}f}"
+
+
 def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
     claims = _read_json(run_dir / "claims.json", []) or []
     sm = _read_json(run_dir / "summary.json", {}) or {}
@@ -2639,12 +2710,31 @@ def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
     for c in claims:
         pr = c.get("primary_pearson")
         nz = c.get("noise_pearson")
-        L.append(f"| {c['title']} | {c['reference'].split('/')[-1]} | "
-                 f"{c['primary'] + ' r = ' + '%.3f' % pr if pr is not None else '-'} | {'%.3f' % nz if nz is not None else '-'} | "
-                 f"**{c['verdict']}** |")
+        if c.get("kind") == "scalar":
+            metric = f"{c['primary']}: paper {c['published']}, ours {_fmt_like(c['ours_value'], c['published'])}"
+        else:
+            metric = c['primary'] + ' r = ' + '%.3f' % pr if pr is not None else '-'
+        L.append(f"| {c['title']} | {c['reference'].split('/')[-1]} | {metric} | "
+                 f"{'%.3f' % nz if nz is not None else '-'} | **{c['verdict']}** |")
     if not claims:
         L.append("| (no claims assessed yet) | | | | |")
-    for i, c in enumerate(claims, 1):
+    scal = [c for c in claims if c.get("kind") == "scalar"]
+    if scal:
+        L += ["", "## Published numbers", "",
+              "Each number the paper states, beside the same number as the authors' code printed it in this run "
+              "(read from the output by pattern, never typed in). Reproduced means equal at the paper's printed "
+              "precision; partially reproduced means within 5%.", "",
+              "| Result | The paper says | Our run printed | Status |", "|---|---|---|---|"]
+        for c in scal:
+            cm = c["comparison"]
+            q = (cm.get("quote") or "").replace("|", "\\|")
+            L.append(f"| {c['title']} | {c['reference']}: \u201c{q}\u201d | `{cm['source']}:{cm['line']}` "
+                     f"{(cm.get('text') or '').replace('|', '/')}"
+                     + (f" (x{cm['scale']:g})" if cm.get("scale", 1) != 1 else "") + f" | **{c['verdict']}** |")
+        for c in scal:
+            if c.get("note"):
+                L.append(f"\n- {c['title']}: {c['note']}")
+    for i, c in enumerate([c for c in claims if c.get("kind") != "scalar"], 1):
         cm = c["comparison"]
         if not cm:
             L += ["", f"## {i}. {c['title']}: not attempted", "", f"Reference `{c['reference']}`.", "", c.get("note") or ""]
@@ -2678,11 +2768,27 @@ def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
                      + (f"shebangs repaired: {', '.join(e['fixed_crlf_shebangs'])}" if e.get("fixed_crlf_shebangs") else ""))
     for s_ in {x.get("shim") for x in shims}:
         L.append(f"- Compatibility shim `{s_}` (logged in `_shim_log.jsonl`).")
+    run = _read_json(run_dir / "run.json", {}) or {}
+    if (envs[0] or {}).get("versions") and sm.get("language") == "r":
+        L.append(f"- Environment: {envs[0]['versions'].splitlines()[0].strip()} with conda-forge packages"
+                 + (f" (from CRAN at pinned versions: {', '.join(envs[0]['from_cran'])})" if envs[0].get("from_cran") else "")
+                 + "; the authors' own versions are in their session info.")
+    for s_ in run.get("r_shims") or []:
+        L.append(f"- Compatibility shim `{s_}`: restores the authors' package behaviour; their code is unchanged.")
+    if run.get("rng_sample_rounding"):
+        L.append("- `RNGkind(sample.kind = \"Rounding\")`: R 3.6 changed sample(); this reproduces the authors' seeded draws.")
+    for k, v in (run.get("inputs_substituted") or {}).items():
+        L.append(f"- Input substituted: `{k}` <- `{v}`.")
+    rp = sm.get("replay") or {}
+    if rp.get("deterministic"):
+        L.append(f"- Replay (a second execution): {rp.get('printed_identical')}/{rp.get('printed_blocks')} printed values and "
+                 f"{rp.get('files_identical')}/{rp.get('files_compared')} saved files identical, so the analysis is "
+                 "deterministic and published numbers need no seed noise floor.")
     for c in cmds:
         if c.get("note") or c.get("seed_override") is not None:
             L.append(f"- Command {c['n']}: `{' '.join(c['argv'])}`: {c.get('note') or ''}"
                      + (f" (seed overridden to {c['seed_override']} for the noise floor)" if c.get("seed_override") is not None else ""))
-    L += ["", "## Commands", ""] + [f"{c['n']}. `{' '.join(c['argv'])}` in `{c['cwd']}` → exit {c['exit']}, "
+    L += ["", "## Commands", ""] * bool(cmds) + [f"{c['n']}. `{' '.join(c['argv'])}` in `{c['cwd']}` → exit {c['exit']}, "
                                    f"{c['seconds']} s (log `{c['log']}`)" for c in cmds]
     if sm.get("entries"):
         causes = error_causes(sm)
@@ -2695,7 +2801,8 @@ def claims_report(run_dir: Path, paper: str = "") -> Dict[str, Any]:
     md.write_text("\n".join(L) + "\n")
     (run_dir / "REPRODUCTION_REPORT.html").write_text(_md_to_html("\n".join(L), f"Reproduction: {paper or sm.get('repo')}"))
     summ = {"claims": [{k: c.get(k) for k in ("id", "title", "reference", "primary", "primary_pearson", "noise_pearson",
-                                               "verdict")} for c in claims]}
+                                               "verdict", "kind", "published", "ours_value") if k in c or k in (
+        "id", "title", "reference", "primary", "primary_pearson", "noise_pearson", "verdict")} for c in claims]}
     _write_json(run_dir / "claims_summary.json", summ)
     return {"ok": True, "report": _rel(md), "html": _rel(run_dir / "REPRODUCTION_REPORT.html"), **summ}
 
@@ -3634,6 +3741,13 @@ def cmd_selftest() -> int:
             check("a claim gets a verdict from the numbers and its noise floor",
                   r["ok"] and r["verdict"] in ("reproduced", "partially reproduced") and r["noise_pearson"])
             add_claim(rd, "c2", "Tiling screen", "supp.xlsx:9. Tiling", "", "", not_attempted="input table not deposited")
+            (rd / "knit.md").write_text('## [1] "Validation n: 25"\n## [1] "Validation Pearson\'s R: 0.9612"\n')
+            r3 = add_claim(rd, "c3", "Validation r", "Main text", "knit.md", "r", published="0.96",
+                           pattern=r"Pearson's R: ([\d.]+)", quote="(n = 25, r = 0.96, rho = 0.96)", base=rd)
+            bad = add_claim(rd, "c4", "Validation r", "Main text", "knit.md", "r", published="0.96",
+                            pattern=r"Pearson's R: ([\d.]+)", quote="(n = 25, r = 0.95)", base=rd)
+            check("a published number: our value is read from the run's output and equal at the paper's precision",
+                  r3["ok"] and r3["verdict"] == "reproduced" and r3["comparison"]["line"] == 2 and not bad["ok"])
             rep_ = claims_report(rd, "Test paper")
             txt = (rd / "REPRODUCTION_REPORT.md").read_text()
             check("the reproduction report leads with a verdict table", txt.index("## Verdict") < 200
@@ -3641,6 +3755,10 @@ def cmd_selftest() -> int:
                   and "| Tiling screen | supp.xlsx:9. Tiling | - | - | **not attempted** |" in txt)
         except ImportError:
             print("  (pandas/numpy/openpyxl missing: claims checks skipped)")
+    check("published numbers: equal at printed precision is reproduced; within 5% partial; else not",
+          scalar_verdict(0.9612, "0.96") == "reproduced" and scalar_verdict(4112, "4,112") == "reproduced"
+          and scalar_verdict(0.93, "0.96") == "partially reproduced" and scalar_verdict(0.5, "0.96") == "not reproduced"
+          and scalar_verdict(10.39, "10.4") == "reproduced" and _fmt_like(4112, "4,112") == "4,112")
     check("verdicts: at the noise floor is reproduced; r 0.85 is partial; r 0.5 is not",
           claim_verdict(0.997, 0.998) == "reproduced" and claim_verdict(0.85, 0.999) == "partially reproduced"
           and claim_verdict(0.5, None) == "not reproduced")
@@ -3760,6 +3878,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--note", default="")
     s.add_argument("--not-attempted", default="", metavar="WHY",
                    help="record a key result that could not be checked, and why (it stays in the verdict table)")
+    s.add_argument("--published", default="", metavar="NUMBER",
+                   help="a number the paper states (as printed: 0.96, 4,112, 10.4); --ours is then the run's output "
+                        "file and --pattern reads our value from it")
+    s.add_argument("--pattern", default="", help="regex whose first group is our value in --ours")
+    s.add_argument("--quote", default="", help="the paper's sentence stating --published (must contain it)")
+    s.add_argument("--scale", type=float, default=1.0, help="multiply our value (e.g. 100 for a fraction vs a percent)")
     s = sub.add_parser("exec", help="Run one tool of the analysis environment in a run's work copy (logged)")
     s.add_argument("run_dir")
     s.add_argument("--cwd", default="", help="directory inside the work copy")
@@ -3868,15 +3992,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"  hits: {h['ours']} ours vs {h['reference']} published, {h['shared']} shared, Jaccard {h['jaccard']}")
         return 0
     if args.cmd == "claim":
-        if not args.not_attempted and not (args.ours and args.primary):
-            print("--ours and --primary are required unless --not-attempted")
+        if args.published and not args.not_attempted and not (args.ours and args.pattern):
+            print("--published needs --ours (the run's output file) and --pattern")
+            return 2
+        if not args.published and not args.not_attempted and not (args.ours and args.primary):
+            print("--ours and --primary are required unless --not-attempted or --published")
             return 2
         res = add_claim(rd, args.id, args.title, args.reference, args.ours or "", args.primary or "", key=args.key,
                         noise=args.noise, hit_mean_sd=args.hit_mean_sd, hit_ci=args.hit_ci, note=args.note, base=rd,
-                        not_attempted=args.not_attempted)
+                        not_attempted=args.not_attempted, published=args.published, pattern=args.pattern,
+                        quote=args.quote, scale=args.scale)
         if not res.get("ok"):
             print(res.get("error"))
             return 1
+        if res.get("kind") == "scalar":
+            print(f"{res['id']}: {res['verdict']}: paper {res['published']}, ours {res['ours_value']:g} "
+                  f"({res['comparison']['source']}:{res['comparison']['line']})")
+            return 0
         print(f"{res['id']}: {res['verdict']}" + (f": {res['primary']} r = {res['primary_pearson']}" if res.get("ours") else "")
               + (f" (noise floor r = {res['noise_pearson']})" if res.get("noise_pearson") is not None else ""))
         say("JSON", _rel(rd / "claims.json"))

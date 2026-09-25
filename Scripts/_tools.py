@@ -6220,12 +6220,17 @@ _TOOLS: "list[Tool]" = [
         "run's ledger, comparing `ours` with the paper's `reference` table on the `primary` column; `noise` is the "
         "same result from a second seed (the noise floor). Verdict: reproduced (at noise level, or r>=0.98), "
         "partially reproduced (r>=0.80), not reproduced. A key result that cannot be checked is recorded with "
-        "`not_attempted` = why (no `ours`/`primary`), so the verdict table never overstates coverage.",
+        "`not_attempted` = why (no `ours`/`primary`), so the verdict table never overstates coverage. "
+        "A NUMBER the paper states (n, r, a percentage): `published` as printed (0.96, 4,112), `quote` = the "
+        "paper's sentence containing it, `ours` = the run's output file (e.g. work/<entry>.md) and `pattern` = "
+        "a regex whose first group is our value there; reproduced when equal at the paper's precision, partial "
+        "within 5%. `scale` 100 turns a printed fraction into a percent.",
         {"type": "object", "properties": {
             "run_dir": {**_S_STRING}, "id": {**_S_STRING}, "title": {**_S_STRING}, "reference": {**_S_STRING},
             "ours": {**_S_STRING}, "primary": {**_S_STRING}, "noise": {**_S_STRING}, "key": {**_S_STRING},
             "hit_mean_sd": {**_S_STRING}, "hit_ci": {**_S_STRING}, "note": {**_S_STRING},
-            "not_attempted": {**_S_STRING}},
+            "not_attempted": {**_S_STRING}, "published": {**_S_STRING}, "pattern": {**_S_STRING},
+            "quote": {**_S_STRING}, "scale": {**_S_NUMBER}},
          "required": ["run_dir", "id", "title", "reference"]},
         cli=["paper-code", "claim"], positional=["run_dir"],
         flag_map={"hit_mean_sd": "--hit-mean-sd", "hit_ci": "--hit-ci", "not_attempted": "--not-attempted"},

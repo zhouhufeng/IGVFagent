@@ -523,8 +523,11 @@ def headline(rec: Dict[str, Any]) -> str:
         n_na = sum(1 for x in cl if x.get("verdict") == "not attempted")
         return (f"{n_ok} of {len(cl)} of the paper's results reproduced" + (f", {n_part} partially" if n_part else "")
                 + (f", {n_na} not attempted" if n_na else "")
-                + ": " + "; ".join(f"{x['title']} ({x['verdict']}, r = {x['primary_pearson']:.3f})"
-                                   for x in cl if x.get("primary_pearson") is not None))[:400]
+                + ": " + "; ".join(
+                    f"{x['title']} ({x['verdict']}, r = {x['primary_pearson']:.3f})" if x.get("primary_pearson") is not None
+                    else f"{x['title']} ({x['verdict']}: paper {x['published']}, ours {x['ours_value']:g})"
+                    for x in cl if x.get("primary_pearson") is not None
+                    or (x.get("kind") == "scalar" and x.get("verdict") != "reproduced")))[:400].rstrip(": ")
     if c and len(c.get("entries") or []) > 1:
         ents = c["entries"]
         clean = sum(1 for e in ents if (e.get("chunks") or {}).get("total") and not (e.get("chunks") or {}).get("root_errors"))

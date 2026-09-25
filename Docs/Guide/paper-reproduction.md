@@ -167,6 +167,35 @@ more, and **not reproduced** below that. A key result that could not be checked 
 Excel sheet (`file.xlsx:SHEET`, with title rows above the header detected) or an
 AnnData table (`file.h5ad:obs`).
 
+### Published numbers
+
+Many papers state their results as numbers in the text rather than in a table:
+a count of variants, a correlation, a percentage. Each is a claim too. Give the
+number as the paper prints it and the sentence it appears in. Our value is read
+by a regex from what the authors' code printed in this run, never typed in:
+
+```bash
+igvfagent paper-code claim Docs/PaperCode/<run> --id val_pten \
+    --title "PTEN scores vs individual experiments" --reference "Main text (Supp. Fig. 3a)" \
+    --ours work/VAMP-seq_analysis.md --primary r --published 0.96 \
+    --pattern "PTEN individual validation correlation, Pearson's R: ([\d.]+)" \
+    --quote "(n = 25, r = 0.96, ρ = 0.96 for PTEN"
+```
+
+The quote must contain the published value. A number is **reproduced** when
+ours equals it at the paper's printed precision (57.9 vs "58%"), **partially
+reproduced** within 5%, and **not reproduced** otherwise. `--scale 100` turns a
+printed fraction into a percentage. For deterministic code there is no seed
+noise floor; the report cites the replay instead. The report lists these in one
+"Published numbers" table: the paper's sentence beside the line our run
+printed.
+
+Matreyek et al. 2018 (VAMP-seq) reads this way: 24 of the paper's numbers, from
+the abstract's 1,138 low-abundance PTEN variants to the 10.4% melanoma share of
+p.Pro38Ser, all reproduced from the authors' R Markdown. The abundance scores
+themselves (Enrich2 on GEO GSE108727) are recorded as not attempted, because
+the repository starts from the published score tables.
+
 `REPRODUCTION_REPORT.md` and `.html` lead with the verdict table. Then come the
 per-claim metrics, every deviation (environment repairs, shims, seeds, command
 notes), the exact commands, and last an appendix of notebook failures grouped by

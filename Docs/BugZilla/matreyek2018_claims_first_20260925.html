@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Reproduction: Matreyek et al. 2018 Nat Genet, Multiplex assessment of protein variant abundance by massively parallel sequencing (VAMP-seq)</title><style>body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;line-height:1.5}figure{display:inline-block;margin:8px;max-width:48%}figure img{max-width:100%;border:1px solid #ddd}figcaption{font-size:12px;color:#555}pre{background:#f5f5f5;padding:8px;overflow:auto;font-size:12px}blockquote{color:#555;border-left:3px solid #ccc;margin:0;padding-left:10px}.row{display:grid;grid-template-columns:repeat(3,minmax(0,200px));gap:8px;font-size:13px}</style></head><body><h1>Reproduction report: Matreyek et al. 2018 Nat Genet, Multiplex assessment of protein variant abundance by massively parallel sequencing (VAMP-seq)</h1>
+
+<p>Authors&#x27; code: <a href="https://github.com/FowlerLab/VAMPseq">FowlerLab/VAMPseq</a> at <code>a960aa9b2034</code></p>
+
+<h2>Verdict</h2>
+
+<div class='row'><span>Result</span><span>Paper reference</span><span>Primary metric</span><span>Noise floor</span><span>Status</span></div>
+
+<div class='row'><span>PTEN variants scored</span><span>Main text</span><span>n: paper 4,112, ours 4,112</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT variants scored</span><span>Main text</span><span>n: paper 3,689, ours 3,689</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Low-abundance PTEN variants</span><span>Abstract</span><span>n: paper 1,138, ours 1,138</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Low-abundance TPMT variants</span><span>Abstract</span><span>n: paper 777, ours 777</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN replicate agreement</span><span>Main text (Supp. Fig. 2)</span><span>mean r: paper 0.63, ours 0.63</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT replicate agreement</span><span>Main text (Supp. Fig. 2)</span><span>mean r: paper 0.73, ours 0.73</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN synonymous threshold</span><span>Methods</span><span>threshold: paper 0.71, ours 0.71</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT synonymous threshold</span><span>Methods</span><span>threshold: paper 0.72, ours 0.72</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN scores vs individual experiments</span><span>Main text (Supp. Fig. 3a)</span><span>r: paper 0.96, ours 0.96</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT scores vs individual experiments</span><span>Main text (Supp. Fig. 3b)</span><span>r: paper 0.75, ours 0.75</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Full EGFP vs split-GFP tag</span><span>Main text (Supp. Fig. 1d)</span><span>r: paper 0.98, ours 0.98</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN scores vs melting temperature</span><span>Main text (Supp. Fig. 4a)</span><span>r: paper 0.97, ours 0.97</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN abundance vs conservation</span><span>Main text (Fig. 2i)</span><span>rho: paper -0.26, ours -0.26</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT abundance vs conservation</span><span>Main text (Fig. 2j)</span><span>rho: paper -0.59, ours -0.59</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Enhanced-abundance positions near lipid-binding sites</span><span>Main text (Supp. Fig. 4)</span><span>percent: paper 58, ours 58</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>All PTEN positions near lipid-binding sites</span><span>Main text (Supp. Fig. 4)</span><span>percent: paper 13, ours 13</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Pathogenic PTEN variants of low abundance</span><span>Main text (Fig. 4b)</span><span>percent: paper 64, ours 64</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Scored SNV missense variants of low abundance</span><span>Main text (Fig. 4a)</span><span>percent: paper 24, ours 24</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Likely pathogenic PTEN variants of low abundance</span><span>Main text (Fig. 4c)</span><span>percent: paper 43, ours 43</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN VUS of low abundance</span><span>Main text (Fig. 4d)</span><span>percent: paper 27, ours 27</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Unobserved SNV missense variants of low abundance</span><span>Main text (Supp. Table 4)</span><span>n: paper 275, ours 275</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Dominant negative C124S abundance</span><span>Main text</span><span>score: paper 1.14, ours 1.14</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>P38S share of melanoma PTEN missense</span><span>Main text (Fig. 4e)</span><span>percent: paper 10.4, ours 10.4</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Rare TPMT variants of low abundance</span><span>Main text</span><span>percent: paper 15, ours 15</span><span>-</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Abundance scores from the sequencing reads</span><span>Methods (GEO GSE108727, Enrich2)</span><span>-</span><span>-</span><span><b>not attempted</b></span></div>
+
+<h2>Published numbers</h2>
+
+<p>Each number the paper states, beside the same number as the authors&#x27; code printed it in this run (read from the output by pattern, never typed in). Reproduced means equal at the paper&#x27;s printed precision; partially reproduced means within 5%.</p>
+
+<div class='row'><span>Result</span><span>The paper says</span><span>Our run printed</span><span>Status</span></div>
+
+<div class='row'><span>PTEN variants scored</span><span>Main text: “We applied VAMP-seq to assess 4,112 single amino acid variants of the tumor suppressor PTEN and 3,689 variants of the enzyme TPMT.”</span><span><code>work/VAMP-seq_analysis.md:61</code> ## [1] &quot;There are 4112 single amino acid PTEN variants with abundance scores&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT variants scored</span><span>Main text: “We applied VAMP-seq to assess 4,112 single amino acid variants of the tumor suppressor PTEN and 3,689 variants of the enzyme TPMT.”</span><span><code>work/VAMP-seq_analysis.md:77</code> ## [1] &quot;There are 3689 single amino acid TPMT variants with abundance scores&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Low-abundance PTEN variants</span><span>Abstract: “We identify 1,138 PTEN and 777 TPMT variants that result in low protein abundance”</span><span><code>work/VAMP-seq_analysis.md:49</code> ## [1] &quot;Furthermore, we identified 1138 low-abundance PTEN variants that could be pathogenic and 777 low-abundance TPMT variants that could alter drug metabolism&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Low-abundance TPMT variants</span><span>Abstract: “We identify 1,138 PTEN and 777 TPMT variants that result in low protein abundance”</span><span><code>work/VAMP-seq_analysis.md:49</code> ## [1] &quot;Furthermore, we identified 1138 low-abundance PTEN variants that could be pathogenic and 777 low-abundance TPMT variants that could alter drug metabolism&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN replicate agreement</span><span>Main text (Supp. Fig. 2): “mean Pearson’s r = 0.63, mean Spearman’s ρ = 0.62 for PTEN”</span><span><code>work/VAMP-seq_analysis.md:431</code> ## [1] &quot;Mean PTEN replicate correlation Pearson&#x27;s r: 0.63&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT replicate agreement</span><span>Main text (Supp. Fig. 2): “and mean r = 0.73, mean ρ = 0.67 for TPMT”</span><span><code>work/VAMP-seq_analysis.md:447</code> ## [1] &quot;Mean TPMT replicate correlation Pearson&#x27;s r: 0.73&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN synonymous threshold</span><span>Methods: “(0.71 for PTEN, and 0.72 for TPMT)”</span><span><code>work/VAMP-seq_analysis.md:475</code> ## [1] &quot;The threshold value above which the top 95% of PTEN synonymous  variant scores reside, which is used in the analysis: 0.71&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT synonymous threshold</span><span>Methods: “(0.71 for PTEN, and 0.72 for TPMT)”</span><span><code>work/VAMP-seq_analysis.md:492</code> ## [1] &quot;The threshold value above which the top 95% of TPMT synonymous variant scores reside, which is used in the analysis: 0.72&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN scores vs individual experiments</span><span>Main text (Supp. Fig. 3a): “(n = 25, r = 0.96, ρ = 0.96 for PTEN”</span><span><code>work/VAMP-seq_analysis.md:834</code> ## [1] &quot;PTEN individual validation correlation, Pearson&#x27;s R: 0.96&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT scores vs individual experiments</span><span>Main text (Supp. Fig. 3b): “n = 19, r = 0.75, ρ = 0.61 for TPMT”</span><span><code>work/VAMP-seq_analysis.md:862</code> ## [1] &quot;TPMT individual validation correlation, Pearson&#x27;s R: 0.75&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Full EGFP vs split-GFP tag</span><span>Main text (Supp. Fig. 1d): “(n = 6, r = 0.98, ρ = 0.94”</span><span><code>work/VAMP-seq_analysis.md:158</code> ## [1] &quot;PTEN full-EGFP:mCherry and splitGFP:mCherry fusion ratio correlations, Pearson&#x27;s r: 0.98&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN scores vs melting temperature</span><span>Main text (Supp. Fig. 4a): “(n = 5, r = 0.97, ρ = 0.90”</span><span><code>work/VAMP-seq_analysis.md:1027</code> ## [1] &quot;PTEN melting temperature and abundance score correlation, Pearson&#x27;s R: 0.97&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN abundance vs conservation</span><span>Main text (Fig. 2i): “(ρ = -0.26 and -0.59 for PTEN and TPMT, respectively”</span><span><code>work/VAMP-seq_analysis.md:1135</code> ## [1] &quot;Spearman&#x27;s rho for PTEN AA1_psic and score: -0.26&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>TPMT abundance vs conservation</span><span>Main text (Fig. 2j): “(ρ = -0.26 and -0.59 for PTEN and TPMT, respectively”</span><span><code>work/VAMP-seq_analysis.md:1139</code> ## [1] &quot;Spearman&#x27;s rho for TPMT AA1_psic and score: -0.59&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Enhanced-abundance positions near lipid-binding sites</span><span>Main text (Supp. Fig. 4): “58% of them were within 7 Å of known phospholipid-binding positions”</span><span><code>work/VAMP-seq_analysis.md:1456</code> ## [1] &quot;57.9 percent of high score positions were within 6.5 angstroms of a known active site or membrane localization position&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>All PTEN positions near lipid-binding sites</span><span>Main text (Supp. Fig. 4): “only 13% of all structurally resolved PTEN positions were within 7 Å”</span><span><code>work/VAMP-seq_analysis.md:1464</code> ## [1] &quot;13 percent of all PTEN positions were within 6.5 angstroms of a known active site or membrane localization position&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Pathogenic PTEN variants of low abundance</span><span>Main text (Fig. 4b): “Of these 25, 16 (64%) were classified as low abundance”</span><span><code>work/VAMP-seq_analysis.md:1731</code> ## [1] &quot;The fraction is then: 0.64&quot; (x100)</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Scored SNV missense variants of low abundance</span><span>Main text (Fig. 4a): “the 24% of scored missense variants that are low abundance”</span><span><code>work/VAMP-seq_analysis.md:1799</code> ## [1] &quot;Percent of missense variants possible by SNV that we find to be low abundance: 0.24&quot; (x100)</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Likely pathogenic PTEN variants of low abundance</span><span>Main text (Fig. 4c): “23 had abundance scores, 10 (43%) of which were classified as low abundance”</span><span><code>work/VAMP-seq_analysis.md:1755</code> ## [1] &quot;The fraction is then: 0.43&quot; (x100)</span><span><b>reproduced</b></span></div>
+<div class='row'><span>PTEN VUS of low abundance</span><span>Main text (Fig. 4d): “83 of these variants had abundance scores, and 22 (27%) were low abundance”</span><span><code>work/VAMP-seq_analysis.md:1771</code> ## [1] &quot;The fraction is then: 0.27&quot; (x100)</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Unobserved SNV missense variants of low abundance</span><span>Main text (Supp. Table 4): “along with 275 possible but not-yet-observed missense variants are low-abundance”</span><span><code>work/VAMP-seq_analysis.md:1783</code> ## [1] &quot;Total missense variants possible by SNV and not found in Clinvar, that we find to be low abundance: 275&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Dominant negative C124S abundance</span><span>Main text: “(p.Cys124Ser = 1.14, p.Arg130Gly = 1.09, p.Gly129Glu = 0.76)”</span><span><code>work/VAMP-seq_analysis.md:2174</code> ## [1] &quot;Abundance score for C124S: 1.14&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>P38S share of melanoma PTEN missense</span><span>Main text (Fig. 4e): “p.Pro38Ser was significantly enriched, accounting for 10.4% of PTEN missense variants”</span><span><code>work/VAMP-seq_analysis.md:2225</code> ## [1] &quot;P38S amounted to 10.39 % of the observed SNV variants in melanoma&quot;</span><span><b>reproduced</b></span></div>
+<div class='row'><span>Rare TPMT variants of low abundance</span><span>Main text: “classifying fourteen (15%) as low abundance”</span><span><code>work/VAMP-seq_analysis.md:2396</code> ## [1] &quot;Ratio of low abundance TPMT variants of those observed with MAF &gt; 4e-6: 0.15&quot; (x100)</span><span><b>reproduced</b></span></div>
+
+<li>Enhanced-abundance positions near lipid-binding sites: The notebook labels this distance 6.5 Å but tests &lt; 7 Å, as the paper states.</li>
+
+<h2>1. Abundance scores from the sequencing reads: not attempted</h2>
+
+<p>Reference <code>Methods (GEO GSE108727, Enrich2)</code>.</p>
+
+<p>The repository starts from the published score tables (Supplementary Data). The step before them, Enrich2 on the GEO GSE108727 reads with the authors&#x27; barcode maps, is not in the repository, so every result above is downstream of the published scores.</p>
+
+<h2>Deviations (documented; no scientific code changed)</h2>
+
+<li>Environment: R version 4.5.3 (2026-03-11) with conda-forge packages ; the authors&#x27; own versions are in their session info.</li>
+<li>Compatibility shim <code>melt_reshape</code>: restores the authors&#x27; package behaviour; their code is unchanged.</li>
+<li>Compatibility shim <code>jitter_global_rng</code>: restores the authors&#x27; package behaviour; their code is unchanged.</li>
+<li><code>RNGkind(sample.kind = &quot;Rounding&quot;)</code>: R 3.6 changed sample(); this reproduces the authors&#x27; seeded draws.</li>
+<li>Replay (a second execution): 126/126 printed values and 65/65 saved files identical, so the analysis is deterministic and published numbers need no seed noise floor.</li>
+
+<h2>Commands</h2></body></html>
