@@ -501,9 +501,11 @@ def cmd_pull(args: argparse.Namespace) -> int:
 # after a page's last row but is byte-wise smaller than it is excluded from
 # every later page.
 #
-# A key-range filter ON ITS OWN is consistent: [lo, hi) splits partition a
-# collection exactly (counts on both sides of a cut always sum to the
-# total), and byte order is Python's str order. So a collection is split
+# A key-range filter ON ITS OWN is scanned in byte order, which is Python's
+# str order, with one catch: the optimizer returns nothing for [lo, hi) when
+# the collation puts lo at or after hi, even if keys lie between them
+# byte-wise (see _server_consistent_cuts). With bounds both orders agree on,
+# [lo, hi) splits partition a collection exactly. So a collection is split
 # into byte-wise ranges, and each range is streamed by ONE cursor with no
 # SORT at all. A cursor cannot be resumed, so a range that fails part-way is
 # discarded and pulled again; ranges are kept small (~25 M rows, well under
@@ -557,14 +559,46 @@ def _range_edges(client: ArangoClient, collection: str, lo: str | None,
     return (min(keys), max(keys)) if keys else (None, None)
 
 
+def _server_consistent_cuts(client: ArangoClient, lo: str | None, cuts: list[str],
+                            hi: str | None) -> list[str]:
+    """Drop cuts the server orders differently from byte order.
+
+    A range FILTER is scanned in byte order, but the query optimizer first
+    decides whether [lo, hi) can hold anything using the collation, and returns
+    nothing at all when the collation puts lo at or after hi. On the Catalog,
+    [DZ, D[) came back empty while 385,779 "DZANK1..." keys lie inside it
+    byte-wise ("Z" < "[" in bytes; the collation sorts "[" before letters, and
+    "a" beside "A"). So every pair of neighbouring bounds must be ordered the
+    same way by both; a cut the server disagrees about is removed, which merges
+    the two pieces on either side of it.
+    """
+    while True:
+        bounds = [lo] + cuts + [hi]
+        pairs = [[x, y] for x, y in zip(bounds, bounds[1:]) if x is not None and y is not None]
+        if not pairs:
+            return cuts
+        res = client.open_cursor("FOR p IN @pairs RETURN p[0] < p[1]",
+                                 batch_size=len(pairs) + 1, bind_vars={"pairs": pairs})
+        bad = {tuple(p) for p, ok in zip(pairs, res["result"]) if not ok}
+        if not bad:
+            return cuts
+        drop = set()
+        for x, y in bad:
+            # Remove a cut from the offending pair (never lo or hi themselves).
+            drop.add(y if y in cuts else x)
+        cuts = [c for c in cuts if c not in drop]
+
+
 def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
                  max_depth: int = 16) -> list[dict[str, Any]]:
     """Contiguous byte-wise ranges of at most ~target_rows, measured by counts.
 
     For a range that is too big: cut at P + each printable character, where
     P is the common prefix of two keys inside it, count the pieces, recurse.
-    Cuts are ordered in Python (byte order, which is the filter's order), so
-    consecutive ranges share a boundary and every key lands in exactly one.
+    Cuts are ordered in Python (byte order, the scan's order) and kept only
+    where the server's collation agrees, so consecutive ranges share a
+    boundary and every key lands in exactly one. Each split is checked: its
+    pieces must add up to the parent's count, or planning stops.
     """
     out: list[dict[str, Any]] = []
 
@@ -587,6 +621,7 @@ def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
                                and (hi is None or prefix + ch < hi)})
                 if cuts:
                     break
+        cuts = _server_consistent_cuts(client, lo, cuts, hi)
         if not cuts:
             # One key, or no cut falls inside: take it whole.
             out.append({"lo": lo, "hi": hi, "rows": n})
@@ -595,13 +630,21 @@ def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
         logging.info("plan %s: depth %d, [%r, %r) has %s rows -> %d pieces",
                      collection, depth, lo, hi,
                      f"{n:,}" if n is not None else "?", len(bounds) - 1)
+        counts = []
         for x, y in zip(bounds, bounds[1:]):
             t0 = time.time()
             m = _range_count(client, collection, x, y)
+            counts.append(m)
             if m or time.time() - t0 > 5:
                 logging.info("  [%r, %r) = %s  (%.1fs)", x, y,
                              f"{m:,}" if m is not None else "count timed out",
                              time.time() - t0)
+        # The pieces must add up to their parent. If they do not, some key sits
+        # in no piece, and a pull of this plan would silently miss it.
+        if n is not None and None not in counts and sum(counts) != n:
+            raise RuntimeError(f"{collection}: pieces of [{lo!r}, {hi!r}) sum to "
+                               f"{sum(counts):,}, the range has {n:,}; refusing to plan")
+        for (x, y), m in zip(zip(bounds, bounds[1:]), counts):
             split(x, y, m, depth + 1)
 
     split(None, None, client.collection_count(collection), 0)

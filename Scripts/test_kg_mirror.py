@@ -16,6 +16,8 @@ same way (byte-order filter, collated sort, rows streamed in no order):
   - streaming every planned range yields every row exactly once;
   - a stream that dies part-way leaves nothing behind and the retry is exact;
   - a finished range is not pulled again, and a count mismatch is kept out;
+  - the plan still covers every key where the optimizer's collation and the
+    scan's byte order disagree about a range's bounds;
   - the stand-in really does lose rows under keyset paging, so the test is
     modelling the failure that matters.
 
@@ -65,6 +67,10 @@ class FakeCatalog:
         self.rng = random.Random(7)
 
     def _in(self, lo, hi):
+        # The catalog's optimizer answers "nothing" when the collation puts lo
+        # at or after hi, before scanning; the scan itself compares bytes.
+        if lo is not None and hi is not None and collated(lo) >= collated(hi):
+            return []
         return [d for d in self.docs
                 if (lo is None or d["_key"] >= lo) and (hi is None or d["_key"] < hi)]
 
@@ -76,6 +82,8 @@ class FakeCatalog:
 
     def open_cursor(self, query, *, batch_size=5000, bind_vars=None):
         b = bind_vars or {}
+        if query.startswith("FOR p IN @pairs"):
+            return {"result": [collated(x) < collated(y) for x, y in b["pairs"]]}
         rows = self._in(b.get("lo"), b.get("hi"))
         if "COLLECT WITH COUNT" in query:
             return {"result": [len(rows)]}
@@ -156,6 +164,19 @@ def main() -> int:
     check("contiguous: open at both ends, each range starts where the last ended",
           (plan[0]["lo"], plan[-1]["hi"], all(a["hi"] == b["lo"] for a, b in zip(plan, plan[1:]))),
           (None, None, True))
+
+    print("\nplan where the collation and byte order disagree (the DZANK1 case)")
+    # Byte-wise "DZANK1" lies in [DZ, D[), but the collation sorts "[" and
+    # "a" before "Z", so the server answered 0 for that piece: 385,779
+    # coding_variants keys fell in no range of the first plans.
+    genes = [f"{g}_{i:03d}" for g in ("DYDC1", "DZANK1", "DZIP3", "Dab1", "E2F1", "EGFR") for i in range(40)]
+    plan2 = M._plan_ranges(FakeCatalog(genes), "c9", target_rows=30)
+    check("every key is counted by some range", sum(r["rows"] for r in plan2), len(genes))
+    fake = FakeCatalog(genes)
+    for r in plan2:
+        M._stream_range(fake, "c9", r, batch_size=17)
+    got = mirrored("c9")
+    check("pulling the plan gets every key once", (sorted(got), len(got)), (sorted(genes), len(genes)))
 
     print("\nstream every planned range")
     fake = FakeCatalog(keys)
