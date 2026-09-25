@@ -1252,7 +1252,9 @@ def reverify(job_id: str) -> dict:
     answer = job.get("last_answer") or ""
     v = verify(job, plan, answer)
     st = job.get("status")
-    if st in ("done", "done_with_blocked"):
+    finished = bool(plan.get("stages")) and all(x["status"] in ("done", "blocked") for x in plan["stages"])
+    # a job that ran out of budget after every stage was done is finished too
+    if st in ("done", "done_with_blocked") or (st in ("budget_exhausted", "stopped") and finished):
         blocked = any(x["status"] == "blocked" for x in plan.get("stages") or [])
         st = "done_with_blocked" if (blocked or v["verdict"] == "fail") else "done"
     update_job(job_id, last_verdict=v, status=st)
