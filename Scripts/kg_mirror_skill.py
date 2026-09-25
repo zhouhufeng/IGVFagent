@@ -502,10 +502,14 @@ def cmd_pull(args: argparse.Namespace) -> int:
 # every later page.
 #
 # A key-range filter ON ITS OWN is scanned in byte order, which is Python's
-# str order, with one catch: the optimizer returns nothing for [lo, hi) when
-# the collation puts lo at or after hi, even if keys lie between them
-# byte-wise (see _server_consistent_cuts). With bounds both orders agree on,
-# [lo, hi) splits partition a collection exactly. So a collection is split
+# str order, with one catch: when the bounds are constants, the optimizer first
+# compares them with the collation and answers nothing if it puts lo at or
+# after hi, even when keys lie between them byte-wise ([DZ, D[) came back
+# empty while 385,779 "DZANK1..." keys lie inside it). Bounds given through
+# NOOPT() are only known at run time, so there is nothing to compare: the
+# primary index still serves the range, in byte order, at the same speed
+# (see _range_filter). With that, [lo, hi) splits partition a collection
+# exactly. So a collection is split
 # into byte-wise ranges, and each range is streamed by ONE cursor with no
 # SORT at all. A cursor cannot be resumed, so a range that fails part-way is
 # discarded and pulled again; ranges are kept small (~25 M rows, well under
@@ -516,24 +520,35 @@ def cmd_pull(args: argparse.Namespace) -> int:
 _CUT_CHARS = [chr(c) for c in range(0x21, 0x7F)]
 
 
-def _range_filter(lo: str | None, hi: str | None) -> tuple[str, dict[str, Any]]:
-    parts, bind = [], {}
+def _range_filter(lo: str | None, hi: str | None) -> tuple[str, str, dict[str, Any]]:
+    """(LETs, FILTER, bind vars) for keys in [lo, hi), byte-wise.
+
+    The bounds go through NOOPT() so the optimizer cannot compare them as
+    constants: it does that with the collation, not in byte order, and returns
+    nothing for a range whose bounds the collation orders the other way round
+    (e.g. [NCZ, NC_x), which holds most of `variants`). At run time the
+    primary index serves the range in byte order.
+    """
+    lets, parts, bind = [], [], {}
     if lo is not None:
-        parts.append("d._key >= @lo")
+        lets.append("LET lo_ = NOOPT(@lo)")
+        parts.append("d._key >= lo_")
         bind["lo"] = lo
     if hi is not None:
-        parts.append("d._key < @hi")
+        lets.append("LET hi_ = NOOPT(@hi)")
+        parts.append("d._key < hi_")
         bind["hi"] = hi
-    return (f"FILTER {' AND '.join(parts)} " if parts else ""), bind
+    return (" ".join(lets) + " " if lets else "",
+            f"FILTER {' AND '.join(parts)} " if parts else "", bind)
 
 
 def _range_count(client: ArangoClient, collection: str, lo: str | None,
                  hi: str | None) -> int | None:
     """Rows in [lo, hi) by the primary index, or None if counting timed out."""
-    where, bind = _range_filter(lo, hi)
+    lets, where, bind = _range_filter(lo, hi)
     try:
         res = client.open_cursor(
-            f"FOR d IN {collection} {where}COLLECT WITH COUNT INTO n RETURN n",
+            f"{lets}FOR d IN {collection} {where}COLLECT WITH COUNT INTO n RETURN n",
             batch_size=1, bind_vars=bind or None)
         return int(res["result"][0])
     except urllib.error.HTTPError as exc:
@@ -549,44 +564,14 @@ def _range_edges(client: ArangoClient, collection: str, lo: str | None,
     Only a hint for where to cut: the sort order is the collation's, not the
     filter's, so these are not guaranteed to be the byte-wise extremes.
     """
-    where, bind = _range_filter(lo, hi)
+    lets, where, bind = _range_filter(lo, hi)
     keys: list[str] = []
     for direction in ("", "DESC "):
         res = client.open_cursor(
-            f"FOR d IN {collection} {where}SORT d._key {direction}LIMIT 1 RETURN d._key",
+            f"{lets}FOR d IN {collection} {where}SORT d._key {direction}LIMIT 1 RETURN d._key",
             batch_size=1, bind_vars=bind or None)
         keys += res["result"]
     return (min(keys), max(keys)) if keys else (None, None)
-
-
-def _server_consistent_cuts(client: ArangoClient, lo: str | None, cuts: list[str],
-                            hi: str | None) -> list[str]:
-    """Drop cuts the server orders differently from byte order.
-
-    A range FILTER is scanned in byte order, but the query optimizer first
-    decides whether [lo, hi) can hold anything using the collation, and returns
-    nothing at all when the collation puts lo at or after hi. On the Catalog,
-    [DZ, D[) came back empty while 385,779 "DZANK1..." keys lie inside it
-    byte-wise ("Z" < "[" in bytes; the collation sorts "[" before letters, and
-    "a" beside "A"). So every pair of neighbouring bounds must be ordered the
-    same way by both; a cut the server disagrees about is removed, which merges
-    the two pieces on either side of it.
-    """
-    while True:
-        bounds = [lo] + cuts + [hi]
-        pairs = [[x, y] for x, y in zip(bounds, bounds[1:]) if x is not None and y is not None]
-        if not pairs:
-            return cuts
-        res = client.open_cursor("FOR p IN @pairs RETURN p[0] < p[1]",
-                                 batch_size=len(pairs) + 1, bind_vars={"pairs": pairs})
-        bad = {tuple(p) for p, ok in zip(pairs, res["result"]) if not ok}
-        if not bad:
-            return cuts
-        drop = set()
-        for x, y in bad:
-            # Remove a cut from the offending pair (never lo or hi themselves).
-            drop.add(y if y in cuts else x)
-        cuts = [c for c in cuts if c not in drop]
 
 
 def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
@@ -595,10 +580,10 @@ def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
 
     For a range that is too big: cut at P + each printable character, where
     P is the common prefix of two keys inside it, count the pieces, recurse.
-    Cuts are ordered in Python (byte order, the scan's order) and kept only
-    where the server's collation agrees, so consecutive ranges share a
-    boundary and every key lands in exactly one. Each split is checked: its
-    pieces must add up to the parent's count, or planning stops.
+    Cuts are ordered in Python (byte order, the scan's order), so
+    consecutive ranges share a boundary and every key lands in exactly one.
+    Each split is checked: its pieces must add up to the parent's count, or
+    planning stops.
     """
     out: list[dict[str, Any]] = []
 
@@ -621,7 +606,6 @@ def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
                                and (hi is None or prefix + ch < hi)})
                 if cuts:
                     break
-        cuts = _server_consistent_cuts(client, lo, cuts, hi)
         if not cuts:
             # One key, or no cut falls inside: take it whole.
             out.append({"lo": lo, "hi": hi, "rows": n})
@@ -647,7 +631,10 @@ def _plan_ranges(client: ArangoClient, collection: str, target_rows: int, *,
         for (x, y), m in zip(zip(bounds, bounds[1:]), counts):
             split(x, y, m, depth + 1)
 
-    split(None, None, client.collection_count(collection), 0)
+    # The whole collection by a real count, not the collection's metadata
+    # count (genes_coding_variants_scores: metadata 68,880, rows 68,881); for
+    # the largest collections it times out, and the root simply goes uncounted.
+    split(None, None, _range_count(client, collection, None, None), 0)
     # Fold empty pieces into a neighbour, keeping the plan contiguous: range
     # i ends exactly where range i+1 begins, from the first key to the last.
     merged: list[dict[str, Any]] = []
@@ -678,7 +665,7 @@ def _stream_range(client: ArangoClient, collection: str, r: dict[str, Any], *,
             return state
     final_dir = _collection_dir(collection)
     work = final_dir / f"_partial_{tag}"
-    where, bind = _range_filter(r["lo"], r["hi"])
+    lets, where, bind = _range_filter(r["lo"], r["hi"])
     batch = _pick_initial_batch_size(client, collection, batch_size)
     state: dict[str, Any] = {"collection": collection, "tag": tag, "lo": r["lo"],
                              "hi": r["hi"], "planned_rows": r["rows"]}
@@ -690,7 +677,7 @@ def _stream_range(client: ArangoClient, collection: str, r: dict[str, Any], *,
         started, n, idx, cursor_id = time.time(), 0, 0, None
         try:
             res = client._request("/_api/cursor", method="POST", timeout=600, body={
-                "query": f"FOR d IN {collection} {where}RETURN d",
+                "query": f"{lets}FOR d IN {collection} {where}RETURN d",
                 "bindVars": bind, "batchSize": batch, "ttl": 1800,
                 "options": {"stream": True}})
             while True:

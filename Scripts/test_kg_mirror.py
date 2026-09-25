@@ -17,7 +17,8 @@ same way (byte-order filter, collated sort, rows streamed in no order):
   - a stream that dies part-way leaves nothing behind and the retry is exact;
   - a finished range is not pulled again, and a count mismatch is kept out;
   - the plan still covers every key where the optimizer's collation and the
-    scan's byte order disagree about a range's bounds;
+    scan's byte order disagree about a range's bounds (bounds go in through
+    NOOPT, so the optimizer cannot short-circuit a range it misorders);
   - the stand-in really does lose rows under keyset paging, so the test is
     modelling the failure that matters.
 
@@ -66,10 +67,13 @@ class FakeCatalog:
         self.deleted: "list[str]" = []
         self.rng = random.Random(7)
 
-    def _in(self, lo, hi):
-        # The catalog's optimizer answers "nothing" when the collation puts lo
-        # at or after hi, before scanning; the scan itself compares bytes.
-        if lo is not None and hi is not None and collated(lo) >= collated(hi):
+    def _in(self, lo, hi, query=""):
+        # With constant bounds, the catalog's optimizer answers "nothing" when
+        # the collation puts lo at or after hi, before scanning. Bounds given
+        # through NOOPT() are only known at run time, so that check cannot
+        # happen. The scan itself compares bytes either way.
+        constant = "NOOPT" not in query
+        if constant and lo is not None and hi is not None and collated(lo) >= collated(hi):
             return []
         return [d for d in self.docs
                 if (lo is None or d["_key"] >= lo) and (hi is None or d["_key"] < hi)]
@@ -82,9 +86,7 @@ class FakeCatalog:
 
     def open_cursor(self, query, *, batch_size=5000, bind_vars=None):
         b = bind_vars or {}
-        if query.startswith("FOR p IN @pairs"):
-            return {"result": [collated(x) < collated(y) for x, y in b["pairs"]]}
-        rows = self._in(b.get("lo"), b.get("hi"))
+        rows = self._in(b.get("lo"), b.get("hi"), query)
         if "COLLECT WITH COUNT" in query:
             return {"result": [len(rows)]}
         if query.endswith("LIMIT 1 RETURN d._key"):
@@ -101,7 +103,7 @@ class FakeCatalog:
         if method == "POST" and path == "/_api/cursor":
             assert "SORT" not in body["query"], "range streams must not sort"
             b = body["bindVars"]
-            rows = self._in(b.get("lo"), b.get("hi"))
+            rows = self._in(b.get("lo"), b.get("hi"), body["query"])
             self.rng.shuffle(rows)
             cid = f"c{len(self.cursors)}"
             n = body["batchSize"]
@@ -177,6 +179,22 @@ def main() -> int:
         M._stream_range(fake, "c9", r, batch_size=17)
     got = mirrored("c9")
     check("pulling the plan gets every key once", (sorted(got), len(got)), (sorted(genes), len(genes)))
+
+    print("\nplan where most keys sit between letters byte-wise (the variants case)")
+    # "NC_..." sorts after "NCZ" in bytes ("_" is 0x5F) but before every letter
+    # in the collation, so no constant-bound range can reach into it from a
+    # letter-keyed neighbour. The first fix dropped every such cut and left
+    # 1.87 B variants in one range; runtime (NOOPT) bounds avoid the question.
+    keys3 = ([f"NC_0000{c:02d}.11:{p}:A:G" for c in range(1, 23) for p in range(0, 200, 5)]
+             + [f"NCA{i}" for i in range(20)] + [f"NCZ{i}" for i in range(20)] + [f"NCz{i}" for i in range(20)])
+    plan3 = M._plan_ranges(FakeCatalog(keys3), "c10", target_rows=40)
+    check("every key is counted by some range", sum(r["rows"] for r in plan3), len(keys3))
+    check("the NC_ block is split, not one giant range", max(r["rows"] for r in plan3) <= 40, True)
+    fake = FakeCatalog(keys3)
+    for r in plan3:
+        M._stream_range(fake, "c10", r, batch_size=17)
+    got = mirrored("c10")
+    check("pulling the plan gets every key once", (sorted(got), len(got)), (sorted(keys3), len(keys3)))
 
     print("\nstream every planned range")
     fake = FakeCatalog(keys)
