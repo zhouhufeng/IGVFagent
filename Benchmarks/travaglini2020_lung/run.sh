@@ -9,6 +9,8 @@ DATA="Benchmarks/_data/travaglini2020_lung"
 H5AD="$DATA/lung_atlas.h5ad"
 PY=".venv/bin/python"
 IGVF=".venv/bin/igvfagent"
+"$IGVF" --help >/dev/null 2>&1 || IGVF="$(command -v igvfagent)"
+"$PY" --version >/dev/null 2>&1 || PY="$(command -v python3)"
 
 mkdir -p "$DATA"
 

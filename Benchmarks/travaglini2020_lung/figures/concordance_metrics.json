@@ -1,12 +1,12 @@
 {
   "n_cells": 65662,
-  "n_leiden_clusters": 49,
+  "n_leiden_clusters": 51,
   "n_author_cell_types": 46,
-  "ARI": 0.4821,
-  "AMI": 0.8054,
-  "homogeneity": 0.8872,
-  "completeness": 0.7391,
-  "v_measure": 0.8064,
+  "ARI": 0.4644,
+  "AMI": 0.8008,
+  "homogeneity": 0.884,
+  "completeness": 0.7336,
+  "v_measure": 0.8018,
   "canonical_markers_tested": 10,
   "canonical_markers_peaking_in_target_top3": 9,
   "marker_detail": [

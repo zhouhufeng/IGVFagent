@@ -10,6 +10,8 @@ D="Benchmarks/_data/$LABEL"
 B="https://ftp.ncbi.nlm.nih.gov/geo/series/GSE162nnn/GSE162170/suppl"
 PY=".venv/bin/python"
 IGVF=".venv/bin/igvfagent"
+"$IGVF" --help >/dev/null 2>&1 || IGVF="$(command -v igvfagent)"
+"$PY" --version >/dev/null 2>&1 || PY="$(command -v python3)"
 mkdir -p "$D"
 
 # 1) Fetch the paired-multiome subset of GSE162170 (public, no auth).
