@@ -2305,8 +2305,13 @@ def do_run(paper_id: str) -> Dict[str, Any]:
 
 def do_score(paper_id: str) -> Dict[str, Any]:
     scorer = BENCH_DIR / "concordance.py"
+    # sys.executable is the interpreter actually running this process, so it
+    # is guaranteed to work on this machine; a repo-local .venv/bin/python may
+    # have been built on a different OS/arch (e.g. a Mac venv checked into a
+    # repo later cloned onto a Linux cluster) and fail with "Exec format
+    # error" despite existing as a file.
     py = ROOT / ".venv" / "bin" / "python"
-    exe = str(py) if py.is_file() else sys.executable
+    exe = sys.executable or (str(py) if py.is_file() else str(py))
     proc = subprocess.run([exe, str(scorer), "--benchmark", paper_id],
                            cwd=str(ROOT), capture_output=True, text=True)
     sys.stdout.write(proc.stdout)
@@ -2333,8 +2338,14 @@ def _render_report(paper_id: str, expected: Dict[str, Any],
           "", f"Route: `{(expected.get('data_source') or {}).get('type', '?')}` · "
               f"artefacts under `Docs/{expected.get('skill_output_dir')}/`", ""]
 
-    conf = [c for c in expected.get("checks", []) if c.get("confirmed")]
-    unconf = [c for c in expected.get("checks", []) if not c.get("confirmed")]
+    # A check is "unconfirmed" only when a scaffold explicitly marked it
+    # `"confirmed": false` (a TODO pending human review). A hand-curated
+    # check with no `confirmed` key at all — the common case for benchmarks
+    # not produced by `bench scaffold` — is confirmed by default, matching
+    # concordance.py's scoring semantics (see score_benchmark's handling of
+    # `chk.get("confirmed") is False`).
+    conf = [c for c in expected.get("checks", []) if c.get("confirmed") is not False]
+    unconf = [c for c in expected.get("checks", []) if c.get("confirmed") is False]
 
     L += ["## Confirmed checks", ""]
     if conf:

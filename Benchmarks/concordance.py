@@ -33,20 +33,8 @@ RESULTS = BENCHMARKS / "results"
 DOCS = ROOT / "Docs"
 
 
-def latest_run_dir(skill_dir_name: str, label: str) -> Path | None:
-    """Find the most recent ``Docs/<skill>/2*_<label>*/`` directory.
-
-    Two conventions are supported:
-
-    1. Per-run directory: ``Docs/<skill>/<ts>_<label>/`` containing
-       ``summary.json``, TSVs, plots, etc. (the convention used by
-       the newer skills: mavedb, multiome, chipatlas, portal, catalog).
-    2. Flat-file convention: ``Docs/<skill>/<ts>_<label>_*`` files
-       sitting directly under the skill dir (older skills like the
-       legacy ``mpra pull``). For these we return the skill dir itself
-       and the artefact checks must match by glob pattern.
-    """
-    base = DOCS / skill_dir_name
+def _match_run_dir(base: Path, label: str) -> Path | None:
+    """Apply the two run-dir conventions against one base directory."""
     if not base.is_dir():
         return None
     # Convention 1: dir match
@@ -64,8 +52,38 @@ def latest_run_dir(skill_dir_name: str, label: str) -> Path | None:
         reverse=True,
     )
     if flat:
-        # Return the skill dir; checks use the label to glob for files.
+        # Return the base dir itself; checks use the label to glob for files.
         return base
+    return None
+
+
+def latest_run_dir(skill_dir_name: str, label: str,
+                    extra_search_dirs: "list[Path]" = ()) -> Path | None:
+    """Find the most recent ``Docs/<skill>/2*_<label>*/`` directory.
+
+    Two conventions are supported:
+
+    1. Per-run directory: ``Docs/<skill>/<ts>_<label>/`` containing
+       ``summary.json``, TSVs, plots, etc. (the convention used by
+       the newer skills: mavedb, multiome, chipatlas, portal, catalog).
+    2. Flat-file convention: ``Docs/<skill>/<ts>_<label>_*`` files
+       sitting directly under the skill dir (older skills like the
+       legacy ``mpra pull``). For these we return the skill dir itself
+       and the artefact checks must match by glob pattern.
+
+    Some skills (e.g. ``encode retrieve``) never write anything under
+    ``Docs/<skill>/`` at all — their only output is a manifest under
+    ``Data/Manifests/<skill>/``. When ``Docs/<skill>/`` has no match,
+    fall back to each of ``extra_search_dirs`` (declared per-paper in
+    ``expected.json``) using the same two conventions.
+    """
+    hit = _match_run_dir(DOCS / skill_dir_name, label)
+    if hit is not None:
+        return hit
+    for extra in extra_search_dirs:
+        hit = _match_run_dir(Path(extra), label)
+        if hit is not None:
+            return hit
     return None
 
 
@@ -132,7 +150,7 @@ def check_artefact_exists(d: Path, spec: dict,
     extra search dirs — useful for older skills that scatter artefacts
     across ``Docs/<skill>/``, ``Data/Manifests/<skill>/``, and ``Data/``).
     """
-    fname = spec.get("filename") or spec.get("artefact")
+    fname = spec.get("filename") or spec.get("artefact") or spec.get("glob")
     if not fname:
         return False, "no filename declared"
     candidates: list[Path] = [d] + [Path(x) for x in (extra_search_dirs or [])]
@@ -155,6 +173,30 @@ def check_artefact_exists(d: Path, spec: dict,
             rel = p.relative_to(ROOT) if p.is_absolute() else p
             return True, f"{fname} present ({p.stat().st_size:,} bytes) at {rel}"
     return False, f"{fname} not found in {[str(c.relative_to(ROOT) if c.is_absolute() else c) for c in candidates]}"
+
+
+def resolve_glob_artefact(d: Path, pattern: str,
+                           extra_search_dirs: "list[Path]" = ()) -> Path | None:
+    """Return the newest non-empty file matching ``pattern`` across the run
+    dir and any extra search dirs (same resolution order as
+    ``check_artefact_exists``)."""
+    candidates: list[Path] = [d] + [Path(x) for x in (extra_search_dirs or [])]
+    for c in candidates:
+        if not c.is_dir():
+            continue
+        hits = sorted(c.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        non_empty = [p for p in hits if p.stat().st_size > 0]
+        if non_empty:
+            return non_empty[0]
+    return None
+
+
+def read_csv_rows(p: Path) -> list[dict] | None:
+    try:
+        with p.open(newline="") as fh:
+            return list(csv.DictReader(fh))
+    except Exception:
+        return None
 
 
 def get_path(obj: Any, dotted: str) -> Any:
@@ -196,7 +238,10 @@ def score_benchmark(paper_dir: Path) -> dict:
     label = spec.get("label")
     if not skill or not label:
         return {"paper": paper_dir.name, "status": "expected_json_missing_skill_or_label"}
-    run_dir = latest_run_dir(skill, label)
+    # Extra search roots for skills that scatter artefacts. expected.json
+    # may declare ``extra_search_dirs: ["Data/Manifests/MPRA", "Data"]`` etc.
+    extras = [ROOT / x for x in (spec.get("extra_search_dirs") or [])]
+    run_dir = latest_run_dir(skill, label, extras)
     if run_dir is None:
         return {"paper": paper_dir.name, "status": "no_run_found",
                 "skill": skill, "label": label}
@@ -210,10 +255,6 @@ def score_benchmark(paper_dir: Path) -> dict:
     # Load the primary artefact once if declared
     primary_artefact = spec.get("primary_artefact", "summary.json")
     payload = read_artefact(run_dir, primary_artefact)
-
-    # Extra search roots for skills that scatter artefacts. expected.json
-    # may declare ``extra_search_dirs: ["Data/Manifests/MPRA", "Data"]`` etc.
-    extras = [ROOT / x for x in (spec.get("extra_search_dirs") or [])]
 
     for chk in spec.get("checks", []):
         ctype = chk.get("type")
@@ -259,6 +300,30 @@ def score_benchmark(paper_dir: Path) -> dict:
                 rows = read_artefact(run_dir, chk["filename"])
                 v = len(rows) if isinstance(rows, list) else None
                 ok, msg = check_range(v, chk)
+            elif ctype == "csv_row_count":
+                pattern = chk.get("glob") or chk.get("filename")
+                p = resolve_glob_artefact(run_dir, pattern, extras)
+                if p is None:
+                    ok, msg = False, f"glob {pattern!r} matched no file"
+                else:
+                    rows = read_csv_rows(p)
+                    v = len(rows) if isinstance(rows, list) else None
+                    ok, msg = check_range(v, chk)
+                    msg = f"{msg} (in {p.relative_to(ROOT)})"
+            elif ctype == "csv_value_present":
+                pattern = chk.get("glob") or chk.get("filename")
+                p = resolve_glob_artefact(run_dir, pattern, extras)
+                if p is None:
+                    ok, msg = False, f"glob {pattern!r} matched no file"
+                else:
+                    rows = read_csv_rows(p)
+                    col, val = chk.get("column"), chk.get("value")
+                    n_match = sum(1 for r in (rows or [])
+                                   if isinstance(r, dict) and r.get(col) == val)
+                    min_rows = chk.get("min_rows", 1)
+                    ok = n_match >= min_rows
+                    msg = (f"{n_match} rows with {col}={val!r} "
+                            f"(need ≥{min_rows}) in {p.relative_to(ROOT)}")
             else:
                 ok, msg = False, f"unknown check type {ctype!r}"
         except Exception as e:

@@ -1,5 +1,6 @@
 {
   "paper": {
+    "title": "Multicenter integrated analysis of noncoding CRISPRi screens",
     "authors": "Yao D et al.",
     "journal": "Nat Methods",
     "year": 2024,
@@ -14,6 +15,9 @@
   "label": "yao2024_encode4",
   "primary_artefact": "experiments.csv",
   "manifest_glob": "*_yao2024_encode4_experiments.csv",
+  "extra_search_dirs": [
+    "Data/Manifests/ENCODE"
+  ],
   "checks": [
     {
       "name": "ENCODE CRISPR-screen manifest written",
