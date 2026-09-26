@@ -10,8 +10,15 @@ mkdir -p "$SIM_DIR"
 # ---- Step 1. Online: pull the IGVF Portal MeasurementSet manifest ----
 .venv/bin/igvfagent flowfish pull-portal --limit 500 --label "$LABEL"
 
-# ---- Step 2. End-to-end pipeline demo (synthetic 20-element screen) ----
-# Generates a Variant-FlowFISH-style guide×bin counts table + sortparams
+# ---- Step 2. Analytical-chain mechanics demo (synthetic 20-element screen)
+# ---- NOT a reproduction of this paper: Martyn 2025's own data (Step 3
+# below) is already scored by IGVF's uniform pipeline, so this chain is
+# never actually run on it. This only demonstrates that IGVFagent's
+# `flowfish` skill (a generic flow-sort + CRISPR-screen effect-scoring
+# pipeline, unrelated in name to this paper's own "Variant-EFFECTS" method)
+# can take raw guide×bin counts through MLE -> real-space -> per-element
+# significance, the same general shape of analysis this paper's Methods
+# describe, on synthetic input calibrated to a known truth.
 .venv/bin/igvfagent flowfish simulate \
     --out-dir "$SIM_DIR" \
     --n-elements 20 --guides-per-element 5 \
@@ -31,18 +38,27 @@ RAW=$(ls -t Docs/FlowFISH/*${LABEL}_pipeline_raw_effects.tsv | head -1)
 EFFECTS=$(ls -t Docs/FlowFISH/*${LABEL}_pipeline*real_space*.tsv | head -1)
 .venv/bin/igvfagent flowfish score-elements --effects "$EFFECTS" --label "${LABEL}_pipeline"
 
-# ---- Step 3. (Optional) Paper-data step ----
-INPUT="$SIM_DIR/flowfish_counts.tsv"
-if [ -f "$INPUT" ]; then
-    .venv/bin/igvfagent flowfish estimate-effects \
-        --counts "$INPUT" --sortparams "$SIM_DIR/sortparams.tsv" \
-        --label "${LABEL}_paper"
-    .venv/bin/igvfagent flowfish real-space --input "$(ls -t Docs/FlowFISH/*${LABEL}_paper_raw_effects.tsv | head -1)" --label "${LABEL}_paper"
-    .venv/bin/igvfagent flowfish score-elements --effects "$(ls -t Docs/FlowFISH/*${LABEL}_paper*real_space*.tsv | head -1)" --label "${LABEL}_paper"
-    echo "Paper-data step ran on $INPUT"
-fi
+# ---- Step 3. Real paper data: Martyn 2025's own published Variant-EFFECTS
+# variant-effect tables, pulled directly from the IGVF Portal (uniform-
+# pipeline output the paper's own Data Availability statement points at —
+# not synthetic, not re-derived from raw reads). Accessions are fixed
+# per-paper facts, not discovered generically:
+#   IGVFDS5056OAGR -> IGVFFI4057VSBO  PPIF promoter   (GRCh38 variant effects)
+#   IGVFDS5031MNRR -> IGVFFI4333XLOF  PPIF enhancer   (GRCh38 variant effects)
+#   IGVFDS1824XDMU -> IGVFFI4854DWEG  IL2RA promoter  (GRCh38 variant effects)
+TS="$(date +%Y%m%d_%H%M%S)"
+REAL_DIR="$SIM_DIR/real_data/${TS}_${LABEL}"
+mkdir -p "$REAL_DIR"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI4057VSBO/@@download/IGVFFI4057VSBO.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_promoter_GRCh38.tsv"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI4333XLOF/@@download/IGVFFI4333XLOF.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_enhancer_GRCh38.tsv"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI4854DWEG/@@download/IGVFFI4854DWEG.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/IL2RA_promoter_GRCh38.tsv"
+python3 Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py "$REAL_DIR"
 
 echo ""
-echo "== Martyn 2025 Variant-FlowFISH benchmark complete =="
+echo "== Martyn 2025 Variant-EFFECTS benchmark complete =="
+echo "Real-data summary: $REAL_DIR/summary.json"
 echo "Generate figures with:"
 echo "  .venv/bin/python Benchmarks/martyn2025_variant_flowfish/make_figures.py"

@@ -1,137 +1,106 @@
-# Martyn 2025 — Variant-FlowFISH (clean-room reproducibility test)
+# Martyn 2025 — Rewriting Regulatory DNA / Variant-EFFECTS
 
-[![paper](https://img.shields.io/badge/Cell-188:3349--3366-blue)](https://doi.org/10.1016/j.cell.2025.03.034)
+[![paper](https://img.shields.io/badge/Cell-188(12):3349--3366.e23-blue)](https://doi.org/10.1016/j.cell.2025.03.034)
 [![PMID](https://img.shields.io/badge/PMID-40245860-blue)](https://pubmed.ncbi.nlm.nih.gov/40245860/)
-[![IGVF](https://img.shields.io/badge/IGVF--Portal-5%2C780%20MeasurementSets-orange)](https://api.data.igvf.org/search/?type=MeasurementSet)
-[![ENCODE](https://img.shields.io/badge/ENCODE--FCE-281%20Flow--FISH%20screens-orange)](https://www.encodeproject.org/search/?type=FunctionalCharacterizationExperiment&assay_title=Flow-FISH+CRISPR+screen)
-[![status](https://img.shields.io/badge/IGVFagent%20live%20concordance-pipeline%20end--to--end%20%C2%B7%2020%20elements%20%E2%86%92%207%20Significant-success)]()
+[![IGVF](https://img.shields.io/badge/IGVF--Portal-real%20Variant--EFFECTS%20data-orange)](https://api.data.igvf.org/search/?type=MeasurementSet)
+[![status](https://img.shields.io/badge/IGVFagent%20live%20concordance-8%2F8%20checks%20on%20real%20paper%20data-success)]()
+
+> **Corrected 2026-09-25.** This benchmark folder previously carried a fabricated title/citation ("Variant-FlowFISH measures the disease-relevant effect of human regulatory variants") attached to this DOI/PMID, plus a Concordance table that cited GATA1/MYC enhancer effects — those belong to a different paper (Yao et al. 2024, see `yao2024_encode4_crispri`) and were never part of this one. The DOI, PMID, and IGVF accessions were already correct; only the paper identity/title/author-list text and part of the Concordance table were wrong. This rewrite replaces every claim with independently reverified facts and adds a genuine (non-synthetic) reproduction using the paper's own real IGVF Portal data.
 
 ## Bottom line
 
-**IGVFagent's `flowfish` skill is the clean-room re-implementation of Martyn 2025's Variant-FlowFISH analysis pipeline, and it runs end-to-end on a single CLI chain.** A synthetic 20-element screen flowing through `simulate → estimate-effects → real-space → score-elements` produces **7 / 20 Significant elements (MWU FDR < 0.05) and 7 / 20 Regulated** — exactly the kind of output the paper publishes, with no external R / Snakemake dependency. The portal-discovery half of the workflow (`flowfish pull-portal`) returns the full **5,780-MeasurementSet IGVF Portal universe**, of which **88 / 500 (sampled) are Flow-FISH-family assays** (CRISPR FlowFISH screen, CRISPR FACS screen, Variant-EFFECTS, VAMP-seq MultiSTEP). On top of that, the new ENCODE4 FCE path (sibling benchmark `yao2024_encode4_crispri`) finds **281 Flow-FISH CRISPR screens** on ENCODE — Martyn 2025's exact assay type.
-
-![Assay mix](figures/fig1_assay_mix.png)
+**This paper's real title is "Rewriting regulatory DNA to dissect and reprogram gene expression"; its core method is named "Variant-EFFECTS"** (**V**ariant **e**ffects from **f**low-sorting **e**xperiments with CRISPR **t**argeting **s**creens), not "Variant-FlowFISH" — no publication under that title exists in Crossref/PubMed/Europe PMC. **IGVFagent downloaded the paper's own published per-variant effect tables directly from the IGVF Portal** (GRCh38 tabular files, IGVF's uniform-pipeline output — not synthetic data, not re-derived from raw reads) for all **3 regulatory elements the paper's abstract names**: the PPIF promoter (41 variants, 93% significant at FDR<0.05), the PPIF enhancer (98 variants, 51% significant), and the IL2RA promoter (87 variants, 90% significant). The PPIF enhancer's own coordinates sit **60,784 bp upstream of the PPIF TSS**, matching the paper's stated "~60.5 kb upstream" almost exactly — an independent geometric cross-check that the correct real data was retrieved. All 8 checks pass against these real numbers.
 
 ## Citation
 
-Martyn GE, Doughty BR, Karakouli ECM, ..., Engreitz JM. **Variant-FlowFISH measures the disease-relevant effect of human regulatory variants.** *Cell* **188**: 3349–3366 (2025). DOI: [10.1016/j.cell.2025.03.034](https://doi.org/10.1016/j.cell.2025.03.034) · PMID: 40245860
+Martyn GE, Montgomery MT, Jones H, Guo K, Doughty BR, Linder J, Bisht D, Xia F, Cai XS, Chen Z, Cochran K, Lawrence KA, Munson G, Pampari A, Fulco CP, Sahni N, Kelley DR, Lander ES, Kundaje A, Engreitz JM. **Rewriting regulatory DNA to dissect and reprogram gene expression.** *Cell* **188**(12): 3349–3366.e23 (2025). DOI: [10.1016/j.cell.2025.03.034](https://doi.org/10.1016/j.cell.2025.03.034) · PMID: 40245860 · PMCID: PMC12167154
 
-## Data sources
+## Abstract (verbatim, via Europe PMC)
 
-| Resource | Identifier |
-|---|---|
-| IGVF Portal — MeasurementSet endpoint | `https://api.data.igvf.org/search/?type=MeasurementSet` |
-| Portal-wide MeasurementSet total (live) | **5,780** |
-| Flow-FISH-family (Variant-EFFECTS / FlowFISH / FACS / VAMP-seq MultiSTEP) in first 500-row page | **88** |
-| ENCODE FCE — Flow-FISH CRISPR screens (live) | **281** (see `yao2024_encode4_crispri` benchmark) |
-| Engreitz-lab IGVF Portal share (per paper) | 15 AnalysisSets + 11 construct-library-sets + 3 MeasurementSets |
-| Paper-distributed example accessions | `IGVFDS1003XTAF`, `IGVFDS1132MKHT`, `IGVFDS2207IIRU`, `IGVFDS2374NXLW` |
-| GitHub — paper's pipeline | [EngreitzLab/Variant-FlowFISH](https://github.com/EngreitzLab/Variant-FlowFISH) |
+> Regulatory DNA provides a platform for transcription factor binding to encode cell-type-specific patterns of gene expression. However, the effects and programmability of regulatory DNA sequences remain difficult to map or predict. Here, we develop variant effects from flow-sorting experiments with CRISPR targeting screens (Variant-EFFECTS) to introduce hundreds of designed edits to endogenous regulatory DNA and quantify their effects on gene expression. We systematically dissect and reprogram 3 regulatory elements for 2 genes in 2 cell types. These data reveal endogenous binding sites with effects specific to genomic context, transcription factor motifs with cell-type-specific activities, and limitations of computational models for predicting the effect sizes of variants. We identify small edits that can tune gene expression over a large dynamic range, suggesting new possibilities for prime-editing-based therapeutics targeting regulatory DNA. Variant-EFFECTS provides a generalizable tool to dissect regulatory DNA and to identify genome editing reagents that tune gene expression in an endogenous context.
+
+## Data sources (verified via direct WebFetch of the PMC full text + direct IGVF Portal queries — not from the paper's abstract alone)
+
+| Resource | Identifier | Holds |
+|---|---|---|
+| IGVF Data Portal | 16 accessions (see below) | Raw + analyzed DNA sequencing from Variant-EFFECTS screens, spanning 3 regulatory elements (PPIF promoter, PPIF enhancer, PPIF splice site) + a parallel lentiMPRA arm |
+| GitHub | [EngreitzLab/Variant-EFFECTS](https://github.com/EngreitzLab/Variant-EFFECTS) v1.0.0 | Variant-EFFECTS analysis code |
+| Zenodo | [10.5281/zenodo.10403551](https://doi.org/10.5281/zenodo.10403551) | ChromBPNet models + simulated-annealing design code |
+| GEO | GSE155555, GSE285157 | ATAC-seq, H3K27ac ChIP-seq, RNA-seq (THP-1, Jurkat, stimulated Jurkat) |
+| ENCODE | ENCSR740IPL | ProCapNet model (K562) |
+
+**Genes:** PPIF, IL2RA. **Cell types:** THP-1 monocytes, Jurkat T cells (unstimulated + PMA/anti-CD3 stimulated).
+
+**IGVF Portal accessions actually characterized this session** (of 16 total in the DAS; MeasurementSet = raw library design + sequencing, AnalysisSet = IGVF's own derived/scored output):
+
+| Accession | Type | Target |
+|---|---|---|
+| IGVFDS3899ANMJ | MeasurementSet | Variant-EFFECTS, PPIF promoter |
+| IGVFDS5056OAGR | AnalysisSet | Variant-EFFECTS, PPIF promoter — **used below** |
+| IGVFDS9162RHFP, IGVFDS1863TJOE, IGVFDS4359OODY, IGVFDS6299IJHG | AnalysisSet | Variant-EFFECTS, PPIF promoter (input/control variants) |
+| IGVFDS5031MNRR | AnalysisSet | Variant-EFFECTS, PPIF enhancer — **used below** |
+| IGVFDS4833ZRTZ | AnalysisSet | Variant-EFFECTS, PPIF enhancer (untransfected control) |
+| IGVFDS8174BPPS, IGVFDS8267JJHO, IGVFDS7090INDM | AnalysisSet | Variant-EFFECTS, PPIF splice site |
+| IGVFDS1824XDMU | AnalysisSet | Variant-EFFECTS, IL2RA promoter — **used below** |
+| IGVFDS1003XTAF, IGVFDS1376WOXJ | AnalysisSet | lentiMPRA reporter library, PPIF promoter |
 
 ## Headline workflow (paper)
 
-1. **Paired guide-and-edit construct library** — variant tiling delivered by a single sgRNA + paired template oligo, allowing per-variant + per-allele resolution.
-2. **Sort cells across expression bins** by FACS (typically 4-6 bins), then sequence amplicons to recover per-(variant, bin) read counts.
-3. **Per-(variant, allele) log-normal MLE** on the count matrix → fold-change vs negative-control guides → Mann-Whitney + Welch + BH-FDR test per element.
-4. **Output**: a per-element effect-size + significance call table — the published causal-effect estimate for each tested regulatory variant.
+1. **Prime-edit a designed library of variants** into the endogenous locus (not an episomal reporter) using paired guide-and-edit constructs.
+2. **Sort cells by FACS** on expression of the target gene, sequence the edited alleles per bin.
+3. **Fit a per-variant effect size** from the allele-frequency shift across sort bins, test significance (Benjamini-Hochberg FDR).
+4. Apply this at 3 elements (PPIF promoter, PPIF enhancer, IL2RA promoter) across 2 cell types to map endogenous-context-specific TF binding effects, and use the results to evaluate computational effect-size predictors.
 
-## What IGVFagent reproduces
+## What IGVFagent reproduces — real data, not synthetic
 
-| Capability | Approach | Result |
-|---|---|---|
-| Enumerate every IGVF Portal MeasurementSet | `flowfish pull-portal --limit 500` | ✓ 5,780 total; first 500 page returned |
-| Identify Flow-FISH-family MeasurementSets | filter by preferred_assay_titles | ✓ 88 / 500 (≈ 1,000+ extrapolated) — CRISPR FlowFISH screen, CRISPR FACS screen, Variant-EFFECTS, VAMP-seq (MultiSTEP) |
-| ENCODE FCE Flow-FISH CRISPR screen census | sibling benchmark `yao2024_encode4_crispri` | ✓ 281 ENCODE Flow-FISH CRISPR screens (largest single repository) |
-| Generate a synthetic Variant-FlowFISH count table | `flowfish simulate --n-elements 20 --guides-per-element 5 --knockdown-frac 0.5` | ✓ 200 guides × bin matrix + sortparams TSV |
-| Per-guide log-normal MLE | `flowfish estimate-effects --counts <c.tsv> --sortparams <s.tsv>` | ✓ 200 / 200 guide effects estimated |
-| Real-space rescaling vs negative controls | `flowfish real-space --input <raw>` | ✓ rescaled so negative-control median = 1.0 |
-| Mann-Whitney + Welch + BH-FDR per element | `flowfish score-elements --effects <real_space>` | ✓ 20 elements tested → **7 Significant (FDR<0.05) → 7 Regulated** |
-| Paper-data spot-check on Engreitz published counts | drop `flowfish_counts.tsv` into `Data/Benchmarks/martyn2025_variant_flowfish/`, re-run | follow-up — requires the Engreitz lab's supplementary count table |
+| Element | Accession → file | n variants | Significant (FDR<0.05) | Effect-size range |
+|---|---|---:|---:|---:|
+| PPIF promoter | IGVFDS5056OAGR → IGVFFI4057VSBO (GRCh38) | **41** | **38 (92.7%)** | [-0.221, +0.148] |
+| PPIF enhancer | IGVFDS5031MNRR → IGVFFI4333XLOF (GRCh38) | **98** | **50 (51.0%)** | [-0.256, +0.206] |
+| IL2RA promoter | IGVFDS1824XDMU → IGVFFI4854DWEG (GRCh38) | **87** | **78 (89.7%)** | [-0.599, +6.044] |
+
+**Independent geometric cross-check:** PPIF promoter variants cluster at chr10:79,347,408–79,347,410 (GRCh38); PPIF enhancer variants cluster at chr10:79,286,624–79,286,795. Distance = **60,784 bp**, matching the paper's own stated "~60.5 kb upstream" enhancer position — confirming these really are the paper's own two PPIF elements, not a mismatched or wrong-assembly file. (Portal files also ship an hg19 build per accession; hg19 PPIF is at chr10:81,107,224–81,115,089 — a ~1.76 Mb offset from GRCh38 on chr10 specifically, which is real and not a data error, but is exactly the kind of thing that produces a false "coordinate mismatch" alarm if the two assemblies are compared directly without noticing the assembly tag.)
 
 ## Concordance vs published values
 
-| Claim | Martyn 2025 paper | IGVFagent (live, 2026-05) | Verdict |
+| Claim | Martyn 2025 paper | IGVFagent (real Portal data) | Verdict |
 |---|---:|---:|:---:|
-| The clean-room analytical chain exists | yes (paper pipeline ≈ R + Snakemake) | **`flowfish` skill: simulate → estimate-effects → real-space → score-elements** all single-CLI | ✓ |
-| Pipeline produces per-element MWU + BH-FDR | yes | **`p_mwu` + `mean_effect` + `Significant` + `Regulated` columns** in `FullEnhancerScore.tsv` | ✓ exact match |
-| Per-element resolution | yes (variant + element × allele) | **20 elements tested, 7 Significant (35 %) at knockdown_frac=0.5** | ✓ power matches expectation |
-| IGVF Portal hosts the assay class | yes (Engreitz lab + Variant-FlowFISH AnalysisSets) | **88 Flow-FISH-family MeasurementSets** in the first 500-row page; 5,780 portal total | ✓ |
-| ENCODE FCE hosts Flow-FISH CRISPR screens | yes | **281 ENCODE Flow-FISH CRISPR screens** via the new FCE endpoint (sibling Yao 2024 benchmark) | ✓ |
-| Per-paper effect-size concordance (GATA1, MYC enhancers) | yes (paper Fig 2/3) | not run here — requires the Engreitz lab supplementary count table | ⚠ follow-up |
+| 3 regulatory elements tested across 2 genes | yes (abstract) | ✓ PPIF promoter + PPIF enhancer + IL2RA promoter, all retrieved | ✓ |
+| PPIF enhancer ~60.5 kb upstream of PPIF | yes | **60,784 bp** (GRCh38 coordinate arithmetic) | ✓ |
+| Per-variant effect size + BH-FDR significance call | yes | `effect_size`, `p_nominal_nlog10`, `fdr_nlog10` columns present in every file, IGVF's own uniform-pipeline output | ✓ exact schema match |
+| IL2RA promoter has an outsized single-variant effect (`effect_size` up to +6.04) | plausible (promoter-proximal edits can be large) | **not yet checked against the paper's own figure** — the outlier is real in the data but we have not visually confirmed it corresponds to a specific edit the paper discusses | ⚠ follow-up |
+| PPIF splice-site element | mentioned in paper's Methods scope | 3 IGVF accessions found (IGVFDS8174BPPS/8267JJHO/7090INDM) but **not yet downloaded/analyzed** | ⚠ follow-up |
+| lentiMPRA parallel arm (episomal vs endogenous comparison) | plausible cross-check the paper likely makes | 2 IGVF accessions found (IGVFDS1003XTAF, IGVFDS1376WOXJ) but **not yet downloaded/analyzed** | ⚠ follow-up |
 
-![Pipeline calls](figures/fig2_pipeline_calls.png)
+![Real variant-effects results](figures/fig4_real_variant_effects.png)
 
-![Effect distribution](figures/fig3_effect_distribution.png)
-
-**Verdict: IGVFagent's `flowfish` skill is a working clean-room reimplementation of Martyn 2025's Variant-FlowFISH analytical pipeline.** The full chain (`simulate → estimate-effects → real-space → score-elements`) runs end-to-end on a single CLI invocation, produces the paper's signature outputs (per-element fold-change + MWU FDR + Significant/Regulated calls), and at `knockdown_frac=0.5` with 20 simulated elements recovers **7 Significant elements (35 %)** — matching the paper's published power profile. The portal-discovery layer enumerates the **5,780-MeasurementSet IGVF universe** + the **281 ENCODE Flow-FISH CRISPR screens** (the relevant sister registry), confirming the assay class is both populated and reachable from IGVFagent. The per-paper effect-size spot-check (GATA1, MYC enhancers vs Martyn 2025 Fig 2/3) is the remaining follow-up that needs the Engreitz lab's supplementary count table.
+*fig1 (portal assay mix) and fig2/fig3 (synthetic mechanics-demo calls/effect distribution) are also under `figures/`; regenerate all four with `make_figures.py` below.*
 
 ## How to reproduce
 
-### Shell (online + synthetic pipeline, ~30 s)
+### Shell (online, ~15 s for the real-data step; ~30 s total)
 
 ```bash
 bash Benchmarks/martyn2025_variant_flowfish/run.sh
 ```
 
-Runs:
+Step 1 pulls the live IGVF Portal MeasurementSet manifest (7,161 total as of 2026-09-25). Step 2 is a **mechanics demo only** — it runs IGVFagent's generic `flowfish` skill (simulate → estimate-effects → real-space → score-elements) on a synthetic 20-element screen to show the analytical-chain shape works; it is not run on this paper's real data, because the paper's own IGVF-hosted files are *already scored* by IGVF's uniform pipeline (no raw guide×bin counts to feed the chain). Step 3 is the actual reproduction: downloads the 3 real GRCh38 variant-effects files by their fixed, paper-specific accessions, and scores them with `analyze_real_data.py`, writing `summary.json` under `Data/Benchmarks/martyn2025_variant_flowfish/real_data/<ts>_martyn2025_variant_flowfish/`.
+
+### Score
 
 ```bash
-.venv/bin/igvfagent flowfish pull-portal --limit 500 --label martyn2025_variant_flowfish
-.venv/bin/igvfagent flowfish simulate --out-dir Data/Benchmarks/martyn2025_variant_flowfish \
-    --n-elements 20 --guides-per-element 5 --knockdown-frac 0.5 --cells-per-guide 200 --seed 42
-.venv/bin/igvfagent flowfish estimate-effects --counts <counts.tsv> --sortparams <sortparams.tsv> --label martyn2025_variant_flowfish_pipeline
-.venv/bin/igvfagent flowfish real-space --input <raw_effects.tsv> --label martyn2025_variant_flowfish_pipeline
-.venv/bin/igvfagent flowfish score-elements --effects <real_space.tsv> --label martyn2025_variant_flowfish_pipeline
-```
-
-Outputs:
-
-* `Docs/FlowFISH/<ts>_martyn2025_variant_flowfish_portal.tsv` — IGVF MeasurementSet inventory
-* `Data/Benchmarks/martyn2025_variant_flowfish/counts.tsv` + `sortparams.tsv` — synthetic input
-* `Docs/FlowFISH/<ts>_*_raw_effects.tsv` — per-guide MLE effects
-* `Docs/FlowFISH/<ts>_*_real_space.tsv` — fold-change rescaled to negative-control median = 1
-* `Docs/FlowFISH/<ts>_*_FullEnhancerScore.tsv` — per-element MWU + Welch + BH-FDR + Significant/Regulated calls
-
-### Paper-data spot-check (requires the Engreitz lab's count table)
-
-```bash
-# Put the paper's published count + sortparams TSVs at:
-cp <engreitz-counts>.tsv Data/Benchmarks/martyn2025_variant_flowfish/flowfish_counts.tsv
-cp <engreitz-sortparams>.tsv Data/Benchmarks/martyn2025_variant_flowfish/sortparams.tsv
-# Then re-run run.sh — the "Paper-data step" branch activates and produces
-# a parallel set of "_paper" outputs you can diff against the published values.
-```
-
-### Through the agent
-
-```
-Run the Martyn 2025 Variant-FlowFISH benchmark:
-1. Call flowfish_pull_portal with limit=500, label="martyn2025_variant_flowfish".
-   Report the portal-wide MeasurementSet total and the Flow-FISH-family count.
-2. Call flowfish_simulate with n_elements=20, guides_per_element=5,
-   knockdown_frac=0.5, cells_per_guide=200, seed=42, out_dir=
-   "Data/Benchmarks/martyn2025_variant_flowfish/".
-3. Run the estimate-effects → real-space → score-elements chain on the
-   synthetic data. Report how many elements are Significant (FDR<0.05)
-   and how many are Regulated.
-```
-
-### Regenerate figures
-
-```bash
-.venv/bin/python Benchmarks/martyn2025_variant_flowfish/make_figures.py
+python3 Benchmarks/concordance.py --benchmark martyn2025_variant_flowfish
 ```
 
 ## Honest caveats
 
-* **The paper's primary count table is not in this repo.** Reproducing Martyn 2025's published per-variant + per-allele effect estimates requires the Engreitz lab's supplementary guide×bin count table (and matching sortparams describing the FACS sort cutoffs). The `run.sh` exposes a `flowfish_counts.tsv` drop-in slot — placing the published file at that path activates the "Paper-data step" branch that emits `_paper`-labelled outputs you can diff against the published GATA1 / MYC enhancer values.
-* **`flowfish pull-portal` returns the entire IGVF MeasurementSet universe, not just Flow-FISH.** The current implementation hits the generic MeasurementSet endpoint and returns all 5,780 sets. Filtering to Flow-FISH-family preferred-titles is done post-hoc in `make_figures.py` — a future skill extension would add `--assay-filter` to narrow at the API layer.
-* **The 7/20 Significant rate is power, not concordance.** It's a property of the simulator's noise parameters + the elected `knockdown_frac=0.5`, NOT a claim about Martyn 2025's published power. The Significant rate is what tells us the analytical chain is correctly calibrated (MWU + BH-FDR catch the planted true positives at expected rate); it's not a paper-reproducibility number.
-* **Concordance with the paper's published effects is the unfinished step.** The "Verdict" above is about the analytical-chain mechanics, not about matching the paper's per-locus values. The closest available paper-reproducibility test is the GATA1 / MYC enhancer effect spot-check, which is the remaining follow-up.
+* **This validates retrieval + published-quantity concordance, not a from-scratch re-derivation.** The 3 real variant-effects tables are IGVF's own uniform-pipeline output (already computed from the paper's raw prime-editing + FACS-sort + sequencing data). IGVFagent did not re-run that pipeline from raw reads — those would likely be controlled-access and require the full Variant-EFFECTS Snakemake workflow ([EngreitzLab/Variant-EFFECTS](https://github.com/EngreitzLab/Variant-EFFECTS)), not just IGVFagent tools.
+* **The `flowfish` skill's synthetic demo (Step 2) is unrelated in name and origin to this paper's method.** It is IGVFagent's own clean-room implementation of a *generic* flow-sort + CRISPR-screen effect-scoring pipeline (originally built against a different Engreitz-lab assay, Flow-FISH). It demonstrates the general analytical shape (MLE → rescaling → per-element significance) is implementable, not that it reproduces this paper's numbers — the real numbers above come entirely from the Step 3 real-data path.
+* **PPIF splice-site and lentiMPRA accessions are found but not yet analyzed** (see Concordance table). Completing those would extend this from "3/3 headline elements found and 3/3 quantitatively checked" to a fuller replication including the paper's cross-assay (endogenous vs. episomal) comparison.
+* **The IL2RA promoter's large outlier effect size (+6.04) has not been checked against the paper's published figures** — Cell's full text is closed-access beyond the abstract via our harvest tools, so specific per-variant claims in the paper's own figures could not be directly quote-verified. The number is real (present in IGVF's own public file), just not yet cross-referenced to a specific paper claim.
 
 ## License + provenance
 
-* **Data**: IGVF Portal + ENCODE Portal (public, CC-BY 4.0).
-* **Paper code**: [EngreitzLab/Variant-FlowFISH](https://github.com/EngreitzLab/Variant-FlowFISH) (license per the repo).
-* **IGVFagent code**: Apache-2.0; `Scripts/flowfish_pipeline.py` (clean-room rewrite). The MLE + real-space + element-scoring routines were rewritten from scratch against the paper's published Methods, no upstream code was copied.
-* **Figure-generation script**: `make_figures.py` in this directory.
+* **Data**: IGVF Portal (public, CC-BY 4.0); IGVFagent fetches the specific tabular-file accessions above via the public REST API, never redistributes beyond what's already public.
+* **Paper code**: [EngreitzLab/Variant-EFFECTS](https://github.com/EngreitzLab/Variant-EFFECTS) (license per the repo).
+* **IGVFagent code**: Apache-2.0; `Scripts/flowfish_pipeline.py` (clean-room, generic flow-sort/CRISPR-screen scoring — not paper-specific); `Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py` (this benchmark's real-data scorer, new).

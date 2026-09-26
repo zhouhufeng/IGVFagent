@@ -1,25 +1,83 @@
 {
   "paper": {
-    "authors": "Martyn GE et al.",
+    "title": "Rewriting regulatory DNA to dissect and reprogram gene expression",
+    "authors": "Martyn Gabriella E.; Montgomery Michael T.; Jones Hank; Guo Katherine; Doughty Benjamin R.; Linder Johannes; Bisht Deepa; Xia Fan; Cai Xiangmeng S.; Chen Ziwei; Cochran Kelly; Lawrence Kathryn A.; Munson Glen; Pampari Anusri; Fulco Charles P.; Sahni Nidhi; Kelley David R.; Lander Eric S.; Kundaje Anshul; Engreitz Jesse M.",
     "journal": "Cell",
     "year": 2025,
+    "volume": "188",
+    "issue": "12",
+    "page": "3349-3366.e23",
     "doi": "10.1016/j.cell.2025.03.034",
-    "pmid": "40245860"
+    "pmid": "40245860",
+    "pmcid": "PMC12167154",
+    "method_name": "Variant-EFFECTS (variant effects from flow-sorting experiments with CRISPR targeting screens)"
   },
   "data_source": {
-    "type": "igvf_portal_flowfish"
+    "type": "igvf_portal_variant_effects",
+    "note": "Fixed accessions from the paper's own Data Availability statement, not discovered generically: IGVFDS5056OAGR (PPIF promoter), IGVFDS5031MNRR (PPIF enhancer), IGVFDS1824XDMU (IL2RA promoter)."
   },
-  "skill_output_dir": "FlowFISH",
+  "skill_output_dir": "MartynVariantEffects",
   "label": "martyn2025_variant_flowfish",
   "primary_artefact": "summary.json",
+  "extra_search_dirs": [
+    "Data/Benchmarks/martyn2025_variant_flowfish/real_data"
+  ],
   "checks": [
     {
-      "name": "FlowFISH portal manifest written",
+      "name": "Real Variant-EFFECTS summary.json written",
       "type": "artefact",
-      "filename": "manifest.json"
+      "filename": "summary.json"
+    },
+    {
+      "name": "PPIF promoter: 41 variants tested (IGVFFI4057VSBO, GRCh38)",
+      "type": "range",
+      "path": "elements.PPIF_promoter.n_variants",
+      "min": 41,
+      "max": 41
+    },
+    {
+      "name": "PPIF promoter: fraction significant at FDR<0.05",
+      "type": "range",
+      "path": "elements.PPIF_promoter.fraction_significant",
+      "min": 0.85,
+      "max": 0.98
+    },
+    {
+      "name": "PPIF enhancer: 98 variants tested (IGVFFI4333XLOF, GRCh38)",
+      "type": "range",
+      "path": "elements.PPIF_enhancer.n_variants",
+      "min": 98,
+      "max": 98
+    },
+    {
+      "name": "PPIF enhancer: fraction significant at FDR<0.05",
+      "type": "range",
+      "path": "elements.PPIF_enhancer.fraction_significant",
+      "min": 0.4,
+      "max": 0.62
+    },
+    {
+      "name": "IL2RA promoter: 87 variants tested (IGVFFI4854DWEG, GRCh38)",
+      "type": "range",
+      "path": "elements.IL2RA_promoter.n_variants",
+      "min": 87,
+      "max": 87
+    },
+    {
+      "name": "IL2RA promoter: fraction significant at FDR<0.05",
+      "type": "range",
+      "path": "elements.IL2RA_promoter.fraction_significant",
+      "min": 0.8,
+      "max": 0.97
+    },
+    {
+      "name": "PPIF enhancer sits ~60.5 kb upstream of the PPIF TSS (paper's own stated distance)",
+      "type": "range",
+      "path": "ppif_enhancer_tss_distance_bp",
+      "min": 55000,
+      "max": 65000,
+      "expected": 60500
     }
   ],
-  "class": "synthetic-smoke",
-  "class_code": "D",
   "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
 }

@@ -68,8 +68,9 @@ ax.set_yticks(y)
 ax.set_yticklabels(labels, fontsize=10)
 ax.set_xlabel("IGVF MeasurementSets in this 500-row page")
 ax.set_title("IGVF Portal MeasurementSet preferred-title mix\n"
-              "Flow-FISH-family assays (★) = the Martyn 2025 reproducibility surface\n"
-              "(portal-wide total: 5,780 MeasurementSets; this page = 500)",
+              "Flow-FISH-family assays (★) — a related assay class, not this "
+              "paper's own Variant-EFFECTS data (see fig4)\n"
+              "(portal-wide total grows over time; this page = 500 of the live count)",
               fontweight="bold", fontsize=11)
 ax.grid(axis="x", ls=":", alpha=0.4)
 ax.set_xlim(0, max(counts) * 1.30)
@@ -84,7 +85,7 @@ print("  ✓ fig1_assay_mix")
 
 # ---- Source 2: end-to-end pipeline output ----
 pipeline_files = sorted(
-    (ROOT / "Docs/FlowFISH").glob("*martyn2025_pipeline*FullEnhancerScore*.tsv")
+    (ROOT / "Docs/FlowFISH").glob("*martyn2025_variant_flowfish_pipeline_FullEnhancerScore*.tsv")
 )
 if not pipeline_files:
     print("[skip] No pipeline-output TSV; run the simulate + estimate-effects + "
@@ -162,5 +163,47 @@ else:
                           dpi=200, facecolor="white")
         plt.close(fig)
         print("  ✓ fig3_effect_distribution")
+
+# ---- Source 3: real paper data (Martyn 2025's own IGVF-hosted variant-effects tables) ----
+real_dirs = sorted((ROOT / "Data/Benchmarks/martyn2025_variant_flowfish/real_data").glob("2*_martyn2025_variant_flowfish"))
+if not real_dirs:
+    print("[skip] No real-data run dir; run "
+          "`bash Benchmarks/martyn2025_variant_flowfish/run.sh` first.")
+else:
+    import json
+    summary = json.loads((real_dirs[-1] / "summary.json").read_text())
+    els = summary["elements"]
+    names = list(els.keys())
+    n_total = [els[n]["n_variants"] for n in names]
+    n_sig = [els[n]["n_significant_fdr05"] for n in names]
+    n_ns = [t - s for t, s in zip(n_total, n_sig)]
+
+    fig, ax = plt.subplots(figsize=(8, 4.5), facecolor="white")
+    y = np.arange(len(names))
+    ax.barh(y, n_sig, color=COL_HIGHLIGHT, edgecolor="white", label="Significant (FDR<0.05)")
+    ax.barh(y, n_ns, left=n_sig, color=COL_PRIMARY, edgecolor="white", label="Not significant")
+    for i, n in enumerate(names):
+        ax.text(n_total[i] + 1, y[i],
+                f"  {n_sig[i]}/{n_total[i]} ({100*n_sig[i]/n_total[i]:.0f}%)",
+                va="center", fontsize=10, fontweight="bold")
+    ax.set_yticks(y)
+    ax.set_yticklabels([n.replace("_", " ") for n in names], fontsize=10)
+    ax.set_xlabel("Variants tested (real IGVF Portal data, GRCh38)")
+    ax.set_title("Martyn 2025 Variant-EFFECTS — real per-element results\n"
+                  "Not synthetic: IGVF's own uniform-pipeline output for this paper",
+                  fontweight="bold", fontsize=11)
+    ax.legend(loc="lower right")
+    ax.set_xlim(0, max(n_total) * 1.35)
+    ax.grid(axis="x", ls=":", alpha=0.4)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    fig.tight_layout()
+    for ext in ("png", "svg"):
+        fig.savefig(FIG_DIR / f"fig4_real_variant_effects.{ext}",
+                      dpi=200, facecolor="white")
+    plt.close(fig)
+    print("  ✓ fig4_real_variant_effects")
+    print(f"  PPIF enhancer-TSS distance: {summary['ppif_enhancer_tss_distance_bp']:,} bp "
+          f"(paper: ~60.5 kb)")
 
 print(f"\nFigures saved under {FIG_DIR}")
