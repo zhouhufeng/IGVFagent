@@ -185,6 +185,10 @@ Benchmarks/_data/
 # Rosenberg 2018's own PMC-fetched supplementary xlsx/pdf (~29 MB, copyrighted
 # publisher material) — never committed; re-fetch from PMC7643870 if needed.
 Benchmarks/rosenberg2018_splitseq/Supplement/
+# The consortium's own manuscript tracker: internal, not ours to publish.
+# BenchmarkIGVFpapers.md (derived from it) is the shareable artifact and
+# stays tracked despite living in the same folder.
+Benchmarks/IGVFpapers/IGVF Manuscript Tracking List-Sept24.xlsx
 Docs/Demos/*
 # ...but authored demo scripts in there ARE documentation and belong in
 # the repo. 12_demo_questions.md was tracked in spite of the rule above,
