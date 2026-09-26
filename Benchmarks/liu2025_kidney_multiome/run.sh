@@ -102,7 +102,7 @@ done
 "$PY" "$HERE/verify_derived_tables.py" > /dev/null
 
 # ---- 7. Run directory for concordance.py
-RUN="Docs/PaperReproduction/$(date +%Y%m%d_%H%M%S)_${LABEL}"
+RUN="Docs/Benchmark/$(date +%Y%m%d_%H%M%S)_${LABEL}"
 mkdir -p "$RUN"
 "$PY" - "$RUN" <<'EOF'
 import json, sys

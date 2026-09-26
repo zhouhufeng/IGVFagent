@@ -32,7 +32,7 @@ igvfagent bench score --paper-id liu2025_kidney_multiome
 
 ## Paper coverage
 
-`igvfagent bench score` → **reproduction: incomplete, 11/16 analyses** (43/46 checks pass; run `Docs/PaperReproduction/20260926_003843_liu2025_kidney_multiome`).
+`igvfagent bench score` → **reproduction: incomplete, 11/16 analyses** (43/46 checks pass; run `Docs/Benchmark/20260926_003843_liu2025_kidney_multiome`).
 
 | Analysis | Paper | IGVFagent | State |
 |---|---|---|---|

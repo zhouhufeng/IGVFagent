@@ -42,8 +42,16 @@ RESULTS = BENCHMARKS / "results"
 DOCS = ROOT / "Docs"
 
 
-def _match_run_dir(base: Path, label: str) -> Path | None:
-    """Apply the two run-dir conventions against one base directory."""
+def _match_run_dir(base: Path, label: str,
+                   require: str | None = None) -> Path | None:
+    """Apply the two run-dir conventions against one base directory.
+
+    ``require`` names the paper's primary artefact. A shared base such as
+    ``Docs/Benchmark/`` also holds the benchmark tool's own per-paper dirs
+    (resolve, harvest, route, report, port verification) under the same
+    label, so the newest dir that holds the artefact wins over newer ones
+    that do not. With no such dir the newest match is returned as before.
+    """
     if not base.is_dir():
         return None
     # Convention 1: dir match
@@ -53,6 +61,10 @@ def _match_run_dir(base: Path, label: str) -> Path | None:
         reverse=True,
     )
     if dirs:
+        if require:
+            for d in dirs:
+                if (d / require).is_file():
+                    return d
         return dirs[0]
     # Convention 2: flat-file match
     flat = sorted(
@@ -67,7 +79,8 @@ def _match_run_dir(base: Path, label: str) -> Path | None:
 
 
 def latest_run_dir(skill_dir_name: str, label: str,
-                    extra_search_dirs: "list[Path]" = ()) -> Path | None:
+                    extra_search_dirs: "list[Path]" = (),
+                    require: str | None = None) -> Path | None:
     """Find the most recent ``Docs/<skill>/2*_<label>*/`` directory.
 
     Two conventions are supported:
@@ -86,11 +99,11 @@ def latest_run_dir(skill_dir_name: str, label: str,
     fall back to each of ``extra_search_dirs`` (declared per-paper in
     ``expected.json``) using the same two conventions.
     """
-    hit = _match_run_dir(DOCS / skill_dir_name, label)
+    hit = _match_run_dir(DOCS / skill_dir_name, label, require)
     if hit is not None:
         return hit
     for extra in extra_search_dirs:
-        hit = _match_run_dir(Path(extra), label)
+        hit = _match_run_dir(Path(extra), label, require)
         if hit is not None:
             return hit
     return None
@@ -308,7 +321,8 @@ def score_benchmark(paper_dir: Path) -> dict:
     # Extra search roots for skills that scatter artefacts. expected.json
     # may declare ``extra_search_dirs: ["Data/Manifests/MPRA", "Data"]`` etc.
     extras = [ROOT / x for x in (spec.get("extra_search_dirs") or [])]
-    run_dir = latest_run_dir(skill, label, extras)
+    run_dir = latest_run_dir(skill, label, extras,
+                             require=spec.get("primary_artefact"))
     if run_dir is None:
         return {"paper": paper_dir.name, "status": "no_run_found",
                 "skill": skill, "label": label, **judge_coverage(spec, [])}

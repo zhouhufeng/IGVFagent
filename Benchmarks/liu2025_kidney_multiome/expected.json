@@ -24,7 +24,7 @@
       "liu2025-open4gene (hbliu/Open4Gene@6e7f36a R/Open4Gene.R)"
     ]
   },
-  "skill_output_dir": "PaperReproduction",
+  "skill_output_dir": "Benchmark",
   "label": "liu2025_kidney_multiome",
   "primary_artefact": "summary.json",
   "checks": [

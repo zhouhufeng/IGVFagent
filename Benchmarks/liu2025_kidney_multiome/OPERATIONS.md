@@ -22,7 +22,7 @@ sbatch -p <partition> -c 4 --mem 32G -t 2:00:00 --wrap "bash Benchmarks/liu2025_
 igvfagent bench score --paper-id liu2025_kidney_multiome
 ```
 
-`run.sh` writes `Docs/PaperReproduction/<ts>_liu2025_kidney_multiome/summary.json`; port verifications land in `Data/liu2025/verify/<tag>/validation_vs_reference.json` and the paper-number recomputation in `Data/liu2025/verify/derived/derived_metrics.json`.
+`run.sh` writes `Docs/Benchmark/<ts>_liu2025_kidney_multiome/summary.json`; port verifications land in `Data/liu2025/verify/<tag>/validation_vs_reference.json` and the paper-number recomputation in `Data/liu2025/verify/derived/derived_metrics.json`.
 
 ## 3. Pieces
 
