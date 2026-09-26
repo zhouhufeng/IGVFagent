@@ -22,7 +22,7 @@ Deng C, Whalen S, Steyert M, Ziffra R, ..., Pollard KS, Ahituv N. **Massively pa
 | Resource | Identifier |
 |---|---|
 | **Primary data deposit** | [Synapse PsychENCODE](https://psychencode.synapse.org/) — DOI `10.7303/syn21392931` |
-| Access policy | PsychENCODE Consortium standard (free with registered account; managed terms-of-use) |
+| Access policy | Controlled: Synapse reports `CONTROLLED_BY_ACT` for `syn21392931` and `syn51090452` (access requirement 5612415, PsychENCODE data-use agreement reviewed by the Synapse Access & Compliance Team) |
 | GEO | *not deposited* (per paper Data Availability) |
 | dbGaP | *not deposited* |
 | Code (paper) | *none published* — the paper has no Code Availability statement (a `Whalen-Lab/HumanCortexMPRA` link previously listed here does not exist; GitHub 404, checked 2026-09-25) |

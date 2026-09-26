@@ -70,25 +70,31 @@ Data/Benchmarks/agarwal2025_lentimpra/oligo_counts.tsv
 
 ### Where to get the counts table
 
-**Option A — GEO (the paper's primary deposit)**
+**Option A — ENCODE (the paper's primary deposit)**
+
+The paper's Data availability statement (PMC11903340) puts raw reads and
+processed files on the ENCODE portal. The accessions are public; no access
+request is needed.
+
+| Library | K562 | HepG2 | WTC11 |
+|---|---|---|---|
+| large-scale (the paper's main screens) | ENCSR382BVV | ENCSR022GQD | ENCSR244FWB |
+| joint (shared across cell types) | ENCSR203UFY | ENCSR405QCT | ENCSR336MKI |
+| pilot | ENCSR460LZI | ENCSR463IRX | — |
 
 ```bash
-mkdir -p Data/Benchmarks/agarwal2025_lentimpra
-cd Data/Benchmarks/agarwal2025_lentimpra
-
-# GEO accession is GSE142696 (related Inoue series).
-# Visit https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142696
-# and click through to the supplementary files. The per-oligo counts
-# typically have suffixes like:
-#   GSE142696_K562_oligo_counts.tsv.gz
-#   GSE142696_HepG2_oligo_counts.tsv.gz
-#   GSE142696_WTC11_oligo_counts.tsv.gz
-
-# Once downloaded:
-gunzip GSE142696_K562_oligo_counts.tsv.gz
-mv GSE142696_K562_oligo_counts.tsv oligo_counts.tsv
-cd ../../..
+igvfagent encode manifest --accessions ENCSR382BVV   # K562 large-scale library
+# pick the processed per-element DNA/RNA count file from the manifest, then
+igvfagent encode download --manifest <manifest.csv> --only <output_type>   # files land under Data/; move the one you need
+# reshape to oligo_id, dna_rep1..N, rna_rep1..N and save as
+#   Data/Benchmarks/agarwal2025_lentimpra/oligo_counts.tsv
 ```
+
+The exact processed-file accession and its column layout have not yet been
+checked here (the ENCODE portal returned HTTP 504 on 2026-09-26).
+An earlier version of this page pointed at GEO GSE142696 with file names such
+as `GSE142696_K562_oligo_counts.tsv.gz`. That series is Klein et al. 2020, a
+different MPRA study, and those files do not exist.
 
 **Option B — IGVF Portal MPRA AnalysisSet**
 
@@ -228,7 +234,7 @@ Report:
 
 ## License + provenance
 
-* **Paper data**: GEO GSE142696 family (related Inoue series); IGVF Portal MPRA AnalysisSets.
+* **Paper data**: ENCODE portal (accessions above, per the paper's Data availability); IGVF Portal MPRA AnalysisSets.
 * **Code**: IGVFagent Apache-2.0 (MPRA skill is a clean-room reimpl of MPRAflow patterns + Tewhey lab MPRASuite).
 * **Citation**: Agarwal V et al. *Nature* **639**: 411–420 (2025).
-  doi:10.1038/s41586-024-08430-9 · PMID:39814879
+  doi:10.1038/s41586-024-08430-9 · PMID:39814889

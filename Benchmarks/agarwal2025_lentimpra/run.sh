@@ -17,7 +17,7 @@ $BIN/igvfagent mpra portal-manifest --limit 50 --label "$LABEL" || true
 if [ ! -f "$INPUT" ]; then
     echo ""
     echo "[$LABEL] Local input not found at $INPUT"
-    echo "  Download per-oligo DNA+RNA counts from GEO GSE142696 (or an IGVF MPRA"
+    echo "  Download per-oligo DNA+RNA counts from ENCODE (K562: ENCSR382BVV; see OPERATIONS.md) (or an IGVF MPRA"
     echo "  AnalysisSet from the manifest above) and place it at $INPUT, then re-run."
     exit 77
 fi
