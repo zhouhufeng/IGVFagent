@@ -53,43 +53,39 @@ Docs/GEO/<ts>_GSE171674_geo_report.md
 
 ## Ground-truth spot-checks
 
-| Signal | Expected (paper) |
-|---|---|
-| ≥ 1 CRISPR-KO dataset matching KMT2A in CD4+ T-cells | Weinstock 2024 deposited 84 KO screens |
-| PKN SIF contains KMT2A and connected to STAT5 / JAK pathway | Paper Fig 4 |
-| 211 trans-edges in the LLCB causal network | Paper Table 1 |
-| rs45480496 (upstream of KMT2A) is a Th17-enhancer | Paper Fig 5 |
+| Signal | Expected (paper) | This port's result |
+|---|---|---|
+| ≥ 1 CRISPR-KO dataset matching KMT2A in CD4+ T-cells | Weinstock 2024 deposited 84 KO screens | ✓ (discovery-only benchmark above) |
+| Edges at \|β\|>0.020 / 0.025 / 0.030 | 350 / 211 / 151 (STAR Methods) | 1,294 / 877 / 618 — ~3.5-4x denser, see `llcb_py/README.md` |
+| KMT2A connected to STAT5/JAK/IL2RA pathway | Paper Fig 5 | Not recovered — KMT2A connects to MED12/BCL11B/NFKB2/FOXP1 instead |
+| rs45480496 (upstream of KMT2A) is a Th17-enhancer | Paper Fig 5 | Out of scope — needs external GWAS sumstats, not attempted |
 
-After running:
+## Full causal-network inference (`llcb_py/`)
 
-```bash
-# Check KMT2A neighborhood in the PKN
-grep -i "kmt2a" Docs/Network/<ts>_*/pkn.sif | head -20
-```
-
-## Optional: full causal-network inference
-
-For the complete Weinstock workflow (perturbation footprint → upstream
-signalling subnetwork), after `run.sh` finishes:
+A from-source Python port of the paper's own LLCB method
+(github.com/weinstockj/LLCB, Julia — not R/Stan), fit on the paper's own
+raw-count GEO deposit (GSE271788), not a KG analogue:
 
 ```bash
-# Build a perturbation-effect vector from Weinstock's 84-gene KO data
-# (you'd download GSE171737 and compute per-gene log2FC)
-# Then:
-.venv/bin/igvfagent network carnival \
-    --pkn Docs/Network/<ts>_pkn_weinstock2024_cd4_crispr_pkn/pkn.sif \
-    --perturbations Data/Benchmarks/weinstock2024_cd4_crispr/perts.tsv \
-    --label weinstock2024_carnival
-
-# Or extract a Steiner-tree subnetwork connecting the 84 KO genes:
-.venv/bin/igvfagent network steiner \
-    --pkn Docs/Network/<ts>_pkn_weinstock2024_cd4_crispr_pkn/pkn.sif \
-    --terminals KMT2A,STAT5A,STAT5B,IRF4,BATF,IL2RA \
-    --label weinstock2024_steiner
+cd Benchmarks/weinstock2024_cd4_crispr/llcb_py
+pip install pydeseq2   # one-time; everything else is already in this repo's env
+python3 01_parse_counts.py
+python3 02_normalize.py
+python3 03_build_network_input.py
+python3 04_fit_llcb.py           # writes Data/Weinstock2024/processed/edges.csv
+python3 05_make_figures.py       # updates figures/fig4_*, figures/fig5_*
 ```
 
-Expected Steiner-tree result: KMT2A is connected through STAT5 / JAK
-intermediates to IL2RA — recapitulating the paper's Th17-IL2 axis.
+Runtime: well under a minute total on one CPU core. Requires network access
+once, to fetch GSE271788's raw counts + series matrix from GEO's FTP and
+the 84 gene-symbol→Ensembl mappings from mygene.info (both auto-fetched on
+first run into `Data/Weinstock2024/raw/`).
+
+See `llcb_py/README.md` for the full method-by-method comparison against
+the paper (`llcb.py`'s module docstring explains every simplification and
+one bug it caught and fixed along the way — an unconstrained noise-variance
+estimate that silently degenerates on this problem's exactly-square linear
+system).
 
 ## Running through the UI
 
@@ -110,25 +106,32 @@ Report:
   - whether any are explicitly CD4+ T-cell context
 ```
 
-For the network step, fall back to the shell (`network pkn-from-kg`
-is not yet a registered LLM tool).
+For the LLCB causal-network step, there is no registered LLM tool — run
+`llcb_py/`'s scripts directly via the shell.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `run.sh: .venv/bin/igvfagent: bad interpreter` | `.venv` was built on a different machine (e.g. synced from a laptop) | Already handled — `run.sh` detects this and falls back to `igvfagent` on `$PATH` |
-| `network pkn-from-kg` errors with "no proteomics KG mirror" | KG mirror hasn't been pulled | Run `igvfagent kg-mirror pull --collection proteins_proteins` first |
 | `crispr-screen_search.json` returns 0 hits | KMT2A not yet in catalogue | Try `--gene IL2RA` (also a paper-relevant gene) |
-| PKN SIF has 0 edges | Wrong gene symbols (e.g. mouse vs human) | The proteomics KG is human-only; verify with `igvfagent catalog get-entity KMT2A` |
+| `llcb_py/02_normalize.py` fails with `ModuleNotFoundError: pydeseq2` | not installed | `pip install pydeseq2` (one-time; not otherwise required by this repo) |
+| `llcb_py/03_build_network_input.py` warns a gene wasn't found | mygene.info lookup missed a symbol, or GEO's gene ID version differs | Re-run; `01_parse_counts.py` already strips Ensembl version suffixes, so this should be rare |
 
 ## License + provenance
 
-* **Paper data**: GEO **GSE171674** (Weinstock's CRISPR sub-series of
-  the joint Marson + Pritchard SuperSeries GSE171737) — public.
-* **Code**: IGVFagent Apache-2.0; network skill is a clean-room MILP reimpl over `cvxpy` (no CORNETO GPL runtime dep).
+* **Paper data used by the discovery-only benchmark**: GEO **GSE171674**
+  (public) — the CRISPR sub-series of SuperSeries GSE171737. This is
+  *cited by* Weinstock 2024 as related context but is actually Freimer et
+  al. 2022's own deposit (PMID 35817986); it is not Weinstock 2024's own
+  bulk RNA-seq data.
+* **Paper's own data, used by `llcb_py/`**: GEO **GSE271788** — Weinstock
+  2024's own raw dedup UMI counts for all 84 KO'd genes across 3-4 donors
+  (public, `pubmed_id: 39395408` on the GEO record itself).
+* **Code**: IGVFagent Apache-2.0. `llcb_py/` is this session's clean-room
+  Python port of the paper's own method.
 * **Citation**: Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A,
   Battle A, Pritchard JK. *Cell Genomics* **4**: 100671 (Nov 2024).
   doi:10.1016/j.xgen.2024.100671 · PMID 39395408 · PMC11605694
   *(Earlier benchmark scaffolds had the DOI mis-spelled as `100693`
-  — fixed in this commit.)*
+  — fixed in a previous commit.)*

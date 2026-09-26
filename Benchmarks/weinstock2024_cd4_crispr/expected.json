@@ -18,10 +18,12 @@
   },
   "secondary_data_source": {
     "type": "geo",
-    "primary_subseries": "GSE171674",
-    "primary_subseries_title": "Systematic discovery and perturbation of regulatory genes in human T cells reveals the architecture of immune networks [CRISPR]",
-    "superseries": "GSE171737",
-    "superseries_note": "GSE171737 is the joint Marson + Pritchard SuperSeries (337 samples, 4 sub-series). GSE171674 is the Weinstock-specific CRISPR sub-series."
+    "related_subseries": "GSE171674",
+    "related_subseries_title": "Systematic discovery and perturbation of regulatory genes in human T cells reveals the architecture of immune networks [CRISPR]",
+    "related_superseries": "GSE171737",
+    "related_note": "GSE171737/GSE171674 belong to Freimer et al. 2022 (PMID 35817986), cited by Weinstock 2024 as related context, not their own deposit.",
+    "weinstock_own_deposit": "GSE271788",
+    "weinstock_own_deposit_note": "Weinstock 2024's own raw bulk RNA-seq counts for all 84 KO'd genes (311 samples); used by llcb_py/, not by this benchmark's discovery-only checks."
   },
   "skill_output_dir": "Perturbation",
   "label": "weinstock2024_cd4_crispr",
