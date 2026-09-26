@@ -1,0 +1,44 @@
+{
+  "label": "zhu2024_pbmc_nosub",
+  "input": "Data/zhu2024/work/stoeckius_pbmc_tags.csv",
+  "n_cells": 15113,
+  "n_tags": 8,
+  "tag_names": [
+    "HTO_A",
+    "HTO_B",
+    "HTO_C",
+    "HTO_D",
+    "HTO_E",
+    "HTO_F",
+    "HTO_G",
+    "HTO_H"
+  ],
+  "counts_by_droplet_type": {
+    "singlet": 12591,
+    "multiplet": 2471,
+    "negative": 51
+  },
+  "counts_by_assignment": {
+    "multiplet": 2471,
+    "HTO_B": 1705,
+    "HTO_A": 1692,
+    "HTO_H": 1675,
+    "HTO_C": 1633,
+    "HTO_G": 1631,
+    "HTO_D": 1518,
+    "HTO_F": 1387,
+    "HTO_E": 1350,
+    "negative": 51
+  },
+  "failed_tags": [],
+  "n_iter_per_tag": {
+    "HTO_A": 6,
+    "HTO_B": 7,
+    "HTO_C": 6,
+    "HTO_D": 6,
+    "HTO_E": 5,
+    "HTO_F": 5,
+    "HTO_G": 6,
+    "HTO_H": 5
+  }
+}
