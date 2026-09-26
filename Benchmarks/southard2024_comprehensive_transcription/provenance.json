@@ -1,0 +1,646 @@
+{
+  "paper_id": "southard2024_comprehensive_transcription",
+  "resolution": {
+    "decision": "resolved",
+    "confidence": 1.0,
+    "margin_over_runner_up": 1.0,
+    "identifier": {
+      "kind": "doi",
+      "value": "10.1101/2024.07.31.606073",
+      "raw": "10.1101/2024.07.31.606073"
+    },
+    "constraints": {},
+    "sources_consulted": [
+      "crossref",
+      "europepmc"
+    ],
+    "paper_id": "southard2024_comprehensive_transcription",
+    "paper": {
+      "doi": "10.1101/2024.07.31.606073",
+      "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+      "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O\u2019Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
+      "first_author_family": "Southard",
+      "year": 2024,
+      "type": "posted-content",
+      "publisher": "openRxiv",
+      "abstract": "Summary \n                 \n                  Cell atlas projects have nominated recurrent transcriptional states as drivers of biological processes and disease, but their origins, regulation, and properties remain unclear. To enable complementary functional studies, we developed a scalable approach for recapitulating cell states\n                   in vitro \n                  using CRISPR activation (CRISPRa) Perturb-seq. Aided by a novel multiplexing method, we activated 1,836 transcription factors in two cell types. Measuring 21,958 perturbations showed that CRISPRa activated targets within physiological ranges, that epigenetic features predicted activatable genes, and that the protospacer seed region drove an off-target effect. Perturbations recapitulated\n                   in vivo \n                  fibroblast states, including universal and inflammatory states, and identified\n                   KLF4 \n                  and\n                   KLF5 \n                  as key regulators of the universal state. Inducing the universal state suppressed disease-associated states, highlighting its therapeutic potential. Our findings cement CRISPRa as a tool for perturbing differentiated cells and indicate that\n                   in vivo \n                  states can be elicited via perturbation, enabling studies of clinically relevant states\n                   ex vivo \n                  .",
+      "url": "https://doi.org/10.1101/2024.07.31.606073",
+      "is_preprint": true,
+      "relation": {
+        "is-preprint-of": [
+          {
+            "id-type": "doi",
+            "id": "10.1038/s41588-025-02284-1",
+            "asserted-by": "subject"
+          }
+        ]
+      },
+      "journal": "bioRxiv",
+      "epmc_id": "PPR890554",
+      "epmc_source": "PPR",
+      "is_open_access": false,
+      "has_fulltext": true,
+      "in_epmc": false,
+      "citation_count": 0,
+      "sources": [
+        "crossref",
+        "europepmc"
+      ]
+    },
+    "match_reasons": [
+      "exact doi lookup"
+    ],
+    "candidates": [
+      {
+        "score": 1.0,
+        "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+        "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O\u2019Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M",
+        "journal": "bioRxiv",
+        "year": 2024,
+        "doi": "10.1101/2024.07.31.606073",
+        "pmid": null,
+        "reasons": [
+          "exact doi lookup"
+        ]
+      }
+    ]
+  },
+  "harvest": {
+    "paper_id": "southard2024_comprehensive_transcription",
+    "doi": "10.1101/2024.07.31.606073",
+    "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+    "abstract": "Summary Cell atlas projects have nominated recurrent transcriptional states as drivers of biological processes and disease, but their origins, regulation, and properties remain unclear. To enable complementary functional studies, we developed a scalable approach for recapitulating cell states in vitro using CRISPR activation (CRISPRa) Perturb-seq. Aided by a novel multiplexing method, we activated 1,836 transcription factors in two cell types. Measuring 21,958 perturbations showed that CRISPRa activated targets within physiological ranges, that epigenetic features predicted activatable genes, and that the protospacer seed region drove an off-target effect. Perturbations recapitulated in vivo fibroblast states, including universal and inflammatory states, and identified KLF4 and KLF5 as key regulators of the universal state. Inducing the universal state suppressed disease-associated states, highlighting its therapeutic potential. Our findings cement CRISPRa as a tool for perturbing differentiated cells and indicate that in vivo states can be elicited via perturbation, enabling studies of clinically relevant states ex vivo .",
+    "fulltext_source": "https://www.biorxiv.org/content/10.1101/2024.07.31.606073v1.full",
+    "degraded_reason": null,
+    "n_sections": 68,
+    "n_chars": 185901,
+    "section_titles": [
+      "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+      "Summary",
+      "Introduction",
+      "Droplet overloading for high-throughput Perturb-seq",
+      "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+      "Seed-dependent off-target effects of CRISPR epigenetic editors",
+      "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+      "Transcription factor perturbations driving markers of in vivo fibroblast states",
+      "Causal drivers of fibroblast transcriptional states and cross-regulation between them",
+      "Discussion",
+      "Author contributions",
+      "Supplemental information",
+      "CRISPR construct design/procurement",
+      "Guide vectors",
+      "cDNA overexpression vectors",
+      "Cell culture",
+      "Virus packaging",
+      "CRISPR cell line generation/procurement",
+      "Bulk characterization of cell lines",
+      "Guide library design and cloning",
+      "Library Verification",
+      "RPE-1 essentials benchmarking experiment",
+      "RPE-1 TF-CRISPRa Experiment",
+      "Hs27 TF-CRISPRa Experiment",
+      "Perturb-seq Library Preparation and Sequencing",
+      "Profiling of genome-wide dCas9 binding by CUT&RUN, related to Figure 3F",
+      "CD55/CD45 cell surface marker staining, related to Supplemental Figure 1B,C",
+      "PI16/CD34 cell surface marker stainingfor CRISPRa, related to Figure 5H , Supplemental Figure 10E, G",
+      "PI16/CD34 cell surface marker staining for cDNA overexpression, related to Figure 5H , Supplemental Figure 10F",
+      "ACTA2 immunofluorescence, related to Figure 5B , Supplemental Figure 10B",
+      "Dataset processing and guide calling",
+      "Dataset filtering",
+      "Identification of stably captured genes and normalization procedure",
+      "Computing mean guide phenotypes using linear regression",
+      "Benchmarking regression approach, related to Figure 1 and Supplemental Figure 2",
+      "Simplified regressions for detecting on-target activation and newly expressed genes",
+      "Percentile transformations, related to Figure 2E-G , Supplemental Figure 3E,I",
+      "Categorization of on-target activation, related to Figure 2B-D , Supplemental Figure 4A,B",
+      "Analysis of maximum non-targeted expression, related to Supplemental Figure 4E,F",
+      "Bulk RNA-seq analysis, related to Supplementary Table 4",
+      "Epigenetic data processing and preparation of model features, related to Figure 2G , Supplemental Figure 4G,H",
+      "Categorization of TSS activation of non-expressed genes, related to Figure 2G , Supplemental Figure 4G",
+      "Feature selection and evaluation of model performance, related to Figure 2G , Supplemental Figure 4L)",
+      "Reduced model training on Hs27 and validation on RPE-1, related to Supplemental Figure 4N",
+      "Comparing predictions for Hs27-specific activation, related to Supplemental Figure 4O",
+      "Enrichr enrichment analysis of activable non-expressed genes, related to Supplemental Figure 4M",
+      "Identifying active guides by clustering, related to Figure 3 , 4",
+      "Identifying seed-driven clusters, related to Figure 3",
+      "Classification of bad seeds, related to Figure 3C , Supplementary Table 4",
+      "Embedding to visualize seed-driven clustering, related to Figure S5H",
+      "Extracting seed-dependent effects from fitness experiments via regression, related to Figure S5",
+      "Embedding of active guides, related to Figure 4A",
+      "Examining conservation of perturbation effects across cell context, related to Figure 4B",
+      "Identifying transcription factors that oppose each other, related to Figure 4C",
+      "Extracting gene expression programs using consensus sparse PCA, related to Figure 4",
+      "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A",
+      "Analysis of newly expressed genes, related to Figure 5D-E , Supplemental Figure 10D",
+      "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D",
+      "Visualization of fibroblast marker activation and variation, related to Figure 6F , S10C,D",
+      "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+      "Scoring of transcription factor phenotypes for similarity to in vivo observed transcriptional states, related to Figure 6C",
+      "Processing of the Ovarian cancer fibroblasts, related to Figure 6D",
+      "CIRCOS plot of program cross regulation, related to Figure 6E",
+      "Selection of Final Filtered guide library, related to Supplementary Table 4",
+      "Acknowledgments",
+      "References",
+      "Citation Manager Formats",
+      "Subject Area"
+    ],
+    "data_availability": [],
+    "accessions": {
+      "geo_series": [
+        {
+          "value": "GSE186458",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 1,
+          "context": "axATAC_data/ , and a bed file for genomic regions \u00b110,000 bp surrounding guide PAM positions as input. DNA methylation data for dermal fibroblast 64 was downloaded from NCBI GEO 116 accession number: GSE186458 ( https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM5652204 , filename: GSM5652204_Dermal-Fibroblasts-Z00000423.hg38.bigwig). List of KRAB zinc fingers was downloaded from KRABopedia 66 ( https:/",
+          "in_data_availability": false
+        }
+      ],
+      "geo_sample": [
+        {
+          "value": "GSM5652204",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 1,
+          "context": "rrounding guide PAM positions as input. DNA methylation data for dermal fibroblast 64 was downloaded from NCBI GEO 116 accession number: GSE186458 ( https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM5652204 , filename: GSM5652204_Dermal-Fibroblasts-Z00000423.hg38.bigwig). List of KRAB zinc fingers was downloaded from KRABopedia 66 ( https://tronoapps.epfl.ch/web/krabopedia/ind.php ). For each TSS, bigwi",
+          "in_data_availability": false
+        }
+      ],
+      "zenodo_doi": [
+        {
+          "value": "10.5281/ZENODO.7598955",
+          "repo": "Zenodo",
+          "controlled": false,
+          "count": 2,
+          "context": "er , F. , James , F. , Ewels , P. , Afyounian , E. , Weinstein , M. , Schuster-Boeckler , B. , Hulselmans , G. , and Sclamons ( 2023 ). TrimGalore: v0.6.10. Version 0.6.10 (Babraham Bioinformatics) . 10.5281/ZENODO.7598955 doi: 10.5281/ZENODO.7598955 . OpenUrl CrossRef 111. \u21b5 Langmead , B. , and Salzberg , S.L. ( 2012 ). Fast gapped-read alignment with Bowtie 2 . Nat Methods 9 , 357 \u2013 359 . doi: 10.1038/nmeth.1923 . Op",
+          "in_data_availability": false
+        }
+      ],
+      "github_repo": [
+        {
+          "value": "MiraldiLab/maxATAC_data",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 1,
+          "context": "tes using version 3.5.4 of deepTools 115 bigwigAverage. Predicted TF binding bigwigs were generated using version 1.0.6 of maxATAC 65 predict with ATAC bigwigs, TF model files downloaded from https://github.com/MiraldiLab/maxATAC_data/ , and a bed file for genomic regions \u00b110,000 bp surrounding guide PAM positions as input. DNA methylation data for dermal fibroblast 64 was downloaded from NCBI GEO 116 accession number: GSE186458 (",
+          "in_data_availability": false
+        },
+        {
+          "value": "lmcinnes/enstop",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 1,
+          "context": "nts in total across all resamples. To identify components that appeared recurrently across resamples, we then borrowed a consensus building procedure from Leland McInnes\u2019s enstop repository ( https://github.com/lmcinnes/enstop/ ). We embedded the 10,000 extracted components into a common embedding using UMAP (n_neighbors=15, n_components=5, metric=hellinger). We then cluster these embedded components using HDBSCAN (min_sam",
+          "in_data_availability": false
+        },
+        {
+          "value": "moshi4/pyCirclize",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 1,
+          "context": "scores, positive) and repressing (lowest program scores, negative) were selected for programs 4 (myofibroblast), 31 (universal), and 32 (inflammatory) and visualized with pycirclize.Circos ( https://github.com/moshi4/pyCirclize ) with track.heatmap for each TF\u2019s program score and links ( circos.link ) drawn between transcription factors recurring across the programs. Links were visualized as \u201cred\u201d if both program scores wer",
+          "in_data_availability": false
+        }
+      ]
+    },
+    "assays": [
+      {
+        "assay": "scRNA-seq",
+        "mentions": 23
+      },
+      {
+        "assay": "Perturb-seq",
+        "mentions": 22
+      },
+      {
+        "assay": "CRISPRi screen",
+        "mentions": 8
+      },
+      {
+        "assay": "ChIP-seq",
+        "mentions": 2
+      },
+      {
+        "assay": "GWAS",
+        "mentions": 1
+      }
+    ],
+    "genes": [
+      "KLF4",
+      "KLF5",
+      "RPE",
+      "UMI",
+      "PI16",
+      "FREE",
+      "VPH",
+      "ORCID",
+      "RUN",
+      "BSA",
+      "CUT",
+      "PAM"
+    ],
+    "numeric_claims": [
+      {
+        "kind": "count",
+        "value": 1319,
+        "unit": "transcription factors",
+        "section": "Discussion",
+        "quote": "The filtered, validated guide libraries developed here overcome these limitations, enabling compact future experiments targeting 1319 transcription factors using single guide RNAs ( Supplemental Table 4 )."
+      },
+      {
+        "kind": "count",
+        "value": 1000,
+        "unit": "transcription factors",
+        "section": "Discussion",
+        "quote": "Combined with our multiplexing approach, screens targeting \u223c1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
+      },
+      {
+        "kind": "count",
+        "value": 1836,
+        "unit": "transcription factors",
+        "section": "Summary",
+        "quote": "Aided by a novel multiplexing method, we activated 1,836 transcription factors in two cell types."
+      },
+      {
+        "kind": "count",
+        "value": 21958,
+        "unit": "perturbations",
+        "section": "Summary",
+        "quote": "Measuring 21,958 perturbations showed that CRISPRa activated targets within physiological ranges, that epigenetic features predicted activatable genes, and that the protospacer seed region drove an off-target effect."
+      },
+      {
+        "kind": "count",
+        "value": 500,
+        "unit": "cell types",
+        "section": "Introduction",
+        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 \u2013 5 ."
+      },
+      {
+        "kind": "count",
+        "value": 17,
+        "unit": "clusters",
+        "section": "Introduction",
+        "quote": "Another study 54 identified 17 clusters of human fibroblasts across inflammatory diseases, and found likely concordant states: a SPARC + COL3A1 + inflammatory state that was expanded in all diseases, and a CD34 + MFAP5 + state similar to the universal state."
+      },
+      {
+        "kind": "count",
+        "value": 10979,
+        "unit": "guides",
+        "section": "Droplet overloading for high-throughput Perturb-seq",
+        "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 )."
+      },
+      {
+        "kind": "count",
+        "value": 125000,
+        "unit": "cells",
+        "section": "Droplet overloading for high-throughput Perturb-seq",
+        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded \u223c125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
+      },
+      {
+        "kind": "count",
+        "value": 1482,
+        "unit": "transcription factors",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "Despite >50% of guides appearing inactive ( Figure 2B , Figure S4A,B ), 1,482 transcription factors could be activated in at least one cell type, including targets that were unexpressed according to baseline bulk RNA sequencing ( Figure 2C , Figure S4C , Supplemental Table 4 )."
+      },
+      {
+        "kind": "count",
+        "value": 319,
+        "unit": "genes",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "Constraints were also observed in terms of which genes could be activated, with cell-type-specific activation for 188 (Hs27) and 196 (RPE-1) targets ( Figure 2C right, Figure S4C ) and 319 genes resistant to activation entirely."
+      },
+      {
+        "kind": "metric",
+        "value": 0.89,
+        "unit": "AUC",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "A model trained using these features achieved a 5-fold cross-validated AUC of 0.89 ( Figure 2G , bottom right ), with the features exhibiting clear differences at target promoters according to susceptibility to activation ( Figure S4I )."
+      },
+      {
+        "kind": "metric",
+        "value": 0.883,
+        "unit": "AUC",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "When evaluated on RPE-1 data, this reduced model achieved an AUC of 0.883 ( Figure S4N )."
+      },
+      {
+        "kind": "count",
+        "value": 33,
+        "unit": "genes",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "The reduced model also captured cell-type-specific differences in CRISPRa susceptibility, as evidenced by higher predicted activation probabilities for 33 genes uniquely activated in Hs27 cells compared to RPE-1 cells ( Figure S4O ).While these findings leave open the role of YY1 in mediating gene activation by CRISPRa, they reveal that the susceptibility of unexpressed genes to activation by CRIS"
+      },
+      {
+        "kind": "count",
+        "value": 178,
+        "unit": "transcription factors",
+        "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+        "quote": "Clustering by profile correlations, which is robust to guide efficacy differences 28 , 62 , and applying this criterion identified 212 and 178 transcription factors with strong effects in Hs27 and RPE-1 cells, respectively, plus 102 and 82 additional genes that had single guides that clustered strongly with these gold standards that we included in our analyses (Methods)."
+      },
+      {
+        "kind": "count",
+        "value": 1077,
+        "unit": "guides",
+        "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+        "quote": "In total, 1077 guides targeting 417 genes induced a strong transcriptional phenotype in at least one cell type ( Figure S6A )."
+      },
+      {
+        "kind": "count",
+        "value": 417,
+        "unit": "genes",
+        "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+        "quote": "In total, 1077 guides targeting 417 genes induced a strong transcriptional phenotype in at least one cell type ( Figure S6A )."
+      },
+      {
+        "kind": "count",
+        "value": 121,
+        "unit": "perturbations",
+        "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+        "quote": "To examine how transcription factors\u2019 effects varied across cellular contexts, we compared the effects of 121 perturbations active in both cell types using two approaches: by directly correlating the expression profiles, and by correlating the correlation matrices of the perturbations, which assesses similarities in how perturbations relate to each other (Methods)."
+      },
+      {
+        "kind": "count",
+        "value": 2389,
+        "unit": "genes",
+        "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+        "quote": "Applied to Hs27 cells, this procedure organized 2,389 genes into 57 programs ( Figure 4A , bottom right, Figure S8, Figure S9A , Supplemental Table 2)."
+      },
+      {
+        "kind": "count",
+        "value": 140,
+        "unit": "guides",
+        "section": "Guide library design and cloning",
+        "quote": "A total of 140 guides (RPE-1 essentials, Protospacer A for the 140 selected targets) and 16 non-targeting guides (sampled from Horlbeck et al., 2016 55 non-targeting controls) were selected."
+      },
+      {
+        "kind": "count",
+        "value": 10000,
+        "unit": "cells",
+        "section": "RPE-1 essentials benchmarking experiment",
+        "quote": "2) a higher than recommended final cell concentration of 10,000 cells/\u03bcL was targeted for final resuspension 3) resuspension was performed in DPBS (Gibco, 14190144) containing 1% BSA (UltraPure BSA, 50 mg/mL, Ambion: AM2616) 4) Scienceware Flowmi Cell strainers 70 \u03bcm (H13680-0070) were used after final resuspension prior to cell counting."
+      },
+      {
+        "kind": "count",
+        "value": 9700,
+        "unit": "cells",
+        "section": "RPE-1 essentials benchmarking experiment",
+        "quote": "A cell concentration of \u223c9700 cells/\u03bcL and >90% cell viability (Countess II, ThermoFisher) was obtained before loading."
+      },
+      {
+        "kind": "count",
+        "value": 150000,
+        "unit": "cells",
+        "section": "RPE-1 TF-CRISPRa Experiment",
+        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) using the Chromium Next GEM Single Cell 3\u2019 HT Kit v3.1, 48 rxns (10X Genomics, 1000348) following the Chromium Next GEM Single Cell 3\u2019 HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 150,000 cells per lane (prior to quality control and "
+      },
+      {
+        "kind": "count",
+        "value": 100000,
+        "unit": "cells",
+        "section": "Hs27 TF-CRISPRa Experiment",
+        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) following the Chromium Next GEM Single Cell 3\u2019 HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 100,000 cells per lane (prior to quality control and cell number filtering)."
+      },
+      {
+        "kind": "count",
+        "value": 11258,
+        "unit": "perturbations",
+        "section": "Embedding to visualize seed-driven clustering, related to Figure S5H",
+        "quote": "We produced an embedding for all 11258 perturbations using pymde as described previously 62 ."
+      },
+      {
+        "kind": "count",
+        "value": 100,
+        "unit": "genes",
+        "section": "Embedding of active guides, related to Figure 4A",
+        "quote": "The labels are placed for (1) all multi-gene-driven clusters (which have gene names separated by slashes) (2) the top 100 genes (with guides identified as masked_active or expanded_masked_active) according to number of differentially expressed genes (adjusted p -values < 0.05)."
+      },
+      {
+        "kind": "count",
+        "value": 121,
+        "unit": "guides",
+        "section": "Examining conservation of perturbation effects across cell context, related to Figure 4B",
+        "quote": "This led to 121 guides in total that had phenotypes in both cell types."
+      },
+      {
+        "kind": "count",
+        "value": 1702,
+        "unit": "genes",
+        "section": "Examining conservation of perturbation effects across cell context, related to Figure 4B",
+        "quote": "This led to a total of 1702 genes."
+      },
+      {
+        "kind": "count",
+        "value": 57,
+        "unit": "clusters",
+        "section": "Extracting gene expression programs using consensus sparse PCA, related to Figure 4",
+        "quote": "In Hs27 fibroblasts, this produced 57 clusters."
+      },
+      {
+        "kind": "count",
+        "value": 50,
+        "unit": "genes",
+        "section": "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A",
+        "quote": "The genes for each gene program were defined as the top 50 genes for each program based on sparse PCA."
+      },
+      {
+        "kind": "count",
+        "value": 2022,
+        "unit": "clusters",
+        "section": "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D",
+        "quote": "For marker genes from Korsunsky et al ., 2022 clusters \u201cCD34+MFAP5+ C9\u201d and \u201cSPARC+COL3A1+ C4\u201d were isolated."
+      },
+      {
+        "kind": "count",
+        "value": 5346,
+        "unit": "guides",
+        "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+        "quote": "5346 guides passed these filters."
+      },
+      {
+        "kind": "count",
+        "value": 1665,
+        "unit": "transcription factors",
+        "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+        "quote": "To collapse these to gene-level program scores, we for each program averaged the two guides with the strongest absolute effects for that program. (A large negative score by one guide could therefore potentially cancel a large positive score by another.) This led to predictions for 1665 transcription factors."
+      },
+      {
+        "kind": "count",
+        "value": 81,
+        "unit": "cell types",
+        "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+        "quote": "We downloaded rna_single_cell_type_tissue.tsv.zip from the Human Protein Atlas website, which aggregates single-cell RNA sequencing data about 81 cell types in 31 distinct datasets into clusters of single cells that have been averaged together."
+      },
+      {
+        "kind": "count",
+        "value": 31,
+        "unit": "datasets",
+        "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+        "quote": "We downloaded rna_single_cell_type_tissue.tsv.zip from the Human Protein Atlas website, which aggregates single-cell RNA sequencing data about 81 cell types in 31 distinct datasets into clusters of single cells that have been averaged together."
+      },
+      {
+        "kind": "count",
+        "value": 20082,
+        "unit": "genes",
+        "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+        "quote": "The resulting dataset contains 96 cluster gene expression profiles across 20082 genes."
+      }
+    ],
+    "llm_claims": {
+      "enabled": false,
+      "claims": [],
+      "error": "LLM call failed: Connection error.",
+      "backend": null,
+      "model": null
+    }
+  },
+  "routing": {
+    "plans": [
+      {
+        "route": "perturb_catalog",
+        "title": "Perturbation Catalogue census (CRISPR screen / Perturb-seq)",
+        "score": 15.85,
+        "evidence": [
+          "assay:CRISPRi screen\u00d78",
+          "assay:Perturb-seq\u00d722"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Perturbation",
+        "reference_benchmark": "weinstock2024_cd4_crispr / joung2025_tf_perturbseq",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "encode_fce",
+        "title": "ENCODE functional-characterization experiment enumeration",
+        "score": 5.93,
+        "evidence": [
+          "assay:CRISPRi screen\u00d78"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "ENCODE",
+        "reference_benchmark": "yao2024_encode4_crispri",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "sc_analyze",
+        "title": "Single-cell atlas reproduction (QC \u2192 HVG \u2192 PCA \u2192 UMAP \u2192 Leiden \u2192 markers)",
+        "score": 5.48,
+        "evidence": [
+          "assay:scRNA-seq\u00d723",
+          "geo_series=GSE186458 (in text) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SingleCell",
+        "reference_benchmark": "travaglini2020_lung / wang2025_neocortex_multiome",
+        "requires_local_input": true,
+        "notes": "Concordance against the authors' labels (ARI / AMI / homogeneity) is the reproducibility claim \u2014 add those as range checks once you have run it once."
+      }
+    ],
+    "all_scored": [
+      {
+        "route": "perturb_catalog",
+        "title": "Perturbation Catalogue census (CRISPR screen / Perturb-seq)",
+        "score": 15.85,
+        "evidence": [
+          "assay:CRISPRi screen\u00d78",
+          "assay:Perturb-seq\u00d722"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Perturbation",
+        "reference_benchmark": "weinstock2024_cd4_crispr / joung2025_tf_perturbseq",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "encode_fce",
+        "title": "ENCODE functional-characterization experiment enumeration",
+        "score": 5.93,
+        "evidence": [
+          "assay:CRISPRi screen\u00d78"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "ENCODE",
+        "reference_benchmark": "yao2024_encode4_crispri",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "sc_analyze",
+        "title": "Single-cell atlas reproduction (QC \u2192 HVG \u2192 PCA \u2192 UMAP \u2192 Leiden \u2192 markers)",
+        "score": 5.48,
+        "evidence": [
+          "assay:scRNA-seq\u00d723",
+          "geo_series=GSE186458 (in text) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SingleCell",
+        "reference_benchmark": "travaglini2020_lung / wang2025_neocortex_multiome",
+        "requires_local_input": true,
+        "notes": "Concordance against the authors' labels (ARI / AMI / homogeneity) is the reproducibility claim \u2014 add those as range checks once you have run it once."
+      },
+      {
+        "route": "chipatlas",
+        "title": "ChIP-Atlas TF / regulatory-element census",
+        "score": 5.14,
+        "evidence": [
+          "assay:ChIP-seq\u00d72"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "ChIPAtlas",
+        "reference_benchmark": "zou2024_chipatlas_gata1",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "figshare",
+        "title": "figshare / Zenodo deposit retrieval",
+        "score": 5.0,
+        "evidence": [
+          "zenodo_doi=10.5281/ZENODO.7598955 (in text)"
+        ],
+        "tier": "retrieval",
+        "assay_matched": false,
+        "skill_output_dir": "Figshare",
+        "reference_benchmark": "liu2025_open4gene",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "geo_retrieval",
+        "title": "GEO series metadata + supplementary-file inventory",
+        "score": 1.5,
+        "evidence": [
+          "geo_series=GSE186458 (in text)"
+        ],
+        "tier": "retrieval",
+        "assay_matched": false,
+        "skill_output_dir": "SingleCell",
+        "reference_benchmark": "zheng2024_invivo_perturbseq",
+        "requires_local_input": false,
+        "notes": "Retrieval only. Pair with an analytical route once the supplementary files are in a format IGVFagent reads (h5ad / mtx / TSV \u2014 not .rds or .qs)."
+      }
+    ],
+    "selected": "perturb_catalog",
+    "controlled_access_repos": [],
+    "unroutable_reason": null
+  },
+  "route_selected": "perturb_catalog",
+  "variables": [
+    {
+      "name": "MODALITY",
+      "value": "crispr-screen",
+      "origin": "route default",
+      "prompt": "perturb-catalog modality (crispr-screen | perturb-seq | mave)",
+      "needs_human": false
+    }
+  ]
+}

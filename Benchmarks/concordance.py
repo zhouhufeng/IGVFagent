@@ -279,11 +279,18 @@ def score_benchmark(paper_dir: Path) -> dict:
             # check failed as "value is None" rather than saying so.
             if chk.get("artefact"):
                 src = read_artefact(run_dir, chk["artefact"])
+                searched = [run_dir]
+                for extra in extras:
+                    if src is not None:
+                        break
+                    src = read_artefact(extra, chk["artefact"])
+                    searched.append(extra)
                 if src is None:
+                    where = ", ".join(str(p) for p in searched)
                     result["checks"].append({
                         "name": name, "type": ctype, "passed": False,
                         "detail": f"artefact {chk['artefact']!r} not found in "
-                                   f"{run_dir}"})
+                                   f"{where}"})
                     continue
             else:
                 src = payload

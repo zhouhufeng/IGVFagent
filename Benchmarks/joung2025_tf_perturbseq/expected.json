@@ -1,9 +1,12 @@
 {
   "paper": {
-    "authors": "Joung J et al.",
-    "journal": "Nat Genet",
+    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O’Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
+    "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+    "journal": "Nature Genetics",
     "year": 2025,
-    "doi": "10.1038/s41588-025-02283-2"
+    "doi": "10.1038/s41588-025-02284-1",
+    "preprint_doi": "10.1101/2024.07.31.606073",
+    "correction_note": "This benchmark's paper_id and citation were fabricated: DOI 10.1038/s41588-025-02283-2 (the identifier this benchmark was originally built from) is a 2-page Nature Genetics Research Briefing by Thomas M. Norman SUMMARIZING the real paper below — it is not a 'Joung' paper, and no author named Joung appears on either the briefing or the underlying research article. The invented title 'A transcription factor atlas of directed differentiation' with page range 828-838 belongs to a different, unrelated 2023 Cell paper (Joung, J. et al., cited only as reference #4 in Norman's briefing). GSE237056 and SCP2169, previously cited here as this paper's data, do not correspond to it either (GSE237056 has no resolvable record; SCP2169 is an unrelated human-tonsil snRNA-seq study). See Benchmarks/southard2024_comprehensive_transcription/ for the corrected, real reproduction, which verifies the paper's guide-library counts (10,979 guides; 1,836 TF targets) directly against the authors' own deposited data."
   },
   "data_source": {
     "type": "perturb_catalogue",

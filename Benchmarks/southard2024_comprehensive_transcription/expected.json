@@ -1,0 +1,212 @@
+{
+  "paper": {
+    "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
+    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O\u2019Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
+    "journal": "bioRxiv",
+    "year": 2024,
+    "doi": "10.1101/2024.07.31.606073",
+    "pmid": null,
+    "pmcid": null
+  },
+  "generated_by": {
+    "tool": "igvfagent bench scaffold",
+    "generated_at": "2026-09-25 22:19:14 EDT",
+    "route": "perturb_catalog",
+    "resolver_confidence": 1.0,
+    "fulltext_source": "https://www.biorxiv.org/content/10.1101/2024.07.31.606073v1.full",
+    "review_required": true
+  },
+  "data_source": {
+    "type": "perturb_catalog",
+    "modality": "crispr-screen"
+  },
+  "skill_output_dir": "Perturbation",
+  "label": "summary",
+  "primary_artefact": "summary.json",
+  "extra_search_dirs": ["Data/Benchmarks/southard2024_comprehensive_transcription"],
+  "checks": [
+    {
+      "name": "Perturbation Catalogue summary written",
+      "type": "artefact",
+      "filename": "summary.json",
+      "confirmed": true,
+      "provenance": {
+        "kind": "structural",
+        "note": "asserted by the route, not by the paper"
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1319 transcription factors",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1253.05,
+      "max": 1384.95,
+      "expected": 1319,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Discussion",
+        "quote": "The filtered, validated guide libraries developed here overcome these limitations, enabling compact future experiments targeting 1319 transcription factors using single guide RNAs ( Supplemental Table 4 )."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1000 transcription factors",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 950.0,
+      "max": 1050.0,
+      "expected": 1000,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Discussion",
+        "quote": "Combined with our multiplexing approach, screens targeting \u223c1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
+      }
+    },
+    {
+      "name": "paper claims 1836 transcription factors",
+      "type": "range",
+      "artefact": "guide_library_verification.json",
+      "path": "n_distinct_tf_targets",
+      "min": 1836,
+      "max": 1836,
+      "expected": 1836,
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_primary_data",
+        "section": "Summary",
+        "quote": "Aided by a novel multiplexing method, we activated 1,836 transcription factors in two cell types.",
+        "verification": "Counted distinct gene-target prefixes in the guide-identity axis of the authors' own deposited guide x droplet UMI matrix (Zenodo 10.5281/zenodo.15200179, fibroblast_CRISPRa_aggr_total_guide_umis.h5) via Benchmarks/southard2024_comprehensive_transcription/verify_guide_library.py. Exact match: 1836."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 21958 perturbations",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 20860.1,
+      "max": 23055.9,
+      "expected": 21958,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Summary",
+        "quote": "Measuring 21,958 perturbations showed that CRISPRa activated targets within physiological ranges, that epigenetic features predicted activatable genes, and that the protospacer seed region drove an off-target effect."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 500 cell types",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 475.0,
+      "max": 525.0,
+      "expected": 500,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Introduction",
+        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 \u2013 5 ."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 17 clusters",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 16.15,
+      "max": 17.85,
+      "expected": 17,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Introduction",
+        "quote": "Another study 54 identified 17 clusters of human fibroblasts across inflammatory diseases, and found likely concordant states: a SPARC + COL3A1 + inflammatory state that was expanded in all diseases, and a CD34 + MFAP5 + state similar to the universal state."
+      }
+    },
+    {
+      "name": "paper claims 10979 guides",
+      "type": "range",
+      "artefact": "guide_library_verification.json",
+      "path": "n_guides_total",
+      "min": 10979,
+      "max": 10979,
+      "expected": 10979,
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_primary_data",
+        "section": "Droplet overloading for high-throughput Perturb-seq",
+        "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 ).",
+        "verification": "Length of the guide-identity axis in the authors' own deposited guide x droplet UMI matrix (Zenodo 10.5281/zenodo.15200179). Exact match: 10979 guides, of which 78 are 'non_targeting_*' — also an exact match to the '78 overrepresented non-targeting negative control guides' clause in the same sentence."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 125000 cells",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 118750.0,
+      "max": 131250.0,
+      "expected": 125000,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Droplet overloading for high-throughput Perturb-seq",
+        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded \u223c125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1482 transcription factors",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1407.8999999999999,
+      "max": 1556.1000000000001,
+      "expected": 1482,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "Despite >50% of guides appearing inactive ( Figure 2B , Figure S4A,B ), 1,482 transcription factors could be activated in at least one cell type, including targets that were unexpressed according to baseline bulk RNA sequencing ( Figure 2C , Figure S4C , Supplemental Table 4 )."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 319 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 303.05,
+      "max": 334.95,
+      "expected": 319,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "Constraints were also observed in terms of which genes could be activated, with cell-type-specific activation for 188 (Hs27) and 196 (RPE-1) targets ( Figure 2C right, Figure S4C ) and 319 genes resistant to activation entirely."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 0.89 AUC",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 0.7565,
+      "max": 1.0234999999999999,
+      "expected": 0.89,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "A model trained using these features achieved a 5-fold cross-validated AUC of 0.89 ( Figure 2G , bottom right ), with the features exhibiting clear differences at target promoters according to susceptibility to activation ( Figure S4I )."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 0.883 AUC",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 0.7505499999999999,
+      "max": 1.01545,
+      "expected": 0.883,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+        "quote": "When evaluated on RPE-1 data, this reduced model achieved an AUC of 0.883 ( Figure S4N )."
+      }
+    }
+  ],
+  "label_note": "This route's CLI steps do not accept --label, so the run directory is not paper-tagged; scoring matches the skill's default 'summary' dir and will pick up the most recent run of that skill, whichever paper produced it."
+}
