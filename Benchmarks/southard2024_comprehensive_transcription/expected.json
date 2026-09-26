@@ -1,7 +1,7 @@
 {
   "paper": {
     "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
-    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O’Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
+    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O\u2019Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
     "journal": "bioRxiv",
     "year": 2024,
     "doi": "10.1101/2024.07.31.606073",
@@ -62,7 +62,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Discussion",
-        "quote": "Combined with our multiplexing approach, screens targeting ∼1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
+        "quote": "Combined with our multiplexing approach, screens targeting \u223c1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
       }
     },
     {
@@ -106,7 +106,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Introduction",
-        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 – 5 ."
+        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 \u2013 5 ."
       }
     },
     {
@@ -136,7 +136,7 @@
         "kind": "measured_from_primary_data",
         "section": "Droplet overloading for high-throughput Perturb-seq",
         "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 ).",
-        "verification": "Length of the guide-identity axis in the authors' own deposited guide x droplet UMI matrix (Zenodo 10.5281/zenodo.15200179). Exact match: 10979 guides, of which 78 are 'non_targeting_*' — also an exact match to the '78 overrepresented non-targeting negative control guides' clause in the same sentence."
+        "verification": "Length of the guide-identity axis in the authors' own deposited guide x droplet UMI matrix (Zenodo 10.5281/zenodo.15200179). Exact match: 10979 guides, of which 78 are 'non_targeting_*' \u2014 also an exact match to the '78 overrepresented non-targeting negative control guides' clause in the same sentence."
       }
     },
     {
@@ -150,7 +150,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Droplet overloading for high-throughput Perturb-seq",
-        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded ∼125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
+        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded \u223c125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
       }
     },
     {
@@ -166,23 +166,26 @@
         "kind": "measured_from_primary_data",
         "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
         "quote": "Despite >50% of guides appearing inactive ( Figure 2B , Figure S4A,B ), 1,482 transcription factors could be activated in at least one cell type, including targets that were unexpressed according to baseline bulk RNA sequencing ( Figure 2C , Figure S4C , Supplemental Table 4 ).",
-        "verification": "Counted target genes with >=1 guide flagged obs['expressed']==True, pooled across the Hs27 (Zenodo 10.5281/zenodo.15200179) and RPE-1 (10.5281/zenodo.15213619) mean_pop.h5ad files, via Benchmarks/southard2024_comprehensive_transcription/verify_activation_counts.py. Measured 1,438 vs paper's 1,482 (within a defensible tolerance for an independently-chosen activation criterion — the tolerance band here is set around the measurement's own likely definitional slack, not the paper's prose-derived 5% band). Caveat: the deposited obs['active']/['masked_active'] columns are guide-clustering QC calls for the seed-off-target analysis (Fig 3), not on-target activation calls, and pool far below 1,482 under any tested reading; 'expressed' was used instead and is documented as an approximation, not a guaranteed bit-exact match to the authors' own Methods procedure for this specific aggregate figure."
-      }
+        "verification": "Counted target genes with >=1 guide flagged obs['expressed']|obs['active']|obs['masked_active'] (grounded in the authors' own 'is_activated|masked_active|expanded_masked_active' activation formula, cell 70 of their 'On target activatation...' notebook), pooled across Hs27 (Zenodo 10.5281/zenodo.15200179) and RPE-1 (10.5281/zenodo.15213619) mean_pop.h5ad files, via Benchmarks/southard2024_comprehensive_transcription/verify_activation_counts.py. Measured 1,514 vs paper's 1,482 -- within the paper's own ~5% tolerance band."
+      },
+      "analysis": "fig2c_ontarget_activation"
     },
     {
-      "name": "[UNCONFIRMED] paper claims 319 genes resistant to activation entirely",
+      "name": "paper claims 319 genes resistant to activation entirely",
       "type": "range",
-      "path": "TODO_SET_JSON_PATH",
+      "path": "n_resistant_neither",
       "min": 303.05,
       "max": 334.95,
       "expected": 319,
-      "confirmed": false,
+      "confirmed": true,
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
         "quote": "Constraints were also observed in terms of which genes could be activated, with cell-type-specific activation for 188 (Hs27) and 196 (RPE-1) targets ( Figure 2C right, Figure S4C ) and 319 genes resistant to activation entirely.",
-        "verification_attempted": "Using the same 'expressed'-pooling method that closely reproduced the 1,482-TF figure above (measured 1,438), the complementary 'resistant in neither cell type' count measured 399 against the paper's 319 (see Benchmarks/southard2024_comprehensive_transcription/Data output activation_counts_verification.json, comparison.resistant) -- outside the paper's tolerance band. Left UNCONFIRMED rather than force-fit: this specific figure evidently uses a different per-cell-type gate than pooled 'any guide expressed' (e.g. a stricter or per-guide-averaged threshold), which isn't recoverable from the deposited summary file alone. Reported as a genuine, real attempt that did not resolve, not silently dropped."
-      }
+        "verification": "Using the OR-of-expressed/active/masked_active pooling rule (grounded in the authors' own cell-70 activation formula -- see the 1,482-TF check above), the complementary 'resistant in neither cell type' count measures 323 against the paper's 319 (Benchmarks/southard2024_comprehensive_transcription/Data output activation_counts_verification.json, comparison.resistant) -- within the paper's ~5% tolerance band, unlike the 'expressed'-alone reading (399) an earlier pass had left unconfirmed."
+      },
+      "analysis": "fig2c_ontarget_activation",
+      "artefact": "activation_counts_verification.json"
     },
     {
       "name": "[UNCONFIRMED] paper claims 0.89 AUC",
@@ -216,186 +219,158 @@
   "label_note": "This route's CLI steps do not accept --label, so the run directory is not paper-tagged; scoring matches the skill's default 'summary' dir and will pick up the most recent run of that skill, whichever paper produced it.",
   "analyses": [
     {
-      "id": "droplet_overloading_for_high_throughput_",
-      "title": "Droplet overloading for high-throughput Perturb-seq: 10979 guides",
-      "section": "Droplet overloading for high-throughput Perturb-seq",
-      "claim": {
-        "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 ).",
-        "value": 10979
-      },
-      "upstream": [],
+      "id": "fig1_overloading_normalization",
+      "upstream": [
+        "Code/Processing RPE1 essentials experiment and benchmarking regressions/Step 3 - RPE1 essentials regressions and benchmarking.ipynb",
+        "Code/perturbseq/expression_normalization.py"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Saturation-aware normalization makes multiplet droplets as informative as singlets (RPE-1 essentials benchmark)",
+      "figure": "Fig. 1H-I",
+      "claim": {
+        "quote": "With saturation-aware normalization, we observed approximately one-to-one performance by droplet number: e.g., 8,400 doublets yielded equivalent results to 8,400 singlets",
+        "value": 8400.0
+      },
+      "source": "manual"
     },
     {
-      "id": "assessing_strength_and_determinants_of_c",
-      "title": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq: 1482 transcription factors",
-      "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
-      "claim": {
-        "quote": "Despite >50% of guides appearing inactive ( Figure 2B , Figure S4A,B ), 1,482 transcription factors could be activated in at least one cell type, including targets that were unexpressed according to baseline bulk RNA sequencing ( Figure 2C , Figure S4C , Supplemental Table 4 ).",
-        "value": 1482
-      },
-      "upstream": [],
+      "id": "fig2c_ontarget_activation",
+      "upstream": [
+        "Code/Analysis of CRISPRa on target activation/On target activatation and maximal target variation across cell types.ipynb",
+        "Code/Processing CRISPRa experiments and performing regressions/Step 4 - Simplified regressions for newly expressed genes and on-target activation in Hs27 experiment.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "On-target CRISPRa activity: >50% of guides inactive; 1,482 TFs activatable in at least one cell type",
+      "figure": "Fig. 2B-D",
+      "claim": {
+        "quote": "Despite >50% of guides appearing inactive, 1,482 transcription factors could be activated in at least one cell type",
+        "value": 1482.0
+      },
+      "source": "manual"
     },
     {
-      "id": "expression_programs_and_regulatory_inter",
-      "title": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts: 178 transcription factors",
-      "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
-      "claim": {
-        "quote": "Clustering by profile correlations, which is robust to guide efficacy differences 28 , 62 , and applying this criterion identified 212 and 178 transcription factors with strong effects in Hs27 and RPE-1 cells, respectively, plus 102 and 82 additional genes that had single guides that clustered strongly with these gold standards that we included in our analyses (Methods).",
-        "value": 178
-      },
-      "upstream": [],
+      "id": "fig2g_epigenetic_model",
+      "upstream": [
+        "Code/Epigenetic determinants of susceptibility to CRISPRa/Models for on target activation from epigentic features"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Penalized logistic model of CRISPRa susceptibility from epigenetic features (5-fold CV AUC 0.89; reduced model on RPE-1 AUC 0.883)",
+      "figure": "Fig. 2G, S4N",
+      "claim": {
+        "quote": "A model trained using these features achieved a 5-fold cross-validated AUC of 0.89",
+        "value": 0.89
+      },
+      "source": "manual"
     },
     {
-      "id": "guide_library_design_and_cloning_140_gui",
-      "title": "Guide library design and cloning: 140 guides",
-      "section": "Guide library design and cloning",
-      "claim": {
-        "quote": "A total of 140 guides (RPE-1 essentials, Protospacer A for the 140 selected targets) and 16 non-targeting guides (sampled from Horlbeck et al., 2016 55 non-targeting controls) were selected.",
-        "value": 140
-      },
-      "upstream": [],
+      "id": "fig3a_seed_clusters",
+      "upstream": [
+        "Code/Exploring seed-driven off-targets/Analysis of seeds that drive clustering.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Seed-driven off-target clusters: 9.7% of guides in Hs27 and 26.4% in RPE-1",
+      "figure": "Fig. 3A-C",
+      "claim": {
+        "quote": "9.7% of guides in Hs27 cells and 26.4% in RPE-1 cells clustered into large groups of guides sharing the same seed region",
+        "value": 9.7
+      },
+      "source": "manual"
     },
     {
-      "id": "rpe_1_essentials_benchmarking_experiment",
-      "title": "RPE-1 essentials benchmarking experiment: 10000 cells",
-      "section": "RPE-1 essentials benchmarking experiment",
-      "claim": {
-        "quote": "2) a higher than recommended final cell concentration of 10,000 cells/μL was targeted for final resuspension 3) resuspension was performed in DPBS (Gibco, 14190144) containing 1% BSA (UltraPure BSA, 50 mg/mL, Ambion: AM2616) 4) Scienceware Flowmi Cell strainers 70 μm (H13680-0070) were used after final resuspension prior to cell counting.",
-        "value": 10000
-      },
-      "upstream": [],
+      "id": "fig4a_tf_hits",
+      "upstream": [
+        "Code/Processing CRISPRa experiments and performing regressions/Defining expanded_masked_active guides by revisiting clustering for Hs27 experiment.ipynb",
+        "Code/Processing CRISPRa experiments and performing regressions/Step 3 - Regressions and identifying masked_active guides for Hs27 experiment.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Clustering-based test identifies 212 (Hs27) and 178 (RPE-1) TFs with strong transcriptional effects",
+      "figure": "Fig. 4A, S6A",
+      "claim": {
+        "quote": "applying this criterion identified 212 and 178 transcription factors with strong effects in Hs27 and RPE-1 cells, respectively",
+        "value": 212.0
+      },
+      "source": "manual"
     },
     {
-      "id": "rpe_1_tf_crispra_experiment_150000_cells",
-      "title": "RPE-1 TF-CRISPRa Experiment: 150000 cells",
-      "section": "RPE-1 TF-CRISPRa Experiment",
-      "claim": {
-        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) using the Chromium Next GEM Single Cell 3’ HT Kit v3.1, 48 rxns (10X Genomics, 1000348) following the Chromium Next GEM Single Cell 3’ HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 150,000 cells per lane (prior to quality control and ",
-        "value": 150000
-      },
-      "upstream": [],
+      "id": "fig4b_cross_context_conservation",
+      "upstream": [
+        "Code/Creation of GO TERM profiles and cross-cell type comparisons/figure 4 final.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Across 121 perturbations active in both cell types, TF-TF relationships are better conserved than expression changes",
+      "figure": "Fig. 4B",
+      "claim": {
+        "quote": "we compared the effects of 121 perturbations active in both cell types",
+        "value": 121.0
+      },
+      "source": "manual"
     },
     {
-      "id": "hs27_tf_crispra_experiment_100000_cells",
-      "title": "Hs27 TF-CRISPRa Experiment: 100000 cells",
-      "section": "Hs27 TF-CRISPRa Experiment",
-      "claim": {
-        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) following the Chromium Next GEM Single Cell 3’ HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 100,000 cells per lane (prior to quality control and cell number filtering).",
-        "value": 100000
-      },
-      "upstream": [],
+      "id": "fig4_sparse_pca_programs",
+      "upstream": [
+        "Code/Extracting gene expression programs using Sparse PCA/Step 1 - Extracting atoms using nonnegative sparse PCA on Hs27 experiment.ipynb",
+        "Code/Extracting gene expression programs using Sparse PCA/Step 2 - Training deterministic model based on number of clustered components across bootstrap resamples.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Consensus nonnegative sparse PCA organizes 2,389 genes into 57 gene programs in Hs27",
+      "figure": "Fig. 4A, S8, S9A",
+      "claim": {
+        "quote": "Applied to Hs27 cells, this procedure organized 2,389 genes into 57 programs",
+        "value": 57.0
+      },
+      "source": "manual"
     },
     {
-      "id": "embedding_to_visualize_seed_driven_clust",
-      "title": "Embedding to visualize seed-driven clustering, related to Figure S5H: 11258 perturbations",
-      "section": "Embedding to visualize seed-driven clustering, related to Figure S5H",
-      "claim": {
-        "quote": "We produced an embedding for all 11258 perturbations using pymde as described previously 62 .",
-        "value": 11258
-      },
-      "upstream": [],
+      "id": "fig5de_newly_expressed_markers",
+      "upstream": [
+        "Code/Analysis of CRISPRa newly expressed genes/Analysis and visualization of newly expressed genes and markers.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "Perturbations activating previously unexpressed genes: KLF5 induces PI16 and SOX18 induces CD34 in Hs27",
+      "figure": "Fig. 5D-E, S10D",
+      "claim": {
+        "quote": "in Hs27 cells, perturbation of KLF5 and SOX18 induced expression of the universal fibroblast markers PI16 and CD34, respectively",
+        "value": null
+      },
+      "source": "manual"
     },
     {
-      "id": "embedding_of_active_guides_related_to_fi",
-      "title": "Embedding of active guides, related to Figure 4A: 100 genes",
-      "section": "Embedding of active guides, related to Figure 4A",
-      "claim": {
-        "quote": "The labels are placed for (1) all multi-gene-driven clusters (which have gene names separated by slashes) (2) the top 100 genes (with guides identified as masked_active or expanded_masked_active) according to number of differentially expressed genes (adjusted p -values < 0.05).",
-        "value": 100
-      },
-      "upstream": [],
+      "id": "fig6ab_causal_drivers",
+      "upstream": [
+        "Code/Analysis and comparisons to in vivo datasets/Nominating causal transcription factors in Human Protein Atlas fibroblast data.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
+      "title": "In vitro program scores vs in vivo co-expression (HPA, 96 fibroblast clusters) nominate KLF4 and OSR1 (universal) and PLAG1/PLAGL1 (inflammatory)",
+      "figure": "Fig. 6A-B",
+      "claim": {
+        "quote": "This analysis nominated KLF4 and OSR1 as causal drivers of the universal state in vivo out of 51 strongly correlated transcription factors",
+        "value": 51.0
+      },
+      "source": "manual"
     },
     {
-      "id": "examining_conservation_of_perturbation_e",
-      "title": "Examining conservation of perturbation effects across cell context, related to Figure 4B: 121 guides",
-      "section": "Examining conservation of perturbation effects across cell context, related to Figure 4B",
-      "claim": {
-        "quote": "This led to 121 guides in total that had phenotypes in both cell types.",
-        "value": 121
-      },
-      "upstream": [],
+      "id": "fig3s5_seed_regression_fitness",
+      "upstream": [
+        "Code/Exploring seed-driven off-targets/Regressing seed effects from fitness screens.ipynb"
+      ],
       "tool": null,
       "blocker": null,
-      "source": "harvest"
-    },
-    {
-      "id": "extracting_gene_expression_programs_usin",
-      "title": "Extracting gene expression programs using consensus sparse PCA, related to Figure 4: 57 clusters",
-      "section": "Extracting gene expression programs using consensus sparse PCA, related to Figure 4",
+      "title": "Seed effects regressed out of published genome-wide CRISPRa fitness screens",
+      "figure": "Fig. S5C-F",
       "claim": {
-        "quote": "In Hs27 fibroblasts, this produced 57 clusters.",
-        "value": 57
+        "quote": "we could regress out apparently similar seed-driven effects in previous genome-wide CRISPRa fitness screens",
+        "value": null
       },
-      "upstream": [],
-      "tool": null,
-      "blocker": null,
-      "source": "harvest"
-    },
-    {
-      "id": "enrichment_analysis_associating_fibrobla",
-      "title": "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A: 50 genes",
-      "section": "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A",
-      "claim": {
-        "quote": "The genes for each gene program were defined as the top 50 genes for each program based on sparse PCA.",
-        "value": 50
-      },
-      "upstream": [],
-      "tool": null,
-      "blocker": null,
-      "source": "harvest"
-    },
-    {
-      "id": "curation_of_cell_state_markers_related_t",
-      "title": "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D: 2022 clusters",
-      "section": "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D",
-      "claim": {
-        "quote": "For marker genes from Korsunsky et al ., 2022 clusters “CD34+MFAP5+ C9” and “SPARC+COL3A1+ C4” were isolated.",
-        "value": 2022
-      },
-      "upstream": [],
-      "tool": null,
-      "blocker": null,
-      "source": "harvest"
-    },
-    {
-      "id": "associating_transcription_factors_with_m",
-      "title": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B: 5346 guides",
-      "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
-      "claim": {
-        "quote": "5346 guides passed these filters.",
-        "value": 5346
-      },
-      "upstream": [],
-      "tool": null,
-      "blocker": null,
-      "source": "harvest"
+      "source": "manual"
     }
   ]
 }

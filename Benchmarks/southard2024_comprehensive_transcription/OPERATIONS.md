@@ -26,6 +26,10 @@ Exit 77 means a required input is missing — the message names which.
 3. Check the quoted sentence in `provenance.quote` really states that number for that quantity.
 4. Set `"confirmed": true` and tighten `min`/`max` to the tolerance you are willing to defend.
 
+## 4. `analyses[]` and paper coverage
+
+`expected.json`'s `analyses[]` lists the paper's 10 headline computational results; `igvfagent bench plan --paper-id southard2024_comprehensive_transcription` shows which have a check tied via `"analysis": "<id>"`. A tied check only counts toward "reproduced" coverage if it also classifies as class A/B in `Benchmarks/taxonomy.py` (a derived rate/metric, or an explicit vs-reference comparison) — a plain count classifies as C and shows as "weak" even when confirmed and passing. `fig2c_ontarget_activation` is currently the only tied analysis (class C); the other 9 have no check yet — see README's "Reproduction status" for what each would need.
+
 ## 4. Troubleshooting
 
 See §5 of `Benchmarks/OPERATIONS_GUIDE.md`.
