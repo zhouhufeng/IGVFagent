@@ -66,7 +66,7 @@ The 5-AnalysisSet benchmark slice is intentionally small for plotting and ~1-2 G
 ### Shell (online-only, ~10 s)
 
 ```bash
-bash Benchmarks/mitra2024_scarlink/run.sh
+bash Benchmarks/mitra2024_multi_regression/portal_survey/run.sh
 ```
 
 Invokes:
@@ -109,7 +109,7 @@ Run the Mitra 2024 SCARlink-style multiome benchmark:
 ### Regenerate figures
 
 ```bash
-.venv/bin/python Benchmarks/mitra2024_scarlink/make_figures.py
+.venv/bin/python Benchmarks/mitra2024_multi_regression/portal_survey/make_figures.py
 ```
 
 ## Honest caveats

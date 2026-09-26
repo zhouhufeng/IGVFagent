@@ -36,11 +36,11 @@ case "$MODE" in
             matreyek2018_pten_vampseq    # verified smoke-test
             waters2024_bap1
             buckley2024_vhl
-            joung2025_tf_perturbseq
+            southard2024_comprehensive_transcription/perturb_catalog
             weinstock2024_cd4_crispr
             zou2024_chipatlas_gata1
             yao2024_encode4_crispri      # metadata-only step is online
-            mitra2024_scarlink           # multiome retrieve is online
+            mitra2024_multi_regression/portal_survey  # multiome retrieve is online
             martyn2025_variant_flowfish  # pull-portal step is online
         )
         ;;
@@ -48,7 +48,7 @@ case "$MODE" in
         PAPERS=(
             matreyek2018_pten_vampseq    # always works
             martyn2025_variant_flowfish
-            mitra2024_scarlink
+            mitra2024_multi_regression/portal_survey
             wang2026_spatial_atac_hic    # offline, seconds, planted ground truth
         )
         ;;
@@ -66,9 +66,9 @@ case "$MODE" in
             waters2024_bap1
             buckley2024_vhl
             yao2024_encode4_crispri
-            mitra2024_scarlink
+            mitra2024_multi_regression/portal_survey
             agarwal2025_lentimpra
-            joung2025_tf_perturbseq
+            southard2024_comprehensive_transcription/perturb_catalog
             zheng2024_invivo_perturbseq
             deng2024_cortex_mpra
             weinstock2024_cd4_crispr

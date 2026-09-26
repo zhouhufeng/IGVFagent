@@ -444,7 +444,7 @@
     "method": "machine-checked reproduction of published results",
     "evidence": [
       {
-        "benchmark": "mitra2024_scarlink",
+        "benchmark": "mitra2024_multi_regression",
         "paper": {
           "authors": "Mitra S et al.",
           "journal": "Nat Genet",
@@ -454,7 +454,7 @@
           "pmcid": "PMC11018525"
         },
         "checks": 1,
-        "run": "Benchmarks/mitra2024_scarlink/run.sh"
+        "run": "Benchmarks/mitra2024_multi_regression/portal_survey/run.sh"
       },
       {
         "benchmark": "trevino2021_cortex_multiome",

@@ -1854,7 +1854,7 @@
         "method": "machine-checked reproduction of published results",
         "evidence": [
           {
-            "benchmark": "liu2025_open4gene",
+            "benchmark": "liu2025_kidney_multiome",
             "paper": {
               "authors": "Hongbo Liu et al.",
               "journal": "Science",
@@ -1863,7 +1863,7 @@
               "pmid": "39913582"
             },
             "checks": 4,
-            "run": "Benchmarks/liu2025_open4gene/run.sh"
+            "run": "Benchmarks/liu2025_kidney_multiome/open4gene/run.sh"
           }
         ],
         "n_checks": 4,
@@ -3361,7 +3361,7 @@
         "method": "machine-checked reproduction of published results",
         "evidence": [
           {
-            "benchmark": "mitra2024_scarlink",
+            "benchmark": "mitra2024_multi_regression",
             "paper": {
               "authors": "Mitra S et al.",
               "journal": "Nat Genet",
@@ -3371,7 +3371,7 @@
               "pmcid": "PMC11018525"
             },
             "checks": 1,
-            "run": "Benchmarks/mitra2024_scarlink/run.sh"
+            "run": "Benchmarks/mitra2024_multi_regression/portal_survey/run.sh"
           },
           {
             "benchmark": "trevino2021_cortex_multiome",
@@ -3875,7 +3875,7 @@
         "method": "machine-checked reproduction of published results",
         "evidence": [
           {
-            "benchmark": "liu2025_open4gene",
+            "benchmark": "liu2025_kidney_multiome",
             "paper": {
               "authors": "Hongbo Liu et al.",
               "journal": "Science",
@@ -3884,7 +3884,7 @@
               "pmid": "39913582"
             },
             "checks": 4,
-            "run": "Benchmarks/liu2025_open4gene/run.sh"
+            "run": "Benchmarks/liu2025_kidney_multiome/open4gene/run.sh"
           }
         ],
         "n_checks": 4,
@@ -4115,7 +4115,7 @@
             "run": "Benchmarks/deng2024_cortex_mpra/run.sh"
           },
           {
-            "benchmark": "joung2025_tf_perturbseq",
+            "benchmark": "southard2024_comprehensive_transcription",
             "paper": {
               "authors": "Joung J et al.",
               "journal": "Nat Genet",
@@ -4123,7 +4123,7 @@
               "doi": "10.1038/s41588-025-02283-2"
             },
             "checks": 1,
-            "run": "Benchmarks/joung2025_tf_perturbseq/run.sh"
+            "run": "Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/run.sh"
           },
           {
             "benchmark": "weinstock2024_cd4_crispr",
@@ -5227,7 +5227,7 @@
         "method": "machine-checked reproduction of published results",
         "evidence": [
           {
-            "benchmark": "joung2025_tf_perturbseq",
+            "benchmark": "southard2024_comprehensive_transcription",
             "paper": {
               "authors": "Joung J et al.",
               "journal": "Nat Genet",
@@ -5235,7 +5235,7 @@
               "doi": "10.1038/s41588-025-02283-2"
             },
             "checks": 1,
-            "run": "Benchmarks/joung2025_tf_perturbseq/run.sh"
+            "run": "Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/run.sh"
           },
           {
             "benchmark": "zheng2024_invivo_perturbseq",

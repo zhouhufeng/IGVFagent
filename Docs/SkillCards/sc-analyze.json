@@ -223,7 +223,7 @@
     "method": "machine-checked reproduction of published results",
     "evidence": [
       {
-        "benchmark": "joung2025_tf_perturbseq",
+        "benchmark": "southard2024_comprehensive_transcription",
         "paper": {
           "authors": "Joung J et al.",
           "journal": "Nat Genet",
@@ -231,7 +231,7 @@
           "doi": "10.1038/s41588-025-02283-2"
         },
         "checks": 1,
-        "run": "Benchmarks/joung2025_tf_perturbseq/run.sh"
+        "run": "Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/run.sh"
       },
       {
         "benchmark": "zheng2024_invivo_perturbseq",

@@ -20,7 +20,7 @@
 >
 > **The real, full reproduction — including a genuine data-backed
 > confirmation of the paper's guide-library counts — lives at
-> [`Benchmarks/southard2024_comprehensive_transcription/`](../southard2024_comprehensive_transcription/README.md).**
+> [`Benchmarks/southard2024_comprehensive_transcription/`](../../southard2024_comprehensive_transcription/README.md).**
 > This directory is kept (rather than deleted) as a record of the
 > correction and to redirect anyone who arrives here via the old paper_id.
 
@@ -49,7 +49,7 @@ open access, PMC11312553).
 | Authors' own analysis code | [norman-lab-msk/TFs_CRISPRa](https://github.com/norman-lab-msk/TFs_CRISPRa) | public, pinned commit under `Data/PaperCode/` by `igvfagent paper-code fetch` |
 | IGVF-format submission (in progress) | [norman-lab-msk/igvf-perturbseq](https://github.com/norman-lab-msk/igvf-perturbseq) | code public; no live IGVFDS accession found via Portal search as of this benchmark's last run |
 
-See [`southard2024_comprehensive_transcription/expected.json`](../southard2024_comprehensive_transcription/expected.json)
+See [`southard2024_comprehensive_transcription/expected.json`](../../southard2024_comprehensive_transcription/expected.json)
 for the full set of paper-claimed numbers this reproduction checks.
 
 ## What was actually confirmed (real, not text-only)

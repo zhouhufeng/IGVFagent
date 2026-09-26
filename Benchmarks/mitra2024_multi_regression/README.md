@@ -29,7 +29,7 @@ Resolver confidence: **1.00** (resolved).
 
 **Route:** `multiome_peak2gene` — 10x Multiome peak→gene cis-regulatory linkage  
 **Skill output dir:** `Docs/Multiome10x/`  
-**Modelled on:** trevino2021_cortex_multiome / mitra2024_scarlink
+**Modelled on:** trevino2021_cortex_multiome / the Portal survey in [`portal_survey/`](portal_survey/README.md)
 
 `run.sh` (1) downloads `GSE194122_openproblems_neurips2021_multiome_BMMC_processed.h5ad` from GEO (~2.7 GB, no auth), (2) splits it by `var['feature_types']` into RNA/ATAC h5ads restricted to the paper's exact 10 donors and 5 cell types, (3) runs `igvfagent multiome peak2gene` genome-wide (per-peak Pearson correlation within a 500 kb window of each gene's TSS, using `Data/scE2G/resources/CollapsedGeneBounds.hg38.TSS500bp.bed`), and (4) scores IGVFagent's own measured quantities into `mitra2024_multi_regression_concordance_metrics.json`.
 

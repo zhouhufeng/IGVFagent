@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate figures embedded in Benchmarks/joung2025_tf_perturbseq/README.md.
+"""Regenerate figures embedded in Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/README.md.
 
 Uses the Perturbation Catalogue landing-page summary to render the
 modality breakdown (CRISPR screen / Perturb-seq / MAVE) — placing
@@ -15,8 +15,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
-FIG_DIR = ROOT / "Benchmarks/joung2025_tf_perturbseq/figures"
+ROOT = Path(__file__).resolve().parents[3]
+FIG_DIR = ROOT / "Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 summary_dirs = sorted((ROOT / "Docs/Perturbation").glob("*_summary"))
@@ -28,7 +28,7 @@ for d in summary_dirs:
 
 if report_path is None:
     sys.exit("No Perturbation Catalogue summary report.md found — run "
-              "`bash Benchmarks/joung2025_tf_perturbseq/run.sh` first.")
+              "`bash Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/run.sh` first.")
 
 txt = report_path.read_text()
 summaries = [report_path]

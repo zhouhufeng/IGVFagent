@@ -4,7 +4,7 @@
 # Benchmarks/southard2024_comprehensive_transcription/ (see README.md here).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
+ROOT="$(cd "$HERE/../../.." && pwd)"
 cd "$ROOT"
 LABEL="joung2025_tf_perturbseq"
 

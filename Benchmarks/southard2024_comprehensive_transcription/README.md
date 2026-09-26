@@ -5,8 +5,8 @@
 > `https://www.nature.com/articles/s41588-025-02283-2`. That DOI is a 2-page
 > Nature Genetics Research Briefing by Thomas M. Norman *summarizing* the
 > paper below — it has no author named Joung. See
-> [`../joung2025_tf_perturbseq/README.md`](../joung2025_tf_perturbseq/README.md)
-> for the full correction (that directory previously carried a fabricated
+> [`perturb_catalog/README.md`](perturb_catalog/README.md)
+> for the full correction (that folder, formerly `Benchmarks/joung2025_tf_perturbseq/`, previously carried a fabricated
 > citation and fabricated accessions for this paper_id).
 
 ## Paper

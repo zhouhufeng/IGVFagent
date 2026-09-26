@@ -17,7 +17,7 @@
     "method": "machine-checked reproduction of published results",
     "evidence": [
       {
-        "benchmark": "liu2025_open4gene",
+        "benchmark": "liu2025_kidney_multiome",
         "paper": {
           "authors": "Hongbo Liu et al.",
           "journal": "Science",
@@ -26,7 +26,7 @@
           "pmid": "39913582"
         },
         "checks": 4,
-        "run": "Benchmarks/liu2025_open4gene/run.sh"
+        "run": "Benchmarks/liu2025_kidney_multiome/open4gene/run.sh"
       }
     ],
     "n_checks": 4,

@@ -5,7 +5,7 @@
 #     check headline consistency.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
+ROOT="$(cd "$HERE/../../.." && pwd)"
 cd "$ROOT"
 EXP="Data/Papers/open4gene/export"
 PAPER="Data/Papers/open4gene/paper_results"

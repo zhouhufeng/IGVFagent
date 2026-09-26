@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate figures embedded in Benchmarks/mitra2024_scarlink/README.md.
+"""Regenerate figures embedded in Benchmarks/mitra2024_multi_regression/portal_survey/README.md.
 
 Reads the IGVF Portal multiome manifest written by `run.sh` and produces
 publication-grade matplotlib panels.
@@ -16,8 +16,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
-FIG_DIR = ROOT / "Benchmarks/mitra2024_scarlink/figures"
+ROOT = Path(__file__).resolve().parents[3]
+FIG_DIR = ROOT / "Benchmarks/mitra2024_multi_regression/portal_survey/figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Find the most recent mitra2024_scarlink analysis-set manifest
@@ -27,7 +27,7 @@ file_candidates = sorted((ROOT / "Data/Manifests/Multiome10x").glob(
     "*_mitra2024_scarlink_files.csv"))
 if not candidates or not file_candidates:
     sys.exit("No Mitra 2024 manifest found — run "
-              "`bash Benchmarks/mitra2024_scarlink/run.sh` first.")
+              "`bash Benchmarks/mitra2024_multi_regression/portal_survey/run.sh` first.")
 
 rows = list(csv.DictReader(candidates[-1].open()))
 files = list(csv.DictReader(file_candidates[-1].open()))

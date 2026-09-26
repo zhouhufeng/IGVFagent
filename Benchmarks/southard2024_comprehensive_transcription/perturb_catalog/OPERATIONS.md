@@ -7,7 +7,7 @@
 > doi:10.1038/s41588-025-02284-1); see `README.md` for the full correction
 > and real identifiers. **For the real reproduction, including a genuine
 > data-verified confirmation of the paper's guide-library counts, use
-> [`Benchmarks/southard2024_comprehensive_transcription/OPERATIONS.md`](../southard2024_comprehensive_transcription/OPERATIONS.md).**
+> [`Benchmarks/southard2024_comprehensive_transcription/OPERATIONS.md`](../../southard2024_comprehensive_transcription/OPERATIONS.md).**
 
 For shared prerequisites, see `Benchmarks/OPERATIONS_GUIDE.md`.
 
@@ -18,8 +18,8 @@ census check — this part was never fabricated, only the paper metadata
 attached to it was:
 
 ```bash
-bash Benchmarks/joung2025_tf_perturbseq/run.sh
-.venv/bin/python Benchmarks/concordance.py --benchmark joung2025_tf_perturbseq
+bash Benchmarks/southard2024_comprehensive_transcription/perturb_catalog/run.sh
+# part of Benchmarks/southard2024_comprehensive_transcription; not scored on its own
 ```
 
 ```bash

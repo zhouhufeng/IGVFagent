@@ -5,8 +5,8 @@ For shared prerequisites, see `Benchmarks/OPERATIONS_GUIDE.md`.
 ## Quick run — online metadata pull, ~30 s
 
 ```bash
-bash Benchmarks/mitra2024_scarlink/run.sh
-.venv/bin/python Benchmarks/concordance.py --benchmark mitra2024_scarlink
+bash Benchmarks/mitra2024_multi_regression/portal_survey/run.sh
+# part of Benchmarks/mitra2024_multi_regression; not scored on its own
 ```
 
 ## What `run.sh` does

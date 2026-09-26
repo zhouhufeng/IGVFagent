@@ -1227,7 +1227,7 @@ ROUTES: List[Dict[str, Any]] = [
         "title": "Perturbation Catalogue census (CRISPR screen / Perturb-seq)",
         "skill_output_dir": "Perturbation",
         "primary_artefact": "summary.json",
-        "reference_benchmark": "weinstock2024_cd4_crispr / joung2025_tf_perturbseq",
+        "reference_benchmark": "weinstock2024_cd4_crispr / southard2024_comprehensive_transcription",
         "match": {"assays": ["CRISPR screen", "CRISPRi screen", "Perturb-seq"]},
         "vars": [
             {"name": "MODALITY", "from": "const",
@@ -1382,7 +1382,7 @@ ROUTES: List[Dict[str, Any]] = [
         "title": "10x Multiome peak→gene cis-regulatory linkage",
         "skill_output_dir": "Multiome10x",
         "primary_artefact": "summary.json",
-        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_scarlink",
+        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_multi_regression",
         "match": {"assays": ["10x Multiome", "scATAC-seq", "enhancer-gene"],
                    "support_accessions": ["igvf_dataset", "geo_series"]},
         "vars": [],
@@ -1533,7 +1533,7 @@ ROUTES: List[Dict[str, Any]] = [
         "title": "figshare / Zenodo deposit retrieval",
         "skill_output_dir": "Figshare",
         "primary_artefact": "summary.json",
-        "reference_benchmark": "liu2025_open4gene",
+        "reference_benchmark": "liu2025_kidney_multiome",
         "match": {"accessions": ["figshare_doi", "zenodo_doi", "zenodo_record"]},
         "vars": [
             {"name": "ARTICLE", "from": "accessions.figshare_doi",
@@ -1552,7 +1552,7 @@ ROUTES: List[Dict[str, Any]] = [
         "title": "IGVF Portal faceted discovery (fallback route)",
         "skill_output_dir": "Portal",
         "primary_artefact": "summary.json",
-        "reference_benchmark": "mitra2024_scarlink",
+        "reference_benchmark": "mitra2024_multi_regression",
         "match": {"accessions": ["igvf_dataset", "igvf_file"]},
         "vars": [
             {"name": "ACCESSION", "from": "accessions.igvf_dataset",

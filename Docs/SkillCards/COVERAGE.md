@@ -11,16 +11,16 @@
 |---|---|---|
 | `mavedb` | buckley2024_vhl, matreyek2018_pten_vampseq, waters2024_bap1 | 13 |
 | `synapse` | deng2024_cortex_mpra, e2g_crispr_benchmark | 7 |
-| `multiome` | mitra2024_scarlink, trevino2021_cortex_multiome | 5 |
+| `multiome` | mitra2024_multi_regression, trevino2021_cortex_multiome | 5 |
 | `sceps` | zou2026_sceps | 5 |
 | `catalog` | buckley2024_vhl | 4 |
 | `encode` | yao2024_encode4_crispri | 4 |
-| `figshare` | liu2025_open4gene | 4 |
+| `figshare` | liu2025_kidney_multiome | 4 |
 | `mpra` | agarwal2025_lentimpra, deng2024_cortex_mpra | 4 |
-| `open4gene` | liu2025_open4gene | 4 |
-| `perturb-catalog` | deng2024_cortex_mpra, joung2025_tf_perturbseq, weinstock2024_cd4_crispr | 3 |
+| `open4gene` | liu2025_kidney_multiome | 4 |
+| `perturb-catalog` | deng2024_cortex_mpra, southard2024_comprehensive_transcription, weinstock2024_cd4_crispr | 3 |
 | `geo` | weinstock2024_cd4_crispr, zheng2024_invivo_perturbseq | 2 |
-| `sc-analyze` | joung2025_tf_perturbseq, zheng2024_invivo_perturbseq | 2 |
+| `sc-analyze` | southard2024_comprehensive_transcription, zheng2024_invivo_perturbseq | 2 |
 | `chipatlas` | zou2024_chipatlas_gata1 | 1 |
 | `enrich` | deng2024_cortex_mpra | 1 |
 | `flowfish` | martyn2025_variant_flowfish | 1 |
