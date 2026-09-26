@@ -8,19 +8,75 @@
   },
   "data_source": {
     "type": "geo",
-    "accession": "GSE249416"
+    "accession": "GSE249416",
+    "suppl_files_used": [
+      "GSE249416_Perturb_all.qs.gz",
+      "GSE249416_Perturb_sg.qs.gz"
+    ]
   },
   "skill_output_dir": "SingleCell",
   "label": "zheng2024_invivo_perturbseq",
-  "primary_artefact": "summary.json",
+  "primary_artefact": "concordance_metrics.json",
   "checks": [
     {
-      "name": "sc-analyze pipeline summary written",
-      "type": "artefact",
-      "filename": "summary.json"
+      "name": "Perturb_all Seurat object cell count matches paper's stated cohort",
+      "type": "range",
+      "path": "n_cells_total",
+      "min": 50075,
+      "max": 50075,
+      "expected": 50075,
+      "confirmed": true,
+      "provenance": {
+        "quote": "Across five replicates, we obtained a total of 50,075 cells profiled after the primary qual[ity control]",
+        "source": "Results, \"Efficient cell labeling, high gRNA recovery, and validated CRISPR effects in vivo\""
+      }
+    },
+    {
+      "name": "10x channel count matches paper's \"five replicates\"",
+      "type": "range",
+      "path": "n_channels",
+      "min": 5,
+      "max": 5,
+      "expected": 5,
+      "confirmed": true,
+      "provenance": {
+        "quote": "Across five replicates, we obtained a total of 50,075 cells profiled",
+        "source": "Results, same paragraph as above"
+      }
+    },
+    {
+      "name": "Foxg1-gRNA1 L6-IT proportion reduction, direction + order of magnitude vs paper's 9.9-fold",
+      "type": "range",
+      "path": "foxg1_g1_l6it_reduction_rate",
+      "min": 2.0,
+      "max": 20.0,
+      "expected": 9.9,
+      "confirmed": true,
+      "provenance": {
+        "quote": "Cells perturbed by Foxg1-gRNA1 had a 9.9-fold reduction in L6-IT neurons (FDR=9.6x10-6)",
+        "source": "Results, \"Distinct cell type proportion changes by transcription factor perturbation in vivo\""
+      }
+    },
+    {
+      "name": "Foxg1-gRNA1 upper-layer proportion increase, direction + order of magnitude vs paper's 2.0-fold",
+      "type": "range",
+      "path": "foxg1_g1_upper_increase_rate",
+      "min": 1.05,
+      "max": 4.0,
+      "expected": 2.0,
+      "confirmed": true,
+      "provenance": {
+        "quote": "accompanied by a 2.0-fold increase of upper layer projection neurons (FDR=0.014)",
+        "source": "Results, same sentence as above"
+      }
     }
   ],
-  "class": "synthetic-smoke",
-  "class_code": "D",
-  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+  "class": "quantitative-reproduction",
+  "class_code": "A",
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "honest_caveats": [
+    "The statistical test is a from-scratch Python re-implementation of the paper's described recipe (arcsin-sqrt proportions + channel fixed effect, gRNA vs NonTarget2 contrast) -- not a call into the paper's own R package (speckle::propeller.ttest). Direction and order of magnitude match; exact p-values/FDR do not.",
+    "The paper's most profound Foxg1 effect (L6-CT sub-cluster 3, FDR<0.028, 1.8-24.4-fold) is at a finer clustering resolution than the object's own CellType column exposes, and was not independently re-clustered here.",
+    "Requires ~4 GB of local download (GSE249416_Perturb_all.qs.gz + GSE249416_Perturb_sg.qs.gz) and an R environment with qs + SeuratObject, which are not on CRAN's current binary track for this R version -- see OPERATIONS.md for the exact bootstrap (including a required stringfish downgrade)."
+  ]
 }
