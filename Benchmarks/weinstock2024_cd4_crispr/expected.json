@@ -25,12 +25,12 @@
   },
   "skill_output_dir": "Perturbation",
   "label": "weinstock2024_cd4_crispr",
-  "primary_artefact": "search.json",
+  "primary_artefact": "crispr-screen_search.json",
   "checks": [
     {
       "name": "CRISPR-screen search result written",
       "type": "artefact",
-      "filename": "search.json"
+      "filename": "crispr-screen_search.json"
     }
   ],
   "class": "synthetic-smoke",

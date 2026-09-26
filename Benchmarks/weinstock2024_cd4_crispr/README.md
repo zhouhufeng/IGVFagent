@@ -67,22 +67,29 @@ Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A, Battle A, Pritchard JK. **Ge
 
 ```bash
 bash Benchmarks/weinstock2024_cd4_crispr/run.sh
+python3 Benchmarks/concordance.py --benchmark weinstock2024_cd4_crispr
 ```
 
-Invokes:
+`run.sh` resolves `igvfagent` from `.venv/bin/` if present and working, else falls
+back to whatever `igvfagent` is on `$PATH` (needed on hosts where the checked-in
+`.venv` was built on a different machine). It invokes:
 
 ```bash
-.venv/bin/igvfagent perturb-catalog summary
-.venv/bin/igvfagent perturb-catalog search-modality \
-    --modality crispr-screen --query KMT2A --dataset-limit 50
-.venv/bin/igvfagent geo series --gse GSE171674
+igvfagent perturb-catalog pipeline --gene KMT2A --label weinstock2024_cd4_crispr --dataset-limit 50
+igvfagent geo series --gse GSE171674
 ```
 
 Outputs:
 
-* `Docs/Perturbation/<ts>_summary.md` — catalogue landing-page summary (1,222 datasets / 19,663 targets / 36 tissues / 30 cell types / 1,199 cell lines / 166 diseases)
-* `Data/Perturbation/Searches/<ts>_modality_crispr-screen_KMT2A.json` — full faceted search response (1,197 datasets, full facet matrix)
+* `Docs/Perturbation/<ts>_weinstock2024_cd4_crispr/summary.json` — catalogue landing-page summary
+* `Docs/Perturbation/<ts>_weinstock2024_cd4_crispr/crispr-screen_search.json` — full faceted search response (1,197 datasets, full facet matrix) — this is `primary_artefact` in `expected.json`
 * `Docs/GEO/<ts>_GSE171674_geo_report.md` — Weinstock 2024 GSE metadata + file listing
+
+Re-verified 2026-09-25: catalogue landing page now reports 1,237 total datasets
+(1,201 CRISPR-screen; grows over time as the live catalogue ingests more
+datasets), but the KMT2A/crispr-screen facet numbers below (1,197 / 1,193
+CRISPRn / 6 T-cell) were unchanged from the 2026-05 snapshot. `concordance.py`
+scores this benchmark `ok` (1/1).
 
 ### Through the agent
 
@@ -101,7 +108,7 @@ Run the Weinstock 2024 CD4+ T-cell CRISPR network benchmark:
 ### Regenerate figures
 
 ```bash
-.venv/bin/python Benchmarks/weinstock2024_cd4_crispr/make_figures.py
+python3 Benchmarks/weinstock2024_cd4_crispr/make_figures.py
 ```
 
 ## Honest caveats

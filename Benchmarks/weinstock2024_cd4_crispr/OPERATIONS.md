@@ -12,34 +12,37 @@ bash Benchmarks/weinstock2024_cd4_crispr/run.sh
 ## What `run.sh` does
 
 ```bash
-.venv/bin/igvfagent perturb-catalog search-modality \
-    --modality crispr-screen --query KMT2A \
-    --label weinstock2024_cd4_crispr
+igvfagent perturb-catalog pipeline \
+    --gene KMT2A --label weinstock2024_cd4_crispr --dataset-limit 50
 
-.venv/bin/igvfagent network pkn-from-kg --label weinstock2024_cd4_crispr_pkn
+igvfagent geo series --gse GSE171674
 ```
 
-Two unrelated tools, chained:
+`run.sh` prefers `.venv/bin/igvfagent` if it works, else falls back to
+`igvfagent` on `$PATH` — the checked-in `.venv` was built on a different
+machine, so its shebang can be stale on another host.
 
-1. `perturb-catalog search-modality` queries for CRISPR-KO screens
-   matching KMT2A in the Perturbation Catalogue.
-2. `network pkn-from-kg` walks IGVFagent's local proteomics
-   knowledge-graph mirror and materializes a signed Prior Knowledge
-   Network (PKN) as a SIF file — this is the input substrate for a
-   CARNIVAL / Steiner-tree run.
+1. `perturb-catalog pipeline` queries the Perturbation Catalogue's
+   summary + all three modalities (mave, crispr-screen, perturb-seq)
+   for KMT2A, and writes everything into one labelled run dir.
+2. `geo series` pulls the Weinstock-specific GEO sub-series metadata.
+
+The optional network follow-up (`network pkn-from-kg` / `steiner`,
+printed at the end of `run.sh`) is not part of the scored benchmark —
+see "Optional: full causal-network inference" below.
 
 ## Where artefacts land
 
 ```
-Docs/Perturbation/<ts>_search_crispr-screen_KMT2A/
-├── search.json
-├── search.tsv
+Docs/Perturbation/<ts>_weinstock2024_cd4_crispr/
+├── summary.json
+├── global_search.json
+├── mave_search.json
+├── crispr-screen_search.json      ← primary_artefact in expected.json
+├── perturb-seq_search.json
 └── report.md
 
-Docs/Network/<ts>_pkn_weinstock2024_cd4_crispr_pkn/
-├── pkn.sif
-├── pkn_summary.json
-└── pkn_viz.svg
+Docs/GEO/<ts>_GSE171674_geo_report.md
 ```
 
 ## Concordance interpretation
@@ -114,8 +117,9 @@ is not yet a registered LLM tool).
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `run.sh: .venv/bin/igvfagent: bad interpreter` | `.venv` was built on a different machine (e.g. synced from a laptop) | Already handled — `run.sh` detects this and falls back to `igvfagent` on `$PATH` |
 | `network pkn-from-kg` errors with "no proteomics KG mirror" | KG mirror hasn't been pulled | Run `igvfagent kg-mirror pull --collection proteins_proteins` first |
-| `search.json` returns 0 hits | KMT2A not yet in catalogue | Try `--query IL2RA` (also a paper-relevant gene) |
+| `crispr-screen_search.json` returns 0 hits | KMT2A not yet in catalogue | Try `--gene IL2RA` (also a paper-relevant gene) |
 | PKN SIF has 0 edges | Wrong gene symbols (e.g. mouse vs human) | The proteomics KG is human-only; verify with `igvfagent catalog get-entity KMT2A` |
 
 ## License + provenance

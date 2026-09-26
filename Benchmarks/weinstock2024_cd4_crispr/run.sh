@@ -5,22 +5,21 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 LABEL="weinstock2024_cd4_crispr"
 
-# 1. Pull the Perturbation Catalogue summary — landing-page stats
-.venv/bin/igvfagent perturb-catalog summary
+BIN="$ROOT/.venv/bin/igvfagent"
+"$BIN" --version >/dev/null 2>&1 || BIN="$(command -v igvfagent)"
 
-# 2. Modality-scoped search for the paper's KMT2A focus locus
-.venv/bin/igvfagent perturb-catalog search-modality \
-    --modality crispr-screen \
-    --query KMT2A \
-    --dataset-limit 50
+# 1. Pull the Perturbation Catalogue summary + KMT2A modality search into a
+#    single labelled run dir (Docs/Perturbation/<ts>_<label>/), which is what
+#    Benchmarks/concordance.py expects to find.
+"$BIN" perturb-catalog pipeline --gene KMT2A --label "$LABEL" --dataset-limit 50
 
-# 3. Pull the Weinstock-specific GEO sub-series metadata
-.venv/bin/igvfagent geo series --gse GSE171674
+# 2. Pull the Weinstock-specific GEO sub-series metadata
+"$BIN" geo series --gse GSE171674
 
 echo ""
 echo "== Weinstock 2024 CD4 CRISPR benchmark — online steps complete =="
 echo "Optional next step (requires the IGVF KG mirror to be warm):"
-echo "  .venv/bin/igvfagent network pkn-from-kg --label ${LABEL}_pkn"
-echo "  .venv/bin/igvfagent network steiner --seeds KMT2A,STAT5A,IL2 --label ${LABEL}_steiner"
+echo "  $BIN network pkn-from-kg --label ${LABEL}_pkn"
+echo "  $BIN network steiner --seeds KMT2A,STAT5A,IL2 --label ${LABEL}_steiner"
 echo "Generate figures with:"
-echo "  .venv/bin/python Benchmarks/weinstock2024_cd4_crispr/make_figures.py"
+echo "  python3 Benchmarks/weinstock2024_cd4_crispr/make_figures.py"
