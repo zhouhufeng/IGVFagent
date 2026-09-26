@@ -1,0 +1,101 @@
+{
+  "label": "zhu2024_ts3_bal_batch2",
+  "n_truth_cells": 48841,
+  "n_called_cells": 48841,
+  "precision": 0.9453319220233061,
+  "recall": 0.7721695951462776,
+  "f_score": 0.8482891434874267,
+  "doublet": {
+    "recall": 0.8041157357264428,
+    "doublet_called_singlet": 0.13058950951570478,
+    "doublet_called_negative": 0.06529475475785239
+  },
+  "per_tag": {
+    "BAL I": {
+      "tp": 4721,
+      "fp": 232,
+      "fn": 916,
+      "tn": 42972,
+      "precision": 0.9531597011911973,
+      "recall": 0.8375022174915735,
+      "f_score": 0.8915958451369216
+    },
+    "BAL J": {
+      "tp": 1431,
+      "fp": 136,
+      "fn": 269,
+      "tn": 47005,
+      "precision": 0.9132099553286535,
+      "recall": 0.841764705882353,
+      "f_score": 0.8760330578512396
+    },
+    "BAL K": {
+      "tp": 2272,
+      "fp": 80,
+      "fn": 793,
+      "tn": 45696,
+      "precision": 0.9659863945578231,
+      "recall": 0.7412724306688417,
+      "f_score": 0.8388406867269707
+    },
+    "BAL L": {
+      "tp": 7196,
+      "fp": 275,
+      "fn": 1706,
+      "tn": 39664,
+      "precision": 0.9631910052201847,
+      "recall": 0.808357672433161,
+      "f_score": 0.8790081231295426
+    },
+    "BAL M": {
+      "tp": 2162,
+      "fp": 123,
+      "fn": 870,
+      "tn": 45686,
+      "precision": 0.9461706783369803,
+      "recall": 0.7130606860158312,
+      "f_score": 0.8132405491818695
+    },
+    "BAL N": {
+      "tp": 848,
+      "fp": 99,
+      "fn": 435,
+      "tn": 47459,
+      "precision": 0.8954593453009504,
+      "recall": 0.6609508963367108,
+      "f_score": 0.7605381165919283
+    },
+    "BAL O": {
+      "tp": 7366,
+      "fp": 123,
+      "fn": 2911,
+      "tn": 38441,
+      "precision": 0.983575911336627,
+      "recall": 0.7167461321397295,
+      "f_score": 0.8292243611392548
+    },
+    "BAL P": {
+      "tp": 6793,
+      "fp": 419,
+      "fn": 1127,
+      "tn": 40502,
+      "precision": 0.9419023849140322,
+      "recall": 0.8577020202020202,
+      "f_score": 0.8978324081416865
+    }
+  },
+  "max_cell_fit": 1000.0,
+  "max_iter": 30,
+  "quantile_fit": [
+    0.05,
+    0.95
+  ],
+  "inputs": {
+    "tags": [
+      "Data/zhu2024/work/oshlack/bal_batch2_c1_tags.csv",
+      "Data/zhu2024/work/oshlack/bal_batch2_c2_tags.csv"
+    ],
+    "truth": "Data/zhu2024/work/oshlack/bal_batch2_truth.csv",
+    "tag_mapping": "Data/zhu2024/work/oshlack/bal_batch2_tag_mapping.json"
+  }
+}

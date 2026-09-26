@@ -1,0 +1,60 @@
+{
+  "name": "shareseq_species_mix",
+  "description": "SHARE-seq human/mouse species-mixing calls from paired per-genome ATAC and RNA counts: P1-offset barcode pairing, barcode-rank knee cell filter, majority-species call in both modalities, collision rate (Ma 2020 Fig. 1B-D; the authors' lib_size_sc_V4_species_mixing.R only tabulates per-species molecules, the call rule follows the paper text)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "atac_human_mtx": {
+        "type": "string"
+      },
+      "atac_human_barcodes": {
+        "type": "string"
+      },
+      "atac_mouse_mtx": {
+        "type": "string"
+      },
+      "atac_mouse_barcodes": {
+        "type": "string"
+      },
+      "rna_human": {
+        "type": "string"
+      },
+      "rna_mouse": {
+        "type": "string"
+      },
+      "atac_min": {
+        "type": "number"
+      },
+      "out": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "atac_human_mtx",
+      "atac_human_barcodes",
+      "atac_mouse_mtx",
+      "atac_mouse_barcodes",
+      "rna_human",
+      "rna_mouse",
+      "out"
+    ]
+  },
+  "cli": [
+    "shareseq-species-mix"
+  ],
+  "x-ported": {
+    "paper_id": "ma2020_shareseq",
+    "repo": "https://github.com/masai1116/SHARE-seq-alignment",
+    "commit": "11f2da02147067368c0724545daf36516025de2c"
+  },
+  "flag_map": {
+    "atac_human_mtx": "--atac-human-mtx",
+    "atac_human_barcodes": "--atac-human-barcodes",
+    "atac_mouse_mtx": "--atac-mouse-mtx",
+    "atac_mouse_barcodes": "--atac-mouse-barcodes",
+    "rna_human": "--rna-human",
+    "rna_mouse": "--rna-mouse",
+    "atac_min": "--atac-min",
+    "out": "--out"
+  }
+}

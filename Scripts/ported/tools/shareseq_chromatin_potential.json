@@ -1,0 +1,74 @@
+{
+  "name": "shareseq_chromatin_potential",
+  "description": "Chromatin potential (Ma 2020 Fig. 5H): kNN-smoothed DORC scores vs smoothed RNA of DORC genes, cross-modal kNN (k=10) arrows, flow and pseudotime-direction tests. No code was released for this analysis: it follows the STAR Methods text; kNN smoothing mirrors FigR smoothScoresNN (R/utils.R); LSI replaces cisTopic",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "atac_mtx": {
+        "type": "string"
+      },
+      "atac_barcodes": {
+        "type": "string"
+      },
+      "dorc_scores": {
+        "type": "string"
+      },
+      "dorc_genes": {
+        "type": "string"
+      },
+      "rna": {
+        "type": "string"
+      },
+      "celltypes": {
+        "type": "string"
+      },
+      "types": {
+        "type": "string"
+      },
+      "progenitor": {
+        "type": "string"
+      },
+      "differentiated": {
+        "type": "string"
+      },
+      "pseudotime": {
+        "type": "string"
+      },
+      "out": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "atac_mtx",
+      "atac_barcodes",
+      "dorc_scores",
+      "rna",
+      "celltypes",
+      "types",
+      "progenitor",
+      "differentiated",
+      "out"
+    ]
+  },
+  "cli": [
+    "shareseq-chromatin-potential"
+  ],
+  "x-ported": {
+    "paper_id": "ma2020_shareseq",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd"
+  },
+  "flag_map": {
+    "atac_mtx": "--atac-mtx",
+    "atac_barcodes": "--atac-barcodes",
+    "dorc_scores": "--dorc-scores",
+    "dorc_genes": "--dorc-genes",
+    "rna": "--rna",
+    "celltypes": "--celltypes",
+    "types": "--types",
+    "progenitor": "--progenitor",
+    "differentiated": "--differentiated",
+    "pseudotime": "--pseudotime",
+    "out": "--out"
+  }
+}

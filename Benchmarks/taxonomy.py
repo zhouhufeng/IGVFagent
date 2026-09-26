@@ -43,7 +43,7 @@ BENCH = Path(__file__).resolve().parent
 # Quantities that are derived scientific measurements rather than tallies.
 # Anything matching is class A; a numeric check on anything else is a count.
 _METRIC_RE = re.compile(
-    r"(auprc|auroc|precision|recall|\bami\b|homogeneity|correlation|corr\b"
+    r"(auprc|auroc|precision|recall|f_score|fscore|\bf1\b|\bami\b|homogeneity|correlation|corr\b"
     r"|singlet_rate|balance|_frac_|fraction|rate\b|mean\b|median"
     r"|aggregated_[zp]|omega|max_abs_diff|match_rate|concordance)",
     re.IGNORECASE)

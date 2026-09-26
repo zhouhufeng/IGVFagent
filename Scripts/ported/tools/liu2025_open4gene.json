@@ -1,0 +1,83 @@
+{
+  "name": "liu2025_open4gene",
+  "description": "Open4Gene peak-to-gene hurdle test (logit zero + zero-truncated NB count, pscl::hurdle numerics: glm.fit starts, R vmmin BFGS, optimhess SEs, R dnbinom) across multiome cells, all cells / each cell type / one cell type, with covariates (port of hbliu/Open4Gene R/Open4Gene.R, Liu et al. Science 2025)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "rna": {
+        "type": "string",
+        "description": "genes x cells counts (.mtx or dense .csv)"
+      },
+      "rna_genes": {
+        "type": "string"
+      },
+      "atac": {
+        "type": "string",
+        "description": "peaks x cells counts (.mtx or dense .csv)"
+      },
+      "atac_peaks": {
+        "type": "string"
+      },
+      "meta": {
+        "type": "string",
+        "description": "cell metadata CSV, cell ids first column"
+      },
+      "pairs": {
+        "type": "string",
+        "description": "CSV of Peak,Gene pairs"
+      },
+      "covariates": {
+        "type": "string",
+        "description": "comma-separated metadata columns"
+      },
+      "celltype": {
+        "type": "string",
+        "default": "All"
+      },
+      "celltype_col": {
+        "type": "string",
+        "default": "Cell_Type"
+      },
+      "binary": {
+        "type": "boolean"
+      },
+      "min_cells": {
+        "type": "integer",
+        "default": 5
+      },
+      "out": {
+        "type": "string",
+        "description": "output TSV"
+      }
+    },
+    "required": [
+      "rna",
+      "atac",
+      "meta",
+      "pairs",
+      "out"
+    ]
+  },
+  "cli": [
+    "liu2025-open4gene"
+  ],
+  "x-ported": {
+    "paper_id": "liu2025_kidney_multiome",
+    "repo": "https://github.com/hbliu/Open4Gene",
+    "commit": "6e7f36aa80e6ff778737fc25978337342394cc68"
+  },
+  "flag_map": {
+    "rna": "--rna",
+    "rna_genes": "--rna-genes",
+    "atac": "--atac",
+    "atac_peaks": "--atac-peaks",
+    "meta": "--meta",
+    "pairs": "--pairs",
+    "covariates": "--covariates",
+    "celltype": "--celltype",
+    "celltype_col": "--celltype-col",
+    "binary": "--binary",
+    "min_cells": "--min-cells",
+    "out": "--out"
+  }
+}

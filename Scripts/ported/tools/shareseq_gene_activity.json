@@ -1,0 +1,55 @@
+{
+  "name": "shareseq_gene_activity",
+  "description": "scATAC peak-matrix gene activity: peaks overlapping gene body + 2 kb upstream summed per gene (port of Seurat v3.2.3 CreateGeneActivityMatrix, used by Ma 2020 for ATAC-to-RNA computational pairing)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "atac_mtx": {
+        "type": "string"
+      },
+      "atac_barcodes": {
+        "type": "string"
+      },
+      "peaks": {
+        "type": "string"
+      },
+      "gtf": {
+        "type": "string"
+      },
+      "upstream": {
+        "type": "integer",
+        "default": 2000
+      },
+      "seq_levels": {
+        "type": "string"
+      },
+      "out": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "atac_mtx",
+      "atac_barcodes",
+      "peaks",
+      "gtf",
+      "out"
+    ]
+  },
+  "cli": [
+    "shareseq-gene-activity"
+  ],
+  "x-ported": {
+    "paper_id": "ma2020_shareseq",
+    "repo": "https://github.com/satijalab/seurat",
+    "commit": "b56d194939379460db23380426d3896b54d91ab6"
+  },
+  "flag_map": {
+    "atac_mtx": "--atac-mtx",
+    "atac_barcodes": "--atac-barcodes",
+    "peaks": "--peaks",
+    "gtf": "--gtf",
+    "upstream": "--upstream",
+    "seq_levels": "--seq-levels",
+    "out": "--out"
+  }
+}

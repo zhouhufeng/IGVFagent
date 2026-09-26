@@ -1,0 +1,73 @@
+{
+  "label": "zhu2024_fig2b_sim1",
+  "n_truth_cells": 2059,
+  "n_called_cells": 2059,
+  "precision": 0.9965410383711953,
+  "recall": 1.0,
+  "f_score": 0.9982657298320341,
+  "doublet": {
+    "recall": 0.7307692307692307,
+    "doublet_called_singlet": 0.2692307692307692,
+    "doublet_called_negative": 0.0
+  },
+  "per_tag": {
+    "bc1": {
+      "tp": 447,
+      "fp": 1,
+      "fn": 0,
+      "tn": 1611,
+      "precision": 0.9977678571428571,
+      "recall": 1.0,
+      "f_score": 0.9988826815642458
+    },
+    "bc2": {
+      "tp": 366,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1693,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f_score": 1.0
+    },
+    "bc3": {
+      "tp": 445,
+      "fp": 1,
+      "fn": 0,
+      "tn": 1613,
+      "precision": 0.9977578475336323,
+      "recall": 1.0,
+      "f_score": 0.9988776655443322
+    },
+    "bc4": {
+      "tp": 388,
+      "fp": 2,
+      "fn": 0,
+      "tn": 1669,
+      "precision": 0.9948717948717949,
+      "recall": 1.0,
+      "f_score": 0.9974293059125964
+    },
+    "bc5": {
+      "tp": 387,
+      "fp": 3,
+      "fn": 0,
+      "tn": 1669,
+      "precision": 0.9923076923076923,
+      "recall": 1.0,
+      "f_score": 0.9961389961389961
+    }
+  },
+  "max_cell_fit": 5000.0,
+  "max_iter": 30,
+  "quantile_fit": [
+    0.05,
+    0.95
+  ],
+  "inputs": {
+    "tags": [
+      "Data/zhu2024/work/sim/sim1_c1_tags.csv"
+    ],
+    "truth": "Data/zhu2024/work/sim/sim1_truth.csv",
+    "tag_mapping": "Data/zhu2024/work/sim/sim1_tag_mapping.json"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "name": "shareseq_dorc",
+  "description": "SHARE-seq peak-gene Spearman correlations with chromVAR background-peak z-test, DORC calling and per-cell DORC scores (port of buenrostrolab/FigR R/DORCs.R runGenePeakcorr/getDORCScores + R/utils.R centerCounts; Ma et al. Cell 2020 framework)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "subcommand": {
+        "type": "string",
+        "enum": [
+          "peakgene",
+          "summarize",
+          "dorc-scores",
+          "bg-peaks"
+        ]
+      },
+      "atac_mtx": {
+        "type": "string"
+      },
+      "atac_barcodes": {
+        "type": "string"
+      },
+      "peaks": {
+        "type": "string"
+      },
+      "rna": {
+        "type": "string"
+      },
+      "tss": {
+        "type": "string"
+      },
+      "bg_matrix": {
+        "type": "string"
+      },
+      "genes": {
+        "type": "string"
+      },
+      "window": {
+        "type": "integer",
+        "default": 50000
+      },
+      "p_cut": {
+        "type": "number",
+        "default": 0.05
+      },
+      "dorc_cutoff": {
+        "type": "integer",
+        "default": 10
+      },
+      "multimap": {
+        "type": "string",
+        "enum": [
+          "max_cor",
+          "min_p",
+          "all"
+        ]
+      },
+      "out": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "subcommand",
+      "out"
+    ]
+  },
+  "cli": [
+    "shareseq-dorc"
+  ],
+  "x-ported": {
+    "paper_id": "ma2020_shareseq",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd"
+  },
+  "flag_map": {
+    "subcommand": "--subcommand",
+    "atac_mtx": "--atac-mtx",
+    "atac_barcodes": "--atac-barcodes",
+    "peaks": "--peaks",
+    "rna": "--rna",
+    "tss": "--tss",
+    "bg_matrix": "--bg-matrix",
+    "genes": "--genes",
+    "window": "--window",
+    "p_cut": "--p-cut",
+    "dorc_cutoff": "--dorc-cutoff",
+    "multimap": "--multimap",
+    "out": "--out"
+  }
+}

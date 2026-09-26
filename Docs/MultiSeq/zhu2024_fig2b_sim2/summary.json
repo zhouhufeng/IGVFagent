@@ -1,0 +1,118 @@
+{
+  "label": "zhu2024_fig2b_sim2",
+  "n_truth_cells": 14877,
+  "n_called_cells": 14877,
+  "precision": 0.9982697075172137,
+  "recall": 0.9997629642198668,
+  "f_score": 0.9990155533328797,
+  "doublet": {
+    "recall": 0.888030888030888,
+    "doublet_called_singlet": 0.11196911196911197,
+    "doublet_called_negative": 0.0
+  },
+  "per_tag": {
+    "bc1": {
+      "tp": 1335,
+      "fp": 3,
+      "fn": 0,
+      "tn": 13539,
+      "precision": 0.9977578475336323,
+      "recall": 1.0,
+      "f_score": 0.9988776655443322
+    },
+    "bc2": {
+      "tp": 738,
+      "fp": 0,
+      "fn": 0,
+      "tn": 14139,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f_score": 1.0
+    },
+    "bc3": {
+      "tp": 1609,
+      "fp": 4,
+      "fn": 2,
+      "tn": 13262,
+      "precision": 0.9975201487910725,
+      "recall": 0.9987585350713842,
+      "f_score": 0.9981389578163772
+    },
+    "bc4": {
+      "tp": 1746,
+      "fp": 4,
+      "fn": 1,
+      "tn": 13126,
+      "precision": 0.9977142857142857,
+      "recall": 0.9994275901545506,
+      "f_score": 0.9985702030311696
+    },
+    "bc5": {
+      "tp": 633,
+      "fp": 0,
+      "fn": 0,
+      "tn": 14244,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f_score": 1.0
+    },
+    "bc6": {
+      "tp": 1796,
+      "fp": 6,
+      "fn": 1,
+      "tn": 13074,
+      "precision": 0.9966703662597114,
+      "recall": 0.9994435169727324,
+      "f_score": 0.9980550152820228
+    },
+    "bc7": {
+      "tp": 1653,
+      "fp": 1,
+      "fn": 0,
+      "tn": 13223,
+      "precision": 0.9993954050785974,
+      "recall": 1.0,
+      "f_score": 0.9996976111279104
+    },
+    "bc8": {
+      "tp": 1476,
+      "fp": 3,
+      "fn": 0,
+      "tn": 13398,
+      "precision": 0.9979716024340771,
+      "recall": 1.0,
+      "f_score": 0.9989847715736041
+    },
+    "bc9": {
+      "tp": 2005,
+      "fp": 5,
+      "fn": 0,
+      "tn": 12867,
+      "precision": 0.9975124378109452,
+      "recall": 1.0,
+      "f_score": 0.9987546699875467
+    },
+    "bc10": {
+      "tp": 1623,
+      "fp": 3,
+      "fn": 0,
+      "tn": 13251,
+      "precision": 0.9981549815498155,
+      "recall": 1.0,
+      "f_score": 0.9990766389658357
+    }
+  },
+  "max_cell_fit": 5000.0,
+  "max_iter": 30,
+  "quantile_fit": [
+    0.05,
+    0.95
+  ],
+  "inputs": {
+    "tags": [
+      "Data/zhu2024/work/sim/sim2_c1_tags.csv"
+    ],
+    "truth": "Data/zhu2024/work/sim/sim2_truth.csv",
+    "tag_mapping": "Data/zhu2024/work/sim/sim2_tag_mapping.json"
+  }
+}

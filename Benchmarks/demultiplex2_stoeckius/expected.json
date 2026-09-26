@@ -1,11 +1,13 @@
 {
   "paper": {
-    "authors": "Zhu Q, Conrad DN, Gartner ZJ (deMULTIplex2); Stoeckius M et al. (data)",
-    "journal": "Genome Biology (method) / Genome Biology 2018 (Cell Hashing data)",
+    "authors": "Zhu Q, Conrad DN, Gartner ZJ",
+    "journal": "Genome Biology 25:37",
     "year": 2024,
     "doi": "10.1186/s13059-024-03177-y",
-    "pmid": "38217022",
-    "data_doi": "10.1186/s13059-018-1603-1"
+    "pmid": "38291503",
+    "data_doi": "10.1186/s13059-018-1603-1",
+    "pmc": "PMC10829271",
+    "paper_id": "zhu2024_demultiplex2_robust"
   },
   "data_source": {
     "type": "demultiplex2_bundled_rdata",
@@ -67,9 +69,390 @@
       "name": "Demultiplex summary written",
       "type": "artefact",
       "filename": "summary.json"
+    },
+    {
+      "name": "Lung cancer cell line: deMULTIplex2 average F-score vs genetic truth matches Table S3 (0.88)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_ts3_lung_cellline/summary.json",
+      "path": "f_score",
+      "min": 0.855,
+      "max": 0.905,
+      "expected": 0.88,
+      "analysis": "ts3_lung_cellline",
+      "tolerance_note": "+-0.025: the authors' own R code, run here on the deposited Oshlack truth with the paper's settings, lands 0.002-0.019 from Table S3 (max on BAL2); max.cell.fit=1000 subsampling adds <0.002."
+    },
+    {
+      "name": "Lung cancer cell line: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_001528_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "ts3_lung_cellline"
+    },
+    {
+      "name": "BAL1: deMULTIplex2 average F-score vs genetic truth matches Table S3 (0.907)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_ts3_bal_batch1/summary.json",
+      "path": "f_score",
+      "min": 0.882,
+      "max": 0.932,
+      "expected": 0.907,
+      "analysis": "ts3_bal1",
+      "tolerance_note": "+-0.025: the authors' own R code, run here on the deposited Oshlack truth with the paper's settings, lands 0.002-0.019 from Table S3 (max on BAL2); max.cell.fit=1000 subsampling adds <0.002."
+    },
+    {
+      "name": "BAL1: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_001529_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "ts3_bal1"
+    },
+    {
+      "name": "BAL2: deMULTIplex2 average F-score vs genetic truth matches Table S3 (0.829)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_ts3_bal_batch2/summary.json",
+      "path": "f_score",
+      "min": 0.804,
+      "max": 0.854,
+      "expected": 0.829,
+      "analysis": "ts3_bal2",
+      "tolerance_note": "+-0.025: the authors' own R code, run here on the deposited Oshlack truth with the paper's settings, lands 0.002-0.019 from Table S3 (max on BAL2); max.cell.fit=1000 subsampling adds <0.002."
+    },
+    {
+      "name": "BAL2: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_001531_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "ts3_bal2"
+    },
+    {
+      "name": "BAL3: deMULTIplex2 average F-score vs genetic truth matches Table S3 (0.774)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_ts3_bal_batch3/summary.json",
+      "path": "f_score",
+      "min": 0.749,
+      "max": 0.799,
+      "expected": 0.774,
+      "analysis": "ts3_bal3",
+      "tolerance_note": "+-0.025: the authors' own R code, run here on the deposited Oshlack truth with the paper's settings, lands 0.002-0.019 from Table S3 (max on BAL2); max.cell.fit=1000 subsampling adds <0.002."
+    },
+    {
+      "name": "BAL3: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_001533_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "ts3_bal3"
+    },
+    {
+      "name": "multiseq posteriors identical to the authors' R demultiplexTags on the Stoeckius PBMC matrix (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_000928_demultiplex2_stoeckius_port_multiseq/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "port_em_classifier"
+    },
+    {
+      "name": "Fig. 2B Simulation 1: deMULTIplex2 F-score vs simulated truth matches the figure (1.00)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_fig2b_sim1/summary.json",
+      "path": "f_score",
+      "min": 0.985,
+      "max": 1.0,
+      "expected": 1.0,
+      "analysis": "fig2b_simulations",
+      "tolerance_note": "figure prints 2 decimals (+-0.005) plus 0.01 for max.cell.fit=5000 subsampling noise; simulations regenerated with the authors' simulateTags, seed 2023"
+    },
+    {
+      "name": "Fig. 2B Simulation 2: deMULTIplex2 F-score vs simulated truth matches the figure (1.00)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_fig2b_sim2/summary.json",
+      "path": "f_score",
+      "min": 0.985,
+      "max": 1.0,
+      "expected": 1.0,
+      "analysis": "fig2b_simulations",
+      "tolerance_note": "figure prints 2 decimals (+-0.005) plus 0.01 for max.cell.fit=5000 subsampling noise; simulations regenerated with the authors' simulateTags, seed 2023"
+    },
+    {
+      "name": "Fig. 2B Simulation 3: deMULTIplex2 F-score vs simulated truth matches the figure (1.00)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_fig2b_sim3/summary.json",
+      "path": "f_score",
+      "min": 0.985,
+      "max": 1.0,
+      "expected": 1.0,
+      "analysis": "fig2b_simulations",
+      "tolerance_note": "figure prints 2 decimals (+-0.005) plus 0.01 for max.cell.fit=5000 subsampling noise; simulations regenerated with the authors' simulateTags, seed 2023"
+    },
+    {
+      "name": "Fig. 2B Simulation 4: deMULTIplex2 F-score vs simulated truth matches the figure (0.99)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_fig2b_sim4/summary.json",
+      "path": "f_score",
+      "min": 0.975,
+      "max": 1.0,
+      "expected": 0.99,
+      "analysis": "fig2b_simulations",
+      "tolerance_note": "figure prints 2 decimals (+-0.005) plus 0.01 for max.cell.fit=5000 subsampling noise; simulations regenerated with the authors' simulateTags, seed 2023"
+    },
+    {
+      "name": "Fig. 2B Simulation 5: deMULTIplex2 F-score vs simulated truth matches the figure (0.87)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_fig2b_sim5/summary.json",
+      "path": "f_score",
+      "min": 0.855,
+      "max": 0.885,
+      "expected": 0.87,
+      "analysis": "fig2b_simulations",
+      "tolerance_note": "figure prints 2 decimals (+-0.005) plus 0.01 for max.cell.fit=5000 subsampling noise; simulations regenerated with the authors' simulateTags, seed 2023"
+    },
+    {
+      "name": "Fig. 2B simulations 1-5: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_004436_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "fig2b_simulations"
+    },
+    {
+      "name": "Gaublomme: deMULTIplex2 average F-score vs demuxlet truth matches Table S3 (0.976)",
+      "type": "range",
+      "artefact": "Docs/MultiSeq/zhu2024_ts3_gaublomme/summary.json",
+      "path": "f_score",
+      "min": 0.951,
+      "max": 1.0,
+      "expected": 0.976,
+      "analysis": "ts3_gaublomme",
+      "tolerance_note": "+-0.025 as for the other Table S3 datasets; the authors' R code run here gives 0.9762 (P 0.970, R 0.982), matching the table to 3 decimals"
+    },
+    {
+      "name": "Gaublomme: demultiplex2-benchmark per-cell calls identical to the authors' R deMULTIplex2 (no subsampling, max.quantile.fit 0.9)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_004733_demultiplex2_stoeckius_port_demultiplex2_benchmark/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "ts3_gaublomme"
     }
   ],
   "class": "biological-reproduction",
   "class_code": "A",
-  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "analyses": [
+    {
+      "id": "ts3_stoeckius_cellline",
+      "upstream": [
+        "Stoeckius_4celline_benchmarking.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "not_deposited",
+        "reason": "Truth is hto12$assign_rna (RNA cell-line calls incl. 'Doublet_rna') read from hto12_processed.rds in deMULTIplex2-benchmark@ac0fa17 Stoeckius_4celline_benchmarking.R; the script says only 'obtained following the Seurat tutorial', which has no assign_rna. The labels are in neither GitHub nor Zenodo 8429628 (code only) nor GEO GSE108313 (count matrices only). A marker-based RNA reconstruction attempted here did not separate HEK293T cleanly and was discarded rather than scored."
+      },
+      "title": "deMULTIplex2 F-score, Stoeckius 4-cell-line",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "Stoeckius (cell line) deMULTIplex2 average F-score 0.962",
+        "value": 0.962
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_stoeckius_pbmc",
+      "upstream": [
+        "Stoeckius_8donor_benchmarking.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "other",
+        "reason": "Public but needs recomputation: truth = vireo donor_ids.tsv from cellranger + vireo run by the authors on GEO/SRA GSE108313 PBMC FASTQs (Stoeckius_8donor_benchmarking.R line 3); not deposited. Needs cellranger + GRCh38 + cellSNP/vireo on raw reads; not run in this session (cluster queue saturated by other jobs). vireo is unsupervised, so a rerun would not reproduce the authors' labels exactly."
+      },
+      "title": "deMULTIplex2 F-score, Stoeckius 8-donor PBMC",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "Stoeckius (PBMC) deMULTIplex2 average F-score 0.957",
+        "value": 0.957
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_mcginnis_multi",
+      "upstream": [
+        "McGinnis_8donor_benchmarking_MULTI.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "other",
+        "reason": "Public but needs recomputation: truth = souporcell clusters.tsv from the authors' run on the GSE161329 RNA reads (McGinnis_8donor_benchmarking_MULTI.R line 20); not deposited. Needs cellranger + souporcell on SRA FASTQs; not run in this session."
+      },
+      "title": "deMULTIplex2 F-score, McGinnis MULTI-seq",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "McGinnis (MULTI-seq) deMULTIplex2 average F-score 0.97",
+        "value": 0.97
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_mcginnis_scmk",
+      "upstream": [
+        "McGinnis_8donor_benchmarking_SCMK.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "other",
+        "reason": "Same souporcell truth as ts3_mcginnis_multi (GSE161329 RNA reads, authors' souporcell output not deposited); not run in this session."
+      },
+      "title": "deMULTIplex2 F-score, McGinnis SCMK",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "McGinnis (SCMK) deMULTIplex2 average F-score 0.823",
+        "value": 0.823
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_gaublomme",
+      "upstream": [
+        "gaublomme_benchmarking.R"
+      ],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score, Gaublomme nuclei hashing",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "Gaublomme deMULTIplex2 average F-score 0.976",
+        "value": 0.976
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_lung_cellline",
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score, lung cancer cell line",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "Lung cancer cell line deMULTIplex2 average F-score 0.88",
+        "value": 0.88
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_bal1",
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score, BAL batch 1",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "BAL1 deMULTIplex2 average F-score 0.907",
+        "value": 0.907
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_bal2",
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score, BAL batch 2",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "BAL2 deMULTIplex2 average F-score 0.829",
+        "value": 0.829
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_bal3",
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score, BAL batch 3",
+      "figure": "Fig. 3A; Table S3",
+      "claim": {
+        "quote": "BAL3 deMULTIplex2 average F-score 0.774",
+        "value": 0.774
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ts3_winkler_pdx",
+      "upstream": [
+        "Winkler_PDX_benchmarking.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "not_deposited",
+        "reason": "Tag->tumor table PDX_MULTI-SEQ_Metadata.csv (read in Winkler_PDX_benchmarking.R) is not deposited: GEO GSE211145 has barcode counts + metadata only; the GEO metadata's paper calls pair just 6 of the 15 batch-3 tags (Bar7-Bar15 unmapped) and 2 of 9 batch-2 tags, so the F-score cannot be computed faithfully. Winkler et al. is an unpublished bioRxiv preprint (10.1101/2022.08.04.502697) with no supplementary mapping."
+      },
+      "title": "deMULTIplex2 F-score, Winkler PDX",
+      "figure": "Fig. 4B; Table S3",
+      "claim": {
+        "quote": "Winkler deMULTIplex2 average F-score 0.557",
+        "value": 0.557
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4_pdx_singlets",
+      "upstream": [
+        "Winkler_PDX_benchmarking.R"
+      ],
+      "tool": null,
+      "blocker": {
+        "kind": "not_deposited",
+        "reason": "Same missing tag->tumor table as ts3_winkler_pdx (PDX_MULTI-SEQ_Metadata.csv, not in GEO GSE211145 / GitHub / Zenodo 8429628); 'correct' = tumor-of-called-tag == expression Tumor_ID needs it."
+      },
+      "title": "PDX real singlets retrieved",
+      "figure": "Fig. 4",
+      "claim": {
+        "quote": "deMULTIplex2 was able to correctly retrieve the highest number of real singlets (63.2% of all cells) compared to deMULTIplex (50.8% of all cells)",
+        "value": 0.632
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2b_simulations",
+      "upstream": [
+        "simulation_Figure_demo.R"
+      ],
+      "tool": null,
+      "blocker": null,
+      "title": "deMULTIplex2 F-score on 5 simulations",
+      "figure": "Fig. 2B",
+      "claim": {
+        "quote": "deMULTIplex2 was the only method that maintained its top performance across these simulations (Fig. 2B heatmap, deMULTIplex2 row: F = 1.00, 1.00, 1.00, 0.99, 0.87 for Simulations 1-5)",
+        "value": null
+      },
+      "source": "manual"
+    },
+    {
+      "id": "port_em_classifier",
+      "upstream": [
+        "R/classify.R",
+        "R/em.R"
+      ],
+      "tool": null,
+      "blocker": null,
+      "title": "Python port of deMULTIplex2 EM classifier matches R",
+      "figure": "Fig. 1 / Methods",
+      "claim": {
+        "quote": "deMULTIplex2 GLM-NB + EM classification (R package)",
+        "value": null
+      },
+      "source": "manual"
+    }
+  ]
 }

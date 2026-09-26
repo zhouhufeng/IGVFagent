@@ -4,13 +4,18 @@
     "journal": "Cell",
     "year": 2020,
     "doi": "10.1016/j.cell.2020.09.056",
-    "pmid": "33098772"
+    "pmid": "33098772",
+    "title": "Chromatin Potential Identified by Shared Single-Cell Profiling of RNA and Chromatin",
+    "pmc": "PMC7669735",
+    "volume_pages": "183:1103-1116"
   },
   "data_source": {
     "type": "geo_shareseq",
     "gse": "GSE140203",
     "sample": "GSM4156608 skin late anagen (RNA)",
-    "final_cells": 34774
+    "final_cells": 34774,
+    "geo_files": "per-sample supplementary files of GSE140203 (skin GSM4156597/GSM4156608; GM12878 rep3 GSM4156592/GSM4156603; species mixing GSM4156593-GSM4156605)",
+    "reference_code": "buenrostrolab/FigR @ 094f5aa (runGenePeakcorr; the Buenrostro lab's released implementation of the Ma 2020 peak-gene/DORC method \u2014 the paper itself has no code availability statement); masai1116/SHARE-seq-alignment @ 11f2da0 (authors' preprocessing pipeline, TSS files)"
   },
   "skill_output_dir": "SHAREseq",
   "label": "ma2020_shareseq",
@@ -55,9 +60,320 @@
       "name": "Per-barcode RNA QC table written",
       "type": "artefact",
       "filename": "2*_ma2020_shareseq_rna_qc.tsv"
+    },
+    {
+      "name": "shareseq_dorc peak-gene p-values match FigR runGenePeakcorr (skin, 250 genes, 3,942 pairs)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_012820_ma2020_shareseq_port_shareseq_dorc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig3_skin_peakgene"
+    },
+    {
+      "name": "shareseq_dorc peak-gene correlations match FigR (skin, 3,942 pairs)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_012834_ma2020_shareseq_port_shareseq_dorc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig3_skin_single_gene"
+    },
+    {
+      "name": "shareseq_dorc per-gene significant-peak counts (DORC ranking) match FigR (skin, 158 genes)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_012838_ma2020_shareseq_port_shareseq_dorc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig3f_dorcs"
+    },
+    {
+      "name": "shareseq_dorc per-gene association counts match FigR (skin, 158 genes)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_012842_ma2020_shareseq_port_shareseq_dorc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig3_mean_assoc_per_gene"
+    },
+    {
+      "name": "shareseq_dorc peak-gene p-values match FigR (GM12878, 100 genes, 1,594 pairs)",
+      "type": "range",
+      "artefact": "Docs/Benchmark/20260926_015241_ma2020_shareseq_port_shareseq_dorc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig3_gm12878_peakgene"
+    },
+    {
+      "name": "Skin associations whose peak regulates a single gene: 83.9% (+/-10% rel.)",
+      "type": "range",
+      "artefact": "peakgene/summary.json",
+      "path": "single_gene_assoc_fraction_pct",
+      "min": 75.5,
+      "max": 92.3,
+      "expected": 83.9,
+      "analysis": "fig3_skin_single_gene"
+    },
+    {
+      "name": "Mean significant associations per gene: 4.4 (+/-10% rel., pre-dedup counting as for the 63,110)",
+      "type": "range",
+      "artefact": "peakgene/summary.json",
+      "path": "before_dedup_sig_per_gene_mean",
+      "min": 3.96,
+      "max": 4.84,
+      "expected": 4.4,
+      "analysis": "fig3_mean_assoc_per_gene"
+    },
+    {
+      "name": "Skin significant peak-gene associations: 63,110 (+/-10%)",
+      "type": "range",
+      "artefact": "peakgene/summary.json",
+      "path": "n_sig_associations_before_dedup",
+      "min": 56799,
+      "max": 69421,
+      "expected": 63110,
+      "analysis": "fig3_skin_peakgene"
+    },
+    {
+      "name": "DORCs (>10 significant peaks): 857 (+/-10%)",
+      "type": "range",
+      "artefact": "peakgene/summary.json",
+      "path": "n_dorcs_before_dedup",
+      "min": 771,
+      "max": 943,
+      "expected": 857,
+      "analysis": "fig3f_dorcs"
+    },
+    {
+      "name": "GM12878 significant peak-gene associations: 13,277 (+/-10%)",
+      "type": "range",
+      "artefact": "gm_peakgene/summary.json",
+      "path": "n_sig_associations_before_dedup",
+      "min": 11949,
+      "max": 14605,
+      "expected": 13277,
+      "analysis": "fig3_gm12878_peakgene"
+    },
+    {
+      "name": "Species mixing: human share of single-species cells 903/2,244 = 0.402 (+/-10% rel.)",
+      "type": "range",
+      "artefact": "species_mix/summary.json",
+      "path": "human_fraction",
+      "min": 0.362,
+      "max": 0.443,
+      "expected": 0.402,
+      "analysis": "fig1_species_mixing"
+    },
+    {
+      "name": "Species mixing: human cells 903 (+/-10%)",
+      "type": "range",
+      "artefact": "species_mix/summary.json",
+      "path": "n_human",
+      "min": 813,
+      "max": 993,
+      "expected": 903,
+      "analysis": "fig1_species_mixing"
+    },
+    {
+      "name": "Species mixing: mouse cells 1,341 (+/-10%)",
+      "type": "range",
+      "artefact": "species_mix/summary.json",
+      "path": "n_mouse",
+      "min": 1207,
+      "max": 1475,
+      "expected": 1341,
+      "analysis": "fig1_species_mixing"
+    },
+    {
+      "name": "GM12878 ATAC peaks within 2 kb of a TSS: 61.3% (+/-10% rel.)",
+      "type": "range",
+      "artefact": "tss/summary.json",
+      "path": "peaks_within_2kb_tss_fraction_pct",
+      "min": 55.2,
+      "max": 67.4,
+      "expected": 61.3,
+      "analysis": "fig3_gm12878_tss_frac"
+    },
+    {
+      "name": "DORC genes with positive chromatin-minus-RNA residual: 92% (+/-10% rel.)",
+      "type": "range",
+      "artefact": "residuals/summary.json",
+      "path": "positive_residual_fraction_pct",
+      "min": 82.8,
+      "max": 100.0,
+      "expected": 92,
+      "analysis": "fig4c_residuals_positive"
+    },
+    {
+      "name": "Chromatin potential of TACs points forward in pseudotime (forward fraction > 0.5)",
+      "type": "range",
+      "artefact": "chromatin_potential/summary.json",
+      "path": "forward_fraction_progenitor",
+      "min": 0.5,
+      "max": 1.0,
+      "analysis": "fig5h_chromatin_potential"
+    },
+    {
+      "name": "Computational pairing: ATAC and RNA of a cell assigned the same type 74.9% (+/-10% rel.)",
+      "type": "range",
+      "artefact": "pairing/skin_pairing.json",
+      "path": "assignment_concordance",
+      "min": 0.674,
+      "max": 0.824,
+      "expected": 0.749,
+      "analysis": "figs2_cross_modal_assignment"
     }
   ],
   "class": "retrieval-verification",
   "class_code": "C",
-  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "analyses": [
+    {
+      "id": "fig1_species_mixing",
+      "upstream": [],
+      "tool": "shareseq-species-mix",
+      "blocker": null,
+      "title": "Human-mouse species mixing: cells per species and collisions",
+      "figure": "Fig. 1B-D; Fig. S1C",
+      "claim": {
+        "quote": "resulting in 903 human and 1,341 mouse cells passing filters of 2,000 expected cells ... only one cell doublet, representing a remarkably low 0.04% collision rate",
+        "value": 903.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_gm12878_tss_frac",
+      "upstream": [],
+      "tool": "Data/ma2020/out/tss (authors' hg19.TSS.bed)",
+      "blocker": null,
+      "title": "Fraction of GM12878 ATAC peaks within 2 kb of a TSS",
+      "figure": "Fig. 3 text",
+      "claim": {
+        "quote": "in these data, 61.3% of ATAC-seq peaks are within 2 kb of transcription start sites",
+        "value": 61.3
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_gm12878_peakgene",
+      "upstream": [
+        "R/DORCs.R",
+        "R/utils.R"
+      ],
+      "tool": "shareseq-dorc",
+      "blocker": null,
+      "title": "GM12878 significant peak-gene associations",
+      "figure": "Fig. S3B-C; Table S3",
+      "claim": {
+        "quote": "We first applied this approach to a dataset of 23,278 GM12878 cells and identified 13,277 significant peak-gene associations (p < 0.05)",
+        "value": 13277.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_skin_peakgene",
+      "upstream": [
+        "R/DORCs.R",
+        "R/utils.R"
+      ],
+      "tool": "shareseq-dorc",
+      "blocker": null,
+      "title": "Skin significant peak-gene associations (+/-50 kb, p<0.05)",
+      "figure": "Fig. S3H-I; Table S4",
+      "claim": {
+        "quote": "we identified 63,110 significant peak-gene associations (within +/- 50 kb around TSSs, p < 0.05, FDR = 0.1)",
+        "value": 63110.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_skin_single_gene",
+      "upstream": [
+        "R/DORCs.R",
+        "R/utils.R"
+      ],
+      "tool": "shareseq-dorc",
+      "blocker": null,
+      "title": "Share of skin peak-gene associations whose peak regulates a single gene",
+      "figure": "Fig. S3J-K",
+      "claim": {
+        "quote": "most of the associations regulate a single gene (83.9%) ... individual peaks associated with 4 or more genes (0.14% of peaks)",
+        "value": 83.9
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3f_dorcs",
+      "upstream": [
+        "R/DORCs.R",
+        "R/utils.R"
+      ],
+      "tool": "shareseq-dorc",
+      "blocker": null,
+      "title": "DORCs: genes with >10 significant peak associations",
+      "figure": "Fig. 3F",
+      "claim": {
+        "quote": "We define the 857 regions with an exceptionally large (>10) number of significant peak-gene associations as DORCs",
+        "value": 857.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_mean_assoc_per_gene",
+      "upstream": [
+        "R/DORCs.R",
+        "R/utils.R"
+      ],
+      "tool": "shareseq-dorc",
+      "blocker": null,
+      "title": "Mean significant associations per gene",
+      "figure": "Fig. 3D-E; Fig. S3O",
+      "claim": {
+        "quote": "on average, 3.4 associations for cell cycle genes versus 4.4 associations for all genes",
+        "value": 4.4
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4c_residuals_positive",
+      "upstream": [],
+      "tool": "shareseq-dorc-residuals",
+      "blocker": null,
+      "title": "DORC-regulated genes with positive chromatin-minus-RNA residuals over pseudotime",
+      "figure": "Fig. 4C",
+      "claim": {
+        "quote": "residuals were typically positive across most of the DORC-regulated genes (92%) and lineages",
+        "value": 92.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5h_chromatin_potential",
+      "upstream": [],
+      "tool": "shareseq-chromatin-potential",
+      "blocker": null,
+      "title": "Chromatin potential flows from TACs to differentiated hair-shaft/IRS cells",
+      "figure": "Fig. 5H; Fig. S5C-D",
+      "claim": {
+        "quote": "In general, chromatin potential flows from progenitor cells (TACs) to differentiated cells (IRS/hair shaft)",
+        "value": null
+      },
+      "source": "manual"
+    },
+    {
+      "id": "figs2_cross_modal_assignment",
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "title": "ATAC and RNA profiles of the same cell assigned to the same cluster",
+      "figure": "Fig. S2N-S",
+      "claim": {
+        "quote": "Profiles from the same cell were assigned properly (defined as membership in the same cluster) with variable accuracy (74.9% in skin ...)",
+        "value": 74.9
+      },
+      "source": "manual"
+    }
+  ]
 }

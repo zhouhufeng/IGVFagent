@@ -14,42 +14,389 @@
   },
   "skill_output_dir": "SPLiTseq",
   "label": "rosenberg2018_splitseq",
-  "primary_artefact": "concordance_metrics.json",
+  "primary_artefact": "atlas_metrics.json",
   "checks": [
     {
       "name": "Full CNS atlas nucleus count matches the paper (156,049)",
       "type": "range",
-      "path": "full_atlas_nuclei",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "n_nuclei",
       "min": 156049,
       "max": 156049,
       "expected": 156049
     },
     {
-      "name": "Canonical CNS lineages recovered by the mouse-brain panel",
+      "name": "splitseq_barnyard_qc matches the authors' barnyard() (split_seq/analysis.py @a711b56) on GSM3017262-65 cells",
       "type": "range",
-      "path": "n_cns_lineages_recovered",
-      "min": 6,
-      "max": 8,
-      "expected": 8
+      "artefact": "Docs/Benchmark/2*_rosenberg2018_splitseq_port_splitseq_barnyard_qc/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.99,
+      "max": 1.0,
+      "analysis": "fig1b_species_mixing"
     },
     {
-      "name": "Leiden resolves multiple sub-clusters",
+      "name": "Fig 1B collision (mixed-species) rate = 0.1% (1,758-UBC library)",
       "type": "range",
-      "path": "n_leiden_clusters",
-      "min": 10,
-      "max": 45,
-      "expected": 24
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1b_collision_rate",
+      "min": 0.0005,
+      "max": 0.0015,
+      "expected": 0.001,
+      "analysis": "fig1b_species_mixing"
     },
     {
-      "name": "Cell-type annotations assigned",
+      "name": "Fig 1B single-species assignment = 99.9%",
       "type": "range",
-      "path": "n_cell_types",
-      "min": 5,
-      "max": 12,
-      "expected": 8
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1b_single_species_rate",
+      "min": 0.9985,
+      "max": 1.0,
+      "expected": 0.999,
+      "analysis": "fig1b_species_mixing"
+    },
+    {
+      "name": "Human UBC species purity = 99.6%",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_human_purity_fraction",
+      "min": 0.9955,
+      "max": 0.9965,
+      "expected": 0.996,
+      "analysis": "fig1b_species_mixing"
+    },
+    {
+      "name": "Mouse UBC species purity = 99.0%",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_mouse_purity_fraction",
+      "min": 0.9895,
+      "max": 0.9905,
+      "expected": 0.99,
+      "analysis": "fig1b_species_mixing"
+    },
+    {
+      "name": "Median UMIs per human cell at saturating depth = 15,365 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_human_median_umis",
+      "min": 15058,
+      "max": 15672,
+      "expected": 15365,
+      "analysis": "fig1c_cells_umis_genes"
+    },
+    {
+      "name": "Median genes per human cell = 5,498 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_human_median_genes",
+      "min": 5388,
+      "max": 5608,
+      "expected": 5498,
+      "analysis": "fig1c_cells_umis_genes"
+    },
+    {
+      "name": "Median UMIs per mouse cell = 12,243 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_mouse_median_umis",
+      "min": 11998,
+      "max": 12488,
+      "expected": 12243,
+      "analysis": "fig1c_cells_umis_genes"
+    },
+    {
+      "name": "Median genes per mouse cell = 4,497 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "deep_mouse_median_genes",
+      "min": 4407,
+      "max": 4587,
+      "expected": 4497,
+      "analysis": "fig1c_cells_umis_genes"
+    },
+    {
+      "name": "Fig 1C frozen cells median human UMIs = 15,078 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1c_frozen_cells_median_umis",
+      "min": 14776,
+      "max": 15380,
+      "expected": 15078,
+      "analysis": "fig1c_cells_umis_genes"
+    },
+    {
+      "name": "Fig 1C nuclei median human UMIs = 12,113 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1c_fresh_nuclei_median_umis",
+      "min": 11871,
+      "max": 12355,
+      "expected": 12113,
+      "analysis": "fig1c_nuclei_umis"
+    },
+    {
+      "name": "Fig 1C frozen nuclei median human UMIs = 13,636 (+/-2%)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1c_frozen_nuclei_median_umis",
+      "min": 13363,
+      "max": 13909,
+      "expected": 13636,
+      "analysis": "fig1c_nuclei_umis"
+    },
+    {
+      "name": "Fig 1D frozen vs fresh Pearson r = 0.987 (+/-0.005)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig1/fig1_metrics.json",
+      "path": "fig1d_frozen_vs_fresh_correlation",
+      "min": 0.982,
+      "max": 0.992,
+      "expected": 0.987,
+      "analysis": "fig1d_frozen_fresh_corr"
+    },
+    {
+      "name": "De novo Leiden clusters agree with the authors' 73 deposited clusters (AMI >= 0.5, resolved nuclei; threshold is ours, not the paper's)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "leiden_vs_authors.ami",
+      "min": 0.5,
+      "max": 1.0,
+      "analysis": "fig2a_clustering"
+    },
+    {
+      "name": "Non-neuronal fraction = 27,096 / 156,049 (+/-15% rel., de novo marker classes)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "non_neuronal_fraction",
+      "min": 0.14759,
+      "max": 0.19968,
+      "expected": 0.17364,
+      "analysis": "fig2b_non_neuronal"
+    },
+    {
+      "name": "Astrocytes = 50% of non-neuronal nuclei (+/-15% rel.)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "astrocyte_fraction_of_non_neuronal",
+      "min": 0.425,
+      "max": 0.575,
+      "expected": 0.5,
+      "analysis": "fig2c_astrocytes"
+    },
+    {
+      "name": "OPC/oligodendrocyte lineage = 10,087 / 156,049 (+/-15% rel.)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "oligo_lineage_fraction",
+      "min": 0.05494,
+      "max": 0.07434,
+      "expected": 0.06464,
+      "analysis": "fig2d_oligo_lineage"
+    },
+    {
+      "name": "Allen DMBA composite peaks in the cluster's named region for most clusters (match rate >= 0.5; chance 1/12)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_fig3/fig3_metrics.json",
+      "path": "region_match_rate",
+      "min": 0.5,
+      "max": 1.0,
+      "analysis": "fig3_regional_specificity"
+    },
+    {
+      "name": "CGC lineage = 15,360 / 156,049 (+/-15% rel.)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "cgc_fraction",
+      "min": 0.08367,
+      "max": 0.1132,
+      "expected": 0.09843,
+      "analysis": "fig4c_cgc_lineage"
+    },
+    {
+      "name": "Cerebellar interneuron lineage = 1,890 / 156,049 (+/-15% rel.)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "cb_interneuron_fraction",
+      "min": 0.01029,
+      "max": 0.01393,
+      "expected": 0.01211,
+      "analysis": "fig4e_cb_interneurons"
+    },
+    {
+      "name": "Spinal re-clustering agrees with the authors' 44 spinal clusters (AMI >= 0.5, resolved nuclei; threshold is ours)",
+      "type": "range",
+      "artefact": "Docs/SPLiTseq/2*_rosenberg2018_splitseq_atlas/atlas_metrics.json",
+      "path": "spinal_vs_authors.ami",
+      "min": 0.5,
+      "max": 1.0,
+      "analysis": "fig5a_spinal_clusters"
     }
   ],
   "class": "retrieval-verification",
   "class_code": "C",
-  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "analyses": [
+    {
+      "id": "fig1b_species_mixing",
+      "upstream": [
+        "split_seq/analysis.py"
+      ],
+      "tool": "splitseq-barnyard-qc",
+      "blocker": null,
+      "title": "Species-mixing: single-species assignment, collision rate, purity",
+      "figure": "Fig. 1B",
+      "claim": {
+        "quote": "99.9% of the UBCs were unambiguously assigned to a single species ... 0.1% of UBCs representing barcode collisions; 99.6% of reads in human UBCs and 99.0% of reads in mouse UBCs aligned to their respective genomes",
+        "value": 0.001
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig1c_cells_umis_genes",
+      "upstream": [
+        "split_seq/analysis.py"
+      ],
+      "tool": "splitseq-barnyard-qc",
+      "blocker": null,
+      "title": "UMIs and genes per whole cell (fresh, frozen, saturating depth)",
+      "figure": "Fig. 1C; text",
+      "claim": {
+        "quote": "median of 15,365 UMIs and 5,498 genes per human cell and 12,243 UMIs and 4,497 genes per mouse cell; median human UMI counts for fresh cells: 15,365; frozen cells: 15,078",
+        "value": 15365.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig1c_nuclei_umis",
+      "upstream": [
+        "split_seq/analysis.py"
+      ],
+      "tool": "splitseq-barnyard-qc",
+      "blocker": null,
+      "title": "UMIs per nucleus (fresh vs frozen nuclei)",
+      "figure": "Fig. 1C",
+      "claim": {
+        "quote": "Median human UMI counts for ... nuclei: 12,113; frozen nuclei: 13,636",
+        "value": 12113.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig1d_frozen_fresh_corr",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/fig1_metrics.py",
+      "blocker": null,
+      "title": "Gene expression correlation, frozen vs freshly processed cells",
+      "figure": "Fig. 1D",
+      "claim": {
+        "quote": "Gene expression was highly correlated between preserved and freshly prepared cells (Pearson-r: 0.987)",
+        "value": 0.987
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2a_clustering",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Unsupervised clustering of 156,049 nuclei into 73 clusters",
+      "figure": "Fig. 2A; table S3",
+      "claim": {
+        "quote": "Unsupervised clustering grouped transcriptomes into 73 distinct clusters",
+        "value": 73.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2b_non_neuronal",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Non-neuronal share of the atlas",
+      "figure": "Fig. 2B",
+      "claim": {
+        "quote": "The 27,096 non-neuronal transcriptomes spanned 19 different clusters",
+        "value": 27096.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2c_astrocytes",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Astrocytes as a share of non-neuronal nuclei",
+      "figure": "Fig. 2C",
+      "claim": {
+        "quote": "Four astrocyte types accounted for 50% of [non-neuronal transcriptomes]",
+        "value": 0.5
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2d_oligo_lineage",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "OPC / oligodendrocyte lineage size",
+      "figure": "Fig. 2D",
+      "claim": {
+        "quote": "Seven OPC and oligodendrocyte clusters (containing 10,087 nuclei)",
+        "value": 10087.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3_regional_specificity",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/fig3_allen_regions.py",
+      "blocker": null,
+      "title": "Neuronal clusters are regionally specific (Allen DMBA ISH composites)",
+      "figure": "Fig. 3A-B",
+      "claim": {
+        "quote": "The resulting composite maps confirmed the high regional specificity of most types",
+        "value": 0.5
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4c_cgc_lineage",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Cerebellar granule cell lineage size",
+      "figure": "Fig. 4C",
+      "claim": {
+        "quote": "We created a pseudotime ordering of 15,360 CGCs",
+        "value": 15360.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4e_cb_interneurons",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Cerebellar inhibitory interneuron lineage size",
+      "figure": "Fig. 4E",
+      "claim": {
+        "quote": "t-SNE re-embedding of 1,890 nuclei reveals a branching differentiation trajectory (text: 1,517 cells)",
+        "value": 1890.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5a_spinal_clusters",
+      "upstream": [],
+      "tool": "Benchmarks/rosenberg2018_splitseq/atlas_recluster.py",
+      "blocker": null,
+      "title": "Spinal cord re-clustering (30 neuronal + 14 non-neuronal)",
+      "figure": "Fig. 5A",
+      "claim": {
+        "quote": "Re-clustering spinal cord nuclei resulted in 30 neuronal and 14 non-neuronal clusters",
+        "value": 44.0
+      },
+      "source": "manual"
+    }
+  ]
 }

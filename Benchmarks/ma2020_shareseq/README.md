@@ -3,11 +3,50 @@
 [![paper](https://img.shields.io/badge/Cell-183:1103--1116-blue)](https://doi.org/10.1016/j.cell.2020.09.056)
 [![PMID](https://img.shields.io/badge/PMID-33098772-blue)](https://pubmed.ncbi.nlm.nih.gov/33098772/)
 [![data](https://img.shields.io/badge/GEO-GSE140203-orange)](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE140203)
-[![checks](https://img.shields.io/badge/concordance-5%2F5-success)]()
+[![coverage](https://img.shields.io/badge/paper%20coverage-7%2F10%20analyses-yellow)]()
 
-## Bottom line
+## Paper coverage (`igvfagent bench score`: 7/10 analyses reproduced)
 
-**IGVFagent ingests Ma 2020's SHARE-seq skin RNA (via the shared `_scload` loader), runs the `share` per-barcode RNA QC, and recovers all 23 author-annotated skin cell types — exactly the 34,774-cell final set the paper reports.** Leiden clustering agrees with the author labels at AMI 0.63 despite the deliberately shallow SHARE-seq RNA (median 920 UMIs/cell). Full local reproduction from the 7.5 GB GEO archive.
+| Analysis | Paper | IGVFagent | How checked | State |
+|---|---:|---:|---|:---:|
+| Skin peak-gene associations (±50 kb, p<0.05), Fig. S3H-I | 63,110 | 61,119 | `shareseq-dorc` = FigR `runGenePeakcorr` on 3,942 pairs (p-values to 5e-5, 100% match) | reproduced |
+| Associations whose peak hits one gene, Fig. S3J | 83.9% | 79.2% | class A ±10% + FigR match | reproduced |
+| Mean associations per gene, Fig. 3D-E | 4.4 | 4.12 | class A ±10% + FigR match | reproduced |
+| DORCs (>10 peaks), Fig. 3F | 857 | 957 before / 787 after FigR's per-peak dedup | FigR match on per-gene counts (158 genes, exact) | reproduced (count off by >10%) |
+| GM12878 peak-gene associations, Fig. S3B | 13,277 | 32,579 | FigR match (GM12878, 1,594 pairs) | reproduced (count 2.5× higher) |
+| Species mixing, Fig. 1B-D | 903 human / 1,341 mouse / 1 collision | 971 / 1,397 / 3 | human share 0.410 vs 0.402 (class A) | reproduced |
+| Computational pairing, Fig. S2N-S | 74.9% | 67.7% | Seurat CCA label transfer (Seurat 5.5.1) | reproduced (inside ±10%) |
+| GM12878 peaks within 2 kb of a TSS | 61.3% | 14.5% (all peaks) | authors' `hg19.TSS.bed` | **failing** |
+| DORC genes with positive residual, Fig. 4C | 92% | 45% | Methods reimplementation | **failing** |
+| Chromatin potential TAC→differentiated, Fig. 5H | qualitative | 39% of TAC arrows point forward (RNA→RNA baseline 51%) | Methods reimplementation | **failing** |
+
+Reference code: the paper has no code-availability statement. The peak-gene/DORC
+reference is the Buenrostro lab's released implementation, `buenrostrolab/FigR`
+@ `094f5aa` (`R/DORCs.R`, `R/utils.R`), run unmodified in R 4.4 with the same
+chromVAR background peaks. Ported and registered commands: `shareseq-dorc`
+(verified against FigR), `shareseq-species-mix`, `shareseq-gene-activity`
+(Seurat v3.2.3 `CreateGeneActivityMatrix`), `shareseq-chromatin-potential` and
+`shareseq-dorc-residuals`. No code was released for the last two, so they
+follow the STAR Methods text.
+
+Why the failures and gaps:
+* **TSS fraction.** The deposited GEO peak set has 507,307 merged peaks. Only
+  the 20,000 highest-count peaks reach about 59%, and no documented subset
+  gives 61.3%.
+* **Residuals and chromatin potential.** cisTopic is replaced by LSI, the
+  branch-probability lineage cut-offs by the authors' cell-type labels, and the
+  Palantir root is picked by rule, because the paper does not say how. These
+  choices do not reproduce the paper's result.
+* **GM12878 count.** The paper used 23,278 cells; here 25,022 paired rep3
+  cells are used. The peak set behind 13,277 is not stated.
+* **Filters.** The species-mixing cut-offs are undocumented; the ATAC
+  barcode-rank knee is used instead.
+
+## Original RNA cell-type check
+
+### Bottom line
+
+**IGVFagent ingests Ma 2020's SHARE-seq skin RNA (via the shared `_scload` loader), runs the `share` per-barcode RNA QC, and recovers all 23 author-annotated skin cell types — exactly the 34,774-cell final set the paper reports.** Leiden clustering agrees with the author labels at AMI 0.63 despite the deliberately shallow SHARE-seq RNA (median 920 UMIs/cell). Runs from the per-sample GEO supplementary files.
 
 | Metric | IGVFagent | Paper |
 |---|---:|---:|
@@ -43,10 +82,10 @@ Ma S, Zhang B, LaFave LM, Earl AS, Chiang Z, Hu Y, Ding J, Brack A, Kartha VK, T
 
 ```bash
 bash Benchmarks/ma2020_shareseq/run.sh
-.venv/bin/python Benchmarks/concordance.py --benchmark ma2020_shareseq
+igvfagent bench score --paper-id ma2020_shareseq
 ```
 
-Expected: `5/5 checks PASSED`. First run downloads the 7.5 GB `GSE140203_RAW.tar` (resilient resume loop) and extracts only the skin RNA members.
+`run.sh` fetches the per-sample GEO supplementary files instead of the 7.5 GB `GSE140203_RAW.tar`, and uses the cluster `igvfagent`. The repo `.venv` was built on macOS and cannot run on Linux. The FigR reference runs are in `Data/ma2020/ref/run_figr_peakgene.R`; the skin peak-gene step should go through sbatch.
 
 ## Honest caveats
 

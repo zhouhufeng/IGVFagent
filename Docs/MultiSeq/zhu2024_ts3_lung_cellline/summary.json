@@ -1,0 +1,57 @@
+{
+  "label": "zhu2024_ts3_lung_cellline",
+  "n_truth_cells": 45977,
+  "n_called_cells": 45957,
+  "precision": 0.8720210843223853,
+  "recall": 0.8910923653173876,
+  "f_score": 0.880339036250318,
+  "doublet": {
+    "recall": 0.386046511627907,
+    "doublet_called_singlet": 0.5955510616784631,
+    "doublet_called_negative": 0.01840242669362993
+  },
+  "per_tag": {
+    "CL A": {
+      "tp": 11748,
+      "fp": 1995,
+      "fn": 1379,
+      "tn": 30855,
+      "precision": 0.854835188823401,
+      "recall": 0.894949341052792,
+      "f_score": 0.8744324525493115
+    },
+    "CL B": {
+      "tp": 17035,
+      "fp": 2322,
+      "fn": 644,
+      "tn": 25976,
+      "precision": 0.8800433951542078,
+      "recall": 0.9635726002601958,
+      "f_score": 0.9199157576412139
+    },
+    "CL C": {
+      "tp": 7587,
+      "fp": 1023,
+      "fn": 1725,
+      "tn": 35642,
+      "precision": 0.8811846689895471,
+      "recall": 0.8147551546391752,
+      "f_score": 0.8466688985604285
+    }
+  },
+  "max_cell_fit": 1000.0,
+  "max_iter": 30,
+  "quantile_fit": [
+    0.05,
+    0.95
+  ],
+  "inputs": {
+    "tags": [
+      "Data/zhu2024/work/oshlack/lung_cellline_c1_tags.csv",
+      "Data/zhu2024/work/oshlack/lung_cellline_c2_tags.csv",
+      "Data/zhu2024/work/oshlack/lung_cellline_c3_tags.csv"
+    ],
+    "truth": "Data/zhu2024/work/oshlack/lung_cellline_truth.csv",
+    "tag_mapping": "Data/zhu2024/work/oshlack/lung_cellline_tag_mapping.json"
+  }
+}

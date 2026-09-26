@@ -1,0 +1,74 @@
+{
+  "name": "demultiplex2_benchmark",
+  "description": "deMULTIplex2 sample-demultiplexing benchmark vs ground truth: per-capture demultiplexTags (benchmark defaults: max.cell.fit 1000, max.iter 30, seed 1; overridable), pooled calls, confusion_stats average precision / recall / F-score and doublet recovery (port of Gartner-Lab/deMULTIplex2 R/benchmarking.R benchmark_demultiplex2 + confusion_stats; classifier = multiseq's port of R/classify.R + R/em.R + MASS::glm.nb)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "cells x tags count CSV per capture"
+      },
+      "truth": {
+        "type": "string",
+        "description": "CSV cell,truth (genetic/RNA ground truth)"
+      },
+      "tag_mapping": {
+        "type": "string",
+        "description": "JSON {tag: true_label} or CSV tag,true_label"
+      },
+      "true_multiplet": {
+        "type": "string"
+      },
+      "max_cell_fit": {
+        "type": "number"
+      },
+      "max_iter": {
+        "type": "integer"
+      },
+      "min_quantile_fit": {
+        "type": "number"
+      },
+      "max_quantile_fit": {
+        "type": "number"
+      },
+      "seed": {
+        "type": "integer"
+      },
+      "label": {
+        "type": "string"
+      },
+      "outdir": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tags",
+      "truth",
+      "tag_mapping"
+    ]
+  },
+  "cli": [
+    "demultiplex2-benchmark"
+  ],
+  "x-ported": {
+    "paper_id": "zhu2024_demultiplex2_robust",
+    "repo": "https://github.com/Gartner-Lab/deMULTIplex2",
+    "commit": "de48333b89f60447bc037237f6cb45985ffb33f4"
+  },
+  "flag_map": {
+    "tags": "--tags",
+    "truth": "--truth",
+    "tag_mapping": "--tag-mapping",
+    "true_multiplet": "--true-multiplet",
+    "max_cell_fit": "--max-cell-fit",
+    "max_iter": "--max-iter",
+    "min_quantile_fit": "--min-quantile-fit",
+    "max_quantile_fit": "--max-quantile-fit",
+    "seed": "--seed",
+    "label": "--label",
+    "outdir": "--outdir"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "label": "zhu2024_ts3_gaublomme",
+  "n_truth_cells": 2754,
+  "n_called_cells": 2860,
+  "precision": 0.9702685596827885,
+  "recall": 0.9823042930953215,
+  "f_score": 0.9761631410585304,
+  "doublet": {
+    "recall": 0.46551724137931033,
+    "doublet_called_singlet": 0.5344827586206896,
+    "doublet_called_negative": 0.0
+  },
+  "per_tag": {
+    "S1HuF": {
+      "tp": 310,
+      "fp": 15,
+      "fn": 4,
+      "tn": 2425,
+      "precision": 0.9538461538461539,
+      "recall": 0.9872611464968153,
+      "f_score": 0.9702660406885759
+    },
+    "S2HuM": {
+      "tp": 351,
+      "fp": 11,
+      "fn": 4,
+      "tn": 2388,
+      "precision": 0.9696132596685083,
+      "recall": 0.9887323943661972,
+      "f_score": 0.9790794979079498
+    },
+    "S3HuF": {
+      "tp": 240,
+      "fp": 6,
+      "fn": 4,
+      "tn": 2504,
+      "precision": 0.975609756097561,
+      "recall": 0.9836065573770492,
+      "f_score": 0.9795918367346939
+    },
+    "S4HuM": {
+      "tp": 366,
+      "fp": 4,
+      "fn": 11,
+      "tn": 2373,
+      "precision": 0.9891891891891892,
+      "recall": 0.9708222811671088,
+      "f_score": 0.9799196787148594
+    },
+    "S5HuF": {
+      "tp": 313,
+      "fp": 10,
+      "fn": 6,
+      "tn": 2425,
+      "precision": 0.9690402476780186,
+      "recall": 0.9811912225705329,
+      "f_score": 0.9750778816199377
+    },
+    "S6HuM": {
+      "tp": 219,
+      "fp": 13,
+      "fn": 4,
+      "tn": 2518,
+      "precision": 0.9439655172413793,
+      "recall": 0.9820627802690582,
+      "f_score": 0.9626373626373627
+    },
+    "S7HuF": {
+      "tp": 385,
+      "fp": 11,
+      "fn": 5,
+      "tn": 2353,
+      "precision": 0.9722222222222222,
+      "recall": 0.9871794871794872,
+      "f_score": 0.9796437659033079
+    },
+    "S8HuM": {
+      "tp": 436,
+      "fp": 5,
+      "fn": 10,
+      "tn": 2303,
+      "precision": 0.9886621315192744,
+      "recall": 0.9775784753363229,
+      "f_score": 0.9830890642615558
+    }
+  },
+  "max_cell_fit": 5000.0,
+  "max_iter": 30,
+  "quantile_fit": [
+    0.05,
+    0.9
+  ],
+  "inputs": {
+    "tags": [
+      "Data/zhu2024/work/gaublomme/gaublomme_c1_tags.csv"
+    ],
+    "truth": "Data/zhu2024/work/gaublomme/gaublomme_truth.csv",
+    "tag_mapping": "Data/zhu2024/work/gaublomme/gaublomme_tag_mapping.json"
+  }
+}

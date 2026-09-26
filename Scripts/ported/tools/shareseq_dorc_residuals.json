@@ -1,0 +1,65 @@
+{
+  "name": "shareseq_dorc_residuals",
+  "description": "DORC chromatin-minus-expression residuals over Palantir pseudotime (Ma 2020 Fig. 4B-C): loess-smoothed, min-max normalised DORC score minus RNA per lineage. No code was released for this analysis: it follows the STAR Methods text; DORC scores come from FigR getDORCScores (R/DORCs.R, ported as shareseq-dorc); LSI replaces cisTopic and lineages are progenitor + one terminal type",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "atac_mtx": {
+        "type": "string"
+      },
+      "atac_barcodes": {
+        "type": "string"
+      },
+      "dorc_scores": {
+        "type": "string"
+      },
+      "dorc_genes": {
+        "type": "string"
+      },
+      "rna": {
+        "type": "string"
+      },
+      "celltypes": {
+        "type": "string"
+      },
+      "progenitor": {
+        "type": "string"
+      },
+      "terminals": {
+        "type": "string"
+      },
+      "out": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "atac_mtx",
+      "atac_barcodes",
+      "dorc_scores",
+      "rna",
+      "celltypes",
+      "progenitor",
+      "terminals",
+      "out"
+    ]
+  },
+  "cli": [
+    "shareseq-dorc-residuals"
+  ],
+  "x-ported": {
+    "paper_id": "ma2020_shareseq",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd"
+  },
+  "flag_map": {
+    "atac_mtx": "--atac-mtx",
+    "atac_barcodes": "--atac-barcodes",
+    "dorc_scores": "--dorc-scores",
+    "dorc_genes": "--dorc-genes",
+    "rna": "--rna",
+    "celltypes": "--celltypes",
+    "progenitor": "--progenitor",
+    "terminals": "--terminals",
+    "out": "--out"
+  }
+}

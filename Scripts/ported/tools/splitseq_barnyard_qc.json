@@ -1,0 +1,43 @@
+{
+  "name": "splitseq_barnyard_qc",
+  "description": "SPLiT-seq species-mixing QC on a human+mouse DGE: >90% species call, multiplet (collision) rate, per-species median UMIs/genes, species purity (port of Alex-Rosenberg/split-seq-pipeline split_seq/analysis.py barnyard + generate_single_dge_report)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "mat": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "GEO SPLiT-seq MATLAB DGE file(s)"
+      },
+      "sample_type": {
+        "type": "string",
+        "description": "restrict to cell or nucleus"
+      },
+      "label": {
+        "type": "string"
+      },
+      "outdir": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "mat"
+    ]
+  },
+  "cli": [
+    "splitseq-barnyard-qc"
+  ],
+  "x-ported": {
+    "paper_id": "rosenberg2018_splitseq",
+    "repo": "https://github.com/Alex-Rosenberg/split-seq-pipeline",
+    "commit": "a711b56dada411439b7500b43f43e9bbfb4bc2e5"
+  },
+  "flag_map": {
+    "mat": "--mat",
+    "sample_type": "--sample-type",
+    "label": "--label",
+    "outdir": "--outdir"
+  }
+}

@@ -1,0 +1,301 @@
+{
+  "demultiplex2_benchmark": {
+    "commit": "de48333b89f60447bc037237f6cb45985ffb33f4",
+    "description": "deMULTIplex2 sample-demultiplexing benchmark vs ground truth: per-capture demultiplexTags (benchmark defaults: max.cell.fit 1000, max.iter 30, seed 1; overridable), pooled calls, confusion_stats average precision / recall / F-score and doublet recovery (port of Gartner-Lab/deMULTIplex2 R/benchmarking.R benchmark_demultiplex2 + confusion_stats; classifier = multiseq's port of R/classify.R + R/em.R + MASS::glm.nb)",
+    "keywords": [
+      "deMULTIplex2",
+      "cell hashing",
+      "MULTI-seq",
+      "demultiplexing",
+      "HTO",
+      "F-score",
+      "precision",
+      "recall",
+      "benchmark",
+      "confusion_stats",
+      "ground truth",
+      "doublet"
+    ],
+    "paper_id": "zhu2024_demultiplex2_robust",
+    "registered_at": "2026-09-26T04:09:06Z",
+    "repo": "https://github.com/Gartner-Lab/deMULTIplex2",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 126,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "820238bfcd6d1d7bf7a6ec8fd0c5d907755fe0cd3d68a3edd292be72327486b5",
+    "updated_at": "2026-09-26T04:47:32Z",
+    "upstream": [
+      "R/benchmarking.R",
+      "R/classify.R",
+      "R/em.R"
+    ]
+  },
+  "liu2025_gwas_loci": {
+    "commit": "552c461f85b91f0fe888cf4d8448f6906bea5042",
+    "description": "Independent GWAS loci from summary statistics: P<5e-8, MHC (chr6 25-35 Mb) removed, plink --clump (p1 5e-8, r2 0.1, 10 Mb) vs 1000G EUR, leads merged within 0.1 cM (port of hbliu/Kidney_Epi_Pri eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh, used by Liu et al. Science 2025)",
+    "keywords": [
+      "GWAS",
+      "independent loci",
+      "clumping",
+      "plink",
+      "lead variants",
+      "genetic distance",
+      "cM",
+      "MHC",
+      "locus definition",
+      "eGFR",
+      "kidney"
+    ],
+    "paper_id": "liu2025_kidney_multiome",
+    "registered_at": "2026-09-26T04:05:21Z",
+    "repo": "https://github.com/hbliu/Kidney_Epi_Pri",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "subprocess",
+        "level": "medium",
+        "line": 78,
+        "match": "subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)"
+      },
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 158,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "a68a37d1a01010ab5bedc359cdebcda39b72dba19b1f52ae8a2121b2497704c5",
+    "updated_at": "2026-09-26T04:05:21Z",
+    "upstream": [
+      "eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh"
+    ]
+  },
+  "liu2025_open4gene": {
+    "commit": "6e7f36aa80e6ff778737fc25978337342394cc68",
+    "description": "Open4Gene peak-to-gene hurdle test (logit zero + zero-truncated NB count, pscl::hurdle numerics: glm.fit starts, R vmmin BFGS, optimhess SEs, R dnbinom) across multiome cells, all cells / each cell type / one cell type, with covariates (port of hbliu/Open4Gene R/Open4Gene.R, Liu et al. Science 2025)",
+    "keywords": [
+      "Open4Gene",
+      "peak-to-gene",
+      "hurdle model",
+      "zero-inflated",
+      "negative binomial",
+      "multiome",
+      "snATAC",
+      "snRNA",
+      "cis-regulatory",
+      "linkage",
+      "pscl"
+    ],
+    "paper_id": "liu2025_kidney_multiome",
+    "registered_at": "2026-09-26T04:21:29Z",
+    "repo": "https://github.com/hbliu/Open4Gene",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 478,
+        "match": "out.with_suffix(\".summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "ee51cba9d3ab42628661ba74a80e0ab29212e5f9327d84b67d21ba35a3f6369d",
+    "updated_at": "2026-09-26T04:21:29Z",
+    "upstream": [
+      "R/Open4Gene.R"
+    ]
+  },
+  "shareseq_chromatin_potential": {
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd",
+    "description": "Chromatin potential (Ma 2020 Fig. 5H): kNN-smoothed DORC scores vs smoothed RNA of DORC genes, cross-modal kNN (k=10) arrows, flow and pseudotime-direction tests. No code was released for this analysis: it follows the STAR Methods text; kNN smoothing mirrors FigR smoothScoresNN (R/utils.R); LSI replaces cisTopic",
+    "keywords": [
+      "chromatin potential",
+      "DORC",
+      "lineage priming",
+      "SHARE-seq",
+      "trajectory"
+    ],
+    "paper_id": "ma2020_shareseq",
+    "registered_at": "2026-09-26T06:34:33Z",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 182,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "41399c416a4d9060cc7ddf8e1e718ed3b596664ffcda739feb4039b53d312f98",
+    "updated_at": "2026-09-26T06:34:33Z",
+    "upstream": [
+      "R/utils.R"
+    ]
+  },
+  "shareseq_dorc": {
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd",
+    "description": "SHARE-seq peak-gene Spearman correlations with chromVAR background-peak z-test, DORC calling and per-cell DORC scores (port of buenrostrolab/FigR R/DORCs.R runGenePeakcorr/getDORCScores + R/utils.R centerCounts; Ma et al. Cell 2020 framework)",
+    "keywords": [
+      "DORC",
+      "peak-gene",
+      "SHARE-seq",
+      "FigR",
+      "chromatin",
+      "cis-regulatory",
+      "multiome",
+      "domains of regulatory chromatin"
+    ],
+    "paper_id": "ma2020_shareseq",
+    "registered_at": "2026-09-26T05:28:04Z",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 407,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "ee0060e0edb0c00ef10d45b755c58c37e0f56926b274f31ffa0637a27627c321",
+    "updated_at": "2026-09-26T05:28:04Z",
+    "upstream": [
+      "R/DORCs.R",
+      "R/utils.R"
+    ]
+  },
+  "shareseq_dorc_residuals": {
+    "commit": "094f5aa036aa9dc09b85d60c13dd9ead7da416fd",
+    "description": "DORC chromatin-minus-expression residuals over Palantir pseudotime (Ma 2020 Fig. 4B-C): loess-smoothed, min-max normalised DORC score minus RNA per lineage. No code was released for this analysis: it follows the STAR Methods text; DORC scores come from FigR getDORCScores (R/DORCs.R, ported as shareseq-dorc); LSI replaces cisTopic and lineages are progenitor + one terminal type",
+    "keywords": [
+      "DORC",
+      "residual",
+      "pseudotime",
+      "lineage priming",
+      "Palantir"
+    ],
+    "paper_id": "ma2020_shareseq",
+    "registered_at": "2026-09-26T06:34:33Z",
+    "repo": "https://github.com/buenrostrolab/FigR",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 132,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "17d64a87d27607024bfdbc0a7fe2c1834391d89d230a6047b8976024423bca99",
+    "updated_at": "2026-09-26T06:34:33Z",
+    "upstream": [
+      "R/DORCs.R"
+    ]
+  },
+  "shareseq_gene_activity": {
+    "commit": "b56d194939379460db23380426d3896b54d91ab6",
+    "description": "scATAC peak-matrix gene activity: peaks overlapping gene body + 2 kb upstream summed per gene (port of Seurat v3.2.3 CreateGeneActivityMatrix, used by Ma 2020 for ATAC-to-RNA computational pairing)",
+    "keywords": [
+      "gene activity",
+      "scATAC",
+      "label transfer",
+      "Seurat",
+      "computational pairing"
+    ],
+    "paper_id": "ma2020_shareseq",
+    "registered_at": "2026-09-26T06:34:32Z",
+    "repo": "https://github.com/satijalab/seurat",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "deletes",
+        "level": "medium",
+        "line": 90,
+        "match": "os.remove(a.out.replace(\".gz\", \"\"))"
+      },
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 89,
+        "match": "shutil.copyfileobj(fi, fo)"
+      }
+    ],
+    "source_sha256": "efc471fc780df655d48d891d08328af5ffd483f9d1f9332fc16fda30dd62bfbb",
+    "updated_at": "2026-09-26T06:34:32Z",
+    "upstream": [
+      "R/preprocessing.R"
+    ]
+  },
+  "shareseq_species_mix": {
+    "commit": "11f2da02147067368c0724545daf36516025de2c",
+    "description": "SHARE-seq human/mouse species-mixing calls from paired per-genome ATAC and RNA counts: P1-offset barcode pairing, barcode-rank knee cell filter, majority-species call in both modalities, collision rate (Ma 2020 Fig. 1B-D; the authors' lib_size_sc_V4_species_mixing.R only tabulates per-species molecules, the call rule follows the paper text)",
+    "keywords": [
+      "species mixing",
+      "barnyard",
+      "collision rate",
+      "SHARE-seq",
+      "doublet"
+    ],
+    "paper_id": "ma2020_shareseq",
+    "registered_at": "2026-09-26T06:34:32Z",
+    "repo": "https://github.com/masai1116/SHARE-seq-alignment",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 125,
+        "match": "(out / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "c4ab8c82be0f140d8669ba7c6663c1cd2d98e4eb2a2a10f22c9eab954b123786",
+    "updated_at": "2026-09-26T06:34:32Z",
+    "upstream": [
+      "lib_size_sc_V4_species_mixing.R"
+    ]
+  },
+  "splitseq_barnyard_qc": {
+    "commit": "a711b56dada411439b7500b43f43e9bbfb4bc2e5",
+    "description": "SPLiT-seq species-mixing QC on a human+mouse DGE: >90% species call, multiplet (collision) rate, per-species median UMIs/genes, species purity (port of Alex-Rosenberg/split-seq-pipeline split_seq/analysis.py barnyard + generate_single_dge_report)",
+    "keywords": [
+      "splitseq",
+      "species mixing",
+      "barnyard",
+      "collision rate",
+      "purity",
+      "median UMIs"
+    ],
+    "paper_id": "rosenberg2018_splitseq",
+    "registered_at": "2026-09-26T03:57:15Z",
+    "repo": "https://github.com/Alex-Rosenberg/split-seq-pipeline",
+    "reviewed": false,
+    "reviewer": null,
+    "risk_flags": [
+      {
+        "flag": "writes_files",
+        "level": "low",
+        "line": 94,
+        "match": "(outdir / \"summary.json\").write_text(json.dumps(summary, indent=2))"
+      }
+    ],
+    "source_sha256": "90a8d2eab4564230191a1462e9f49c3ce2f5acb1c166c1903427608dea9320be",
+    "updated_at": "2026-09-26T03:57:35Z",
+    "upstream": [
+      "split_seq/analysis.py"
+    ]
+  }
+}

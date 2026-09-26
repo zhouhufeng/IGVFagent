@@ -420,51 +420,110 @@ def _cosine_per_cell(X):
     return X / norms[:, None]
 
 
-def _fit_nb_glm(y, log_t, *, max_iter: int = 50):
-    """Fit a negative-binomial GLM with log link:  y ~ 1 + log_t.
+class _FitFailed(Exception):
+    """A GLM-NB fit that R would have raised on (m.step's tryCatch)."""
 
-    Returns a dict with ``intercept``, ``slope``, ``alpha``, ``theta``,
-    and a ``predict(x)`` callable that yields the expected mean given a
-    new log-total vector x. Falls back to a Poisson fit if the NB MLE
-    fails (small/degenerate samples)."""
-    np, pd, _, _, sma, _ = _sci_stack()
+
+def _nb_loglik(th, mu, y):
+    """MASS::glm.nb's internal loglik (unit weights)."""
+    from scipy.special import gammaln
+    np, *_ = _sci_stack()
+    return float(np.sum(gammaln(th + y) - gammaln(th) - gammaln(y + 1)
+                        + th * np.log(th) + y * np.log(mu + (y == 0))
+                        - (th + y) * np.log(th + mu)))
+
+
+def _theta_ml(y, mu, *, limit: int = 25, eps: float = 2.220446049250313e-16 ** 0.25):
+    """MASS::theta.ml: Newton-Raphson on the NB score for theta."""
+    from scipy.special import digamma, polygamma
+    np, *_ = _sci_stack()
+    n = len(y)
+    t0 = n / np.sum((y / mu - 1) ** 2)
+    it, dl = 0, 1.0
+    while True:
+        it += 1
+        if not (it < limit and abs(dl) > eps):
+            break
+        t0 = abs(t0)
+        score = np.sum(digamma(t0 + y) - digamma(t0) + np.log(t0) + 1
+                       - np.log(t0 + mu) - (y + t0) / (mu + t0))
+        info = np.sum(-polygamma(1, t0 + y) + polygamma(1, t0) - 1 / t0
+                      + 2 / (mu + t0) - (y + t0) / (mu + t0) ** 2)
+        dl = score / info
+        t0 = t0 + dl
+    if not np.isfinite(t0):
+        raise _FitFailed("theta.ml did not converge to a finite value")
+    return max(t0, 0.0)
+
+
+def _irls_log(X, y, eta, theta, *, maxit: int = 25, epsilon: float = 1e-8):
+    """stats::glm.fit for a log link; theta=None is Poisson, else NB(theta)."""
+    np, *_ = _sci_stack()
+    mu = np.exp(eta)
+
+    def dev(mu):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if theta is None:
+                r = np.where(y > 0, y * np.log(y / mu), 0.0) - (y - mu)
+            else:
+                r = (y * np.log(np.maximum(y, 1) / mu)
+                     - (y + theta) * np.log((y + theta) / (mu + theta)))
+        return 2 * float(np.sum(r))
+
+    devold = dev(mu)
+    beta = None
+    for _ in range(maxit):
+        var = mu if theta is None else mu + mu ** 2 / theta
+        w = mu ** 2 / var                      # mu.eta(eta)^2 / variance(mu)
+        z = eta + (y - mu) / mu
+        sw = np.sqrt(w)
+        beta, *_ = np.linalg.lstsq(X * sw[:, None], z * sw, rcond=None)
+        eta = X @ beta
+        mu = np.exp(eta)
+        d = dev(mu)
+        if not np.isfinite(d):
+            raise _FitFailed("non-finite deviance in IRLS")
+        if abs(d - devold) / (abs(d) + 0.1) < epsilon:
+            break
+        devold = d
+    return beta, mu
+
+
+def _glm_nb(y, log_tt):
+    """Port of MASS::glm.nb(y ~ log(tt.umi), link = log) with default control
+    (maxit 25, epsilon 1e-8): Poisson start, then alternate an NB(theta) IRLS
+    fit with theta.ml until the loglik and theta settle."""
+    np, *_ = _sci_stack()
     y = np.asarray(y, dtype=float)
-    log_t = np.asarray(log_t, dtype=float)
-    X = sma.add_constant(log_t, has_constant="add")
-    try:
-        mod = sma.NegativeBinomial(y, X, loglike_method="nb2")
-        res = mod.fit(disp=False, maxiter=max_iter)
-        params = np.asarray(res.params)
-        intercept, slope, alpha = params[0], params[1], params[-1]
-        if alpha <= 0 or not np.isfinite(alpha):
-            raise ValueError("alpha non-positive")
-        theta = 1.0 / alpha
-    except Exception as e:
-        logger.debug("NB fit fell back to Poisson (%s)", e)
-        # Poisson fallback — theta = +inf in the limit (no overdispersion)
-        try:
-            mod = sma.GLM(y, X, family=sma.families.Poisson())
-            res = mod.fit()
-            params = np.asarray(res.params)
-            intercept, slope = params[0], params[1]
-            theta = 1e6  # effectively Poisson
-        except Exception:
-            # Last-ditch: intercept-only mean
-            mu = float(y.mean() or 1e-9)
-            intercept, slope, theta = np.log(mu), 0.0, 1e6
-            return {
-                "intercept": intercept, "slope": slope,
-                "theta": theta, "alpha": 1.0 / theta,
-                "predict": lambda x, _i=intercept, _s=slope: np.exp(
-                    _i + _s * np.asarray(x, dtype=float)),
-            }
-
-    def predict(x_log_t):
-        return np.exp(intercept + slope * np.asarray(x_log_t, dtype=float))
-
-    return {"intercept": intercept, "slope": slope,
-             "theta": theta, "alpha": 1.0 / theta,
-             "predict": predict}
+    X = np.column_stack([np.ones_like(log_tt), log_tt])
+    if len(y) < 2 or not np.all(np.isfinite(X)):
+        raise _FitFailed("degenerate design")
+    _, mu = _irls_log(X, y, np.log(y + 0.1), None)
+    th = _theta_ml(y, mu)
+    d1 = np.sqrt(2 * max(1, len(y) - X.shape[1]))
+    d2 = dl = 1.0
+    Lm = _nb_loglik(th, mu, y)
+    Lm0 = Lm + 2 * d1
+    beta = None
+    it = 0
+    while True:
+        it += 1
+        if not (it <= 25 and (abs(Lm0 - Lm) / d1 + abs(dl) / d2) > 1e-8):
+            break
+        beta, fitted = _irls_log(X, y, np.log(mu), th)
+        t0 = th
+        th = _theta_ml(y, mu)                  # R uses the previous mu here
+        mu = fitted
+        dl = t0 - th
+        Lm0 = Lm
+        Lm = _nb_loglik(th, mu, y)
+    if beta is None or not np.all(np.isfinite(beta)) or not th > 0:
+        raise _FitFailed("glm.nb failed")
+    intercept, slope = float(beta[0]), float(beta[1])
+    return {"intercept": intercept, "slope": slope, "theta": float(th),
+            "alpha": 1.0 / float(th),
+            "predict": lambda lt, _i=intercept, _s=slope:
+                np.exp(_i + _s * np.asarray(lt, dtype=float))}
 
 
 def _nb_pmf(y, mu, theta):
@@ -476,32 +535,73 @@ def _nb_pmf(y, mu, theta):
 
 def _pearson_residual(y, mu, theta):
     np, *_ = _sci_stack()
-    var = mu + mu * mu / theta
-    var[var == 0] = 1e-9
-    return (y - mu) / np.sqrt(var)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return (y - mu) / np.sqrt(mu + mu * mu / theta)
 
 
-def _rqr_nb(y, mu, theta, *, seed: int = 1):
-    """Randomized quantile residuals for an NB fit (Dunn & Smyth 1996).
-
-    Matches deMULTIplex2's ``rqr.nb`` — uses the negbinom CDF via the
-    Beta-CDF identity:  F(y | r, p) = I_{1-p}(r, y + 1)."""
-    np, *_, st, _, _, _ = _sci_stack()
-    rng = np.random.default_rng(seed)
+def _rqr_nb(y, mu, theta, *, rng):
+    """deMULTIplex2 ``rqr.nb``: randomized quantile residuals for an NB fit
+    (Dunn & Smyth 1996) via the Beta-CDF form of the NB CDF."""
+    np, _, st, *_ = _sci_stack()
     y = np.asarray(y, dtype=float)
     mu = np.asarray(mu, dtype=float)
-    p = theta / (theta + mu)
-    a = np.where(y > 0,
-                   st.beta.cdf(p, theta, np.maximum(y, 1)),
-                   0.0)
+    p = theta / (mu + theta)
+    a = np.where(y > 0, st.beta.cdf(p, theta, np.maximum(y, 1)), 0.0)
     b = st.beta.cdf(p, theta, y + 1)
-    u = rng.uniform(a, np.maximum(a, b))
-    return st.norm.ppf(np.clip(u, 1e-12, 1 - 1e-12))
+    return st.norm.ppf(rng.uniform(a, b))
 
 
 def _safe_log1p(x):
     np, *_ = _sci_stack()
     return np.log1p(np.maximum(x, 0))
+
+
+def _m_step(bc, tt, post, mem_init, rng, *, min_cell_fit, max_cell_fit,
+            min_quantile_fit, max_quantile_fit):
+    """deMULTIplex2 em.R::m.step. Returns (fit0, fit1, pi0, pi1) or None on
+    fail.fit.I = 1."""
+    np, *_ = _sci_stack()
+    if mem_init is not None:
+        mem = mem_init
+        pi0, pi1 = np.mean(mem == 0), np.mean(mem == 1)
+    else:
+        mem = (post[:, 1] > 0.5).astype(int)
+        pi0 = np.sum(post[np.isfinite(post[:, 0]), 0]) / len(mem)
+        pi1 = np.sum(post[np.isfinite(post[:, 1]), 1]) / len(mem)
+    if (mem == 1).sum() < min_cell_fit or (mem == 0).sum() < min_cell_fit:
+        return None
+    lo, hi = np.quantile(tt, [min_quantile_fit, max_quantile_fit])
+    keep = (tt >= lo) & (tt <= hi)
+    i0 = np.where(keep & (mem == 0))[0]
+    i1 = np.where(keep & (mem == 1))[0]
+    if len(i0) > max_cell_fit:
+        i0 = rng.choice(i0, int(max_cell_fit), replace=False)
+    if len(i1) > max_cell_fit:
+        i1 = rng.choice(i1, int(max_cell_fit), replace=False)
+    try:
+        fit0 = _glm_nb(bc[i0], np.log(tt[i0]))
+        fit1 = _glm_nb(tt[i1] - bc[i1], np.log(tt[i1]))
+    except (_FitFailed, np.linalg.LinAlgError, FloatingPointError, ValueError):
+        return None
+    return fit0, fit1, pi0, pi1
+
+
+def _e_step(bc, tt, fit0, fit1, pi0, pi1):
+    """deMULTIplex2 em.R::e.step. Returns (loglik, posterior n x 2)."""
+    np, *_ = _sci_stack()
+    lt = np.log(tt)
+    pred0, pred1 = fit0["predict"](lt), fit1["predict"](lt)
+    prob0 = _nb_pmf(bc, pred0, fit0["theta"])
+    prob1 = _nb_pmf(tt - bc, pred1, fit1["theta"])
+    prob0[bc < pred0] = 1
+    pos_c = (tt - bc) < pred1
+    prob1[pos_c] = _nb_pmf(np.ceil(pred1[pos_c]), pred1[pos_c], fit1["theta"])
+    comp0, comp1 = pi0 * prob0, pi1 * prob1
+    s = comp0 + comp1
+    with np.errstate(divide="ignore", invalid="ignore"):
+        post = np.column_stack([comp0 / s, comp1 / s])
+        loglik = float(np.sum(np.log(s)))
+    return loglik, post
 
 
 def demultiplex_tags(tag_mtx,
@@ -516,7 +616,15 @@ def demultiplex_tags(tag_mtx,
                       max_quantile_fit: float = 0.95,
                       residual_type: str = "rqr",
                       seed: int = 1) -> dict:
-    """Headline demultiplexing routine.
+    """Headline demultiplexing routine: a line-by-line port of deMULTIplex2's
+    ``demultiplexTags`` (R/classify.R) with ``fit.em`` / ``m.step`` /
+    ``e.step`` (R/em.R) and ``MASS::glm.nb``. Defaults are the R defaults.
+
+    Cells with zero total tag count are not classified by R (dropped); here
+    they are kept in the output as ``negative`` with posterior 0 and are
+    excluded from every fit, prior and likelihood, as in R. The random
+    subsampling (``max.cell.fit``) and the RQR jitter use numpy's RNG, so
+    they cannot reproduce R's draws bit-for-bit.
 
     Parameters
     ----------
@@ -535,145 +643,109 @@ def demultiplex_tags(tag_mtx,
         ``coefs``            pandas.DataFrame   per-tag GLM coefficients
                                                 + alpha (=1/theta)
         ``n_iter``           dict               per-tag EM iterations
-        ``failed_tags``      list[str]          tags with too few positives
+        ``failed_tags``      list[str]          tags whose EM failed (R sets
+                                                their posterior to 0)
     """
     np, pd, st, sp, _, _ = _sci_stack()
     if not hasattr(tag_mtx, "columns"):
         raise TypeError("tag_mtx must be a pandas DataFrame "
                          "(cells × tags).")
     rng = np.random.default_rng(seed)
-    X = tag_mtx.values.astype(float)
+    X_all = tag_mtx.values.astype(float)
     cell_names = list(tag_mtx.index)
-    tag_names = list(tag_mtx.columns)
-    n_cells, n_tags = X.shape
+    tag_names = [str(c) for c in tag_mtx.columns]
+    n_cells, n_tags = X_all.shape
     if n_tags < 2:
         raise ValueError("Need at least 2 tags to demultiplex.")
-    tt = X.sum(axis=1)
-    keep_cells = tt > 0
+    tt_all = X_all.sum(axis=1)
+    keep_cells = tt_all > 0
     if keep_cells.sum() == 0:
         raise ValueError("All cells have zero tag UMIs.")
+    if (~keep_cells).any():
+        logger.info("Detected %d cells with 0 barcode count. These cells "
+                    "will not be classified.", int((~keep_cells).sum()))
+    X = X_all[keep_cells]
+    tt = tt_all[keep_cells]
+    cos_X = X / np.linalg.norm(X, axis=1)[:, None]
 
-    cos_X = _cosine_per_cell(np.where(keep_cells[:, None], X, 0))
-
-    prob_mtx = np.zeros((n_cells, n_tags))
-    res_mtx = np.zeros((n_cells, n_tags))
-    coefs = []
-    n_iter = {}
-    failed: "list[str]" = []
+    prob = np.zeros((len(X), n_tags))
+    res = np.zeros((len(X), n_tags))
+    coefs, n_iter, failed = [], {}, []
+    km = dict(min_cell_fit=min_cell_fit, max_cell_fit=max_cell_fit,
+              min_quantile_fit=min_quantile_fit,
+              max_quantile_fit=max_quantile_fit)
 
     for j, tag in enumerate(tag_names):
         bc = X[:, j]
-        # Cosine-init membership
-        mem = (cos_X[:, j] > init_cos_cut).astype(int)
-        n_pos = int(mem.sum())
-        if n_pos < min_cell_fit or (n_cells - n_pos) < min_cell_fit:
-            logger.warning(
-                "Tag %r has %d cells positive at init (need ≥ %d) — failed",
-                tag, n_pos, min_cell_fit,
-            )
+        mem_init = (cos_X[:, j] > init_cos_cut).astype(int)
+        m = _m_step(bc, tt, None, mem_init, rng, **km)
+        fail = m is None
+        k = 1
+        if not fail:
+            Q_prev, (Q, post) = 0.0, _e_step(bc, tt, *m)
+            k = 2
+            while abs(Q - Q_prev) >= converge_threshold and k <= max_iter:
+                new_m = _m_step(bc, tt, post, None, rng, **km)
+                if new_m is None:
+                    break
+                m = new_m
+                Q_prev, (Q, post) = Q, _e_step(bc, tt, *m)
+                k += 1
+                if np.isinf(abs(Q - Q_prev)):
+                    fail = True
+                    break
+        n_iter[tag] = k - 1
+        if fail:
+            logger.warning("EM failed for tag %r — posterior set to 0 (as R)", tag)
             failed.append(tag)
+            prob[:, j] = 0.0
+            res[:, j] = np.nan
             continue
-
-        # Trim cells at the extremes on tt (only used for the GLM fit)
-        q_lo = np.quantile(tt[keep_cells], min_quantile_fit)
-        q_hi = np.quantile(tt[keep_cells], max_quantile_fit)
-        fit_mask = keep_cells & (tt >= q_lo) & (tt <= q_hi)
-
-        prev_Q = -np.inf
-        last_fit0 = last_fit1 = None
-        for it in range(1, max_iter + 1):
-            # M-step — refit each NB GLM on a subsample of its class
-            for label, fit_y_idx, target in [
-                (0, np.where(fit_mask & (mem == 0))[0], bc),
-                (1, np.where(fit_mask & (mem == 1))[0], tt - bc),
-            ]:
-                if len(fit_y_idx) < min_cell_fit:
-                    raise ValueError(
-                        f"tag {tag!r}: not enough cells in class {label} "
-                        f"({len(fit_y_idx)} < {min_cell_fit}).")
-                if len(fit_y_idx) > max_cell_fit:
-                    fit_y_idx = rng.choice(fit_y_idx, max_cell_fit,
-                                            replace=False)
-                y_fit = target[fit_y_idx]
-                log_t_fit = np.log(np.maximum(tt[fit_y_idx], 1))
-                if label == 0:
-                    last_fit0 = _fit_nb_glm(y_fit, log_t_fit)
-                else:
-                    last_fit1 = _fit_nb_glm(y_fit, log_t_fit)
-
-            # E-step — posterior over the full keep_cells mask
-            log_t_all = np.log(np.maximum(tt, 1))
-            mu0 = last_fit0["predict"](log_t_all)
-            mu1 = last_fit1["predict"](log_t_all)
-            theta0 = max(last_fit0["theta"], 1e-3)
-            theta1 = max(last_fit1["theta"], 1e-3)
-            p0 = _nb_pmf(bc, mu0, theta0)
-            p1 = _nb_pmf(np.maximum(tt - bc, 0), mu1, theta1)
-            # Corner-case fixes from the R source: below-expected counts
-            # should not penalize their class.
-            p0 = np.where(bc < mu0, np.maximum(p0, 1.0), p0)
-            below_pos = (tt - bc) < mu1
-            if below_pos.any():
-                p1 = np.where(below_pos,
-                               np.maximum(p1,
-                                           _nb_pmf(np.ceil(mu1).astype(int),
-                                                    mu1, theta1)),
-                               p1)
-            pi0 = np.clip(np.mean(mem == 0), 1e-3, 1 - 1e-3)
-            pi1 = 1 - pi0
-            denom = pi0 * p0 + pi1 * p1
-            denom = np.where(denom > 0, denom, 1e-300)
-            post1 = (pi1 * p1) / denom
-            post1 = np.where(keep_cells, post1, 0.0)
-
-            new_mem = (post1 > prob_cut).astype(int)
-            Q = float(np.sum(np.log(denom[keep_cells])))
-            if not np.isfinite(Q):
-                break
-            if abs(Q - prev_Q) < converge_threshold and it > 1:
-                mem = new_mem
-                n_iter[tag] = it
-                break
-            prev_Q = Q
-            mem = new_mem
-        else:
-            n_iter[tag] = max_iter
-
-        prob_mtx[:, j] = post1
-        if residual_type == "pearson":
-            res_mtx[:, j] = _pearson_residual(bc, mu0, theta0)
-        else:
-            res_mtx[:, j] = _rqr_nb(bc, mu0, theta0, seed=seed + j)
+        fit0, fit1, _, _ = m
+        prob[:, j] = post[:, 1]
+        mu0 = fit0["predict"](np.log(tt))
+        res[:, j] = (_pearson_residual(bc, mu0, fit0["theta"])
+                     if residual_type == "pearson"
+                     else _rqr_nb(bc, mu0, fit0["theta"], rng=rng))
         coefs.append({
             "tag": tag,
-            "fit0_intercept": last_fit0["intercept"],
-            "fit0_slope":     last_fit0["slope"],
-            "fit0_theta":     last_fit0["theta"],
-            "fit1_intercept": last_fit1["intercept"],
-            "fit1_slope":     last_fit1["slope"],
-            "fit1_theta":     last_fit1["theta"],
+            "fit0_intercept": fit0["intercept"],
+            "fit0_slope":     fit0["slope"],
+            "fit0_theta":     fit0["theta"],
+            "fit1_intercept": fit1["intercept"],
+            "fit1_slope":     fit1["slope"],
+            "fit1_theta":     fit1["theta"],
             "n_iter":         n_iter[tag],
-            "frac_positive":  float(np.mean((post1 > prob_cut) & keep_cells)),
+            "frac_positive":  float(np.mean(post[:, 1] > prob_cut)),
         })
 
-    # --- Per-cell calling -------------------------------------------------
+    if residual_type == "rqr":           # classify.R clamps RQR infinities
+        res[np.isnan(res)] = 0
+        fin = res[np.isfinite(res)]
+        if fin.size:
+            res = np.clip(res, fin.min() - 1, fin.max() + 1)
+
+    prob_mtx = np.zeros((n_cells, n_tags))
+    res_mtx = np.zeros((n_cells, n_tags))
+    prob_mtx[keep_cells] = prob
+    res_mtx[keep_cells] = res
+
+    # --- Per-cell calling (classify.R) -----------------------------------
     call = prob_mtx > prob_cut
     n_pos = call.sum(axis=1)
     barcode_assign = np.where(
         n_pos == 1,
-        np.array(tag_names)[np.argmax(call, axis=1).clip(0, n_tags - 1)],
+        np.array(tag_names)[np.argmax(call, axis=1)],
         np.where(n_pos == 0, "negative", "multiplet"),
     )
     droplet_type = np.where(n_pos == 1, "singlet",
                               np.where(n_pos == 0, "negative", "multiplet"))
-    barcode_assign[~keep_cells] = "negative"
-    droplet_type[~keep_cells] = "negative"
 
     classifications = pd.DataFrame({
         "barcode_assign": barcode_assign,
         "barcode_count":  n_pos,
         "droplet_type":   droplet_type,
-        "total_tag_umi":  tt.astype(int),
+        "total_tag_umi":  tt_all.astype(int),
     }, index=cell_names)
     prob_df = pd.DataFrame(prob_mtx, index=cell_names, columns=tag_names)
     res_df = pd.DataFrame(res_mtx, index=cell_names, columns=tag_names)
@@ -908,7 +980,12 @@ def cmd_demultiplex(args: argparse.Namespace) -> int:
         tag_mtx,
         init_cos_cut=args.init_cos_cut,
         max_iter=args.max_iter,
+        converge_threshold=args.converge_threshold,
         prob_cut=args.prob_cut,
+        min_cell_fit=args.min_cell_fit,
+        max_cell_fit=args.max_cell_fit,
+        min_quantile_fit=args.min_quantile_fit,
+        max_quantile_fit=args.max_quantile_fit,
         residual_type=args.residual_type,
         seed=args.seed,
     )
@@ -1590,7 +1667,14 @@ def main(argv: "Optional[list[str]]" = None) -> int:
     _common_io(s)
     s.add_argument("--init-cos-cut", type=float, default=0.5)
     s.add_argument("--max-iter", type=int, default=10)
+    s.add_argument("--converge-threshold", type=float, default=1e-3)
     s.add_argument("--prob-cut", type=float, default=0.5)
+    s.add_argument("--min-cell-fit", type=int, default=10)
+    s.add_argument("--max-cell-fit", type=float, default=1e4,
+                    help="Subsample each class to this many cells per GLM "
+                         "fit (R default 1e4; the paper's benchmarks use 1000).")
+    s.add_argument("--min-quantile-fit", type=float, default=0.05)
+    s.add_argument("--max-quantile-fit", type=float, default=0.95)
     s.add_argument("--residual-type", choices=["rqr", "pearson"],
                     default="rqr")
     s.add_argument("--seed", type=int, default=1)

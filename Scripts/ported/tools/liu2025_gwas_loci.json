@@ -1,0 +1,73 @@
+{
+  "name": "liu2025_gwas_loci",
+  "description": "Independent GWAS loci from summary statistics: P<5e-8, MHC (chr6 25-35 Mb) removed, plink --clump (p1 5e-8, r2 0.1, 10 Mb) vs 1000G EUR, leads merged within 0.1 cM (port of hbliu/Kidney_Epi_Pri eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh, used by Liu et al. Science 2025)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "gwas": {
+        "type": "string",
+        "description": "GWAS summary statistics tsv(.gz)"
+      },
+      "chr_col": {
+        "type": "string",
+        "default": "CHR"
+      },
+      "pos_col": {
+        "type": "string",
+        "default": "POS"
+      },
+      "p_col": {
+        "type": "string",
+        "default": "P.value"
+      },
+      "id_col": {
+        "type": "string",
+        "default": "MarkerName"
+      },
+      "bfile": {
+        "type": "string",
+        "description": "plink bfile prefix of the LD reference with CHR:POS SNP ids"
+      },
+      "plink": {
+        "type": "string",
+        "description": "plink 1.9 binary"
+      },
+      "genetic_map": {
+        "type": "string",
+        "description": "HapMap-II GRCh37 genetic map"
+      },
+      "stop_after_filter": {
+        "type": "boolean",
+        "description": "only P<5e-8 + MHC filtering"
+      },
+      "out": {
+        "type": "string",
+        "description": "output directory"
+      }
+    },
+    "required": [
+      "gwas",
+      "out"
+    ]
+  },
+  "cli": [
+    "liu2025-gwas-loci"
+  ],
+  "x-ported": {
+    "paper_id": "liu2025_kidney_multiome",
+    "repo": "https://github.com/hbliu/Kidney_Epi_Pri",
+    "commit": "552c461f85b91f0fe888cf4d8448f6906bea5042"
+  },
+  "flag_map": {
+    "gwas": "--gwas",
+    "chr_col": "--chr-col",
+    "pos_col": "--pos-col",
+    "p_col": "--p-col",
+    "id_col": "--id-col",
+    "bfile": "--bfile",
+    "plink": "--plink",
+    "genetic_map": "--genetic-map",
+    "stop_after_filter": "--stop-after-filter",
+    "out": "--out"
+  }
+}

@@ -16,7 +16,7 @@
     "mpra_subfolder_name": "MPRA_CapstoneII",
     "access_policy": "PsychENCODE Data-Use Agreement; SYNAPSE_AUTH_TOKEN PAT required for file download (anonymous-read works for metadata + tree walk)"
   },
-  "data_source_note": "Original scaffold listed GEO GSE236018 \u2014 that's a renal fibrosis paper, NOT Deng 2024. Corrected during execution; Deng deposits exclusively to Synapse / PsychENCODE.",
+  "data_source_note": "Original scaffold listed GEO GSE236018 — that's a renal fibrosis paper, NOT Deng 2024. Corrected during execution; Deng deposits exclusively to Synapse / PsychENCODE.",
   "skill_output_dir": "MPRA",
   "label": "deng2024_cortex_mpra",
   "primary_artefact": "summary.json",
@@ -29,5 +29,104 @@
   ],
   "class": "synthetic-smoke",
   "class_code": "D",
-  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
+  "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit",
+  "analyses": [
+    {
+      "id": "fig1b_replicate_corr",
+      "upstream": [],
+      "tool": null,
+      "blocker": {
+        "kind": "controlled_access",
+        "reason": "Per-replicate DNA/RNA barcode counts exist only as raw FASTQs in PsychENCODE Synapse syn51090452 (MPRA_CapstoneII); every file carries ACTAccessRequirement 5612415 (restrictionLevel CONTROLLED_BY_ACT, canDownload=false anonymously). The public Data S1-S3 report per-sequence summary statistics, not replicate-level values."
+      },
+      "title": "Replicate reproducibility of RNA/DNA ratios",
+      "figure": "Fig. 1B",
+      "claim": {
+        "quote": "average Pearson correlation between replicates, DA: 0.93, variant: 0.91",
+        "value": 0.93
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2_da_active",
+      "upstream": [],
+      "tool": "pending: needs Science Data S1-S3 (public; scripted download blocked by PMC/Science bot protection) or Synapse syn51090452 (ACT-controlled)",
+      "blocker": null,
+      "title": "Active enhancers among QC-passing DA sequences",
+      "figure": "Fig. 2A; data S1",
+      "claim": {
+        "quote": "Of 46,370 DA sequences passing quality control, 24,218 (52%) were active enhancers in primary cortical cells",
+        "value": 24218.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2_repressive",
+      "upstream": [],
+      "tool": "pending: needs Science Data S1-S3 (public; scripted download blocked by PMC/Science bot protection) or Synapse syn51090452 (ACT-controlled)",
+      "blocker": null,
+      "title": "Repressive DA sequences below 10th pct of negative controls",
+      "figure": "fig. S2C; data S1",
+      "claim": {
+        "quote": "Repressive sequences, defined as 2784 DA sequences with an activity ratio lower than the 10th percentile of negative controls",
+        "value": 2784.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3b_davs",
+      "upstream": [],
+      "tool": "pending: needs Science Data S1-S3 (public; scripted download blocked by PMC/Science bot protection) or Synapse syn51090452 (ACT-controlled)",
+      "blocker": null,
+      "title": "Differentially active variants (limma, FDR 10%)",
+      "figure": "Fig. 3A-B; data S2",
+      "claim": {
+        "quote": "At a 10% FDR in our limma differential activity analysis, 164 out of 8029 variants (2.04%) showed significant allelic effects",
+        "value": 164.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4d_organoid_replicates",
+      "upstream": [],
+      "tool": null,
+      "blocker": {
+        "kind": "controlled_access",
+        "reason": "Per-replicate DNA/RNA barcode counts exist only as raw FASTQs in PsychENCODE Synapse syn51090452 (MPRA_CapstoneII); every file carries ACTAccessRequirement 5612415 (restrictionLevel CONTROLLED_BY_ACT, canDownload=false anonymously). The public Data S1-S3 report per-sequence summary statistics, not replicate-level values."
+      },
+      "title": "Organoid replicate reproducibility",
+      "figure": "Fig. 4D",
+      "claim": {
+        "quote": "average Pearson correlation for DA library: 0.89, variant library: 0.90",
+        "value": 0.89
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4h_dav_effect_corr",
+      "upstream": [],
+      "tool": "pending: needs Science Data S1-S3 (public; scripted download blocked by PMC/Science bot protection) or Synapse syn51090452 (ACT-controlled)",
+      "blocker": null,
+      "title": "DAV effect sizes organoid vs primary",
+      "figure": "Fig. 4H; data S3",
+      "claim": {
+        "quote": "high correlation in DAV effect sizes in organoids versus primary cells (r = 0.91)",
+        "value": 0.91
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5a_model_chr4",
+      "upstream": [],
+      "tool": "pending: needs Science Data S1-S3 (public; scripted download blocked by PMC/Science bot protection) or Synapse syn51090452 (ACT-controlled)",
+      "blocker": null,
+      "title": "Sequence-to-activity CNN, chr4 held out",
+      "figure": "Fig. 5A",
+      "claim": {
+        "quote": "On chromosome 4, the DA and variant models achieved 0.82 and 0.78 Pearson correlation",
+        "value": 0.82
+      },
+      "source": "manual"
+    }
+  ]
 }

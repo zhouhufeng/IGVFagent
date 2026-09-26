@@ -25,7 +25,7 @@ Deng C, Whalen S, Steyert M, Ziffra R, ..., Pollard KS, Ahituv N. **Massively pa
 | Access policy | PsychENCODE Consortium standard (free with registered account; managed terms-of-use) |
 | GEO | *not deposited* (per paper Data Availability) |
 | dbGaP | *not deposited* |
-| Code (paper) | [Whalen-Lab/HumanCortexMPRA](https://github.com/Whalen-Lab/HumanCortexMPRA) |
+| Code (paper) | *none published* — the paper has no Code Availability statement (a `Whalen-Lab/HumanCortexMPRA` link previously listed here does not exist; GitHub 404, checked 2026-09-25) |
 | IGVF Portal MPRA-class entries (live) | **15** (from `mpra portal-manifest`) |
 | ENCODE Functional-Characterization MPRA experiments (live) | **125** (via FCE endpoint, see Yao 2024 benchmark) |
 | Perturbation Catalogue MAVE datasets (live) | **10** |
@@ -143,6 +143,6 @@ Run the Deng 2024 cortex lentiMPRA benchmark:
 ## License + provenance
 
 * **Data**: PsychENCODE Consortium / Synapse (managed-access terms-of-use). IGVFagent fetches metadata only via PubMed E-utilities + IGVF Portal; the count table is not redistributed.
-* **Paper code**: [Whalen-Lab/HumanCortexMPRA](https://github.com/Whalen-Lab/HumanCortexMPRA) (license per the repo).
+* **Paper code**: none published (no Code Availability statement in the paper).
 * **IGVFagent code**: Apache-2.0; `Scripts/mpra_pipeline.py` (clean-room NB-GLM + skew test).
 * **Figure-generation script**: `make_figures.py` in this directory.
