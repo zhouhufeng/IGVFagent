@@ -182,6 +182,9 @@ Benchmarks/results/2*
 # Benchmarks/_data/ holds large public datasets downloaded by each run.sh
 # (CELLxGENE h5ad, GEO count matrices, etc.) — never committed; re-fetched on run.
 Benchmarks/_data/
+# Rosenberg 2018's own PMC-fetched supplementary xlsx/pdf (~29 MB, copyrighted
+# publisher material) — never committed; re-fetch from PMC7643870 if needed.
+Benchmarks/rosenberg2018_splitseq/Supplement/
 Docs/Demos/*
 # ...but authored demo scripts in there ARE documentation and belong in
 # the repo. 12_demo_questions.md was tracked in spite of the rule above,
