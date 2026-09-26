@@ -215,7 +215,7 @@ claude mcp list                   # igvfagent: … ✔ Connected
 the MCP server runs where its client runs, so the tools execute there. For
 example with SLURM, inside `tmux`:
 `srun --pty -p <partition> -c 16 --mem=64G -t 3-00:00:00 bash`, then
-`cd IGVFagent && export PATH=/path/to/envs/igvfagent/bin:$PATH && claude`.
+`cd IGVFagent && export PATH=/path/to/envs/igvfagent/bin:$PATH && claude`. A launcher and a full walkthrough: [Running the MCP server on a SLURM cluster](../Examples/mcp_on_slurm/README.md).
 
 Start a new Claude Code session (servers load at start-up), type `/mcp` to see
 the tools, then ask, e.g. *"Using the igvfagent tools, look up APOE in the
