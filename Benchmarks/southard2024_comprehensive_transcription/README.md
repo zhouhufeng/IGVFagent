@@ -98,9 +98,54 @@ tied to `fig2c_ontarget_activation` in `expected.json` but that analysis
 scores as class C (retrieval/enumeration: a count), not class A/B
 (quantitative reproduction), until the actual regression test is ported.
 
+## Raw-data reproduction (Step 1: guide calling from scratch)
+
+Everything above measures the authors' own *already-processed* deposits.
+`reproduce_step1_aggregation.py` goes one level deeper: it is a port of the
+authors' own `Step 1 - Aggregation of cellranger outputs and guide
+thresholding for Hs27 experiment.ipynb`, run against the **raw** cellranger
+outputs (Zenodo 10.5281/zenodo.15213597, 21.6GB — the 16 individual
+`cellranger count` lanes, downloaded and processed independently of the
+`mean_pop.h5ad`/guide-UMI summaries used above).
+
+Two real things fell out of actually doing this:
+
+1. **A bug in the paper's own public code.** `Code/perturbseq/__init__.py`
+   imports `util_jmr.py` and `aneuploidy.py`, neither of which exists
+   anywhere in the repo at the pinned commit (`3637f77`) — verified directly
+   via GitHub's contents API, not a fetch artefact on this end. Patched out
+   (both are unused by the Step 1 notebook) rather than silently worked
+   around; see the comment left in the patched file.
+2. **Deviation, stated plainly:** the deposit has 16 per-lane `cellranger
+   count` outputs, not the single merged `cellranger aggr` output the
+   notebook's `EXPERIMENT` path expects — no `cellranger` binary is
+   available here to redo that merge. The script concatenates the 16 lanes
+   itself (barcode-suffixed per lane, the same convention `cellranger aggr`
+   uses) with no depth-equalisation, so absolute per-cell UMI counts are not
+   expected to be bit-identical to a real `cellranger aggr` run.
+
+Despite that deviation, re-deriving the guide library from scratch —
+517,319 raw droplets → guide/GEX feature split → per-cell guide-UMI
+thresholding (>5) → dominant-guide assignment — reproduces a guide
+library **identical, set-for-set, to the separately-deposited processed
+summary**:
+
+| Quantity | From raw cellranger (this run) | From the deposited processed summary | Match |
+|---|---:|---:|:---:|
+| Guides in final library | **10,979** | 10,979 | ✓ exact |
+| Guide identity set | — | — | ✓ Jaccard = 1.0 (bit-for-bit identical) |
+| Cells assigned a guide (pre singlet-filter) | 497,004 | — (this file predates singlet filtering) | n/a |
+
+This is the strongest evidence in this benchmark that the pipeline holds
+together end-to-end: two *independent* Zenodo releases of the same
+underlying experiment (a raw cellranger dump and a processed summary),
+reduced by two independently-written pieces of code (the authors' own
+notebook, ported here, vs. whatever produced the deposited summary),
+land on the exact same 10,979-guide library.
+
 ## Concordance
 
-**5 / 5 confirmed checks pass** (guides, non-targeting controls, TF count, pooled-activatable count, resistant count — all measured from the authors' own deposited data, not from prose). **8 further paper-claimed numbers remain `[UNCONFIRMED]`** (perturbation count, cluster counts, AUC values). Of the 10 headline analyses `expected.json` now tracks (`analyses[]`), only `fig2c_ontarget_activation` has a check tied to it, and that check is class C, not A/B — see "Reproduction status" below. See `Docs/Benchmark/*_southard2024_comprehensive_transcription/replication_report.md` for the full table.
+**6 / 6 confirmed checks pass** (guides, non-targeting controls, TF count, pooled-activatable count, resistant count — all measured from the authors' own deposited data, not from prose). **8 further paper-claimed numbers remain `[UNCONFIRMED]`** (perturbation count, cluster counts, AUC values). Of the 10 headline analyses `expected.json` now tracks (`analyses[]`), only `fig2c_ontarget_activation` has a check tied to it, and that check is class C, not A/B — see "Reproduction status" below. See `Docs/Benchmark/*_southard2024_comprehensive_transcription/replication_report.md` for the full table.
 
 ## Reproduction status (`analyses[]`)
 
@@ -126,7 +171,7 @@ Two of these (`fig4_sparse_pca_programs`, needing only already-downloaded data, 
 * **Run directory is not paper-tagged.** This route's catalogue-census CLI steps accept no `--label`, so `concordance.py` matches the skill's default `summary` directory. All real checks above are pinned to paper-specific artefacts (via `extra_search_dirs`) regardless.
 * **GSE237056 does not exist for this paper (or at all).** Verified via NCBI E-utilities (`esearch`): zero hits, and no GEO series is linked to this paper's SRA BioProject (`elink` returns no `gds` linkset). This paper deposited raw reads to SRA only and processed data to Zenodo only — it never used GEO. (This was the original fabricated benchmark's central false claim.)
 * **The 319/1,482 figures are matched, not reproduced bit-for-bit.** `active` is used as a stand-in for the authors' `expanded_masked_active` (a further Hs27-only reclustering not in the deposited summary) and their `is_activated` regression test isn't in the summary file at all. The match is real and grounded in the authors' own formula, but promoting `fig2c_ontarget_activation` past class C means porting that regression.
-* **8 unconfirmed checks remain** (perturbation count, cluster counts, AUC values) — would need the full raw-data pipeline (cellranger + the authors' regression/clustering notebooks), a multi-hour/TB-scale undertaking not attempted here.
+* **8 unconfirmed checks remain** (perturbation count, cluster counts, AUC values) — would need the authors' regression/clustering notebooks (Steps 3-4, sparse PCA, epigenetic model), not yet ported. The raw-data pipeline itself is no longer untouched, though: see "Raw-data reproduction" above — Step 1 (guide calling from 16 real cellranger lanes) is done and cross-validated exactly against the deposited summary; Steps 2-4 (cell-population construction, masked-active regression, on-target/AUC modelling) are the multi-hour/TB-scale remainder.
 * **No IGVF Portal accession found.** The Norman lab's `igvf-perturbseq` repo says this data was "formatted for IGVF submission," but Portal search found no matching `MeasurementSet` as of this run — likely still in progress upstream.
 
 ## Provenance

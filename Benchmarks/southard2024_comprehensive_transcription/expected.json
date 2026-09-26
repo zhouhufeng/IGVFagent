@@ -24,7 +24,8 @@
   "label": "summary",
   "primary_artefact": "summary.json",
   "extra_search_dirs": [
-    "Data/Benchmarks/southard2024_comprehensive_transcription"
+    "Data/Benchmarks/southard2024_comprehensive_transcription",
+    "Data/Benchmarks/southard2024_comprehensive_transcription/step1_reproduction"
   ],
   "checks": [
     {
@@ -137,6 +138,22 @@
         "section": "Droplet overloading for high-throughput Perturb-seq",
         "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 ).",
         "verification": "Length of the guide-identity axis in the authors' own deposited guide x droplet UMI matrix (Zenodo 10.5281/zenodo.15200179). Exact match: 10979 guides, of which 78 are 'non_targeting_*' \u2014 also an exact match to the '78 overrepresented non-targeting negative control guides' clause in the same sentence."
+      }
+    },
+    {
+      "name": "guide library reproduced from raw cellranger outputs matches deposited processed summary exactly",
+      "type": "range",
+      "artefact": "step1_reproduction_summary.json",
+      "path": "n_guides_in_library",
+      "min": 10979,
+      "max": 10979,
+      "expected": 10979,
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_primary_data_raw",
+        "section": "Processing CRISPRa experiments and performing regressions/Step 1 - Aggregation of cellranger outputs and guide thresholding for Hs27 experiment.ipynb",
+        "quote": "n/a -- this check verifies the pipeline against itself across two independent data releases, not a paper prose quote",
+        "verification": "Independently downloaded the 16 per-lane RAW cellranger count outputs (Zenodo 10.5281/zenodo.15213597, 21.6GB), concatenated them (own port of the notebook's own logic -- no cellranger aggr binary available, so no depth-equalisation; documented in Benchmarks/southard2024_comprehensive_transcription/reproduce_step1_aggregation.py), and re-derived the guide library from scratch: 517,319 raw droplets -> 10,979 guides, 497,004 cells assigned a guide post threshold. The resulting guide-identity SET is bit-for-bit IDENTICAL (Jaccard=1.0) to the separately-deposited processed summary (Zenodo 10.5281/zenodo.15200179) used for the checks above -- two independent releases of the same pipeline agree exactly. Also found and fixed a real bug in the paper's own public code: perturbseq/__init__.py imports util_jmr.py and aneuploidy.py, neither of which exists in the repo at the pinned commit (verified via GitHub's contents API) -- patched out (unused by this notebook) rather than silently worked around."
       }
     },
     {
