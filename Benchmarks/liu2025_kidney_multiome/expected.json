@@ -1,0 +1,909 @@
+{
+  "paper": {
+    "title": "Kidney multiome-based genetic scorecard reveals convergent coding and regulatory variants",
+    "authors": "Liu Hongbo; Abedini Amin; Ha Eunji; Ma Ziyuan; Sheng Xin; Dumoulin Bernhard; Qiu Chengxiang; Aranyi Tamas; Li Shen; Dittrich Nicole; Chen Hua-Chang; Tao Ran; Tarng Der-Cherng; Hsieh Feng-Jen; Chen Shih-Ann; Yang Shun-Fa; Lee Mei-Yueh; Kwok Pui-Yan; Wu Jer-Yuarn; Chen Chien-Hsiun; Khan Atlas; Limdi Nita A.; Wei Wei-Qi; Walunas Theresa L.; Karlson Elizabeth W.; Kenny Eimear E.; Luo Yuan; Kottyan Leah; Connolly John J.; Jarvik Gail P.; Weng Chunhua; Shang Ning; Cole Joanne B.; Mercader Josep M.; Mandla Ravi; Majarian Timothy D.; Florez Jose C.; Haas Mary E.; Lotta Luca A.; Drivas Theodore G.; Vy Ha My T.; Nadkarni Girish N.; Wiley Laura K.; Wilson Melissa P.; Gignoux Christopher R.; Rasheed Humaira; Thomas Laurent F.; \u00c5svold Bj\u00f8rn Olav; Brumpton Ben M.; Hallan Stein I.; Hveem Kristian; Zheng Jie; Hellwege Jacklyn N.; Zawistowski Matthew; Z\u00f6llner Sebastian; Franceschini Nora; Hu Hailong; Zhou Jianfu; Kiryluk Krzysztof; Ritchie Marylyn D.; Palmer Matthew; Edwards Todd L.; Voight Benjamin F.; Hung Adriana M.; Susztak Katalin; Baras Aris; Abecasis Gon\u00e7alo; Ferrando Adolfo; Coppola Giovanni; Deubler Andrew; Economides Aris; Lotta Luca A; Overton John D; Reid Jeffrey G; Shuldiner Alan; Siminovitch Katherine; Portnoy Jason; Jones Marcus B; Mitnaul Lyndon; Fenney Alison; Marchini Jonathan; Revez Ferreira Manuel Allen; Ghoussaini Maya; Nafde Mona; Salerno William; Overton John D; Beechert Christina; Fuller Erin; Cremona Laura M; Kalyuskin Eugene; Du Hang; Forsythe Caitlin; Gu Zhenhua; Guevara Kristy; Lattari Michael; Lopez Alexander; Manoochehri Kia; Challa Prathyusha; Pradhan Manasi; Reynoso Raymond; Schiavo Ricardo; Padilla Maria Sotiropoulos; Wang Chenggu; Wolf Sarah E; Du Hang; Guevara Kristy; Averitt Amelia; Banerjee Nilanjana; Li Dadong; Malhotra Sameer; Mower Justin; Sarwar Mudasar; Sharma Deepika; Yu Sean; Zhang Aaron; Aqeel Muhammad; Reid Jeffrey G; Nafde Mona; Goyal Manan; Mitra George; Sreeram Sanjay; Lanche Rouel; Mahajan Vrushali; Vasireddy Sai Lakshmi; Eom Gisu; Punuru Krishna Pawan; Gokhale Sujit; Sultan Benjamin; Mule Pooja; Austin Eliot; Bai Xiaodong; Zhang Lance; O'Keeffe Sean; Panea Razvan; Edelstein Evan; Rasool Ayesha; Salerno William; Maxwell Evan K; Boutkov Boris; Gorovits Alexander; Guan Ju; Habegger Lukas; Hawes Alicia; Krasheninina Olga; Zarate Samantha; Mansfield Adam J; Habegger Lukas; Abecasis Gon\u00e7alo; Backman Joshua; Burch Kathy; Campos Adrian; Ganel Liron; Gaynor Sheila; Geraghty Benjamin; Ghosh Arkopravo; Martinez Salvador Romero; Gillies Christopher; Gurski Lauren; Herman Joseph; Jorgenson Eric; Joseph Tyler; Kessler Michael; Kosmicki Jack; Locke Adam; Nakka Priyanka; Marchini Jonathan; Landheer Karl; Delaneau Olivier; Ghoussaini Maya; Marcketta Anthony; Mbatchou Joelle; Moscati Arden; Pandey Aditeya; Pandit Anita; Ross Jonathan; Sidore Carlo; Stahl Eli; Thornton Timothy; Vedantam Sailaja; Wang Rujin; Wu Kuan-Han; Ye Bin; Zhang Blair; Ziyatdinov Andrey; Zou Yuxin; Zhang Jingning; Watanabe Kyoko; Tang Mira; Wendt Frank; Balasubramanian Suganthi; Bao Suying; Sun Kathie; Zhang Chuanyi; Ferrando Adolfo; Coppola Giovanni; Lotta Luca A; Shuldiner Alan; Siminovitch Katherine; Hobbs Brian; Silver Jon; Palmer William; Guerreiro Rita; Joshi Amit; Baldassari Antoine; Willer Cristen; Graham Sarah; Mayerhofer Ernst; Castineira Erola Pairo; Haas Mary; Verweij Niek; Hindy George; Bovijn Jonas; De Tanima; Akbari Parsa; Sun Luanluan; Sosina Olukayode; Gilly Arthur; Dornbos Peter; Rodriguez-Flores Juan; Riaz Moeen; Kapoor Manav; Tzoneva Gannie; Jallow Momodou W; Alkelai Anna; Ayer Ariane; Rajagopal Veera; Gelfman Sahar; Kumar Vijay; Otto Jacqueline; Parikshak Neelroop; Guvenek Aysegul; Bras Jose; Alvarez Silvia; Brown Jessie; He Jing; Khiabanian Hossein; Revez Joana; Skead Kimberly; Zavala Valentina; Sul Jae Soon; Chen Lei; Choi Sam; Damask Amy; Lin Nan; Paulding Charles; Jones Marcus B; Chen Esteban; LeBlanc Michelle G; Mighty Jason; Rico-Varela Jennifer; Nishtala Nirupama; Rana Nadia; Hernandez Jaimee; Fenney Alison; Schwartz Randi; Hankins Jody; Han Anna; Hart Samuel; Perez-Beals Ann; Solari Gina; Rivera-Picart Johannie; Pagan Michelle; Siceron Sunilbe; Buchanan Adam; Carey David J.; Martin Christa L.; Meyer Michelle; Retterer Kyle; Rolston David; Rader Daniel J.; Ritchie Marylyn D.; Weaver JoEllen; Naseer Nawar; Sirugo Giorgio; Poindexter Afiya; Ko Yi-An; Nerz Kyle P.; Livingstone Meghan; Vadivieso Fred; DerOhannessian Stephanie; Tran Teo; Stephanowski Julia; Santos Salma; Haubein Ned; Dunn Joseph; Verma Anurag; Morse Kripke Colleen; Risman Marjorie; Judy Renae; Wollack Colin; Verma Shefali S.; Damrauer Scott M.; Bradford Yuki; Dudek Scott M.; Drivas Theodore G.",
+    "journal": "Science",
+    "year": 2025,
+    "doi": "10.1126/science.adp4753",
+    "pmid": "39913582",
+    "pmcid": "PMC12013656"
+  },
+  "generated_by": {
+    "tool": "igvfagent bench scaffold",
+    "generated_at": "2026-09-25 23:38:09 EDT",
+    "route": "manual (paper-specific; scaffold route multiome_peak2gene did not apply)",
+    "resolver_confidence": 1.0,
+    "fulltext_source": "NCBI efetch PMC12013656 (author manuscript; Europe PMC fullTextXML returned HTTP 500)",
+    "review_required": true
+  },
+  "data_source": {
+    "type": "figshare+ported_methods",
+    "figshare": "10.6084/m9.figshare.26299093",
+    "ports": [
+      "liu2025-gwas-loci (hbliu/Kidney_Epi_Pri@552c461 eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh)",
+      "liu2025-open4gene (hbliu/Open4Gene@6e7f36a R/Open4Gene.R)"
+    ]
+  },
+  "skill_output_dir": "PaperReproduction",
+  "label": "liu2025_kidney_multiome",
+  "primary_artefact": "summary.json",
+  "checks": [
+    {
+      "name": "port matches authors' code: gwas_filter_vs_awk",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/gwas_filter_vs_awk/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.999,
+      "max": 1.0,
+      "analysis": "fig1a_gwas_significant",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "authors' awk Step1-2 on the deposited GWAS; the port also keeps 36 variants with P below double range (e.g. 7.74e-357) that gawk compares as strings and drops"
+      }
+    },
+    {
+      "name": "variants tested in the multi-ancestry GWAS",
+      "type": "range",
+      "path": "gwas_loci.n_variants_tested",
+      "expected": 13700391,
+      "min": 13700391,
+      "max": 13700391,
+      "analysis": "fig1a_gwas_significant",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Within the multi-ancestry GWAS encompassing 13,700,391 variants, we identified 99,595 genome-wide significant variants (P < 5x10-8), excluding 12,895 significant variants from the major histocompatibility complex locus."
+      }
+    },
+    {
+      "name": "genome-wide significant non-MHC variants",
+      "type": "range",
+      "path": "gwas_loci.n_significant_non_mhc",
+      "expected": 99595,
+      "min": 94615,
+      "max": 104575,
+      "analysis": "fig1a_gwas_significant",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Within the multi-ancestry GWAS encompassing 13,700,391 variants, we identified 99,595 genome-wide significant variants (P < 5x10-8), excluding 12,895 significant variants from the major histocompatibility complex locus.",
+        "note": "deposited Figshare v3 file yields 102,520 (+2.9%); tolerance +/-5%"
+      }
+    },
+    {
+      "name": "port matches authors' code: loci_merged_vs_R",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/loci_merged_vs_R/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "fig1b_independent_loci",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "locus assignment of all 2,010 clumped leads vs the authors' Step4 R loop on the same plink output"
+      }
+    },
+    {
+      "name": "port matches authors' code: loci_cM_vs_plink",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/loci_cM_vs_plink/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.99,
+      "max": 1.0,
+      "analysis": "fig1b_independent_loci",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "genetic position of each lead vs plink --cm-map"
+      }
+    },
+    {
+      "name": "independent loci",
+      "type": "range",
+      "path": "gwas_loci.n_independent_loci",
+      "expected": 1026,
+      "min": 1005,
+      "max": 1047,
+      "analysis": "fig1b_independent_loci",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "we identified 1,026 independent loci",
+        "note": "1000G EUR (MAGMA build) + HapMap-II map stand in for the authors' 1000G files; tolerance +/-2%"
+      }
+    },
+    {
+      "name": "ASE genes shared by tubule and glomeruli (fraction of union)",
+      "type": "range",
+      "path": "derived.fig2b.ase_shared_fraction_of_union",
+      "expected": 0.6636,
+      "min": 0.6631,
+      "max": 0.6641,
+      "analysis": "fig2b_ase_genes",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "We identified 10,398 ASE genes, with 8,573 in the tubule and 8,725 in the glomeruli",
+        "note": "paper-implied (8573+8725-10398)/10398"
+      }
+    },
+    {
+      "name": "tubule ASE genes",
+      "type": "range",
+      "path": "derived.fig2b.n_ase_genes_tubule",
+      "expected": 8573,
+      "min": 8573,
+      "max": 8573,
+      "analysis": "fig2b_ase_genes",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "8,573 in the tubule"
+      }
+    },
+    {
+      "name": "glomerular ASE genes",
+      "type": "range",
+      "path": "derived.fig2b.n_ase_genes_glomeruli",
+      "expected": 8725,
+      "min": 8725,
+      "max": 8725,
+      "analysis": "fig2b_ase_genes",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "8,725 in the glomeruli"
+      }
+    },
+    {
+      "name": "ASE genes (union)",
+      "type": "range",
+      "path": "derived.fig2b.n_ase_genes_union",
+      "expected": 10398,
+      "min": 10398,
+      "max": 10398,
+      "analysis": "fig2b_ase_genes",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "We identified 10,398 ASE genes"
+      }
+    },
+    {
+      "name": "bASA peaks with local and distal SNPs (fraction)",
+      "type": "range",
+      "path": "derived.fig3a.fraction_basa_peaks_local_and_distal",
+      "expected": 0.4358,
+      "min": 0.4353,
+      "max": 0.4363,
+      "analysis": "fig3a_basa",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "8,317 bASA peaks had associations with both local (within peak) and distal (outside peak) SNPs",
+        "note": "paper-implied 8317/19083"
+      }
+    },
+    {
+      "name": "bASA peaks",
+      "type": "range",
+      "path": "derived.fig3a.n_basa_peaks",
+      "expected": 19083,
+      "min": 19083,
+      "max": 19083,
+      "analysis": "fig3a_basa",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "19,083 peaks"
+      }
+    },
+    {
+      "name": "bASA SNPs",
+      "type": "range",
+      "path": "derived.fig3a.n_basa_snps",
+      "expected": 523700,
+      "min": 523700,
+      "max": 523700,
+      "analysis": "fig3a_basa",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "523,700 single nucleotide polymorphisms (SNPs) with MAF > 5%"
+      }
+    },
+    {
+      "name": "bASA vs ASE effect-size correlation",
+      "type": "range",
+      "path": "derived.fig3d.basa_ase_spearman_correlation",
+      "expected": 0.51,
+      "min": 0.49,
+      "max": 0.53,
+      "analysis": "fig3d_basa_vs_ase",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "positively correlated with ASEs (correlation = 0.51, P < 2.2x10-16)",
+        "note": "SNP join not specified in the paper; strongest association per shared SNP, tubule ASE"
+      }
+    },
+    {
+      "name": "cell-type-specific snASA SNPs (fraction)",
+      "type": "range",
+      "path": "derived.fig4b.snasa_celltype_specific_fraction",
+      "expected": 0.86,
+      "min": 0.855,
+      "max": 0.865,
+      "analysis": "fig4b_snasa_specificity",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Most of the snASA SNPs (22,151 out of 25,766, 86%) were specific to individual cell types"
+      }
+    },
+    {
+      "name": "snASA SNPs",
+      "type": "range",
+      "path": "derived.fig4b.n_snasa_snps",
+      "expected": 25766,
+      "min": 25766,
+      "max": 25766,
+      "analysis": "fig4b_snasa_specificity",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "we identified 25,766 SNPs exhibiting significant snASA"
+      }
+    },
+    {
+      "name": "snASA SNPs shared across cell types",
+      "type": "range",
+      "path": "derived.fig4b.n_shared",
+      "expected": 3615,
+      "min": 3615,
+      "max": 3615,
+      "analysis": "fig4b_snasa_specificity",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "3,615 snASA SNPs were shared across at least two cell types"
+      }
+    },
+    {
+      "name": "snASA SNPs inside open chromatin peaks (fraction)",
+      "type": "range",
+      "path": "derived.fig4c.snasa_in_peak_fraction",
+      "expected": 0.932,
+      "min": 0.927,
+      "max": 0.937,
+      "analysis": "fig4c_snasa_in_peaks",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Most of these snASA SNPs (93.2%, or 24,015 out of 25,766) were located within open chromatin peaks",
+        "note": "against the deposited Human.Kidney.OpenChromatin.snATAC peak BED"
+      }
+    },
+    {
+      "name": "PT snASA vs bASA effect-size correlation",
+      "type": "range",
+      "path": "derived.fig4f.snasa_pt_vs_basa_spearman_correlation",
+      "expected": 0.9,
+      "min": 0.895,
+      "max": 0.905,
+      "analysis": "fig4f_snasa_vs_basa",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "between snASA and bASA (Spearman's rho = 0.90, P < 1.0x10-300)",
+        "note": "local SNP-peak pairs (SNP inside its bASA peak); all pairs give 0.77"
+      }
+    },
+    {
+      "name": "port matches authors' code: o4g_zero_beta_vs_R",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/o4g_zero_beta_vs_R/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "fig5_open4gene_method",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "zero-component beta, all 120 peak-gene-celltype tests on the package test data (62,278 kidney cells)"
+      }
+    },
+    {
+      "name": "port matches authors' code: o4g_zero_p_vs_R",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/o4g_zero_p_vs_R/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "fig5_open4gene_method",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "zero-component p, all 120 tests"
+      }
+    },
+    {
+      "name": "port matches authors' code: o4g_count_z_identifiable_vs_R",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/o4g_count_z_identifiable_vs_R/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 0.95,
+      "max": 1.0,
+      "analysis": "fig5_open4gene_method",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "count-component z within 0.01 where R's own SE < 10 (59 tests); flat count likelihoods stop at optimizer-path-dependent points in both"
+      }
+    },
+    {
+      "name": "port matches authors' code: o4g_zero_beta_vs_published",
+      "type": "range",
+      "artefact": "Data/liu2025/verify/o4g_zero_beta_vs_published/validation_vs_reference.json",
+      "path": "validation_vs_reference.match_rate",
+      "min": 1.0,
+      "max": 1.0,
+      "analysis": "fig5_open4gene_method",
+      "confirmed": true,
+      "provenance": {
+        "kind": "port_vs_reference",
+        "note": "zero-component beta vs the paper's published Open4Gene summary statistics (Figshare) for the same 115 tests"
+      }
+    },
+    {
+      "name": "per-cell-type links absent from the all-cell analysis (fraction)",
+      "type": "range",
+      "path": "derived.fig5c.fraction_celltype_links_not_in_allcell",
+      "expected": 0.406,
+      "min": 0.4055,
+      "max": 0.4065,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "This process yielded 35,388 unique Open4Gene links, with 40.6% being distinct from those obtained when analyzing a combination of all cell types"
+      }
+    },
+    {
+      "name": "peaks linked to a single gene (fraction)",
+      "type": "range",
+      "path": "derived.fig5c.fraction_peaks_single_gene",
+      "expected": 0.9,
+      "min": 0.85,
+      "max": 0.9,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "encompassing 125,699 peaks, nearly 90% of which were specifically associated with a single gene"
+      }
+    },
+    {
+      "name": "positive Open4Gene associations (fraction)",
+      "type": "range",
+      "path": "derived.fig5c.positive_beta_fraction",
+      "expected": 0.97,
+      "min": 0.965,
+      "max": 0.975,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "97% of Open4Gene associations were positively linked (effect estimate beta > 0)",
+        "note": "zero-component beta among links with zero-component FDR < 0.01"
+      }
+    },
+    {
+      "name": "median linked peaks per gene",
+      "type": "range",
+      "path": "derived.fig5c.median_peaks_per_gene",
+      "expected": 8,
+      "min": 7.5,
+      "max": 8.5,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "The derived Open4Gene associations indicated a median of eight linked peaks per gene"
+      }
+    },
+    {
+      "name": "peak-to-gene links",
+      "type": "range",
+      "path": "derived.fig5c.n_links",
+      "expected": 142452,
+      "min": 142452,
+      "max": 142452,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "we altogether identified 142,452 peak-to-gene connections"
+      }
+    },
+    {
+      "name": "linked peaks",
+      "type": "range",
+      "path": "derived.fig5c.n_peaks",
+      "expected": 125699,
+      "min": 125699,
+      "max": 125699,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "encompassing 125,699 peaks"
+      }
+    },
+    {
+      "name": "per-cell-type links",
+      "type": "range",
+      "path": "derived.fig5c.n_celltype_links",
+      "expected": 35388,
+      "min": 35388,
+      "max": 35388,
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "35,388 unique Open4Gene links"
+      }
+    },
+    {
+      "name": "gene with the most linked peaks",
+      "type": "in_set",
+      "path": "derived.fig5c.top_gene_by_peaks",
+      "allowed": [
+        "PKHD1"
+      ],
+      "analysis": "fig5c_open4gene_links",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "gene PKHD1 ... having the highest number of peaks"
+      }
+    },
+    {
+      "name": "GWAS variants in Open4Gene peaks targeting one gene (fraction)",
+      "type": "range",
+      "path": "derived.fig5d.gwas_variant_single_gene_fraction",
+      "expected": 0.802,
+      "min": 0.797,
+      "max": 0.807,
+      "analysis": "fig5d_gwas_open4gene",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "80.2% (5,723/7,137) of these variants were exclusive to a single gene"
+      }
+    },
+    {
+      "name": "GWAS variants in Open4Gene peaks",
+      "type": "range",
+      "path": "derived.fig5d.n_gwas_variants_in_open4gene_peaks",
+      "expected": 7137,
+      "min": 6780,
+      "max": 7494,
+      "analysis": "fig5d_gwas_open4gene",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "identifying 1,351 target genes for 7,137 genetic variants located within Open4Gene peaks",
+        "note": "+/-5%: the deposited GWAS has 2.9% more significant variants"
+      }
+    },
+    {
+      "name": "target genes of GWAS variants in Open4Gene peaks",
+      "type": "range",
+      "path": "derived.fig5d.n_target_genes",
+      "expected": 1351,
+      "min": 1283,
+      "max": 1419,
+      "analysis": "fig5d_gwas_open4gene",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "identifying 1,351 target genes"
+      }
+    },
+    {
+      "name": "prioritized regulatory variants (score >= 10)",
+      "type": "range",
+      "path": "derived.fig6b.n_regulatory_variants",
+      "expected": 24437,
+      "min": 24437,
+      "max": 24437,
+      "analysis": "fig6b_regulatory_scorecard",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Focusing on 24,437 regulatory variants that target 1,060 genes, identified by prioritization scores of 10 or higher"
+      }
+    },
+    {
+      "name": "target genes of prioritized regulatory variants",
+      "type": "range",
+      "path": "derived.fig6b.n_regulatory_target_genes",
+      "expected": 1060,
+      "min": 1060,
+      "max": 1060,
+      "analysis": "fig6b_regulatory_scorecard",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "target 1,060 genes"
+      }
+    },
+    {
+      "name": "top prioritized regulatory variant",
+      "type": "in_set",
+      "path": "derived.fig6b.top_variant",
+      "allowed": [
+        "rs35716097"
+      ],
+      "analysis": "fig6b_regulatory_scorecard",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "the top prioritized regulatory variant rs35716097 (with a prioritization score of 27) targeting the SLC34A1 gene"
+      }
+    },
+    {
+      "name": "target of the top variant",
+      "type": "in_set",
+      "path": "derived.fig6b.top_variant_gene",
+      "allowed": [
+        "SLC34A1"
+      ],
+      "analysis": "fig6b_regulatory_scorecard",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "targeting the SLC34A1 gene"
+      }
+    },
+    {
+      "name": "score of the top variant",
+      "type": "range",
+      "path": "derived.fig6b.top_prioritization_score",
+      "expected": 27,
+      "min": 27,
+      "max": 27,
+      "analysis": "fig6b_regulatory_scorecard",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "with a prioritization score of 27"
+      }
+    },
+    {
+      "name": "genes with multiple coding variants (fraction)",
+      "type": "range",
+      "path": "derived.fig6d.fraction_genes_multiple_coding_variants",
+      "expected": 0.37,
+      "min": 0.352,
+      "max": 0.388,
+      "analysis": "fig6d_coding_variants",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "289 genes (37.0% of the 782 total) possessed multiple coding variants",
+        "note": "computed on the scorecard's 745 coding genes (table S24 not deposited); tolerance = 1 binomial SE at n=745"
+      }
+    },
+    {
+      "name": "gene with the most coding variants",
+      "type": "in_set",
+      "path": "derived.fig6d.top_coding_gene",
+      "allowed": [
+        "ALMS1"
+      ],
+      "analysis": "fig6d_coding_variants",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "ALMS1 ... harboring the highest number (16) of coding variants"
+      }
+    },
+    {
+      "name": "coding variants in the top gene",
+      "type": "range",
+      "path": "derived.fig6d.n_coding_variants_top_gene",
+      "expected": 16,
+      "min": 16,
+      "max": 16,
+      "analysis": "fig6d_coding_variants",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "the highest number (16) of coding variants"
+      }
+    },
+    {
+      "name": "coding variants",
+      "type": "range",
+      "path": "derived.fig6d.n_coding_variants",
+      "expected": 1363,
+      "min": 1295,
+      "max": 1431,
+      "analysis": "fig6d_coding_variants",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "1,363 coding variants linked to kidney function",
+        "note": "scorecard subset (957 loci); +/-5%"
+      }
+    },
+    {
+      "name": "genes validated by eGFRcys/BUN (fraction)",
+      "type": "range",
+      "path": "derived.fig6e.validated_fraction",
+      "expected": 0.938,
+      "min": 0.933,
+      "max": 0.943,
+      "analysis": "fig6e_convergence",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "Most (93.8%, 563/600) of these genes were prioritized by at least one variant validated by complementary kidney function measurements"
+      }
+    },
+    {
+      "name": "genes with coding and regulatory variants",
+      "type": "range",
+      "path": "derived.fig6e.n_genes_coding_and_regulatory",
+      "expected": 601,
+      "min": 601,
+      "max": 601,
+      "analysis": "fig6e_convergence",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "we concentrated on 601 genes identified by both coding and regulatory variants"
+      }
+    },
+    {
+      "name": "validated genes",
+      "type": "range",
+      "path": "derived.fig6e.n_validated",
+      "expected": 563,
+      "min": 563,
+      "max": 563,
+      "analysis": "fig6e_convergence",
+      "confirmed": true,
+      "provenance": {
+        "kind": "measured_from_deposited_data",
+        "quote": "563/600"
+      }
+    }
+  ],
+  "analyses": [
+    {
+      "id": "fig1a_gwas_significant",
+      "upstream": [
+        "eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh (hbliu/Kidney_Epi_Pri@552c461)"
+      ],
+      "tool": "liu2025_gwas_loci",
+      "blocker": null,
+      "title": "Multi-ancestry eGFRcrea GWAS: genome-wide significant variants outside the MHC",
+      "figure": "Fig. 1A",
+      "claim": {
+        "quote": "Within the multi-ancestry GWAS encompassing 13,700,391 variants, we identified 99,595 genome-wide significant variants (P < 5x10-8), excluding 12,895 significant variants from the major histocompatibility complex locus.",
+        "value": 99595.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig1b_independent_loci",
+      "upstream": [
+        "eGFR_GWAS/Independent.Loci.eGFR.GWAS.sh (hbliu/Kidney_Epi_Pri@552c461)"
+      ],
+      "tool": "liu2025_gwas_loci",
+      "blocker": null,
+      "title": "1,026 independent eGFRcrea loci (plink clumping + 0.1 cM merge)",
+      "figure": "Fig. 1B",
+      "claim": {
+        "quote": "Further, we identified 1,026 independent loci, including 97 loci situated at least 500 kb away from any previously reported eGFRcrea-associated variants",
+        "value": 1026.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig2b_ase_genes",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "Tubule and glomerular RASQUAL ASE genes and their overlap (FDR 1%)",
+      "figure": "Fig. 2B",
+      "claim": {
+        "quote": "We identified 10,398 ASE genes, with 8,573 in the tubule and 8,725 in the glomeruli, while maintaining a 1% false discovery rate (FDR)",
+        "value": 10398.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3a_basa",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "Bulk allele-specific accessibility: 19,083 peaks, 523,700 SNPs (MAF>5%), 8,317 peaks with local and distal SNPs",
+      "figure": "Fig. 3A, fig. S5G",
+      "claim": {
+        "quote": "Our analysis identified 19,083 peaks with 523,700 single nucleotide polymorphisms (SNPs) with MAF > 5% ... We discovered that 8,317 bASA peaks had associations with both local (within peak) and distal (outside peak) SNPs",
+        "value": 19083.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig3d_basa_vs_ase",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "bASA effect sizes correlate positively with ASE effect sizes",
+      "figure": "Fig. 3D",
+      "claim": {
+        "quote": "the effect sizes of bASA ... positively correlated with ASEs (correlation = 0.51, P < 2.2x10-16)",
+        "value": 0.51
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4b_snasa_specificity",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "snASA: 25,766 SNPs, 86% cell-type specific, 3,615 shared",
+      "figure": "Fig. 4B, 4D",
+      "claim": {
+        "quote": "we identified 25,766 SNPs exhibiting significant snASA (FDR < 0.05) in at least one cell type ... Most of the snASA SNPs (22,151 out of 25,766, 86%) were specific to individual cell types, while 3,615 snASA SNPs were shared across at least two cell types",
+        "value": 0.86
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4c_snasa_in_peaks",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "93.2% of snASA SNPs lie within open chromatin peaks",
+      "figure": "Fig. 4C",
+      "claim": {
+        "quote": "Most of these snASA SNPs (93.2%, or 24,015 out of 25,766) were located within open chromatin peaks",
+        "value": 0.932
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig4f_snasa_vs_basa",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "PT snASA effect sizes agree with bulk bASA (Spearman rho 0.90)",
+      "figure": "Fig. 4F",
+      "claim": {
+        "quote": "between snASA and bASA (Spearman's rho = 0.90, P < 1.0x10-300)",
+        "value": 0.9
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5_open4gene_method",
+      "upstream": [
+        "R/Open4Gene.R (hbliu/Open4Gene@6e7f36a)"
+      ],
+      "tool": "liu2025_open4gene",
+      "blocker": null,
+      "title": "Open4Gene hurdle-model peak-to-gene test (port vs authors' R package)",
+      "figure": "Fig. 5A, fig. S8B",
+      "claim": {
+        "quote": "This method uses the hurdle negative binomial regression model to estimate the association between chromatin accessibility and gene expression",
+        "value": null
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5c_open4gene_links",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "Open4Gene links: 125,699 peaks, ~90% linked to a single gene, 97% positive, median 8 peaks per gene",
+      "figure": "Fig. 5B-C, fig. S8E-H",
+      "claim": {
+        "quote": "we altogether identified 142,452 peak-to-gene connections, encompassing 125,699 peaks, nearly 90% of which were specifically associated with a single gene ... a median of eight linked peaks per gene ... 97% of Open4Gene associations were positively linked",
+        "value": 0.9
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig5d_gwas_open4gene",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "GWAS variants in Open4Gene peaks: 7,137 variants -> 1,351 genes, 80.2% to a single gene",
+      "figure": "Fig. 5D, fig. S9A",
+      "claim": {
+        "quote": "identifying 1,351 target genes for 7,137 genetic variants located within Open4Gene peaks ... 80.2% (5,723/7,137) of these variants were exclusive to a single gene",
+        "value": 0.802
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig6b_regulatory_scorecard",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "Scorecard: 24,437 regulatory variants (score >= 10) targeting 1,060 genes; top rs35716097 -> SLC34A1 (score 27)",
+      "figure": "Fig. 6B, fig. S10C",
+      "claim": {
+        "quote": "Focusing on 24,437 regulatory variants that target 1,060 genes, identified by prioritization scores of 10 or higher ... the top prioritized regulatory variant rs35716097 (with a prioritization score of 27) targeting the SLC34A1 gene",
+        "value": 24437.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig6d_coding_variants",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "1,363 coding variants in 782 genes; 37.0% of genes carry multiple coding variants",
+      "figure": "Fig. 6D, fig. S12F",
+      "claim": {
+        "quote": "the identification of 1,363 coding variants linked to kidney function ... Among these, 289 genes (37.0% of the 782 total) possessed multiple coding variants, with ALMS1 ... harboring the highest number (16)",
+        "value": 0.37
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig6e_convergence",
+      "upstream": [],
+      "tool": "Benchmarks/liu2025_kidney_multiome/verify_derived_tables.py",
+      "blocker": null,
+      "title": "601 genes hit by both coding and regulatory variants; 161 converged after conditional analysis",
+      "figure": "Fig. 6E-G",
+      "claim": {
+        "quote": "we concentrated on 601 genes identified by both coding and regulatory variants across 316 GWAS loci ... resulting in 161 genes with the convergence of coding and regulatory variants",
+        "value": 601.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "rerun_from_primary_data",
+      "upstream": [],
+      "tool": null,
+      "blocker": {
+        "kind": "controlled_access",
+        "reason": "Individual-level inputs are not public: the paper deposits kidney RNA-seq/ATAC/single-nucleus data only at CMDGA (cmdga.org, searchTerm=FNIH0000000); anonymous API queries return 142 released experiment records but every one has files=[] (e.g. DSR060OQF snATAC-seq: original_files=[], files=[]), i.e. file access requires AMP consortium sign-in. RASQUAL/snASA need matched WGS genotypes of the 613/522/82 kidney donors (protected human genomic data, not deposited). CARMA meta fine-mapping needs per-cohort sumstats from MVP/TWB/All of Us/UKB (controlled). Only derived tables are public (Figshare 26299093), which the other analyses use."
+      },
+      "title": "Re-derive ASE / bASA / snASA / Open4Gene / CARMA fine-mapping from individual-level data",
+      "figure": "Figs. 1E, 2A, 3A, 4A, 5A",
+      "claim": {
+        "quote": "RASQUAL on 613 tubule / 522 glomeruli / 82 ATAC kidneys; snASA on 237,274 cells; Open4Gene on 62,278 multiome cells; CARMA fine-mapping of the per-cohort meta-analysis",
+        "value": null
+      },
+      "source": "manual"
+    },
+    {
+      "id": "fig6f_cojo_convergence",
+      "upstream": [],
+      "tool": null,
+      "blocker": {
+        "kind": "other",
+        "reason": "Not reproduced. The main text gives only 'conditional analysis on the top variant' with GCTA-COJO 1.93; the exact procedure (which variant is conditioned on which, LD panel, significance rule) is in the supplementary Methods PDF, and the per-gene result (table S28) is in the Tables S1-S31 zip. Both sit behind PMC /bin/ and science.org, which refuse automated download (HTTP 403 / bot challenge), and neither is on Figshare. Guessing the procedure would not be a reproduction. Not an access restriction: a human can download the supplement and this can then be ported."
+      },
+      "title": "161 genes with converged coding and regulatory variants after GCTA-COJO conditional analysis",
+      "figure": "Fig. 6F-G, table S28",
+      "claim": {
+        "quote": "For each of these genes, we performed conditional analysis on the top variant, resulting in 161 genes with the convergence of coding and regulatory variants",
+        "value": 161.0
+      },
+      "source": "manual"
+    }
+  ]
+}

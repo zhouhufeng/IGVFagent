@@ -1,0 +1,166 @@
+{
+  "paper_id": "liu2025_kidney_multiome",
+  "resolution": {
+    "decision": "resolved",
+    "confidence": 1.0,
+    "margin_over_runner_up": 1.0,
+    "identifier": {
+      "kind": "doi",
+      "value": "10.1126/science.adp4753",
+      "raw": "10.1126/science.adp4753"
+    },
+    "constraints": {},
+    "sources_consulted": [
+      "crossref",
+      "europepmc"
+    ],
+    "paper_id": "liu2025_kidney_multiome",
+    "paper": {
+      "doi": "10.1126/science.adp4753",
+      "title": "Kidney multiome-based genetic scorecard reveals convergent coding and regulatory variants",
+      "authors": "Liu Hongbo; Abedini Amin; Ha Eunji; Ma Ziyuan; Sheng Xin; Dumoulin Bernhard; Qiu Chengxiang; Aranyi Tamas; Li Shen; Dittrich Nicole; Chen Hua-Chang; Tao Ran; Tarng Der-Cherng; Hsieh Feng-Jen; Chen Shih-Ann; Yang Shun-Fa; Lee Mei-Yueh; Kwok Pui-Yan; Wu Jer-Yuarn; Chen Chien-Hsiun; Khan Atlas; Limdi Nita A.; Wei Wei-Qi; Walunas Theresa L.; Karlson Elizabeth W.; Kenny Eimear E.; Luo Yuan; Kottyan Leah; Connolly John J.; Jarvik Gail P.; Weng Chunhua; Shang Ning; Cole Joanne B.; Mercader Josep M.; Mandla Ravi; Majarian Timothy D.; Florez Jose C.; Haas Mary E.; Lotta Luca A.; Drivas Theodore G.; Vy Ha My T.; Nadkarni Girish N.; Wiley Laura K.; Wilson Melissa P.; Gignoux Christopher R.; Rasheed Humaira; Thomas Laurent F.; \u00c5svold Bj\u00f8rn Olav; Brumpton Ben M.; Hallan Stein I.; Hveem Kristian; Zheng Jie; Hellwege Jacklyn N.; Zawistowski Matthew; Z\u00f6llner Sebastian; Franceschini Nora; Hu Hailong; Zhou Jianfu; Kiryluk Krzysztof; Ritchie Marylyn D.; Palmer Matthew; Edwards Todd L.; Voight Benjamin F.; Hung Adriana M.; Susztak Katalin; Baras Aris; Abecasis Gon\u00e7alo; Ferrando Adolfo; Coppola Giovanni; Deubler Andrew; Economides Aris; Lotta Luca A; Overton John D; Reid Jeffrey G; Shuldiner Alan; Siminovitch Katherine; Portnoy Jason; Jones Marcus B; Mitnaul Lyndon; Fenney Alison; Marchini Jonathan; Revez Ferreira Manuel Allen; Ghoussaini Maya; Nafde Mona; Salerno William; Overton John D; Beechert Christina; Fuller Erin; Cremona Laura M; Kalyuskin Eugene; Du Hang; Forsythe Caitlin; Gu Zhenhua; Guevara Kristy; Lattari Michael; Lopez Alexander; Manoochehri Kia; Challa Prathyusha; Pradhan Manasi; Reynoso Raymond; Schiavo Ricardo; Padilla Maria Sotiropoulos; Wang Chenggu; Wolf Sarah E; Du Hang; Guevara Kristy; Averitt Amelia; Banerjee Nilanjana; Li Dadong; Malhotra Sameer; Mower Justin; Sarwar Mudasar; Sharma Deepika; Yu Sean; Zhang Aaron; Aqeel Muhammad; Reid Jeffrey G; Nafde Mona; Goyal Manan; Mitra George; Sreeram Sanjay; Lanche Rouel; Mahajan Vrushali; Vasireddy Sai Lakshmi; Eom Gisu; Punuru Krishna Pawan; Gokhale Sujit; Sultan Benjamin; Mule Pooja; Austin Eliot; Bai Xiaodong; Zhang Lance; O'Keeffe Sean; Panea Razvan; Edelstein Evan; Rasool Ayesha; Salerno William; Maxwell Evan K; Boutkov Boris; Gorovits Alexander; Guan Ju; Habegger Lukas; Hawes Alicia; Krasheninina Olga; Zarate Samantha; Mansfield Adam J; Habegger Lukas; Abecasis Gon\u00e7alo; Backman Joshua; Burch Kathy; Campos Adrian; Ganel Liron; Gaynor Sheila; Geraghty Benjamin; Ghosh Arkopravo; Martinez Salvador Romero; Gillies Christopher; Gurski Lauren; Herman Joseph; Jorgenson Eric; Joseph Tyler; Kessler Michael; Kosmicki Jack; Locke Adam; Nakka Priyanka; Marchini Jonathan; Landheer Karl; Delaneau Olivier; Ghoussaini Maya; Marcketta Anthony; Mbatchou Joelle; Moscati Arden; Pandey Aditeya; Pandit Anita; Ross Jonathan; Sidore Carlo; Stahl Eli; Thornton Timothy; Vedantam Sailaja; Wang Rujin; Wu Kuan-Han; Ye Bin; Zhang Blair; Ziyatdinov Andrey; Zou Yuxin; Zhang Jingning; Watanabe Kyoko; Tang Mira; Wendt Frank; Balasubramanian Suganthi; Bao Suying; Sun Kathie; Zhang Chuanyi; Ferrando Adolfo; Coppola Giovanni; Lotta Luca A; Shuldiner Alan; Siminovitch Katherine; Hobbs Brian; Silver Jon; Palmer William; Guerreiro Rita; Joshi Amit; Baldassari Antoine; Willer Cristen; Graham Sarah; Mayerhofer Ernst; Castineira Erola Pairo; Haas Mary; Verweij Niek; Hindy George; Bovijn Jonas; De Tanima; Akbari Parsa; Sun Luanluan; Sosina Olukayode; Gilly Arthur; Dornbos Peter; Rodriguez-Flores Juan; Riaz Moeen; Kapoor Manav; Tzoneva Gannie; Jallow Momodou W; Alkelai Anna; Ayer Ariane; Rajagopal Veera; Gelfman Sahar; Kumar Vijay; Otto Jacqueline; Parikshak Neelroop; Guvenek Aysegul; Bras Jose; Alvarez Silvia; Brown Jessie; He Jing; Khiabanian Hossein; Revez Joana; Skead Kimberly; Zavala Valentina; Sul Jae Soon; Chen Lei; Choi Sam; Damask Amy; Lin Nan; Paulding Charles; Jones Marcus B; Chen Esteban; LeBlanc Michelle G; Mighty Jason; Rico-Varela Jennifer; Nishtala Nirupama; Rana Nadia; Hernandez Jaimee; Fenney Alison; Schwartz Randi; Hankins Jody; Han Anna; Hart Samuel; Perez-Beals Ann; Solari Gina; Rivera-Picart Johannie; Pagan Michelle; Siceron Sunilbe; Buchanan Adam; Carey David J.; Martin Christa L.; Meyer Michelle; Retterer Kyle; Rolston David; Rader Daniel J.; Ritchie Marylyn D.; Weaver JoEllen; Naseer Nawar; Sirugo Giorgio; Poindexter Afiya; Ko Yi-An; Nerz Kyle P.; Livingstone Meghan; Vadivieso Fred; DerOhannessian Stephanie; Tran Teo; Stephanowski Julia; Santos Salma; Haubein Ned; Dunn Joseph; Verma Anurag; Morse Kripke Colleen; Risman Marjorie; Judy Renae; Wollack Colin; Verma Shefali S.; Damrauer Scott M.; Bradford Yuki; Dudek Scott M.; Drivas Theodore G.",
+      "first_author_family": "Liu",
+      "journal": "Science",
+      "year": 2025,
+      "type": "journal-article",
+      "publisher": "American Association for the Advancement of Science (AAAS)",
+      "volume": "387",
+      "issue": "6734",
+      "article_number": "eadp4753",
+      "abstract": "Kidney dysfunction is a major cause of mortality, but its genetic architecture remains elusive. In this study, we conducted a multiancestry genome-wide association study in 2.2 million individuals and identified 1026 (97 previously unknown) independent loci. Ancestry-specific analysis indicated an attenuation of newly identified signals on common variants in European ancestry populations and the power of population diversity for further discoveries. We defined genotype effects on allele-specific gene expression and regulatory circuitries in more than 700 human kidneys and 237,000 cells. We found 1363 coding variants disrupting 782 genes, with 601 genes also targeted by regulatory variants and convergence in 161 genes. Integrating 32 types of genetic information, we present the \u201cKidney Disease Genetic Scorecard\u201d for prioritizing potentially causal genes, cell types, and druggable targets for kidney disease.",
+      "url": "https://doi.org/10.1126/science.adp4753",
+      "is_preprint": false,
+      "pmid": "39913582",
+      "pmcid": "PMC12013656",
+      "epmc_id": "39913582",
+      "epmc_source": "MED",
+      "is_open_access": false,
+      "has_fulltext": true,
+      "in_epmc": true,
+      "citation_count": 47,
+      "sources": [
+        "crossref",
+        "europepmc"
+      ]
+    },
+    "match_reasons": [
+      "exact doi lookup"
+    ],
+    "candidates": [
+      {
+        "score": 1.0,
+        "title": "Kidney multiome-based genetic scorecard reveals convergent coding and regulatory variants",
+        "authors": "Liu Hongbo; Abedini Amin; Ha Eunji; Ma Ziyuan; Sheng Xin; Dumoulin Bernhard; Qiu Chengxiang; Aranyi Tamas; Li Shen; Ditt",
+        "journal": "Science",
+        "year": 2025,
+        "doi": "10.1126/science.adp4753",
+        "pmid": "39913582",
+        "reasons": [
+          "exact doi lookup"
+        ]
+      }
+    ]
+  },
+  "harvest": {
+    "paper_id": "liu2025_kidney_multiome",
+    "doi": "10.1126/science.adp4753",
+    "title": "Kidney multiome-based genetic scorecard reveals convergent coding and regulatory variants",
+    "abstract": "Kidney dysfunction is a major cause of mortality, but its genetic architecture remains elusive. In this study, we conducted a multiancestry genome-wide association study in 2.2 million individuals and identified 1026 (97 previously unknown) independent loci. Ancestry-specific analysis indicated an attenuation of newly identified signals on common variants in European ancestry populations and the power of population diversity for further discoveries. We defined genotype effects on allele-specific gene expression and regulatory circuitries in more than 700 human kidneys and 237,000 cells. We found 1363 coding variants disrupting 782 genes, with 601 genes also targeted by regulatory variants and convergence in 161 genes. Integrating 32 types of genetic information, we present the \u201cKidney Disease Genetic Scorecard\u201d for prioritizing potentially causal genes, cell types, and druggable targets for kidney disease.",
+    "fulltext_source": null,
+    "degraded_reason": "no open-access full text available (Europe PMC serves JATS only for PMC open-access articles; this paper is closed-access, not yet indexed, or a preprint whose publisher page could not be read) \u2014 harvest ran on title + abstract only",
+    "n_sections": 1,
+    "n_chars": 1009,
+    "section_titles": [
+      "Abstract"
+    ],
+    "data_availability": [],
+    "accessions": {},
+    "assays": [
+      {
+        "assay": "10x Multiome",
+        "mentions": 1
+      },
+      {
+        "assay": "GWAS",
+        "mentions": 1
+      }
+    ],
+    "genes": [],
+    "numeric_claims": [
+      {
+        "kind": "count",
+        "value": 237000,
+        "unit": "cells",
+        "section": "Abstract",
+        "quote": "We defined genotype effects on allele-specific gene expression and regulatory circuitries in more than 700 human kidneys and 237,000 cells."
+      },
+      {
+        "kind": "count",
+        "value": 782,
+        "unit": "genes",
+        "section": "Abstract",
+        "quote": "We found 1363 coding variants disrupting 782 genes, with 601 genes also targeted by regulatory variants and convergence in 161 genes."
+      },
+      {
+        "kind": "count",
+        "value": 601,
+        "unit": "genes",
+        "section": "Abstract",
+        "quote": "We found 1363 coding variants disrupting 782 genes, with 601 genes also targeted by regulatory variants and convergence in 161 genes."
+      },
+      {
+        "kind": "count",
+        "value": 161,
+        "unit": "genes",
+        "section": "Abstract",
+        "quote": "We found 1363 coding variants disrupting 782 genes, with 601 genes also targeted by regulatory variants and convergence in 161 genes."
+      }
+    ],
+    "llm_claims": {
+      "enabled": false,
+      "claims": [],
+      "error": "LLM call failed: Connection error.",
+      "backend": null,
+      "model": null
+    }
+  },
+  "routing": {
+    "plans": [
+      {
+        "route": "multiome_peak2gene",
+        "title": "10x Multiome peak\u2192gene cis-regulatory linkage",
+        "score": 7.36,
+        "evidence": [
+          "assay:10x Multiome\u00d71"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Multiome10x",
+        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_scarlink",
+        "requires_local_input": false,
+        "notes": "For a full local reproduction add `multiome process-local --input <bundle>` then `multiome peak2gene --label $LABEL`."
+      }
+    ],
+    "all_scored": [
+      {
+        "route": "multiome_peak2gene",
+        "title": "10x Multiome peak\u2192gene cis-regulatory linkage",
+        "score": 7.36,
+        "evidence": [
+          "assay:10x Multiome\u00d71"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Multiome10x",
+        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_scarlink",
+        "requires_local_input": false,
+        "notes": "For a full local reproduction add `multiome process-local --input <bundle>` then `multiome peak2gene --label $LABEL`."
+      }
+    ],
+    "selected": "multiome_peak2gene",
+    "controlled_access_repos": [],
+    "unroutable_reason": null
+  },
+  "route_selected": "multiome_peak2gene",
+  "variables": []
+}
