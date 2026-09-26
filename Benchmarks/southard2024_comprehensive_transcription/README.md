@@ -58,17 +58,48 @@ independently counts its guide-identity axis:
 | Distinct TFs targeted | 1,836 | **1,836** | ✓ exact |
 
 This is a genuine measurement against primary data (not a repeat of the
-paper's own text), and it is what `expected.json`'s two `confirmed: true`
+paper's own text), and it is what two of `expected.json`'s `confirmed: true`
 checks are based on.
+
+`verify_activation_counts.py` goes further: it downloads both cell types'
+per-guide summary files (`mean_pop.h5ad`, Hs27 1.7GB + RPE-1 1.7GB — the
+authors' own per-guide/per-target activation calls, not raw counts) and
+pools "target gene activatable in >=1 cell type" across them:
+
+| Quantity | Paper claim | Measured from primary data | Match |
+|---|---:|---:|:---:|
+| Guides in final library | 10,979 | **10,979** | ✓ exact |
+| Non-targeting control guides | 78 | **78** | ✓ exact |
+| Distinct TFs targeted | 1,836 | **1,836** | ✓ exact |
+| TFs activatable in ≥1 cell type | 1,482 | **1,438** | ✓ within tolerance |
+| Genes resistant to activation entirely | 319 | **399** | ✗ does not match |
+
+The last row is reported **honestly, not dropped**: the same "any guide's
+target shows `obs['expressed']==True`" rule that closely reproduces the
+1,482 figure does *not* reproduce the 319-resistant figure (measured 399).
+This means that specific aggregate almost certainly uses a different
+per-cell-type gate than the pooled-activatable figure — not recoverable
+from the deposited summary file alone. `expected.json` keeps this check
+`[UNCONFIRMED]` rather than force-fitting it; see its `provenance` for the
+full comparison JSON (`activation_counts_verification.json`).
+
+Two intermediate columns in the deposited data, `obs['active']` and
+`obs['masked_active']`, look at first glance like on-target-activation
+calls but are **not** — they're guide-clustering QC calls for the
+seed-driven-off-target analysis (paper's "Exploring seed-driven
+off-targets" section), and pool to ~300 TFs under any reading, nowhere
+near 1,482. `expressed` was used instead. Noted here so a future session
+doesn't repeat that dead end.
 
 ## Concordance
 
-**3 / 3 confirmed checks pass.** 10 further paper-claimed numbers (perturbation counts, cluster counts, AUC values) remain `[UNCONFIRMED]` — verifying those would require running the authors' notebooks against multi-GB/TB-scale raw or cellranger data, which is outside what this session could execute. They are reported, not scored, per this repo's convention: an unconfirmed check never counts as a pass. See `Docs/Benchmark/*_southard2024_comprehensive_transcription/replication_report.md` for the full table.
+**4 / 4 confirmed checks pass** (guides, non-targeting controls, TF count, pooled-activatable count — all measured from the authors' own deposited data, not from prose). **9 further paper-claimed numbers remain `[UNCONFIRMED]`** (perturbation count, cluster counts, AUC values, and the 319-resistant figure specifically — which was attempted and did not reproduce under the tested method, see above). Verifying the rest would require running the authors' notebooks against multi-GB/TB-scale raw or cellranger data, which is outside what this session could execute. Unconfirmed checks are reported, never scored, per this repo's convention. See `Docs/Benchmark/*_southard2024_comprehensive_transcription/replication_report.md` for the full table.
 
 ## Honest caveats
 
-* **Run directory is not paper-tagged.** This route's catalogue-census CLI steps accept no `--label`, so `concordance.py` matches the skill's default `summary` directory. The two real checks above are pinned to `guide_library_verification.json` (via `extra_search_dirs`), which is paper-specific regardless.
-* **10 unconfirmed checks remain.** Promoting them would need the full raw-data pipeline (cellranger + the authors' regression/clustering notebooks), which is a multi-hour/GB-scale undertaking, not something this benchmark attempts to fake.
+* **Run directory is not paper-tagged.** This route's catalogue-census CLI steps accept no `--label`, so `concordance.py` matches the skill's default `summary` directory. All four real checks above are pinned to paper-specific artefacts (via `extra_search_dirs`) regardless.
+* **GSE237056 does not exist for this paper (or at all).** Verified via NCBI E-utilities (`esearch`): zero hits, and no GEO series is linked to this paper's SRA BioProject (`elink` returns no `gds` linkset). This paper deposited raw reads to SRA only and processed data to Zenodo only — it never used GEO. (This was the original fabricated benchmark's central false claim.)
+* **9 unconfirmed checks remain**, one of which (319 resistant) was actively attempted and did not match — see above. The rest would need the full raw-data pipeline (cellranger + the authors' regression/clustering notebooks), a multi-hour/TB-scale undertaking not attempted here.
 * **No IGVF Portal accession found.** The Norman lab's `igvf-perturbseq` repo says this data was "formatted for IGVF submission," but Portal search found no matching `MeasurementSet` as of this run — likely still in progress upstream.
 
 ## Provenance

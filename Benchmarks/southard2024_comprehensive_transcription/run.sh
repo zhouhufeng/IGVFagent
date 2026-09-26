@@ -11,7 +11,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 LABEL="southard2024_comprehensive_transcription"
+
+# The repo-local .venv may have been built on another machine; fall back to
+# whatever igvfagent is on $PATH.
 IGVF=".venv/bin/igvfagent"
+"$IGVF" --help >/dev/null 2>&1 || IGVF="$(command -v igvfagent)"
 
 # MODALITY: from route default
 MODALITY="${SOUTHARD2024_MODALITY:-crispr-screen}"
@@ -25,6 +29,13 @@ MODALITY="${SOUTHARD2024_MODALITY:-crispr-screen}"
 # 10.5281/zenodo.15200179) rather than trusted from the paper's prose.
 python3 Benchmarks/southard2024_comprehensive_transcription/verify_guide_library.py
 
+# Pooled activation counts (1,482-TF and 319-resistant claims), verified
+# against the authors' own deposited per-guide mean_pop.h5ad for both cell
+# types (Zenodo 10.5281/zenodo.15200179 + 10.5281/zenodo.15213619). ~3.4GB
+# combined download on first run; cached under Data/Benchmarks/ after that.
+python3 Benchmarks/southard2024_comprehensive_transcription/verify_activation_counts.py
+
 echo ""
 echo "== southard2024_comprehensive_transcription benchmark complete =="
-echo "Score with: .venv/bin/python Benchmarks/concordance.py --benchmark southard2024_comprehensive_transcription"
+echo "Score with: $IGVF's python (or any python3) via:"
+echo "  python3 Benchmarks/concordance.py --benchmark southard2024_comprehensive_transcription"
