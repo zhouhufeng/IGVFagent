@@ -3,6 +3,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"; cd "$ROOT"
 LABEL="wang2025_neocortex_multiome"; D="Benchmarks/_data/$LABEL"; PY=".venv/bin/python"; IGVF=".venv/bin/igvfagent"
+"$IGVF" --help >/dev/null 2>&1 || IGVF="$(command -v igvfagent)"
+"$PY" --version >/dev/null 2>&1 || PY="$(command -v python3)"
 H="$D/wang_multiome.h5ad"; mkdir -p "$D"
 # 1) Fetch the CELLxGENE multiome h5ad (collection ad2149fc; ~2.6 GB, resumable).
 URL="https://datasets.cellxgene.cziscience.com/a4310202-4dc8-4e1b-a96d-d9675f5b14d1.h5ad"
