@@ -206,4 +206,40 @@ else:
     print(f"  PPIF enhancer-TSS distance: {summary['ppif_enhancer_tss_distance_bp']:,} bp "
           f"(paper: ~60.5 kb)")
 
+    # ---- Source 4: lentiMPRA (episomal) vs endogenous PPIF-promoter follow-up ----
+    endo_path = real_dirs[-1] / "PPIF_promoter_GRCh38.tsv"
+    mpra_path = real_dirs[-1] / "PPIF_promoter_lentiMPRA_GRCh38.tsv"
+    if endo_path.is_file() and mpra_path.is_file() and "lentimpra_vs_endogenous" in summary:
+        endo_effect = {}
+        with endo_path.open() as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                endo_effect[row["variant"]] = float(row["effect_size"])
+        mpra_logfc = {}
+        with mpra_path.open() as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                mpra_logfc[row["variant"]] = float(row["logFC"])
+        common = sorted(set(endo_effect) & set(mpra_logfc))
+        x = [endo_effect[v] for v in common]
+        y = [mpra_logfc[v] for v in common]
+        r = summary["lentimpra_vs_endogenous"]["correlation_endogenous_vs_lentimpra"]
+
+        fig, ax = plt.subplots(figsize=(5.5, 5), facecolor="white")
+        ax.scatter(x, y, s=36, color=COL_PRIMARY, edgecolor="white", linewidth=0.5, alpha=0.85)
+        ax.axhline(0, color="0.7", lw=0.8, ls=":")
+        ax.axvline(0, color="0.7", lw=0.8, ls=":")
+        ax.set_xlabel("Endogenous Variant-EFFECTS effect_size\n(PPIF promoter, prime-edited)")
+        ax.set_ylabel("lentiMPRA logFC\n(PPIF promoter, episomal)")
+        ax.set_title(f"lentiMPRA vs. endogenous PPIF promoter (n={len(common)})\n"
+                      f"IGVFagent real data: r={r:.2f}  ·  paper's own claim: r=0.54",
+                      fontweight="bold", fontsize=10)
+        ax.grid(ls=":", alpha=0.4)
+        for s in ("top", "right"):
+            ax.spines[s].set_visible(False)
+        fig.tight_layout()
+        for ext in ("png", "svg"):
+            fig.savefig(FIG_DIR / f"fig5_lentimpra_vs_endogenous.{ext}",
+                          dpi=200, facecolor="white")
+        plt.close(fig)
+        print("  ✓ fig5_lentimpra_vs_endogenous")
+
 print(f"\nFigures saved under {FIG_DIR}")

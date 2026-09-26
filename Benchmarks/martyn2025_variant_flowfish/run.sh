@@ -57,6 +57,28 @@ curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI4854DWEG/@@download/IGVF
     | gunzip -c > "$REAL_DIR/IL2RA_promoter_GRCh38.tsv"
 python3 Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py "$REAL_DIR"
 
+# ---- Step 4. Follow-up real paper data: PPIF splice-site edits (3
+# untransfected-control replicate files, each a subset of the paper's own
+# "three edits disrupting the splice donor motif" proof-of-concept, Fig.
+# 1e/f) and the lentiMPRA (episomal) parallel arm at the PPIF promoter,
+# compared against the endogenous PPIF-promoter numbers above (paper's own
+# "Pearson's r=0.54" cross-assay claim):
+#   IGVFDS8174BPPS -> IGVFFI0524YUIL   PPIF splice site, rep A (GRCh38)
+#   IGVFDS8267JJHO -> IGVFFI2542METL   PPIF splice site, rep B (GRCh38)
+#   IGVFDS7090INDM -> IGVFFI5097SDKA   PPIF splice site, rep C (GRCh38)
+#   IGVFDS1376WOXJ -> IGVFFI2620KDMB   lentiMPRA reporter variants, PPIF promoter (GRCh38)
+# (IGVFDS1003XTAF is the lentiMPRA library's barcode-to-element mapping only
+# -- no scored variant effects -- and is not fetched here.)
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI0524YUIL/@@download/IGVFFI0524YUIL.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_splice_repA_GRCh38.tsv"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI2542METL/@@download/IGVFFI2542METL.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_splice_repB_GRCh38.tsv"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI5097SDKA/@@download/IGVFFI5097SDKA.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_splice_repC_GRCh38.tsv"
+curl -sL "https://api.data.igvf.org/tabular-files/IGVFFI2620KDMB/@@download/IGVFFI2620KDMB.tsv.gz" \
+    | gunzip -c > "$REAL_DIR/PPIF_promoter_lentiMPRA_GRCh38.tsv"
+python3 Benchmarks/martyn2025_variant_flowfish/analyze_followups.py "$REAL_DIR"
+
 echo ""
 echo "== Martyn 2025 Variant-EFFECTS benchmark complete =="
 echo "Real-data summary: $REAL_DIR/summary.json"

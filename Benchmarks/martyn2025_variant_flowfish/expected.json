@@ -33,42 +33,48 @@
       "type": "range",
       "path": "elements.PPIF_promoter.n_variants",
       "min": 41,
-      "max": 41
+      "max": 41,
+      "analysis": "ppif_promoter_variant_effects"
     },
     {
       "name": "PPIF promoter: fraction significant at FDR<0.05",
       "type": "range",
       "path": "elements.PPIF_promoter.fraction_significant",
       "min": 0.85,
-      "max": 0.98
+      "max": 0.98,
+      "analysis": "ppif_promoter_variant_effects"
     },
     {
       "name": "PPIF enhancer: 98 variants tested (IGVFFI4333XLOF, GRCh38)",
       "type": "range",
       "path": "elements.PPIF_enhancer.n_variants",
       "min": 98,
-      "max": 98
+      "max": 98,
+      "analysis": "ppif_enhancer_variant_effects"
     },
     {
       "name": "PPIF enhancer: fraction significant at FDR<0.05",
       "type": "range",
       "path": "elements.PPIF_enhancer.fraction_significant",
       "min": 0.4,
-      "max": 0.62
+      "max": 0.62,
+      "analysis": "ppif_enhancer_variant_effects"
     },
     {
       "name": "IL2RA promoter: 87 variants tested (IGVFFI4854DWEG, GRCh38)",
       "type": "range",
       "path": "elements.IL2RA_promoter.n_variants",
       "min": 87,
-      "max": 87
+      "max": 87,
+      "analysis": "il2ra_promoter_variant_effects"
     },
     {
       "name": "IL2RA promoter: fraction significant at FDR<0.05",
       "type": "range",
       "path": "elements.IL2RA_promoter.fraction_significant",
       "min": 0.8,
-      "max": 0.97
+      "max": 0.97,
+      "analysis": "il2ra_promoter_variant_effects"
     },
     {
       "name": "PPIF enhancer sits ~60.5 kb upstream of the PPIF TSS (paper's own stated distance)",
@@ -76,7 +82,124 @@
       "path": "ppif_enhancer_tss_distance_bp",
       "min": 55000,
       "max": 65000,
-      "expected": 60500
+      "expected": 60500,
+      "analysis": "ppif_enhancer_variant_effects"
+    },
+    {
+      "name": "PPIF splice site: exactly 3 distinct edits recovered across 3 replicate files (paper's own count)",
+      "type": "range",
+      "path": "ppif_splice_site.n_distinct_edits",
+      "min": 3,
+      "max": 3,
+      "expected": 3,
+      "analysis": "ppif_splice_site_edits"
+    },
+    {
+      "name": "PPIF splice site: strongest-effect edit retains only 5-30% of wild-type PPIF expression (paper states -80%, i.e. ~20% retained, for the largest single edit)",
+      "type": "range",
+      "path": "ppif_splice_site.fraction_expression_retained_min",
+      "min": 0.05,
+      "max": 0.30,
+      "expected": 0.20,
+      "analysis": "ppif_splice_site_edits"
+    },
+    {
+      "name": "PPIF splice site: weakest-effect edit still retains only 30-60% of wild-type PPIF expression (paper states -52%, i.e. ~48% retained, for the smallest single edit)",
+      "type": "range",
+      "path": "ppif_splice_site.fraction_expression_retained_max",
+      "min": 0.30,
+      "max": 0.60,
+      "expected": 0.48,
+      "analysis": "ppif_splice_site_edits"
+    },
+    {
+      "name": "lentiMPRA vs endogenous: all 41 endogenous PPIF-promoter variants also present in the 353-variant lentiMPRA library",
+      "type": "range",
+      "path": "lentimpra_vs_endogenous.n_matched_by_variant_id",
+      "min": 41,
+      "max": 41,
+      "expected": 41,
+      "analysis": "ppif_lentimpra_vs_endogenous"
+    },
+    {
+      "name": "lentiMPRA vs endogenous PPIF promoter: positive cross-assay correlation confirmed (paper states Pearson's r=0.54)",
+      "type": "range",
+      "path": "lentimpra_vs_endogenous.correlation_endogenous_vs_lentimpra",
+      "min": 0.05,
+      "max": 0.7,
+      "expected": 0.54,
+      "analysis": "ppif_lentimpra_vs_endogenous"
+    }
+  ],
+  "analyses": [
+    {
+      "id": "ppif_promoter_variant_effects",
+      "upstream": ["IGVF Portal AnalysisSet IGVFDS5056OAGR -> IGVFFI4057VSBO (GRCh38)"],
+      "tool": "Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py",
+      "blocker": null,
+      "title": "PPIF promoter Variant-EFFECTS tiling screen",
+      "figure": "Fig. 2e",
+      "claim": {
+        "quote": "We identified 50 enhancer and 39 promoter variants (89 total) that significantly altered PPIF expression.",
+        "value": 39.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ppif_enhancer_variant_effects",
+      "upstream": ["IGVF Portal AnalysisSet IGVFDS5031MNRR -> IGVFFI4333XLOF (GRCh38)"],
+      "tool": "Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py",
+      "blocker": null,
+      "title": "PPIF enhancer Variant-EFFECTS tiling screen",
+      "figure": "Fig. 2e",
+      "claim": {
+        "quote": "We identified 50 enhancer and 39 promoter variants (89 total) that significantly altered PPIF expression.",
+        "value": 50.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "il2ra_promoter_variant_effects",
+      "upstream": ["IGVF Portal AnalysisSet IGVFDS1824XDMU -> IGVFFI4854DWEG (GRCh38)"],
+      "tool": "Benchmarks/martyn2025_variant_flowfish/analyze_real_data.py",
+      "blocker": null,
+      "title": "IL2RA promoter Variant-EFFECTS tiling screen (stimulated Jurkat T cells)",
+      "figure": "Data S1 section 1",
+      "claim": {
+        "quote": "we performed tiling mutagenesis screens using Variant-EFFECTS at the PPIF locus in THP-1 cells (Fig. 2) and the promoter of IL2RA in stimulated Jurkat T cells (Data S1 section 1).",
+        "value": 87.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ppif_splice_site_edits",
+      "upstream": [
+        "IGVF Portal AnalysisSet IGVFDS8174BPPS -> IGVFFI0524YUIL (GRCh38)",
+        "IGVF Portal AnalysisSet IGVFDS8267JJHO -> IGVFFI2542METL (GRCh38)",
+        "IGVF Portal AnalysisSet IGVFDS7090INDM -> IGVFFI5097SDKA (GRCh38)"
+      ],
+      "tool": "Benchmarks/martyn2025_variant_flowfish/analyze_followups.py",
+      "blocker": null,
+      "title": "PPIF splice-donor-site edits (proof-of-concept reprogramming)",
+      "figure": "Fig. 1e/f",
+      "claim": {
+        "quote": "three edits disrupting the splice donor motif at the first 5' splice site of the PPIF gene in THP-1 monocytes ... effects from -80% to -52% for the single edits. All 3 edits strongly decreased PPIF expression.",
+        "value": 3.0
+      },
+      "source": "manual"
+    },
+    {
+      "id": "ppif_lentimpra_vs_endogenous",
+      "upstream": ["IGVF Portal AnalysisSet IGVFDS1376WOXJ -> IGVFFI2620KDMB (GRCh38)"],
+      "tool": "Benchmarks/martyn2025_variant_flowfish/analyze_followups.py",
+      "blocker": null,
+      "title": "lentiMPRA (episomal) vs. endogenous Variant-EFFECTS at the PPIF promoter",
+      "figure": "Fig. 2 (text)",
+      "claim": {
+        "quote": "While variant effects were positively correlated between the two assays (Pearson's r=0.54), we identified systematic differences that appeared to reflect known limitations of MPRA.",
+        "value": 0.54
+      },
+      "source": "manual"
     }
   ],
   "class_derivation": "derived by Benchmarks/taxonomy.py from the assertions in this file; regenerate rather than hand-edit"
