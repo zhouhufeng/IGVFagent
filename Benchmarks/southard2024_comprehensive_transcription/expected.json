@@ -1,7 +1,7 @@
 {
   "paper": {
     "title": "Comprehensive transcription factor perturbations recapitulate fibroblast transcriptional states",
-    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O\u2019Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
+    "authors": "Southard Kaden M.; Ardy Rico C.; Tang Anran; O’Sullivan Deirdre D.; Metzner Eli; Guruvayurappan Karthik; Norman Thomas M.",
     "journal": "bioRxiv",
     "year": 2024,
     "doi": "10.1101/2024.07.31.606073",
@@ -23,7 +23,9 @@
   "skill_output_dir": "Perturbation",
   "label": "summary",
   "primary_artefact": "summary.json",
-  "extra_search_dirs": ["Data/Benchmarks/southard2024_comprehensive_transcription"],
+  "extra_search_dirs": [
+    "Data/Benchmarks/southard2024_comprehensive_transcription"
+  ],
   "checks": [
     {
       "name": "Perturbation Catalogue summary written",
@@ -60,7 +62,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Discussion",
-        "quote": "Combined with our multiplexing approach, screens targeting \u223c1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
+        "quote": "Combined with our multiplexing approach, screens targeting ∼1,000 transcription factors can be conducted in a single 10x HT lane, making it much easier to replicate our approach to examine transcriptional states in other cell types."
       }
     },
     {
@@ -104,7 +106,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Introduction",
-        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 \u2013 5 ."
+        "quote": "Ongoing cell atlas projects have revealed remarkable cellular diversity within the body, identifying over 500 distinct cell types 1 – 5 ."
       }
     },
     {
@@ -148,7 +150,7 @@
       "provenance": {
         "kind": "regex_from_fulltext",
         "section": "Droplet overloading for high-throughput Perturb-seq",
-        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded \u223c125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
+        "quote": "We transduced this library into RPE-1 cells stably expressing a ZIM3-dCas9 CRISPRi effector construct at low multiplicity of infection (MOI), sorted sgRNA-containing cells by fluorescence assisted cell sorting (FACS), and loaded ∼125,000 cells per lane onto two lanes of the 10x Genomics Chromium to achieve overloading (approximately eight times the typical cell loading density)."
       }
     },
     {
@@ -211,5 +213,189 @@
       }
     }
   ],
-  "label_note": "This route's CLI steps do not accept --label, so the run directory is not paper-tagged; scoring matches the skill's default 'summary' dir and will pick up the most recent run of that skill, whichever paper produced it."
+  "label_note": "This route's CLI steps do not accept --label, so the run directory is not paper-tagged; scoring matches the skill's default 'summary' dir and will pick up the most recent run of that skill, whichever paper produced it.",
+  "analyses": [
+    {
+      "id": "droplet_overloading_for_high_throughput_",
+      "title": "Droplet overloading for high-throughput Perturb-seq: 10979 guides",
+      "section": "Droplet overloading for high-throughput Perturb-seq",
+      "claim": {
+        "quote": "Our final library comprised 10,979 guides, including 78 overrepresented non-targeting negative control guides ( Figure S1D , Supplemental Table 1 ).",
+        "value": 10979
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "assessing_strength_and_determinants_of_c",
+      "title": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq: 1482 transcription factors",
+      "section": "Assessing strength and determinants of CRISPRa on-target activity using Perturb-seq",
+      "claim": {
+        "quote": "Despite >50% of guides appearing inactive ( Figure 2B , Figure S4A,B ), 1,482 transcription factors could be activated in at least one cell type, including targets that were unexpressed according to baseline bulk RNA sequencing ( Figure 2C , Figure S4C , Supplemental Table 4 ).",
+        "value": 1482
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "expression_programs_and_regulatory_inter",
+      "title": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts: 178 transcription factors",
+      "section": "Expression programs and regulatory interactions driven by transcription factors in fibroblasts",
+      "claim": {
+        "quote": "Clustering by profile correlations, which is robust to guide efficacy differences 28 , 62 , and applying this criterion identified 212 and 178 transcription factors with strong effects in Hs27 and RPE-1 cells, respectively, plus 102 and 82 additional genes that had single guides that clustered strongly with these gold standards that we included in our analyses (Methods).",
+        "value": 178
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "guide_library_design_and_cloning_140_gui",
+      "title": "Guide library design and cloning: 140 guides",
+      "section": "Guide library design and cloning",
+      "claim": {
+        "quote": "A total of 140 guides (RPE-1 essentials, Protospacer A for the 140 selected targets) and 16 non-targeting guides (sampled from Horlbeck et al., 2016 55 non-targeting controls) were selected.",
+        "value": 140
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "rpe_1_essentials_benchmarking_experiment",
+      "title": "RPE-1 essentials benchmarking experiment: 10000 cells",
+      "section": "RPE-1 essentials benchmarking experiment",
+      "claim": {
+        "quote": "2) a higher than recommended final cell concentration of 10,000 cells/μL was targeted for final resuspension 3) resuspension was performed in DPBS (Gibco, 14190144) containing 1% BSA (UltraPure BSA, 50 mg/mL, Ambion: AM2616) 4) Scienceware Flowmi Cell strainers 70 μm (H13680-0070) were used after final resuspension prior to cell counting.",
+        "value": 10000
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "rpe_1_tf_crispra_experiment_150000_cells",
+      "title": "RPE-1 TF-CRISPRa Experiment: 150000 cells",
+      "section": "RPE-1 TF-CRISPRa Experiment",
+      "claim": {
+        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) using the Chromium Next GEM Single Cell 3’ HT Kit v3.1, 48 rxns (10X Genomics, 1000348) following the Chromium Next GEM Single Cell 3’ HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 150,000 cells per lane (prior to quality control and ",
+        "value": 150000
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "hs27_tf_crispra_experiment_100000_cells",
+      "title": "Hs27 TF-CRISPRa Experiment: 100000 cells",
+      "section": "Hs27 TF-CRISPRa Experiment",
+      "claim": {
+        "quote": "Cells were then encapsulated over 10 lanes using the Chromium X (10x Genomics) following the Chromium Next GEM Single Cell 3’ HT Reagent Kits v3.1 (Dual Index) with Feature Barcode technology for CRISPR Screening (CG000418, Rev D) with the goal of recovering 100,000 cells per lane (prior to quality control and cell number filtering).",
+        "value": 100000
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "embedding_to_visualize_seed_driven_clust",
+      "title": "Embedding to visualize seed-driven clustering, related to Figure S5H: 11258 perturbations",
+      "section": "Embedding to visualize seed-driven clustering, related to Figure S5H",
+      "claim": {
+        "quote": "We produced an embedding for all 11258 perturbations using pymde as described previously 62 .",
+        "value": 11258
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "embedding_of_active_guides_related_to_fi",
+      "title": "Embedding of active guides, related to Figure 4A: 100 genes",
+      "section": "Embedding of active guides, related to Figure 4A",
+      "claim": {
+        "quote": "The labels are placed for (1) all multi-gene-driven clusters (which have gene names separated by slashes) (2) the top 100 genes (with guides identified as masked_active or expanded_masked_active) according to number of differentially expressed genes (adjusted p -values < 0.05).",
+        "value": 100
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "examining_conservation_of_perturbation_e",
+      "title": "Examining conservation of perturbation effects across cell context, related to Figure 4B: 121 guides",
+      "section": "Examining conservation of perturbation effects across cell context, related to Figure 4B",
+      "claim": {
+        "quote": "This led to 121 guides in total that had phenotypes in both cell types.",
+        "value": 121
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "extracting_gene_expression_programs_usin",
+      "title": "Extracting gene expression programs using consensus sparse PCA, related to Figure 4: 57 clusters",
+      "section": "Extracting gene expression programs using consensus sparse PCA, related to Figure 4",
+      "claim": {
+        "quote": "In Hs27 fibroblasts, this produced 57 clusters.",
+        "value": 57
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "enrichment_analysis_associating_fibrobla",
+      "title": "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A: 50 genes",
+      "section": "Enrichment analysis associating fibroblast gene programs with in vivo fibroblast states, related to Supplemental Figure 10A",
+      "claim": {
+        "quote": "The genes for each gene program were defined as the top 50 genes for each program based on sparse PCA.",
+        "value": 50
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "curation_of_cell_state_markers_related_t",
+      "title": "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D: 2022 clusters",
+      "section": "Curation of cell state markers, related to Figure 5C, E-F , Supplemental Figure 10C-D",
+      "claim": {
+        "quote": "For marker genes from Korsunsky et al ., 2022 clusters “CD34+MFAP5+ C9” and “SPARC+COL3A1+ C4” were isolated.",
+        "value": 2022
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    },
+    {
+      "id": "associating_transcription_factors_with_m",
+      "title": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B: 5346 guides",
+      "section": "Associating transcription factors with markers of in vivo phenotypes, related to Figure 6A,B",
+      "claim": {
+        "quote": "5346 guides passed these filters.",
+        "value": 5346
+      },
+      "upstream": [],
+      "tool": null,
+      "blocker": null,
+      "source": "harvest"
+    }
+  ]
 }

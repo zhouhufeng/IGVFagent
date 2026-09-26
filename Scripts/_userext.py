@@ -243,6 +243,25 @@ def discover_promoted_skills() -> "dict[str, dict]":
     return found
 
 
+def ported_dir() -> Path:
+    """Methods ported from papers' own code (Scripts/ported/), written by
+    ``igvfagent port register``: built-in, unreviewed, provenance-tracked."""
+    return Path(__file__).resolve().parent / "ported"
+
+
+def discover_ported_skills() -> "dict[str, dict]":
+    """``Scripts/ported/skills/*.py``: Python ports of a paper's analysis code,
+    registered by ``igvfagent port register``. Same naming rule as user
+    skills; promoted (reviewed) skills win on a clash, then these."""
+    found: "dict[str, dict]" = {}
+    sdir = ported_dir() / "skills"
+    for path in sorted(sdir.glob("*.py")) if sdir.is_dir() else []:
+        if not path.name.startswith("_"):
+            found[path.stem.replace("_", "-")] = {"path": str(path), "ported": True,
+                                                  "description": _first_docstring_line(path) or "(ported method)"}
+    return found
+
+
 def discover_skills() -> "dict[str, dict]":
     """Scan every extension dir for ``skills/*.py`` modules.
 

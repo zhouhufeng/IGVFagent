@@ -13132,14 +13132,16 @@ def _merge_user_tools() -> None:
         _USER_TOOL_NAMES.add(tool.name)
 
 
-def _merge_promoted_tools() -> None:
+def _merge_promoted_tools(subdir: str = "promoted") -> None:
     """Built-in tools promoted from reviewed extensions (Scripts/promoted/).
 
     Same manifest format as user extensions, but these ship with the code,
     passed Scripts/test_promoted.py, and count as built-ins: they are merged
     before user tools, so a same-named unreviewed extension is shadowed.
+    ``subdir="ported"`` merges Scripts/ported/ the same way: Python ports of
+    papers' own analysis code (``igvfagent port register``).
     """
-    pdir = Path(__file__).resolve().parent / "promoted" / "tools"
+    pdir = Path(__file__).resolve().parent / subdir / "tools"
     if not pdir.is_dir():
         return
     try:
@@ -13153,7 +13155,7 @@ def _merge_promoted_tools() -> None:
         try:
             spec = _userext._normalize_tool(_userext._load_manifest(path), path)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("promoted tool %s unreadable: %s", path, exc)
+            logger.warning("%s tool %s unreadable: %s", subdir, path, exc)
             continue
         if not spec or spec["name"] in _BY_NAME:
             continue
@@ -13189,6 +13191,7 @@ def _merge_paper_tools() -> None:
 
 _PAPER_TOOL_NAMES: "set[str]" = set()
 _merge_promoted_tools()
+_merge_promoted_tools("ported")
 _merge_paper_tools()
 _merge_user_tools()
 
@@ -13202,6 +13205,7 @@ def refresh_user_tools() -> int:
     re-authored is replaced in place. Returns the number of tools added.
     """
     before = len(_TOOLS)
+    _merge_promoted_tools("ported")
     _merge_paper_tools()
     _merge_user_tools()
     return len(_TOOLS) - before

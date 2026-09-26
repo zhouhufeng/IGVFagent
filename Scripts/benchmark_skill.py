@@ -39,6 +39,17 @@ Seven subcommands, meant to be run in order (or all at once via ``pipeline``):
   7. ``report``      — render the paper-claim vs IGVFagent-measured
                        comparison.
 
+Two more close the gap between "the checks passed" and "the paper was
+reproduced":
+
+  * ``plan``        — the paper's analyses (one per headline figure/claim),
+                       written into ``expected.json`` as ``analyses[]``.
+                       ``concordance.py`` calls a paper ``reproduced`` only
+                       when every analysis has a passing class-A/B check.
+  * ``verify-port`` — compare a Python port's output with the authors' own
+                       code's output on the same input, written as
+                       ``validation_vs_reference.json`` (a class-B check).
+
 Plus ``pipeline`` (1-4, optionally 5-7 with ``--execute``), ``selftest``
 (re-derive the already-committed benchmarks from their DOIs and score the
 resolver + router against them), and ``list-routes``.
@@ -65,6 +76,8 @@ Outputs follow the project pattern: cached HTTP under
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
 import json
 import logging
 import math
@@ -2303,6 +2316,226 @@ def do_run(paper_id: str) -> Dict[str, Any]:
     return {"paper_id": paper_id, "returncode": proc.returncode, "status": status}
 
 
+# ----------------------------------------------------------------------------
+# plan — the paper's analyses, so coverage (not a check tally) decides success
+# ----------------------------------------------------------------------------
+
+# Mirrors concordance.ACCESS_BLOCKERS: the only blockers that let a paper be
+# called reproduced without the analysis. Everything else is work to do.
+ACCESS_BLOCKERS = ("controlled_access", "embargoed", "not_deposited")
+BLOCKER_KINDS = ACCESS_BLOCKERS + ("other",)
+
+
+def _slug(text: str, n: int = 40) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", (text or "").lower()).strip("_")[:n] or "analysis"
+
+
+def seed_analyses(hv: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Draft analyses from the harvest: the LLM's headline claims first, then
+    one per results section that states a number. A draft, meant to be
+    completed against the paper's figure list and the authors' repository."""
+    out: List[Dict[str, Any]] = []
+    seen: set = set()
+
+    def add(title: str, quote: str, section: str, value: Any) -> None:
+        aid = _slug(title)
+        if aid in seen:
+            return
+        seen.add(aid)
+        out.append({"id": aid, "title": title[:160], "section": section,
+                    "claim": {"quote": quote[:400], "value": value},
+                    "upstream": [], "tool": None, "blocker": None,
+                    "source": "harvest"})
+
+    for c in (hv.get("llm_claims") or {}).get("claims", []):
+        if c.get("quote_grounded_in_source") is False:
+            continue
+        add(c.get("description") or c.get("quote", ""), c.get("quote", ""), "", c.get("value"))
+    for c in hv.get("numeric_claims") or []:
+        sec = (c.get("section") or "").strip()
+        if re.search(r"method|discussion|introduction|abstract|summary", sec, re.I):
+            continue
+        add(f"{sec or 'Results'}: {c.get('value')} {c.get('unit', '')}".strip(),
+            c.get("quote", ""), sec, c.get("value"))
+    return out
+
+
+def do_plan(args: argparse.Namespace) -> Dict[str, Any]:
+    exp_path = BENCH_DIR / args.paper_id / "expected.json"
+    if not exp_path.is_file():
+        raise SystemExit(f"No {exp_path.relative_to(ROOT)} — run `bench scaffold` first.")
+    spec = _read_json(exp_path)
+    analyses: List[Dict[str, Any]] = list(spec.get("analyses") or [])
+    by_id = {a.get("id"): a for a in analyses}
+    changed = False
+
+    if args.seed:
+        hv = _load_stage(args.paper_id, "harvest", args.harvest_json)
+        for a in seed_analyses(hv):
+            if a["id"] not in by_id:
+                analyses.append(a)
+                by_id[a["id"]] = a
+                changed = True
+    if args.add:
+        aid = _slug(args.add)
+        a = by_id.get(aid) or {"id": aid, "upstream": [], "tool": None, "blocker": None}
+        if aid not in by_id:
+            analyses.append(a)
+            by_id[aid] = a
+        a["title"] = args.title or a.get("title") or args.add
+        if args.figure:
+            a["figure"] = args.figure
+        if args.claim:
+            a["claim"] = {"quote": args.claim, "value": args.value}
+        if args.upstream:
+            a["upstream"] = sorted(set(a.get("upstream") or []) | set(args.upstream))
+        if args.tool:
+            a["tool"] = args.tool
+        a["source"] = a.get("source") or "manual"
+        changed = True
+    if args.remove:
+        if args.remove not in by_id:
+            raise SystemExit(f"No analysis {args.remove!r}.")
+        analyses = [a for a in analyses if a.get("id") != args.remove]
+        changed = True
+    if args.block:
+        if args.block not in by_id:
+            raise SystemExit(f"No analysis {args.block!r}.")
+        if args.kind not in BLOCKER_KINDS:
+            raise SystemExit(f"--kind must be one of {', '.join(BLOCKER_KINDS)}.")
+        if not (args.reason or "").strip():
+            raise SystemExit("--block needs --reason (the evidence: accession, "
+                             "access page, embargo date).")
+        by_id[args.block]["blocker"] = {"kind": args.kind, "reason": args.reason.strip()}
+        changed = True
+    if args.unblock:
+        if args.unblock not in by_id:
+            raise SystemExit(f"No analysis {args.unblock!r}.")
+        by_id[args.unblock]["blocker"] = None
+        changed = True
+
+    if changed:
+        spec["analyses"] = analyses
+        exp_path.write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n")
+    tied = {c.get("analysis") for c in spec.get("checks", []) if c.get("analysis")}
+    return {"paper_id": args.paper_id, "path": str(exp_path.relative_to(ROOT)),
+            "changed": changed, "analyses": analyses,
+            "untied": [a["id"] for a in analyses if a["id"] not in tied]}
+
+
+# ----------------------------------------------------------------------------
+# verify-port — a port's output against the authors' code's output
+# ----------------------------------------------------------------------------
+
+def _flatten_numbers(obj: Any, prefix: str = "") -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.update(_flatten_numbers(v, f"{prefix}.{k}" if prefix else str(k)))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            out.update(_flatten_numbers(v, f"{prefix}[{i}]"))
+    elif isinstance(obj, bool):
+        pass
+    elif isinstance(obj, (int, float)) and math.isfinite(obj):
+        out[prefix] = float(obj)
+    return out
+
+
+def _load_values(path: Path, key: Optional[str], column: Optional[str],
+                 id_column: Optional[str]) -> Dict[str, float]:
+    """Numbers keyed by a stable identity: dotted JSON path, or table row id
+    (``id_column``, else row index) for one ``column``."""
+    if path.suffix == ".json":
+        obj = json.loads(path.read_text())
+        for part in (key.split(".") if key else []):
+            obj = obj[int(part)] if isinstance(obj, list) else obj[part]
+        return _flatten_numbers(obj)
+    if not column:
+        raise SystemExit(f"{path.name}: a table needs --column.")
+    delim = "," if path.suffix == ".csv" else "\t"
+    out: Dict[str, float] = {}
+    with path.open(newline="") as fh:
+        for i, row in enumerate(csv.DictReader(fh, delimiter=delim)):
+            if column not in row:
+                raise SystemExit(f"{path.name}: no column {column!r}.")
+            try:
+                v = float(row[column])
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(v):
+                out[row[id_column] if id_column else str(i)] = v
+    return out
+
+
+def compare_values(ref: Dict[str, float], port: Dict[str, float], *,
+                   rtol: float, atol: float) -> Dict[str, Any]:
+    shared = sorted(set(ref) & set(port))
+    diffs = [abs(ref[k] - port[k]) for k in shared]
+    within = [abs(ref[k] - port[k]) <= atol + rtol * abs(ref[k]) for k in shared]
+    r = None
+    if len(shared) >= 3:
+        xs, ys = [ref[k] for k in shared], [port[k] for k in shared]
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+        sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+        if sx > 0 and sy > 0:
+            r = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sx * sy)
+    n_ref = len(ref)
+    return {
+        "n_reference": n_ref, "n_port": len(port), "n_compared": len(shared),
+        "n_missing_in_port": len(set(ref) - set(port)),
+        "n_extra_in_port": len(set(port) - set(ref)),
+        # Missing values count as mismatches: a port that silently drops half
+        # the rows must not score as a perfect match on the other half.
+        "match_rate": (sum(within) / n_ref) if n_ref else 0.0,
+        "max_abs_diff": max(diffs) if diffs else None,
+        "pearson_r": r,
+        "worst": sorted(({"key": k, "reference": ref[k], "port": port[k]} for k in shared),
+                        key=lambda d: -abs(d["reference"] - d["port"]))[:10],
+    }
+
+
+def do_verify_port(args: argparse.Namespace) -> Dict[str, Any]:
+    ref_p, port_p = Path(args.reference).resolve(), Path(args.port_output).resolve()
+    for p in (ref_p, port_p):
+        if not p.is_file():
+            raise SystemExit(f"Not a file: {p}")
+    if ref_p == port_p:
+        raise SystemExit("--reference and --port-output are the same file.")
+    ref = _load_values(ref_p, args.key, args.column, args.id_column)
+    port = _load_values(port_p, args.port_key or args.key,
+                        args.port_column or args.column, args.id_column)
+    cmp = compare_values(ref, port, rtol=args.rtol, atol=args.atol)
+    passed = cmp["n_compared"] > 0 and cmp["match_rate"] >= args.min_match_rate
+    if args.min_corr is not None:
+        passed = passed and (cmp["pearson_r"] or 0) >= args.min_corr
+
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.relative_to(ROOT))
+        except ValueError:
+            return str(p)
+
+    def _sha(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+
+    out = {"validation_vs_reference": {
+        "paper_id": args.paper_id, "port": args.name, "analysis": args.analysis,
+        "passed": passed, "rtol": args.rtol, "atol": args.atol,
+        "min_match_rate": args.min_match_rate, "min_corr": args.min_corr,
+        "reference": {"path": _rel(ref_p), "sha256": _sha(ref_p), "key": args.key,
+                      "column": args.column},
+        "port_output": {"path": _rel(port_p), "sha256": _sha(port_p),
+                        "key": args.port_key or args.key,
+                        "column": args.port_column or args.column},
+        **cmp}}
+    out_dir = REPORT_DIR / f"{timestamp()}_{args.paper_id}_port_{_slug(args.name)}"
+    _write_json(out_dir / "validation_vs_reference.json", out)
+    out["path"] = str((out_dir / "validation_vs_reference.json").relative_to(ROOT))
+    return out
+
+
 def do_score(paper_id: str) -> Dict[str, Any]:
     scorer = BENCH_DIR / "concordance.py"
     # sys.executable is the interpreter actually running this process, so it
@@ -2372,7 +2605,22 @@ def _render_report(paper_id: str, expected: Dict[str, Any],
     else:
         L.append("_None._")
 
+    L += ["", "## Paper coverage", ""]
+    rows = conc.get("analyses") or []
+    if rows:
+        L += ["| Analysis | State | Checks (strong passed) | Tool | Blocker |",
+              "|---|---|---|---|---|"]
+        for a in rows:
+            L.append(f"| {a['id']} | {a['state']} | {a['n_checks']} "
+                     f"({a['n_strong_passed']}) | {a.get('tool') or '—'} | "
+                     f"{a.get('blocker') or '—'} |")
+    else:
+        L.append("_No analyses planned (`igvfagent bench plan`), so this report "
+                 "cannot say the paper was reproduced — only which checks passed._")
+
     L += ["", "## Verdict", "",
+          f"- Reproduction: **{conc.get('reproduction', 'unplanned')}**"
+          + (f" ({conc['coverage']} analyses)" if conc.get("coverage") else ""),
           f"- Status: **{conc.get('status', 'not scored')}**",
           f"- Confirmed checks passed: **{conc.get('n_passed', 0)} / "
           f"{conc.get('n_total', 0)}**",
@@ -2637,6 +2885,46 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Also fetch full text and score routing (slower).")
 
     sub.add_parser("list-routes", help="Show the routing table.")
+
+    s = sub.add_parser("plan", help="List / edit the paper's analyses "
+                                    "(expected.json analyses[]); coverage of "
+                                    "these decides 'reproduced'.")
+    s.add_argument("--paper-id", required=True)
+    s.add_argument("--seed", action="store_true",
+                    help="Draft analyses from the harvest's headline claims.")
+    s.add_argument("--harvest-json")
+    s.add_argument("--add", metavar="ID_OR_TITLE", help="Add or update an analysis.")
+    s.add_argument("--title")
+    s.add_argument("--figure", help="e.g. 'Fig. 3b'")
+    s.add_argument("--claim", help="The paper's sentence stating the result.")
+    s.add_argument("--value", type=float, help="The number the claim states.")
+    s.add_argument("--upstream", action="append",
+                    help="Repo path of the authors' code for it (repeatable).")
+    s.add_argument("--tool", help="IGVFagent command/port that reproduces it.")
+    s.add_argument("--remove", metavar="ID")
+    s.add_argument("--block", metavar="ID")
+    s.add_argument("--kind", default="other", help=f"Blocker kind: {', '.join(BLOCKER_KINDS)}. "
+                   "Only the first three let the paper count as reproduced.")
+    s.add_argument("--reason")
+    s.add_argument("--unblock", metavar="ID")
+
+    s = sub.add_parser("verify-port", help="Compare a port's output with the "
+                                           "authors' code's output on the same input.")
+    s.add_argument("--paper-id", required=True)
+    s.add_argument("--name", required=True, help="The port (command) being verified.")
+    s.add_argument("--analysis", help="expected.json analysis id this verifies.")
+    s.add_argument("--reference", required=True,
+                    help="Output of the authors' own code (json/tsv/csv).")
+    s.add_argument("--port-output", required=True, help="The port's output on the same input.")
+    s.add_argument("--key", help="Dotted JSON path to compare under (JSON inputs).")
+    s.add_argument("--port-key", help="Different JSON path in the port output.")
+    s.add_argument("--column", help="Numeric column to compare (tables).")
+    s.add_argument("--port-column", help="Different column name in the port output.")
+    s.add_argument("--id-column", help="Row identity column (default: row order).")
+    s.add_argument("--rtol", type=float, default=1e-6)
+    s.add_argument("--atol", type=float, default=1e-8)
+    s.add_argument("--min-match-rate", type=float, default=0.99)
+    s.add_argument("--min-corr", type=float)
     return p
 
 
@@ -2663,6 +2951,39 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"{'':22s} needs local data: {spec['local_input']['hint']}")
             print()
         return 0
+
+    if args.cmd == "plan":
+        out = do_plan(args)
+        print(f"{out['path']}: {len(out['analyses'])} analyses"
+              + (" (updated)" if out["changed"] else ""))
+        for a in out["analyses"]:
+            blk = a.get("blocker") or {}
+            tag = f"  [blocked: {blk.get('kind')}]" if blk else ""
+            print(f"  {a['id']:40s} {a.get('figure') or '':10s} "
+                  f"tool={a.get('tool') or '—'}{tag}")
+        if out["untied"]:
+            print(f"\n{len(out['untied'])} analyses have no check tied to them "
+                  f"(\"analysis\": <id>): {', '.join(out['untied'][:8])}"
+                  + (" …" if len(out["untied"]) > 8 else ""))
+        return 0
+
+    if args.cmd == "verify-port":
+        out = do_verify_port(args)
+        v = out["validation_vs_reference"]
+        print(f"{'PASS' if v['passed'] else 'FAIL'}  {args.name}: match_rate="
+              f"{v['match_rate']:.4f} over {v['n_reference']} reference values "
+              f"({v['n_compared']} compared, {v['n_missing_in_port']} missing), "
+              f"max_abs_diff={v['max_abs_diff']}, r={v['pearson_r']}")
+        print(f"Wrote {out['path']}")
+        print("Tie it to the analysis in expected.json with a check like:\n"
+              + json.dumps({"name": f"{args.name} matches the authors' code",
+                            "type": "range",
+                            "artefact": f"{REPORT_DIR.relative_to(ROOT)}/2*_{args.paper_id}"
+                                        f"_port_{_slug(args.name)}/validation_vs_reference.json",
+                            "path": "validation_vs_reference.match_rate",
+                            "min": args.min_match_rate, "max": 1.0,
+                            "analysis": args.analysis}, indent=2))
+        return 0 if v["passed"] else 1
 
     if args.cmd == "selftest":
         out = do_selftest(args)

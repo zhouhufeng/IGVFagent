@@ -98,6 +98,15 @@ def _error(req_id, code, message, data=None):
     return {"jsonrpc": "2.0", "id": req_id, "error": err}
 
 
+def _refresh(_tools) -> None:
+    """Absorb tools registered since start-up (``port register``, extauthor),
+    so a long-lived server sees them without a restart."""
+    try:
+        _tools.refresh_user_tools()
+    except Exception:  # noqa: BLE001 - never fail a request over discovery
+        pass
+
+
 def handle(request: dict, *, all_tools: bool = False) -> "dict | None":
     """Handle one JSON-RPC request. Returns None for notifications."""
     method = request.get("method")
@@ -123,6 +132,7 @@ def handle(request: dict, *, all_tools: bool = False) -> "dict | None":
         })
 
     if method == "tools/list":
+        _refresh(_tools)
         return _result(req_id, {
             "tools": [_mcp_tool(t) for t in _exposed_tools(all_tools=all_tools)]})
 
@@ -131,6 +141,8 @@ def handle(request: dict, *, all_tools: bool = False) -> "dict | None":
         args = params.get("arguments") or {}
         if not name:
             return _error(req_id, -32602, "missing tool name")
+        if _tools.get_tool(name) is None:
+            _refresh(_tools)
         try:
             res = _tools.execute(name, args, timeout=_call_timeout(name, args))
         except KeyError:

@@ -331,6 +331,11 @@ SKILLS: "dict[str, tuple[str, str]]" = {
                           "paper and the authors' outputs, verifier, every "
                           "figure in a self-contained HTML); publish; post to "
                           "discussion.genohub.org"),
+    "port":             ("igvfagent.port_skill",
+                          "Absorb a paper's own analysis code into IGVFagent: "
+                          "register a Python port of it as a built-in command + "
+                          "tool (Scripts/ported/), find ported methods to "
+                          "reuse, list their provenance and verification"),
     "paper-code":       ("igvfagent.paper_code_skill",
                           "Reproduce a paper by running the authors' own code: "
                           "find the repository named in the paper, pin it, "
@@ -516,6 +521,17 @@ def _user_skills() -> "dict[str, dict]":
             if name not in reserved}
 
 
+def _ported_skills() -> "dict[str, dict]":
+    """Methods ported from papers' code (Scripts/ported/). Never raises."""
+    try:
+        from . import _userext
+        found = _userext.discover_ported_skills()
+    except Exception:
+        return {}
+    reserved = set(SKILLS) | set(RESERVED) | set(INTROSPECTION) | set(TOP_LEVEL)
+    return {n: e for n, e in found.items() if n not in reserved}
+
+
 def _print_counts(*, json_out: bool = False) -> int:
     """Authoritative inventory: skills, tools, benchmarks, checks.
 
@@ -599,10 +615,16 @@ def _print_help() -> None:
     print("  igvfagent --version | --help | --list")
     print()
     user = _user_skills()
+    ported = _ported_skills()
     print("Available skills:")
-    width = max(len(name) for name in [*SKILLS, *user])
+    width = max(len(name) for name in [*SKILLS, *user, *ported])
     for name, (_, doc) in SKILLS.items():
         print(f"  {name:{width}}  {doc}")
+    if ported:
+        print()
+        print("Ported methods (from papers' own code, Scripts/ported/; `igvfagent port list`):")
+        for name, entry in ported.items():
+            print(f"  {name:{width}}  {entry['description']}")
     if user:
         print()
         print("User skills (from ~/.igvfagent + UserExtensions/):")
@@ -634,6 +656,8 @@ def _print_help() -> None:
 def _print_list() -> None:
     """Machine-readable skill list (one name per line)."""
     for name in SKILLS:
+        print(name)
+    for name in _ported_skills():
         print(name)
     for name in _user_skills():
         print(name)
@@ -679,7 +703,8 @@ def main(argv: Optional["list[str]"] = None) -> int:
         # under ~/.igvfagent/skills/ and UserExtensions/skills/.
         try:
             from . import _userext as _ux
-            entry = _ux.discover_promoted_skills().get(skill)
+            entry = (_ux.discover_promoted_skills().get(skill)
+                     or _ux.discover_ported_skills().get(skill))
         except Exception:
             entry = None
         entry = entry or _user_skills().get(skill)

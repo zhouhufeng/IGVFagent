@@ -1,172 +1,128 @@
 ---
 name: igvf-replicate-paper
-description: Reproduce a published paper's data and analyses with IGVFagent. Give it anything that identifies the paper — title, URL, DOI, PubMed ID, or author + journal + year — and it pins down the publication, reads its Data Availability statement, routes the deposits onto an IGVFagent analysis chain, and scaffolds a scored benchmark. Use when the user says "replicate this paper", "can IGVFagent reproduce X?", "benchmark this study", or pastes a citation/DOI/URL and asks what IGVFagent can do with it.
+description: Reproduce a published paper's data and analyses with IGVFagent. Give it anything that identifies the paper — title, URL, DOI, PubMed ID, or author + journal + year — and it pins down the publication, lists every headline analysis, runs the authors' own code as the reference, rewrites whatever IGVFagent doesn't already cover as verified Python commands absorbed into IGVFagent, and keeps going until every analysis is reproduced. Use when the user says "replicate this paper", "can IGVFagent reproduce X?", "benchmark this study", or pastes a citation/DOI/URL and asks what IGVFagent can do with it.
 argument-hint: <title | URL | DOI | PMID | "author, journal, year">
 ---
 
 # Replicate a paper with IGVFagent
 
-Drives the `bench` skill end to end: publication → reproduction scaffold → run → concordance report. Everything here is a thin wrapper over `igvfagent bench …` (plus `paper-code` and `extauthor` when a route has to be built), rather than reimplementing their logic.
+`$ARGUMENTS` is whatever the user knows about the paper (DOI, PMID, URL, bioRxiv link, or title).
 
-`$ARGUMENTS` is whatever the user knows about the paper. All of these work:
+## How this differs from Paper2Agent, and what "done" means
 
-```
-10.1038/s41588-024-01800-z
-38969834
-https://www.nature.com/articles/s41588-024-01800-z
-https://www.biorxiv.org/content/10.1101/2023.11.09.563812v1
-Saturation genome editing maps the functional spectrum of pathogenic VHL alleles
-```
+Paper2Agent wraps a paper's repository and runs the authors' scripts as they are. IGVFagent does that too, as the **reference**, and then goes further: every analysis IGVFagent does not already have a command for is **rewritten as a Python module, verified against the authors' own output, and registered into IGVFagent** (`igvfagent port register`) so this paper, and every later one, runs it as `igvfagent <name>`. The reproduction then continues on those new commands.
+
+**Done is paper coverage, not a passing check tally.** `igvfagent bench score` prints two things:
+
+- `status` (`ok` / `partial` / `fail`): whether the declared checks passed. One easy count can make this `ok`.
+- `reproduction`: `reproduced` only when **every planned analysis** has a passing, confirmed class-A (quantitative vs the paper) or class-B (port vs the authors' code) check tied to it. Counts and file-exists checks never cover an analysis.
+
+Keep working until `reproduction` is `reproduced`, or `reproduced_except_access` (every remaining analysis needs controlled-access, embargoed or undeposited data). `ok` with `incomplete k/N` means **keep going**. Verifying a number on the smallest deposited file is a sanity check, never the reproduction.
 
 ## Non-stop policy
 
-This skill drives itself to a scored benchmark without pausing to ask the user, with exactly three exceptions — everything else that used to be a stopping point is now handled autonomously and recorded, not silently skipped:
+Do not pause to ask the user. The only reasons to stop:
 
-| Situation | Old behaviour | Now |
-|---|---|---|
-| Paper resolution is `ambiguous` / `low_confidence` | Stop, show candidates, ask the user | **Continue** — auto-pick the top-scored candidate, log the alternates it did not pick (see step 1) |
-| No IGVFagent route covers the paper's assay, but the paper has its own repo | Stop at a stub "discovery only" scaffold | **Continue** — reproduce the authors' code directly, and if that alone isn't enough, port it into a permanent IGVFagent tool (step 3b) |
-| An unconfirmed (`[UNCONFIRMED]`) numeric check | Stop and hand it to the user to verify by hand | **Continue** — attempt to confirm it programmatically from the run's own artefacts (step 7); if that isn't possible, leave it unconfirmed and move on rather than blocking |
-| Paper genuinely `not_found` after broadening the query | Stop, ask for a DOI | **Kept** — no identifier, no analysis; there is nothing to port or auto-pick. Report it and stop *this paper only*. |
-| Deposit is controlled-access (dbGaP/EGA) or embargoed | Stop, ask the user | **Kept** — no amount of code-porting substitutes for a missing data-use agreement. Record it plainly in the report and continue with whatever is fetchable; never attempt to bypass access controls. |
-| A check is `[UNCONFIRMED]` and cannot be self-verified | (see above) | **Kept in the score** — it stays `unreviewed`, never silently promoted to `ok`. A benchmark run finishing does not mean every claim was validated; the report says which weren't. |
-
-Authoring new code (step 3b) is arbitrary code execution by design (`Docs/THREAT_MODEL.md` calls it "the largest single risk"), so it stays behind `IGVF_ALLOW_AGENT_AUTHORING`. This skill sets that variable **only for the subprocess calls it itself makes** (`export IGVF_ALLOW_AGENT_AUTHORING=1` in front of the specific `extauthor`/`paper-code` invocation, e.g. `IGVF_ALLOW_AGENT_AUTHORING=1 igvfagent extauthor write-skill …`) — it does not change the user's shell or any other session's default, and every write it makes is still the normal, inspectable, revertible extension file under `Scripts/promoted/` or the user extension directory (`igvfagent extauthor list` / `remove` afterward).
-
-## Workflow
-
-### 1. Pin down the paper — auto-resolve, don't wait on it
-
-```bash
-igvfagent bench resolve --query "$ARGUMENTS"
-```
-
-Add `--author`, `--journal`, `--year` when the user supplied them; they are scored as constraints and break ties.
-
-The command prints a `decision`:
-
-| decision | What to do |
+| Situation | What to do |
 |---|---|
-| `resolved` | Continue to step 2. |
-| `ambiguous` or `low_confidence` | **Do not stop.** Take `candidates[0]` (highest score). Lock it in deterministically: re-run `bench resolve --doi <candidates[0].doi>` (or `--pmid`). Record the alternates it did not pick — with their scores — in the eventual report/README so the choice is auditable, then continue to step 2. |
-| `not_found` | Broaden once before giving up: retry with any `--author`/`--journal`/`--year` the user gave, and if the query was a bare title, try a short web/preprint search for its DOI and re-resolve with `--doi`. If still `not_found`, report that no source has it (or that it may be unpublished) and stop — this decision only, not the rest of a batch. |
+| Paper genuinely `not_found` after broadening the query | Report it; stop this paper only. |
+| An analysis needs controlled-access (dbGaP/EGA), embargoed, or undeposited data | `bench plan --block <id> --kind controlled_access\|embargoed\|not_deposited --reason <evidence>`; continue with every other analysis. Never try to bypass access controls. |
 
-Note the `paper_id` it derives — every later command takes `--paper-id`.
+Everything else is work, not a stop: an ambiguous paper match (take the top candidate and log the alternates), code in R/Julia/MATLAB/Nextflow, an environment that won't build, a tool IGVFagent lacks, hard-coded paths, multi-GB data (submit with `sbatch`), a port that disagrees with the reference (diagnose and fix, up to 6 attempts per port; then record it as failed and continue).
 
-### 2. Read the paper's own data statement
+## The loop
+
+### 1. Resolve, harvest, scaffold
 
 ```bash
+igvfagent bench resolve --query "$ARGUMENTS"          # ambiguous → re-run with --doi <candidates[0].doi>
 igvfagent bench harvest --paper-id <paper-id>
+igvfagent bench route   --paper-id <paper-id>
+igvfagent bench scaffold --paper-id <paper-id> [--route <name>]
 ```
 
-Fetches full text (Europe PMC JATS for PMC open-access; the publisher page for bioRxiv/medRxiv preprints) and extracts the Data/Code Availability statements, repository accessions, assay families, gene symbols, and candidate numeric claims. Add `--no-llm` for deterministic extraction only.
+If harvest says `Full text: UNAVAILABLE`, find the open preprint (bioRxiv/PMC) and use its text; say so in the report. Record the paper's own repository and data deposits: the Code Availability statement, and if it has none, the authors' GitHub README and the Zenodo/figshare/GEO records. The automated harvester's accessions include third-party tools the methods cite, so check which ones are the paper's own.
 
-**Check `Full text:` in the output.** If it says `UNAVAILABLE`, the paper is closed-access and everything downstream saw only the title and abstract — say so plainly to the user, because the scaffold will be thin and may not route at all. This is not a stop: continue with whatever the abstract-only harvest yields, and say clearly in the report that it's abstract-only.
-
-**Check `Code:` in the output.** A `github_repo` accession marked `in_data_availability` means the paper names its own analysis repository — carry it into steps 3 and 3b below.
-
-### 3. Route onto an IGVFagent chain
+### 2. Plan by coverage
 
 ```bash
-igvfagent bench route --paper-id <paper-id>
+igvfagent bench plan --paper-id <paper-id> --seed
 ```
 
-Ranks the 15 routes. Analysis routes that matched an assay always outrank the pure-retrieval fallbacks (Synapse / figshare / GEO / Portal). `igvfagent bench list-routes` shows the full table with the benchmark each route was modelled on.
+`--seed` is a draft from the harvest. Complete it against the paper's **figure list** and the **authors' repository**: one analysis per headline figure panel or claim. Drop Methods-only items such as library cloning or cell counts. For each analysis, record the authors' file(s) that produce it:
 
-If a route matched, continue to step 4. If nothing matched (`unroutable_reason` explains why — usually closed access, or an assay family outside IGVFagent's covered set), **do not settle for the retrieval-only stub** — go to step 3a.
+```bash
+igvfagent bench plan --paper-id <paper-id> --add fig3b_tf_clusters \
+    --title "TF perturbations cluster into fibroblast states" --figure "Fig. 3b" \
+    --claim "<the paper's sentence>" --value <number> --upstream notebooks/fig3.ipynb
+igvfagent bench plan --paper-id <paper-id> --remove <seeded-id-that-is-not-a-result>
+```
 
-### 3a. The paper has its own repo: run it directly
-
-If harvest found a `github_repo` accession (marked `in_data_availability`), reproduce the authors' code before falling back to anything weaker:
+### 3. Run the authors' code, to get the reference
 
 ```bash
 igvfagent paper-code pipeline --harvest <run>/harvest.json
 ```
 
-`paper-code pipeline` does not need the authoring env var on its own — it only builds a throwaway conda/pip env and runs the repo's own script unmodified. Reserve `IGVF_ALLOW_AGENT_AUTHORING` for step 3b, which registers something new.
+This pins the repository, builds its environment, and runs it unmodified. Its outputs are the **reference** each port is checked against. Large inputs go through `sbatch` (use the cluster env's `igvfagent`; never run heavy work on a login node). If a step cannot run here after at most 3 environment repairs, don't stop: its reference becomes the authors' deposited intermediate output or published table (Source Data, supplementary tables), and step 4 ports it.
 
-This clones the repo at a pinned ref, builds its declared R/Python environment, runs its entry point(s) unmodified, and compares against the authors' rendered output where one exists. If it completes with a comparable output, that run *is* your reproduction — go to step 6 with `--route paper-code` semantics (score/report against this run directory; `bench scaffold` isn't needed when `paper-code` already produced a scored run).
+### 4. For each analysis: reuse, or port and absorb
 
-If `paper-code pipeline` cannot complete — the repo has no discoverable entry point, the environment fails to build, a workflow step needs a tool IGVFagent doesn't have, or there is no repo named at all but the assay is still outside the 15 routes — go to step 3b. Do not stop and describe the paper as unreproducible; a stub scaffold is the last resort, not the first one reached.
-
-### 3b. Never stop: port the missing piece into a permanent IGVFagent tool
-
-This is the step that used to be "ask the user" or "ship a stub." Instead:
-
-1. **Read the repo's actual analysis code** — the entry script(s) `paper-code inventory <repo>` identified, or the specific step that failed. Use `igvfagent paper-code exec <run_dir> --cmd ...` to poke at the built environment if it's unclear what a step needs.
-2. **Write a faithful Python reimplementation** of that logic — not a stub, not a TODO, an actual working port, as a normal IGVFagent-style script (argparse `main()`, writes its artefacts under `Docs/`/`Data/` like every other skill here).
-3. **Register it as a real, permanent core tool**, scoped-enabled for this call only:
-   ```bash
-   IGVF_ALLOW_AGENT_AUTHORING=1 igvfagent extauthor write-skill \
-     --name <slug_for_the_method> \
-     --description "<what it reproduces, and from which paper/repo>" \
-     --source-file <path to the ported .py> \
-     --tool-parameters '<JSON Schema for its CLI flags>'
-   IGVF_ALLOW_AGENT_AUTHORING=1 igvfagent extauthor validate --name <slug_for_the_method>
-   ```
-   `write-skill` refuses code that doesn't parse or doesn't define `main()` — that's the safety rail that matters here, not a human sign-off gate. Prefer `extauthor write-tool --cli "paper-code pipeline …"` instead of `write-skill` whenever the repo's own code, run through `paper-code`, is already sufficient — write a *new* skill only for logic that genuinely isn't covered by running the repo directly (e.g. a comparison/aggregation step the paper's code never wrote for you).
-4. **Re-route with the new tool** and continue:
-   ```bash
-   igvfagent bench route    --paper-id <paper-id>      # the new tool now shows up as a candidate route
-   igvfagent bench scaffold --paper-id <paper-id> --route <slug_for_the_method>
-   ```
-5. Fall through to step 6. Note what was authored (name, source paper, files written) in the final report so it's auditable — `igvfagent extauthor list` shows everything currently registered, and it can be retired later with `extauthor remove` if it turns out to be wrong.
-
-A tool authored this way stays in the core going forward: the next paper that needs the same method routes onto it directly, at step 3, with no porting needed.
-
-### 4. Scaffold
+First, reuse. An existing command (`igvfagent --help`, `bench list-routes`) or an earlier port may already do it:
 
 ```bash
-igvfagent bench scaffold --paper-id <paper-id>
+igvfagent port find --query "<what the analysis computes>"
 ```
 
-Writes `Benchmarks/<paper-id>/` with `run.sh`, `expected.json`, `README.md`, `OPERATIONS.md`, `provenance.json`, and registers the id in `Benchmarks/generated.txt`. Override the choice with `--route <name>` (the authored tool from 3b, if that's how you got here); overwrite an existing directory with `--force`.
+Otherwise port it:
 
-Steps 1–4 in one go, when nothing needs porting:
+1. Read the authors' code for exactly this analysis (the `--upstream` files) and write a **faithful Python port**. Keep the same algorithm, defaults, filters, normalisation and random seeds. It is an argparse `main(argv=None)` module that writes its artefacts under `Docs/` or `Data/`. No invented science: where their code is ambiguous, follow the paper's Methods and note the choice.
+2. Register it into IGVFagent. Set the authoring switch only for this call:
+   ```bash
+   IGVF_ALLOW_AGENT_AUTHORING=1 igvfagent port register --name <method_slug> \
+       --paper-id <paper-id> --repo <repo URL> --commit <pinned SHA> \
+       --upstream <repo path> [--upstream ...] --source-file <port.py> \
+       --description "<what it computes> (port of <repo>/<file>)" \
+       --tool-parameters '<JSON Schema of its flags>' --keywords "<terms>"
+   ```
+   It is then `igvfagent <method-slug>` on the CLI and a tool in the registry, recorded in `Scripts/ported/registry.json` (paper, repo, commit, upstream files) and marked unreviewed until a human looks at it.
+3. Verify it on the **same input** the reference came from:
+   ```bash
+   igvfagent bench verify-port --paper-id <paper-id> --name <method_slug> --analysis <id> \
+       --reference <authors' output> --port-output <port's output> \
+       [--key a.b | --column <col> --id-column <id>] [--rtol 1e-6] [--min-corr 0.99]
+   ```
+   It writes `validation_vs_reference.json` and prints the check to add. Missing rows count as mismatches. On FAIL, read the `worst` rows, fix the port, re-register and re-verify, at most 6 attempts. Then record it as failed and move on.
+4. Run the verified command on the paper's **full** data (sbatch when large), and add to `expected.json` checks tied to the analysis with `"analysis": "<id>"`:
+   - the class-B `verify-port` check that `verify-port` printed;
+   - and, where the paper states a number, a class-A `range` check on the port's output against that number (tolerance from the paper's own precision or seed noise).
+
+### 5. Score, and loop
 
 ```bash
-igvfagent bench pipeline --query "$ARGUMENTS"
+igvfagent bench run    --paper-id <paper-id>
+igvfagent bench score  --paper-id <paper-id>      # read `reproduction: … k/N`
 ```
 
-### 5. Read the scaffold, then keep going
+While `reproduction` is `incomplete`, go back to step 4 for the next analysis in state `pending`, `weak` (only counts pass) or `failing`. Do not report the paper as reproduced before this reaches `reproduced` or `reproduced_except_access`.
 
-Read the generated `run.sh` and `expected.json` and note, in the eventual report, rather than pausing on:
-
-- **`TODO_VERIFY` variables.** The paper's text did not yield them. `run.sh` exits 77 until they are set — set them from the harvested text/provenance yourself where the value is genuinely there; only leave a `TODO_VERIFY` if no value exists anywhere in the harvested material.
-- **Local-data requirements.** Controlled-access, embargoed, or R-only formats (`.rds`, `.qs`) cannot be fetched automatically — record this plainly (see the Non-stop policy table) and continue with whatever else the scaffold can run.
-- **`[UNCONFIRMED]` checks.** Each has `"path": "TODO_SET_JSON_PATH"` and a `provenance.quote`. Try to confirm them now (step 7) rather than deferring — but a check that can't be confirmed is reported as `unreviewed`, not treated as a blocker.
-- **`quote_grounded_in_source: false`** on an LLM claim means the model's quote is not verbatim in the harvested text. Treat that claim as unreliable in the report; don't stop for it.
-
-### 6. Run and score
+### 6. Report
 
 ```bash
-igvfagent bench run   --paper-id <paper-id>     # exit 77 = missing local input, not a failure
-igvfagent bench score --paper-id <paper-id>
 igvfagent bench report --paper-id <paper-id>
+igvfagent port list
 ```
 
-`report` renders the paper-claim vs IGVFagent-measured table into `Docs/Benchmark/<ts>_<paper-id>/replication_report.md`.
+The report's coverage table lists every analysis and its state. In the final message, state:
+- the coverage verdict (`k/N`);
+- each port absorbed into IGVFagent (name, upstream file, `verify-port` match rate);
+- where the reproduction differs from the paper, and why;
+- each blocked analysis, with its evidence.
 
-### 7. Confirm what can be confirmed — then finish, don't wait
-
-A green `run.sh` proves the chain executed, not that the paper was reproduced. For each `[UNCONFIRMED]` check, attempt this yourself, right now:
-
-1. Open the artefact named by `primary_artefact` in the run directory.
-2. Find the key holding the comparable quantity; put its dotted path in `path`.
-3. Verify the `provenance.quote` really states that number for that quantity.
-4. If it checks out: set `"confirmed": true` and tighten `min`/`max` to a defensible tolerance, then re-score.
-5. If it doesn't check out, or the quantity genuinely isn't in any artefact: leave it `"confirmed": false`. It stays `unreviewed` in the score — that is correct, not a failure to fix. Report the benchmark's true status (`ok` only where every scored check is confirmed; `unreviewed` or `partial` otherwise) and move on. Do not wait for a human pass before calling the run finished.
-
-## What this can and cannot do
-
-**Full analytical reproduction** works when the paper's assay is in a covered family (MAVE/SGE, MPRA/lentiMPRA, CRISPRi Flow-FISH, CRISPR screens, Perturb-seq, scRNA/multiome/SHARE-seq/SPLiT-seq, peak→gene, enhancer→gene, ChIP-Atlas, GWAS × single-cell), **or** when the paper names its own repository — step 3a/3b now reproduces that directly and, where it needed new logic, folds it into the core as a permanent tool rather than stopping.
-
-**Discovery and retrieval only** — with a stub `run.sh` — is now the last resort, reached only when: the data is controlled-access (dbGaP/EGA) or embargoed, no repository is named anywhere in the paper, and no covered assay family matches either. The scaffold says which, in the README's "Honest caveats" section. Do not describe such a benchmark as a reproduction.
-
-**Measured accuracy** on the 21 committed benchmarks (`igvfagent bench selftest --with-router`): resolver 21/22 exact from title alone; router 14/19 exact, 15/19 in the top 3. The misses are papers with no open-access full text — for those, expect to supply the route yourself with `--route`, or reach it through 3a/3b instead.
+Don't claim more than `bench score` says.
 
 ## Pairs well with
 
-- `igvfagent ref learn --topic <assay>` — what other groups do for the same assay, before deciding what to reproduce.
-- `igvfagent calibrate` — after a MaveDB/SGE route, turn the assay scores into ACMG/AMP PS3/BS3 evidence.
-- `igvfagent extauthor list` / `igvfagent ext-review` — audit everything a run authored, across every paper, before it accumulates unreviewed.
+- `igvfagent ref learn --topic <assay>`: what other groups do for the same assay.
+- `igvfagent calibrate`: after a MaveDB/SGE route, turn assay scores into ACMG/AMP PS3/BS3 evidence.
+- `igvfagent ext-review`: audit agent-authored extensions; ported methods are listed by `igvfagent port list` with their provenance and verification.

@@ -8,7 +8,13 @@ For each benchmark directory under ``Benchmarks/<paper-id>/``:
    that matches the benchmark's label.
 3. Open the canonical artefact (usually ``summary.json`` or a TSV).
 4. Apply each declared check; tally pass / fail / skip.
-5. Emit a per-paper JSON + a suite-level Markdown summary under
+5. Judge paper coverage (``reproduction``): ``status`` only says whether the
+   declared checks passed, which a single easy count can satisfy. When
+   ``expected.json`` lists the paper's ``analyses`` (``igvfagent bench plan``),
+   a paper is ``reproduced`` only when every analysis has a passing,
+   confirmed class-A/B check (``Benchmarks/taxonomy.py``) tied to it by
+   ``"analysis": <id>``. Counts and file-exists checks never cover one.
+6. Emit a per-paper JSON + a suite-level Markdown summary under
    ``Benchmarks/results/<ts>_concordance.{json,md}``.
 
 The scorer is intentionally minimal — pure stdlib, no pandas required —
@@ -25,6 +31,9 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from taxonomy import _check_class  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,7 +97,17 @@ def latest_run_dir(skill_dir_name: str, label: str,
 
 
 def read_artefact(d: Path, filename: str) -> Any:
-    """Read a JSON or TSV artefact from a run directory."""
+    """Read a JSON or TSV artefact from a run directory.
+
+    A ``Docs/…`` or ``Data/…`` name is a glob from the repo root instead
+    (newest match), for artefacts written outside the route's run dir, such
+    as ``bench verify-port``'s ``validation_vs_reference.json``.
+    """
+    if filename.startswith(("Docs/", "Data/")):
+        hits = sorted(ROOT.glob(filename), key=lambda q: q.stat().st_mtime)
+        if not hits:
+            return None
+        d, filename = hits[-1].parent, hits[-1].name
     p = d / filename
     if not p.is_file():
         return None
@@ -228,6 +247,54 @@ def get_path(obj: Any, dotted: str) -> Any:
     return cur
 
 
+# The only reasons an analysis may stay unreproduced without holding the paper
+# back from "reproduced_except_access": the data cannot lawfully be had. Any
+# other blocker (runtime, environment, language, data size) is work to do.
+ACCESS_BLOCKERS = ("controlled_access", "embargoed", "not_deposited")
+
+
+def judge_coverage(spec: dict, checks: list[dict]) -> dict:
+    """Coverage of the paper's planned analyses by passing class-A/B checks.
+
+    ``checks`` are the scored check results, each carrying the spec's
+    ``analysis`` id and ``class``. Returns ``reproduction`` (reproduced /
+    reproduced_except_access / incomplete / unplanned), ``coverage`` ("k/N")
+    and one row per analysis.
+    """
+    analyses = spec.get("analyses") or []
+    if not analyses:
+        return {"reproduction": "unplanned", "coverage": None, "analyses": []}
+    rows = []
+    for a in analyses:
+        aid = a.get("id")
+        mine = [c for c in checks if c.get("analysis") == aid]
+        strong = [c for c in mine if c["passed"] and c.get("class") in ("A", "B")]
+        blocker = (a.get("blocker") or {}).get("kind") if isinstance(a.get("blocker"), dict) \
+            else a.get("blocker")
+        if strong:
+            state = "reproduced"
+        elif blocker in ACCESS_BLOCKERS:
+            state = "blocked_access"
+        elif mine and any(c["passed"] for c in mine):
+            state = "weak"          # only counts / artefacts pass
+        elif mine:
+            state = "failing"
+        else:
+            state = "pending"
+        rows.append({"id": aid, "title": a.get("title"), "state": state,
+                     "blocker": blocker, "tool": a.get("tool"),
+                     "n_checks": len(mine), "n_strong_passed": len(strong)})
+    n = len(rows)
+    k = sum(r["state"] == "reproduced" for r in rows)
+    if k == n:
+        verdict = "reproduced"
+    elif k and all(r["state"] in ("reproduced", "blocked_access") for r in rows):
+        verdict = "reproduced_except_access"
+    else:
+        verdict = "incomplete"
+    return {"reproduction": verdict, "coverage": f"{k}/{n}", "analyses": rows}
+
+
 def score_benchmark(paper_dir: Path) -> dict:
     """Score one paper's benchmark; return a structured result dict."""
     exp_path = paper_dir / "expected.json"
@@ -244,7 +311,7 @@ def score_benchmark(paper_dir: Path) -> dict:
     run_dir = latest_run_dir(skill, label, extras)
     if run_dir is None:
         return {"paper": paper_dir.name, "status": "no_run_found",
-                "skill": skill, "label": label}
+                "skill": skill, "label": label, **judge_coverage(spec, [])}
     result: dict[str, Any] = {
         "paper":   paper_dir.name,
         "skill":   skill,
@@ -290,7 +357,9 @@ def score_benchmark(paper_dir: Path) -> dict:
                     result["checks"].append({
                         "name": name, "type": ctype, "passed": False,
                         "detail": f"artefact {chk['artefact']!r} not found in "
-                                   f"{where}"})
+                                   f"{where}",
+                        "class": _check_class(chk),
+                        "analysis": chk.get("analysis")})
                     continue
             else:
                 src = payload
@@ -336,7 +405,9 @@ def score_benchmark(paper_dir: Path) -> dict:
         except Exception as e:
             ok, msg = False, f"check failed with exception: {e}"
         result["checks"].append({"name": name, "type": ctype,
-                                   "passed": ok, "detail": msg})
+                                   "passed": ok, "detail": msg,
+                                   "class": _check_class(chk),
+                                   "analysis": chk.get("analysis")})
     n_total = len(result["checks"])
     n_pass = sum(1 for c in result["checks"] if c["passed"])
     result["n_passed"] = n_pass
@@ -349,6 +420,7 @@ def score_benchmark(paper_dir: Path) -> dict:
     else:
         result["status"] = "ok" if n_pass == n_total \
                              else ("partial" if n_pass > 0 else "fail")
+    result.update(judge_coverage(spec, result["checks"]))
     return result
 
 
@@ -371,8 +443,12 @@ def render_markdown(results: list[dict], ts: str) -> str:
                     f"scored. These were extracted from paper text by "
                     f"`igvfagent bench` and need a human to set a real JSON path "
                     f"and flip `\"confirmed\": true` before they count.\n")
-    out.append("| Paper | Status | Checks | Run dir |")
-    out.append("|---|---|---|---|")
+    n_repro = sum(1 for r in results if r.get("reproduction") == "reproduced")
+    out.append(f"**Paper coverage:** {n_repro} / {len(results)} papers reproduced "
+               f"across every planned analysis. `ok` below means only that the "
+               f"declared checks passed.\n")
+    out.append("| Paper | Status | Checks | Reproduction | Run dir |")
+    out.append("|---|---|---|---|---|")
     for r in results:
         st = r.get("status", "?")
         icon = {"ok": "✓", "partial": "△", "fail": "✗", "unreviewed": "⊘",
@@ -381,16 +457,26 @@ def render_markdown(results: list[dict], ts: str) -> str:
         if r.get("n_unconfirmed"):
             cks += f" (+{r['n_unconfirmed']} unconfirmed)"
         rd = r.get("run_dir", "—")
-        out.append(f"| `{r['paper']}` | {icon} {st} | {cks} | `{rd}` |")
+        rep = r.get("reproduction", "?")
+        if r.get("coverage"):
+            rep += f" {r['coverage']}"
+        out.append(f"| `{r['paper']}` | {icon} {st} | {cks} | {rep} | `{rd}` |")
     out.append("")
     for r in results:
         out.append(f"## {r['paper']}\n")
-        out.append(f"- Status: **{r.get('status', '?')}**")
+        out.append(f"- Status: **{r.get('status', '?')}** · reproduction: "
+                   f"**{r.get('reproduction', '?')}**"
+                   + (f" ({r['coverage']} analyses)" if r.get("coverage") else ""))
+        for a in r.get("analyses", []):
+            extra = f", blocker: {a['blocker']}" if a.get("blocker") else ""
+            out.append(f"  - analysis `{a['id']}` — {a['state']}{extra}"
+                       + (f" — {a['title']}" if a.get("title") else ""))
         if r.get("run_dir"):
             out.append(f"- Run dir: `{r['run_dir']}`")
         for c in r.get("checks", []):
             mark = "✓" if c["passed"] else "✗"
-            out.append(f"  - {mark} **{c['name']}** ({c['type']}): {c['detail']}")
+            out.append(f"  - {mark} **{c['name']}** ({c['type']}, class "
+                       f"{c.get('class', '?')}): {c['detail']}")
         for c in r.get("unconfirmed", []):
             prov = c.get("provenance") or {}
             # `provenance` is normally {"kind": ..., "quote": ...}, but a
@@ -438,7 +524,10 @@ def main(argv: list[str] | None = None) -> int:
     for r in results:
         st = r.get("status", "?")
         cks = f"{r.get('n_passed', 0)}/{r.get('n_total', 0)}"
-        print(f"  [{st:>12s}] {r['paper']:35s}  {cks}")
+        rep = r.get("reproduction", "?")
+        if r.get("coverage"):
+            rep += f" {r['coverage']}"
+        print(f"  [{st:>12s}] {r['paper']:35s}  {cks:>7s}  reproduction: {rep}")
     print(f"\nSummary: {json_out}")
     print(f"Markdown: {md_out}")
     return 0

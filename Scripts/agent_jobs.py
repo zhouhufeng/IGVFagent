@@ -128,7 +128,9 @@ early is a failure, not a courtesy.
 5b. To save notes, section verdicts or a report as stage evidence, use
    write_text_file (Docs/, Data/ or Benchmarks/ paths) and read_text_file.
    Do not author new tools or extensions to write files, and do not use
-   sed edits or sub-agents as a file writer.
+   sed edits or sub-agents as a file writer. (Porting a paper's method with
+   `igvfagent port register` is a different thing and is expected; see
+   ABSORBING THE AUTHORS' CODE below.)
 6. When every stage is done or blocked, write the final report: what was
    reproduced (with numbers and file paths), what differs from the paper and
    why, and what is blocked.
@@ -165,9 +167,9 @@ a. Resolve and harvest the paper first (paper_benchmark / bench harvest), then
    names a repository, the reproduction IS running that code: call
    paper_code_reproduce with replay=true, and all_entries=true when the
    repository has one notebook per figure (it runs in the background); job_wait on
-   <run_dir>/done.json. Never reimplement the authors' analysis yourself, and
-   do not present a re-derivation from deposited tables (MaveDB, Portal) as
-   the reproduction; that is a separate cross-check stage.
+   <run_dir>/done.json. Its outputs are the REFERENCE every later step is
+   checked against. Do not present a re-derivation from deposited tables
+   (MaveDB, Portal) as the reproduction; that is a separate cross-check stage.
 b. Plan stages like: harvest -> find_code -> run_code (check: json
    <run_dir>/summary.json key printed.fraction_matched >= 0.9, or figures.produced
    >= 1 when the authors committed no rendering) -> review_sections -> repair
@@ -187,13 +189,41 @@ c. Read summary.json and report.md. For chunks that raised errors, diagnose
    inventory.json lists the versions the authors ran). Repair only the
    environment, with pins (r-<pkg>=<version> or cran:<pkg>@<version>) and
    re-run; at most 3 environment repairs. Never edit the authors' code to make
-   it pass; if it cannot run, mark the stage blocked naming the chunk, line and
-   error.
+   it pass. If it still cannot run here (a runtime this host lacks, Nextflow,
+   a tool IGVFagent doesn't have, a hard-coded path), do NOT mark it blocked:
+   absorb that step (below) and continue with the port. Blocked is only for
+   data that is controlled-access, embargoed or not deposited.
 d. Verify section by section with delegate_tasks: one fresh sub-agent per
    group of analysis sections, each given the section titles, the figure paths
    and the printed-value agreement for those sections, asked to state which of
    the paper's claims for those sections the outputs support, contradict or
    leave untested. Their verdicts go in the final report.
+ABSORBING THE AUTHORS' CODE (IGVFagent rewrites what Paper2Agent only wraps)
+p1. Plan by COVERAGE, not by what is easy: `bench plan --paper-id P --seed`,
+    then complete the list so there is one analysis per headline figure or
+    claim, each with the authors' file(s) for it (--upstream). Plan one stage
+    per analysis. Verifying a count on the smallest deposited file is not an
+    analysis; never stop there.
+p2. Before porting, look for one already absorbed: `port find --query ...`.
+p3. For a step no command covers or that cannot run: read the authors' code
+    for it and write a faithful Python port (argparse main(), writes under
+    Docs/ or Data/): same algorithm, defaults, filters and seeds; no new
+    science. Register it: `port register --name N --paper-id P --repo URL
+    --commit SHA --upstream <file> --source-file <port.py> --description ...`.
+    It is then `igvfagent <n>` for this and every later paper.
+p4. Verify the port on the SAME input the authors' code ran on: `bench
+    verify-port --name N --analysis A --reference <authors' output>
+    --port-output <port output> ...`. When their code cannot run at all, the
+    reference is their deposited intermediate or published table. Fix and
+    re-verify, at most 6 attempts per port; a port that still fails is
+    recorded as failed, never dropped.
+p5. Run the verified port on the paper's full data (sbatch for large inputs;
+    data size is never a reason to stop), tie a class-A/B check to the
+    analysis ("analysis": A in expected.json), and re-score. The job is done
+    only when `bench score` reports reproduction `reproduced` or
+    `reproduced_except_access`; an `ok` status with `incomplete` coverage
+    means keep going.
+
 e. The final report leads with the authors' repository and commit, the
    printed-value agreement (identical / numerically close / missing), the
    figures per section (paths), the errors and blocked chunks, and the
@@ -772,8 +802,8 @@ def code_route_gap(job: dict, plan: dict) -> Optional[str]:
     if not repos:
         return None
     return (f"The paper's Code Availability names {', '.join(sorted(set(repos))[:3])}, but no stage ran the authors' "
-            "code. Run paper_code_reproduce on it (job_wait on <run_dir>/done.json) and report its summary.json, or "
-            "mark a code stage blocked with the reason.")
+            "code. Run paper_code_reproduce on it (job_wait on <run_dir>/done.json) and report its summary.json; a "
+            "step that cannot run here is ported (`port register`) and verified (`bench verify-port`), not blocked.")
 
 
 VERIFIER_FALLBACK = [m.strip() for m in os.environ.get("IGVF_VERIFIER_FALLBACK",
