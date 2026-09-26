@@ -1,0 +1,235 @@
+{
+  "paper": {
+    "title": "Single-cell multi-ome regression models identify functional and disease-associated enhancers and enable chromatin potential analysis",
+    "authors": "Mitra Sneha; Malik Rohan; Wong Wilfred; Rahman Afsana; Hartemink Alexander J.; Pritykin Yuri; Dey Kushal K.; Leslie Christina S.",
+    "journal": "Nature Genetics",
+    "year": 2024,
+    "doi": "10.1038/s41588-024-01689-8",
+    "pmid": "38514783",
+    "pmcid": "PMC11018525"
+  },
+  "generated_by": {
+    "tool": "igvfagent bench scaffold",
+    "generated_at": "2026-09-25 20:16:49 EDT",
+    "route": "multiome_peak2gene",
+    "resolver_confidence": 1.0,
+    "fulltext_source": "europepmc:PMC11018525/fullTextXML",
+    "review_required": true
+  },
+  "data_source": {
+    "type": "geo_multiome_h5ad",
+    "gse": "GSE194122",
+    "modality": "10x Multiome (NeurIPS 2021 open problem, BMMC processed h5ad)",
+    "tissue": "BMMC",
+    "donors_used": ["site1_donor1", "site1_donor2", "site1_donor3", "site2_donor1",
+                    "site2_donor4", "site2_donor5", "site3_donor6", "site3_donor7",
+                    "site3_donor10", "site4_donor9"],
+    "cell_types_used": ["HSC", "MK/E prog", "Proerythroblast", "Erythroblast", "Normoblast"],
+    "cells_after_filter": 7642,
+    "note": "PBMC (10X Genomics, no accession given) and the mouse skin / cortex / pancreas / pituitary datasets are not reproduced here."
+  },
+  "skill_output_dir": "Multiome10x",
+  "label": "mitra2024_multi_regression",
+  "primary_artefact": "mitra2024_multi_regression_concordance_metrics.json",
+  "checks": [
+    {
+      "name": "peak2gene link table written",
+      "type": "artefact",
+      "filename": "2*mitra2024_multi_regression_peak2gene.tsv",
+      "confirmed": true,
+      "provenance": {"kind": "structural", "note": "asserted by the route, not by the paper"}
+    },
+    {
+      "name": "BMMC subset matches the paper's exact donor list",
+      "type": "range",
+      "path": "n_donors_matched",
+      "min": 10, "max": 10, "expected": 10,
+      "confirmed": true,
+      "provenance": {"kind": "structural", "note": "our own filter against the paper's Data availability statement, not a paper-reported number"}
+    },
+    {
+      "name": "BMMC subset matches the paper's exact cell-type list",
+      "type": "range",
+      "path": "n_cell_types_matched",
+      "min": 5, "max": 5, "expected": 5,
+      "confirmed": true,
+      "provenance": {"kind": "structural", "note": "our own filter against the paper's Data availability statement, not a paper-reported number"}
+    },
+    {
+      "name": "Cis peak-gene correlation scan ran genome-wide (not truncated by --max-pairs)",
+      "type": "range",
+      "path": "candidate_pairs",
+      "min": 500000, "max": 1999999, "expected": 923107,
+      "confirmed": true,
+      "provenance": {"kind": "structural", "note": "sanity check that the run wasn't cut off mid-genome; not a paper-reported number"}
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1250 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1187.5,
+      "max": 1312.5,
+      "expected": 1250,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1655 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1572.25,
+      "max": 1737.75,
+      "expected": 1655,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 393 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 373.34999999999997,
+      "max": 412.65000000000003,
+      "expected": 393,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1201 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1140.95,
+      "max": 1261.05,
+      "expected": 1201,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 784 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 744.8,
+      "max": 823.2,
+      "expected": 784,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 1221 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 1159.95,
+      "max": 1282.05,
+      "expected": 1221,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 9460 cells",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 8987.0,
+      "max": 9933.0,
+      "expected": 9460,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "2SCARlink coefficients enrich for promoter-linked chromatin interactions.a, SCARlink output of HLA-DQB1 in PBMC multi-ome (n = 9,460 cells; Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 5558 variants",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 5280.099999999999,
+      "max": 5835.900000000001,
+      "expected": 5558,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "A total of 1,000 bootstrap iterations were used. f, Enrichment of 5,558 variants from RegulomeDB of rank = 1a in PBMC multi-ome."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 5461 variants",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 5187.95,
+      "max": 5734.05,
+      "expected": 5461,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "SCARlink showed higher enrichment for the top 20,000 gene-linked tiles in PBMC over ArchR peak\u2013gene links for 5,461 RegulomeDB variants with a rank of 1a, corresponding to the most stringent cutoff based on motif accessibility at eQTL/caQTLs (Fig."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 11549 cells",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 10971.55,
+      "max": 12126.45,
+      "expected": 11549,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "The blue triangle marks the colocalized eQTL (PP.H4 = 0.9022; coloc23) and the vertical line below highlights the tile closest to the eQTL substantially linked to CCR7. b, SCARlink output of BCL2 in the pituitary (n = 11,549 cells; Supplementary Table 1)."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 434 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 412.29999999999995,
+      "max": 455.70000000000005,
+      "expected": 434,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "This filtered out less than 5% of genes for mouse skin (19 of 434 genes), BMMC (36 of 785 genes) and pituitary gland (2 of 612 genes), and 6% of genes from the developing human cortex (73 of 1,201 genes).We found that the SCARlink chromatin potential vector fields recapitulate known differentiation trajectories in mouse skin, BMMC and pituitary gland (Fig."
+      }
+    },
+    {
+      "name": "[UNCONFIRMED] paper claims 785 genes",
+      "type": "range",
+      "path": "TODO_SET_JSON_PATH",
+      "min": 745.75,
+      "max": 824.25,
+      "expected": 785,
+      "confirmed": false,
+      "provenance": {
+        "kind": "regex_from_fulltext",
+        "section": "Results",
+        "quote": "This filtered out less than 5% of genes for mouse skin (19 of 434 genes), BMMC (36 of 785 genes) and pituitary gland (2 of 612 genes), and 6% of genes from the developing human cortex (73 of 1,201 genes).We found that the SCARlink chromatin potential vector fields recapitulate known differentiation trajectories in mouse skin, BMMC and pituitary gland (Fig."
+      }
+    }
+  ]
+}

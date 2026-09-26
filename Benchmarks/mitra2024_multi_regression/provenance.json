@@ -1,0 +1,611 @@
+{
+  "paper_id": "mitra2024_multi_regression",
+  "resolution": {
+    "decision": "resolved",
+    "confidence": 1.0,
+    "margin_over_runner_up": 1.0,
+    "identifier": {
+      "kind": "doi",
+      "value": "10.1038/s41588-024-01689-8",
+      "raw": "10.1038/s41588-024-01689-8"
+    },
+    "constraints": {},
+    "sources_consulted": [
+      "crossref",
+      "europepmc"
+    ],
+    "paper_id": "mitra2024_multi_regression",
+    "paper": {
+      "doi": "10.1038/s41588-024-01689-8",
+      "title": "Single-cell multi-ome regression models identify functional and disease-associated enhancers and enable chromatin potential analysis",
+      "authors": "Mitra Sneha; Malik Rohan; Wong Wilfred; Rahman Afsana; Hartemink Alexander J.; Pritykin Yuri; Dey Kushal K.; Leslie Christina S.",
+      "first_author_family": "Mitra",
+      "journal": "Nature Genetics",
+      "year": 2024,
+      "type": "journal-article",
+      "publisher": "Springer Science and Business Media LLC",
+      "volume": "56",
+      "issue": "4",
+      "page": "627-636",
+      "abstract": "Abstract  We present a gene-level regulatory model, single-cell ATAC\u2009+\u2009RNA linking (SCARlink), which predicts single-cell gene expression and links enhancers to target genes using multi-ome (scRNA-seq and scATAC\u2013seq co-assay) sequencing data. The approach uses regularized Poisson regression on tile-level accessibility data to jointly model all regulatory effects at a gene locus, avoiding the limitations of pairwise gene\u2013peak correlations and dependence on peak calling. SCARlink outperformed existing gene scoring methods for imputing gene expression from chromatin accessibility across high-coverage multi-ome datasets while giving comparable to improved performance on low-coverage datasets. Shapley value analysis on trained models identified cell-type-specific gene enhancers that are validated by promoter capture Hi-C and are 11\u00d7 to 15\u00d7 and 5\u00d7 to 12\u00d7 enriched in fine-mapped eQTLs and fine-mapped genome-wide association study (GWAS) variants, respectively. We further show that SCARlink-predicted and observed gene expression vectors provide a robust way to compute a chromatin potential vector field to enable developmental trajectory analysis.",
+      "url": "https://doi.org/10.1038/s41588-024-01689-8",
+      "is_preprint": false,
+      "relation": {
+        "correction": [
+          {
+            "id-type": "doi",
+            "id": "10.1038/s41588-024-01805-8",
+            "asserted-by": "object"
+          }
+        ]
+      },
+      "pmid": "38514783",
+      "pmcid": "PMC11018525",
+      "epmc_id": "38514783",
+      "epmc_source": "MED",
+      "is_open_access": true,
+      "has_fulltext": true,
+      "in_epmc": true,
+      "citation_count": 77,
+      "sources": [
+        "crossref",
+        "europepmc"
+      ]
+    },
+    "match_reasons": [
+      "exact doi lookup"
+    ],
+    "candidates": [
+      {
+        "score": 1.0,
+        "title": "Single-cell multi-ome regression models identify functional and disease-associated enhancers and enable chromatin potential analysis",
+        "authors": "Mitra Sneha; Malik Rohan; Wong Wilfred; Rahman Afsana; Hartemink Alexander J.; Pritykin Yuri; Dey Kushal K.; Leslie Chri",
+        "journal": "Nature Genetics",
+        "year": 2024,
+        "doi": "10.1038/s41588-024-01689-8",
+        "pmid": "38514783",
+        "reasons": [
+          "exact doi lookup"
+        ]
+      }
+    ]
+  },
+  "harvest": {
+    "paper_id": "mitra2024_multi_regression",
+    "doi": "10.1038/s41588-024-01689-8",
+    "title": "Single-cell multi-ome regression models identify functional and disease-associated enhancers and enable chromatin potential analysis",
+    "abstract": "Abstract We present a gene-level regulatory model, single-cell ATAC + RNA linking (SCARlink), which predicts single-cell gene expression and links enhancers to target genes using multi-ome (scRNA-seq and scATAC\u2013seq co-assay) sequencing data. The approach uses regularized Poisson regression on tile-level accessibility data to jointly model all regulatory effects at a gene locus, avoiding the limitations of pairwise gene\u2013peak correlations and dependence on peak calling. SCARlink outperformed existing gene scoring methods for imputing gene expression from chromatin accessibility across high-coverage multi-ome datasets while giving comparable to improved performance on low-coverage datasets. Shapley value analysis on trained models identified cell-type-specific gene enhancers that are validated by promoter capture Hi-C and are 11\u00d7 to 15\u00d7 and 5\u00d7 to 12\u00d7 enriched in fine-mapped eQTLs and fine-mapped genome-wide association study (GWAS) variants, respectively. We further show that SCARlink-predicted and observed gene expression vectors provide a robust way to compute a chromatin potential vector field to enable developmental trajectory analysis.",
+    "fulltext_source": "europepmc:PMC11018525/fullTextXML",
+    "degraded_reason": null,
+    "n_sections": 50,
+    "n_chars": 157704,
+    "section_titles": [
+      "Abstract",
+      "Abstract",
+      "Main",
+      "Results",
+      "SCARlink accurately predicts gene expression and identifies putative enhancers",
+      "Shapley analysis identifies cell-type-specific SCARlink enhancers",
+      "Predicted enhancers are enriched for fine-mapped GWAS and eQTL variants",
+      "Predicted enhancers prioritize disease-associated loci in a cell-type-specific manner",
+      "SCARlink-predicted gene expression enables chromatin potential analysis",
+      "Discussion",
+      "Methods",
+      "Ethics statement",
+      "Data preprocessing",
+      "Cell-type annotation",
+      "Gene regression model",
+      "Significance test for model predictions on individual genes",
+      "Shapley scores and tile significance",
+      "PCHi-C analysis",
+      "ArchR peak2gene",
+      "Tile significance for variant analysis",
+      "GWAS enrichment analysis",
+      "S-LDSC",
+      "eQTL enrichment analysis",
+      "RegulomeDB enrichment analysis",
+      "Downsampling analysis",
+      "Chromatin potential using SCARlink",
+      "Comparison of chromatin potential and RNA velocity",
+      "Statistics and reproducibility",
+      "Reporting summary",
+      "Online content",
+      "Supplementary information",
+      "Acknowledgements",
+      "(untitled section)",
+      "Extended data",
+      "Author contributions",
+      "Peer review",
+      "Peer review information",
+      "Data availability",
+      "Code availability",
+      "Competing interests",
+      "Footnotes",
+      "Contributor Information",
+      "(untitled section)",
+      "Extended data",
+      "Supplementary information",
+      "References",
+      "(untitled section)",
+      "Associated Data",
+      "Supplementary Materials",
+      "Data Availability Statement"
+    ],
+    "data_availability": [
+      {
+        "title": "Data availability",
+        "text": "Data availabilityWe downloaded the PBMC multi-ome from 10X Genomics. BMMC data were part of the NeurIPS 2021 open problem, and the dataset was downloaded from GEO (GSE194122). We used BMMC samples labeled as site1_donor1, site1_donor2, site1_donor3, site2_donor1, site2_donor4, site2_donor5, site3_donor10, site3_donor6, site3_donor7 and site4_donor9 and the cell types HSC, MK/E progenitor, proerythroblast, erythroblast and normoblast. These samples showed the least batch effect. Mouse skin SHARE-seq data and DORC annotations were downloaded from GEO (GSE140203). The UMAP used for mouse skin was shared by the authors1. Pituitary multi-ome data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and the corresponding multi-omic scATAC\u2013seq was downloaded using the link https://github.com/GreenleafLab/brainchromatin/blob/main/links.txt. We used samples labeled hft_ctx_w21_dc2r2_r1 and hft_ctx_w21_dc2r2_r2 with the least batch effect. We subset the data to retain cells labeled as cycling progenitor, mGPC/OPC, SP, RG, nIPC/GluN1, GluN2, GluN3, GluN4 and GluN57. We downloaded the pancreas multi-ome dataset from the ENCODE portal (multi-omic series ENCSR233SQS) using the link https://www.encodeproject.org/multiomics-series/ENCSR233SQG/.PCHi-C data14 were downloaded from https://osf.io/u8tzp/. We used common and low-frequency variants (MAF \u2265 5) from the 1000 Genomes Project, phase 3 (ref. 59). The fine-mapped eQTLs for whole blood, pancreas and pituitary were downloaded from GTEx v8 (ref. 15). The fine-mapping was performed using CAVIAR60. The splicing QTLs (sQTLs) generated using LeafCutter61 were downloaded from GTEx v8. A Q-value cutoff of 0.05 was used to select the sQTLs. We also downloaded the conditionally independent eQTL from GTEx v8. UK Biobank GWAS data with fine-mapping using SuSIE62 and FINEMAP63 were downloaded from the Finucane Lab (https://www.finucanelab.org/data). Colocalization of GWAS and eQTL variants performed using the method coloc were downloaded from OpenTargets24 (https://ftp.ebi.ac.uk/pub/databases/opentargets/genetics/latest/v2d_coloc). LD blocks was downloaded from https://github.com/jmacdon/LDblocks_GRCh38/blob/master/data/pyrho_EUR_LD_blocks.bed.All SCARlink models and additional processed files required to generate the figures are available at https://figshare.com/s/9b9e89ff3150aebb6d7a (ref. 64)."
+      },
+      {
+        "title": "Code availability",
+        "text": "Code availabilitySCARlink is available on GitHub at https://github.com/snehamitra/SCARlink/ (ref. 65). The notebooks to generate the figures are available within the same GitHub repository at https://github.com/snehamitra/SCARlink/tree/main/paper_figures (ref. 65)."
+      },
+      {
+        "title": "Data Availability Statement",
+        "text": "Data Availability StatementWe downloaded the PBMC multi-ome from 10X Genomics. BMMC data were part of the NeurIPS 2021 open problem, and the dataset was downloaded from GEO (GSE194122). We used BMMC samples labeled as site1_donor1, site1_donor2, site1_donor3, site2_donor1, site2_donor4, site2_donor5, site3_donor10, site3_donor6, site3_donor7 and site4_donor9 and the cell types HSC, MK/E progenitor, proerythroblast, erythroblast and normoblast. These samples showed the least batch effect. Mouse skin SHARE-seq data and DORC annotations were downloaded from GEO (GSE140203). The UMAP used for mouse skin was shared by the authors1. Pituitary multi-ome data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and the corresponding multi-omic scATAC\u2013seq was downloaded using the link https://github.com/GreenleafLab/brainchromatin/blob/main/links.txt. We used samples labeled hft_ctx_w21_dc2r2_r1 and hft_ctx_w21_dc2r2_r2 with the least batch effect. We subset the data to retain cells labeled as cycling progenitor, mGPC/OPC, SP, RG, nIPC/GluN1, GluN2, GluN3, GluN4 and GluN57. We downloaded the pancreas multi-ome dataset from the ENCODE portal (multi-omic series ENCSR233SQS) using the link https://www.encodeproject.org/multiomics-series/ENCSR233SQG/.PCHi-C data14 were downloaded from https://osf.io/u8tzp/. We used common and low-frequency variants (MAF \u2265 5) from the 1000 Genomes Project, phase 3 (ref. 59). The fine-mapped eQTLs for whole blood, pancreas and pituitary were downloaded from GTEx v8 (ref. 15). The fine-mapping was performed using CAVIAR60. The splicing QTLs (sQTLs) generated using LeafCutter61 were downloaded from GTEx v8. A Q-value cutoff of 0.05 was used to select the sQTLs. We also downloaded the conditionally independent eQTL from GTEx v8. UK Biobank GWAS data with fine-mapping using SuSIE62 and FINEMAP63 were downloaded from the Finucane Lab (https://www.finucanelab.org/data). Colocalization of GWAS and eQTL variants performed using the method coloc were downloaded from OpenTargets24 (https://ftp.ebi.ac.uk/pub/databases/opentargets/genetics/latest/v2d_coloc). LD blocks was downloaded from https://github.com/jmacdon/LDblocks_GRCh38/blob/master/data/pyrho_EUR_LD_blocks.bed.All SCARlink models and additional processed files required to generate the figures are available at https://figshare.com/s/9b9e89ff3150aebb6d7a (ref. 64).SCARlink is available on GitHub at https://github.com/snehamitra/SCARlink/ (ref. 65). The notebooks to generate the figures are available within the same GitHub repository at https://github.com/snehamitra/SCARlink/tree/main/paper_figures (ref. 65)."
+      }
+    ],
+    "accessions": {
+      "geo_series": [
+        {
+          "value": "GSE194122",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 3,
+          "context": "on to the peer review of this work. Data availabilityWe downloaded the PBMC multi-ome from 10X Genomics. BMMC data were part of the NeurIPS 2021 open problem, and the dataset was downloaded from GEO (GSE194122). We used BMMC samples labeled as site1_donor1, site1_donor2, site1_donor3, site2_donor1, site2_donor4, site2_donor5, site3_donor10, site3_donor6, site3_donor7 and site4_donor9 and the cell types HSC",
+          "in_data_availability": true
+        },
+        {
+          "value": "GSE140203",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 3,
+          "context": "he cell types HSC, MK/E progenitor, proerythroblast, erythroblast and normoblast. These samples showed the least batch effect. Mouse skin SHARE-seq data and DORC annotations were downloaded from GEO (GSE140203). The UMAP used for mouse skin was shared by the authors1. Pituitary multi-ome data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and",
+          "in_data_availability": true
+        },
+        {
+          "value": "GSE178454",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 3,
+          "context": "ffect. Mouse skin SHARE-seq data and DORC annotations were downloaded from GEO (GSE140203). The UMAP used for mouse skin was shared by the authors1. Pituitary multi-ome data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and the corresponding multi-omic scATAC\u2013seq was downloaded using the link https://github.com/GreenleafLab/brainchromatin/bl",
+          "in_data_availability": true
+        },
+        {
+          "value": "GSE162170",
+          "repo": "NCBI GEO",
+          "controlled": false,
+          "count": 3,
+          "context": "GEO (GSE140203). The UMAP used for mouse skin was shared by the authors1. Pituitary multi-ome data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and the corresponding multi-omic scATAC\u2013seq was downloaded using the link https://github.com/GreenleafLab/brainchromatin/blob/main/links.txt. We used samples labeled hft_ctx_w21_dc2r2_r1 and hft_ctx",
+          "in_data_availability": true
+        }
+      ],
+      "encode_series": [
+        {
+          "value": "ENCSR233SQS",
+          "repo": "ENCODE",
+          "controlled": false,
+          "count": 3,
+          "context": "ata to retain cells labeled as cycling progenitor, mGPC/OPC, SP, RG, nIPC/GluN1, GluN2, GluN3, GluN4 and GluN57. We downloaded the pancreas multi-ome dataset from the ENCODE portal (multi-omic series ENCSR233SQS) using the link https://www.encodeproject.org/multiomics-series/ENCSR233SQG/.PCHi-C data14 were downloaded from https://osf.io/u8tzp/. We used common and low-frequency variants (MAF \u2265 5) from the 100",
+          "in_data_availability": true
+        },
+        {
+          "value": "ENCSR233SQG",
+          "repo": "ENCODE",
+          "controlled": false,
+          "count": 3,
+          "context": "uN1, GluN2, GluN3, GluN4 and GluN57. We downloaded the pancreas multi-ome dataset from the ENCODE portal (multi-omic series ENCSR233SQS) using the link https://www.encodeproject.org/multiomics-series/ENCSR233SQG/.PCHi-C data14 were downloaded from https://osf.io/u8tzp/. We used common and low-frequency variants (MAF \u2265 5) from the 1000 Genomes Project, phase 3 (ref. 59). The fine-mapped eQTLs for whole blood,",
+          "in_data_availability": true
+        }
+      ],
+      "zenodo_doi": [
+        {
+          "value": "10.5281/zenodo.10481793",
+          "repo": "Zenodo",
+          "controlled": false,
+          "count": 2,
+          "context": "016;32:1493\u20131501. doi: 10.1093/bioinformatics/btw018.64.Mitra, S. snehamitra/SCARlink: v1.0.0 (v1.0.0). figshare. 10.6084/m9/figshare.25000568. (2024)65.Mitra, S. snehamitra/SCARlink: v1.0.0. Zenodo. 10.5281/zenodo.10481793 (2024). 1.Ma S, et al. Chromatin potential identified by shared single-cell profiling of RNA and chromatin. Cell. 2020;183:1103\u20131116. doi: 10.1016/j.cell.2020.09.056.2.Sakaue, S. et al. Tissue-specif",
+          "in_data_availability": false
+        }
+      ],
+      "github_repo": [
+        {
+          "value": "jmacdon/LDblocks_GRCh38",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 5,
+          "context": "on the following criteria (Extended Data Fig. 10): (1) the same minor allele frequency (MAF) category. We defined MAF groups as <0.01, 0.01\u20130.1 and >0.1; (2) the same LD blocks as defined in https://github.com/jmacdon/LDblocks_GRCh38/blob/master/data/pyrho_EUR_LD_blocks.bed; (3) the same distance-based genome annotations. Because we ran SCARlink with 500 bp tiles that span 250 kb upstream and downstream of the gene body, the firs",
+          "in_data_availability": true
+        },
+        {
+          "value": "GreenleafLab/brainchromatin",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 3,
+          "context": "data were downloaded from GEO (GSE178454). The developing human cortex scRNA-seq was downloaded from GEO (GSE162170) and the corresponding multi-omic scATAC\u2013seq was downloaded using the link https://github.com/GreenleafLab/brainchromatin/blob/main/links.txt. We used samples labeled hft_ctx_w21_dc2r2_r1 and hft_ctx_w21_dc2r2_r2 with the least batch effect. We subset the data to retain cells labeled as cycling progenitor, mGPC/OPC, SP,",
+          "in_data_availability": true
+        },
+        {
+          "value": "snehamitra/SCARlink",
+          "repo": "GitHub",
+          "controlled": false,
+          "count": 6,
+          "context": "els and additional processed files required to generate the figures are available at https://figshare.com/s/9b9e89ff3150aebb6d7a (ref. 64). Code availabilitySCARlink is available on GitHub at https://github.com/snehamitra/SCARlink/ (ref. 65). The notebooks to generate the figures are available within the same GitHub repository at https://github.com/snehamitra/SCARlink/tree/main/paper_figures (ref. 65). Competing interestsThe a",
+          "in_data_availability": true
+        }
+      ]
+    },
+    "assays": [
+      {
+        "assay": "eQTL",
+        "mentions": 59
+      },
+      {
+        "assay": "GWAS",
+        "mentions": 57
+      },
+      {
+        "assay": "scATAC-seq",
+        "mentions": 44
+      },
+      {
+        "assay": "scRNA-seq",
+        "mentions": 39
+      },
+      {
+        "assay": "Hi-C",
+        "mentions": 12
+      },
+      {
+        "assay": "enhancer-gene",
+        "mentions": 10
+      },
+      {
+        "assay": "SHARE-seq",
+        "mentions": 6
+      }
+    ],
+    "genes": [
+      "PBMC",
+      "CCR7",
+      "BMMC",
+      "PIP",
+      "MAF",
+      "IGF",
+      "LDSC",
+      "BCL2",
+      "UMI",
+      "CD8",
+      "DORC",
+      "HLA"
+    ],
+    "numeric_claims": [
+      {
+        "kind": "count",
+        "value": 1250,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 1655,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 393,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 1201,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 784,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 1221,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "After filtering, we obtained 1,250 genes for PBMC, 1,655 genes for BMMC, 393 genes for mouse skin, 1,201 genes for the developing human cortex, 784 genes for the pancreas and 1,221 genes for the pituitary gland (Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 9460,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "2SCARlink coefficients enrich for promoter-linked chromatin interactions.a, SCARlink output of HLA-DQB1 in PBMC multi-ome (n = 9,460 cells; Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 5558,
+        "unit": "variants",
+        "section": "Results",
+        "quote": "A total of 1,000 bootstrap iterations were used. f, Enrichment of 5,558 variants from RegulomeDB of rank = 1a in PBMC multi-ome."
+      },
+      {
+        "kind": "count",
+        "value": 5461,
+        "unit": "variants",
+        "section": "Results",
+        "quote": "SCARlink showed higher enrichment for the top 20,000 gene-linked tiles in PBMC over ArchR peak\u2013gene links for 5,461 RegulomeDB variants with a rank of 1a, corresponding to the most stringent cutoff based on motif accessibility at eQTL/caQTLs (Fig."
+      },
+      {
+        "kind": "count",
+        "value": 11549,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "The blue triangle marks the colocalized eQTL (PP.H4 = 0.9022; coloc23) and the vertical line below highlights the tile closest to the eQTL substantially linked to CCR7. b, SCARlink output of BCL2 in the pituitary (n = 11,549 cells; Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 434,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "This filtered out less than 5% of genes for mouse skin (19 of 434 genes), BMMC (36 of 785 genes) and pituitary gland (2 of 612 genes), and 6% of genes from the developing human cortex (73 of 1,201 genes).We found that the SCARlink chromatin potential vector fields recapitulate known differentiation trajectories in mouse skin, BMMC and pituitary gland (Fig."
+      },
+      {
+        "kind": "count",
+        "value": 785,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "This filtered out less than 5% of genes for mouse skin (19 of 434 genes), BMMC (36 of 785 genes) and pituitary gland (2 of 612 genes), and 6% of genes from the developing human cortex (73 of 1,201 genes).We found that the SCARlink chromatin potential vector fields recapitulate known differentiation trajectories in mouse skin, BMMC and pituitary gland (Fig."
+      },
+      {
+        "kind": "count",
+        "value": 612,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "This filtered out less than 5% of genes for mouse skin (19 of 434 genes), BMMC (36 of 785 genes) and pituitary gland (2 of 612 genes), and 6% of genes from the developing human cortex (73 of 1,201 genes).We found that the SCARlink chromatin potential vector fields recapitulate known differentiation trajectories in mouse skin, BMMC and pituitary gland (Fig."
+      },
+      {
+        "kind": "count",
+        "value": 470,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "Performing SCARlink chromatin potential analysis on this subset of 470 genes recovered the correct developmental trajectory (Fig."
+      },
+      {
+        "kind": "count",
+        "value": 7155,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "5SCARlink provides a robust implementation of chromatin potential.a\u2013c, SCARlink-computed chromatin potential applied to BMMC8 (7,155 cells and 785 genes; a), mouse skin1 (6,431 cells and 434 genes; b) and pituitary gland12 (11,549 cells and 1,221 genes; c) recapitulates known differentiation trajectory in each system."
+      },
+      {
+        "kind": "count",
+        "value": 6431,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "5SCARlink provides a robust implementation of chromatin potential.a\u2013c, SCARlink-computed chromatin potential applied to BMMC8 (7,155 cells and 785 genes; a), mouse skin1 (6,431 cells and 434 genes; b) and pituitary gland12 (11,549 cells and 1,221 genes; c) recapitulates known differentiation trajectory in each system."
+      },
+      {
+        "kind": "count",
+        "value": 4642,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "Heatmap showing comparison of scaled gene expression from scRNA-seq in the two identified clusters across the cell types of developing human cortex (4,642 cells). b,c."
+      },
+      {
+        "kind": "count",
+        "value": 731,
+        "unit": "genes",
+        "section": "Results",
+        "quote": "Significant GO terms enriched in (b) cluster 0 (731 genes) and (c) cluster 1 (470 genes), colored by fold enrichment."
+      },
+      {
+        "kind": "count",
+        "value": 33314,
+        "unit": "cells",
+        "section": "Results",
+        "quote": "8Comparison of chromatin potential to RNA velocity.RNA velocity was estimated using scVelo56 on mouse skin1 (a,b) (n = 33,314 cells, Supplementary Table 1), developing cortex9 (c,d) (n = 4,642 cells, Supplementary Table 1), and BMMC8 (e,f) (n = 7,155 cells, Supplementary Table 1). scVelo was run in two modes: \u2018stochastic\u2019 mode with the previously reported gene set (a,c,e) or with chromatin potenti"
+      },
+      {
+        "kind": "count",
+        "value": 1241,
+        "unit": "genes",
+        "section": "Methods",
+        "quote": "Comparison of Spearman correlations of predicted and observed gene expression for models trained using Poisson regression with L2 (x-axis) and L1 (y-axis) regularization on PBMC multi-ome (n = 9,460 cells, 1,241 genes, Supplementary Table 1)."
+      },
+      {
+        "kind": "count",
+        "value": 100,
+        "unit": "cells",
+        "section": "Methods",
+        "quote": "Note that we estimate Shapley values only for cell types having at least 100 cells.PCHi-C analysisWe used publicly available PCHi-C data for hematopoietic cells14."
+      },
+      {
+        "kind": "count",
+        "value": 50,
+        "unit": "genes",
+        "section": "Methods",
+        "quote": "Then, we chose the top 50 genes if there were more than 50 highly expressed genes per cell type."
+      },
+      {
+        "kind": "count",
+        "value": 1730,
+        "unit": "genes",
+        "section": "Methods",
+        "quote": "For ArchR gene-linked peaks, we restricted to peaks having a correlation of >0.1 and FDR < 0.001.S-LDSCUsing a correlation cutoff value of 0.1 and FDR < 0.001, we obtained 1,730 genes in common to both SCARlink and ArchR peak2gene predictions from PBMC, pituitary and pancreas."
+      }
+    ],
+    "llm_claims": {
+      "enabled": false,
+      "claims": [],
+      "error": "LLM call failed: Connection error.",
+      "backend": null,
+      "model": null
+    }
+  },
+  "routing": {
+    "plans": [
+      {
+        "route": "multiome_peak2gene",
+        "title": "10x Multiome peak\u2192gene cis-regulatory linkage",
+        "score": 11.21,
+        "evidence": [
+          "assay:scATAC-seq\u00d744",
+          "assay:enhancer-gene\u00d710",
+          "geo_series=GSE194122 (Data Availability) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Multiome10x",
+        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_scarlink",
+        "requires_local_input": false,
+        "notes": "For a full local reproduction add `multiome process-local --input <bundle>` then `multiome peak2gene --label $LABEL`."
+      },
+      {
+        "route": "share_seq",
+        "title": "SHARE-seq joint RNA + ATAC QC",
+        "score": 8.57,
+        "evidence": [
+          "assay:SHARE-seq\u00d76"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SHAREseq",
+        "reference_benchmark": "ma2020_shareseq",
+        "requires_local_input": true,
+        "notes": null
+      },
+      {
+        "route": "spatial_atac_hic",
+        "title": "Spatial-ATAC-Hi-C \u2014 3D genome + accessibility per tissue pixel",
+        "score": 6.84,
+        "evidence": [
+          "assay:Hi-C\u00d712",
+          "geo_series=GSE194122 (Data Availability) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SpatialATACHiC",
+        "reference_benchmark": "wang2026_spatial_atac_hic (synthetic recovery) / wang2026_spatial_atac_hic_geo (real GSE307620)",
+        "requires_local_input": true,
+        "notes": null
+      }
+    ],
+    "all_scored": [
+      {
+        "route": "multiome_peak2gene",
+        "title": "10x Multiome peak\u2192gene cis-regulatory linkage",
+        "score": 11.21,
+        "evidence": [
+          "assay:scATAC-seq\u00d744",
+          "assay:enhancer-gene\u00d710",
+          "geo_series=GSE194122 (Data Availability) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "Multiome10x",
+        "reference_benchmark": "trevino2021_cortex_multiome / mitra2024_scarlink",
+        "requires_local_input": false,
+        "notes": "For a full local reproduction add `multiome process-local --input <bundle>` then `multiome peak2gene --label $LABEL`."
+      },
+      {
+        "route": "share_seq",
+        "title": "SHARE-seq joint RNA + ATAC QC",
+        "score": 8.57,
+        "evidence": [
+          "assay:SHARE-seq\u00d76"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SHAREseq",
+        "reference_benchmark": "ma2020_shareseq",
+        "requires_local_input": true,
+        "notes": null
+      },
+      {
+        "route": "spatial_atac_hic",
+        "title": "Spatial-ATAC-Hi-C \u2014 3D genome + accessibility per tissue pixel",
+        "score": 6.84,
+        "evidence": [
+          "assay:Hi-C\u00d712",
+          "geo_series=GSE194122 (Data Availability) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SpatialATACHiC",
+        "reference_benchmark": "wang2026_spatial_atac_hic (synthetic recovery) / wang2026_spatial_atac_hic_geo (real GSE307620)",
+        "requires_local_input": true,
+        "notes": null
+      },
+      {
+        "route": "sc_analyze",
+        "title": "Single-cell atlas reproduction (QC \u2192 HVG \u2192 PCA \u2192 UMAP \u2192 Leiden \u2192 markers)",
+        "score": 5.27,
+        "evidence": [
+          "assay:scRNA-seq\u00d739",
+          "geo_series=GSE194122 (Data Availability) [generic deposit, unscored]"
+        ],
+        "tier": "analysis",
+        "assay_matched": true,
+        "skill_output_dir": "SingleCell",
+        "reference_benchmark": "travaglini2020_lung / wang2025_neocortex_multiome",
+        "requires_local_input": true,
+        "notes": "Concordance against the authors' labels (ARI / AMI / homogeneity) is the reproducibility claim \u2014 add those as range checks once you have run it once."
+      },
+      {
+        "route": "encode_fce",
+        "title": "ENCODE functional-characterization experiment enumeration",
+        "score": 10.0,
+        "evidence": [
+          "encode_series=ENCSR233SQS (Data Availability)"
+        ],
+        "tier": "analysis",
+        "assay_matched": false,
+        "skill_output_dir": "ENCODE",
+        "reference_benchmark": "yao2024_encode4_crispri",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "figshare",
+        "title": "figshare / Zenodo deposit retrieval",
+        "score": 5.0,
+        "evidence": [
+          "zenodo_doi=10.5281/zenodo.10481793 (in text)"
+        ],
+        "tier": "retrieval",
+        "assay_matched": false,
+        "skill_output_dir": "Figshare",
+        "reference_benchmark": "liu2025_open4gene",
+        "requires_local_input": false,
+        "notes": null
+      },
+      {
+        "route": "geo_retrieval",
+        "title": "GEO series metadata + supplementary-file inventory",
+        "score": 3.0,
+        "evidence": [
+          "geo_series=GSE194122 (Data Availability)"
+        ],
+        "tier": "retrieval",
+        "assay_matched": false,
+        "skill_output_dir": "SingleCell",
+        "reference_benchmark": "zheng2024_invivo_perturbseq",
+        "requires_local_input": false,
+        "notes": "Retrieval only. Pair with an analytical route once the supplementary files are in a format IGVFagent reads (h5ad / mtx / TSV \u2014 not .rds or .qs)."
+      }
+    ],
+    "selected": "multiome_peak2gene",
+    "controlled_access_repos": [],
+    "unroutable_reason": null
+  },
+  "route_selected": "multiome_peak2gene",
+  "variables": []
+}

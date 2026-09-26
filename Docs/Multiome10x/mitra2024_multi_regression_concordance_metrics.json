@@ -1,0 +1,14 @@
+{
+  "source_tsv": "Docs/Multiome10x/20260925_205122_mitra2024_multi_regression_peak2gene.tsv",
+  "n_donors_matched": 10,
+  "n_cell_types_matched": 5,
+  "genes_tested": 11614,
+  "peaks_tested": 114078,
+  "candidate_pairs": 923107,
+  "significant_pairs": 16650,
+  "significant_positive_pairs": 10155,
+  "positive_fraction_of_significant": 0.6099,
+  "genes_with_significant_link": 4240,
+  "genes_with_significant_positive_link": 3513,
+  "median_abs_correlation_all_pairs": 0.0062
+}
