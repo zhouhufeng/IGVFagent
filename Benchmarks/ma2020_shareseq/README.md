@@ -36,9 +36,25 @@ Why the failures and gaps:
 * **Residuals and chromatin potential.** cisTopic is replaced by LSI, the
   branch-probability lineage cut-offs by the authors' cell-type labels, and the
   Palantir root is picked by rule, because the paper does not say how. These
-  choices do not reproduce the paper's result.
+  choices do not reproduce the paper's result. Ruled out as the cause: the
+  DORC gene list. Re-running `shareseq-dorc peakgene` on only the 7,197
+  hair-follicle-lineage cells (instead of the 787-gene genome-wide skin DORC
+  list) gives 151 lineage-specific DORCs; pseudotime is confirmed correctly
+  oriented (TAC-1 lowest mean pseudotime, Hair Shaft-cuticle.cortex highest).
+  Re-scoring both ports on this tighter, more relevant gene set left the
+  residuals check unchanged (44.98% -> 45.70% positive, still far from 92%)
+  and the pseudotime forward-fraction check slightly worse (39.2% -> 37.7%,
+  vs the 50.5% RNA-RNA baseline), even though the raw cross-modal
+  neighbour-composition flow ratio did improve (0.45 -> 0.55). Gene-set
+  breadth is therefore not the gap; what remains is the LSI/cisTopic
+  substitution and the heuristic root/lineage choices, none of which the
+  paper's text pins down. (Diagnostic outputs: `Data/ma2020/out/peakgene_hf`,
+  `residuals_hf`, `chromatin_potential_hf_pt`.)
 * **GM12878 count.** The paper used 23,278 cells; here 25,022 paired rep3
-  cells are used. The peak set behind 13,277 is not stated.
+  cells are used. The peak set behind 13,277 is not stated. The port's
+  205-32,579 associations (before dedup) match FigR run on the identical
+  input exactly (class B, 100%), so the gap is upstream of the port, in the
+  paper's undocumented peak/cell filtering, not a port bug.
 * **Filters.** The species-mixing cut-offs are undocumented; the ATAC
   barcode-rank knee is used instead.
 

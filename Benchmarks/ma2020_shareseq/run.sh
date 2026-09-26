@@ -61,22 +61,27 @@ $IGVF shareseq-dorc dorc-scores \
   --peaks "$D/GSM4156597_skin.late.anagen.peaks.bed.gz" --gene-peak "$RUN/peakgene/gene_peak_cor.tsv.gz" \
   --out "$RUN/peakgene/dorc_scores.tsv.gz"
 
-# 6-7) Chromatin potential (Fig. 5H) and DORC residuals over pseudotime (Fig. 4C)
-#      on the hair-follicle lineage cells.
+# 6-7) DORC residuals over pseudotime (Fig. 4C), then chromatin potential
+#      (Fig. 5H) reusing that pseudotime for the forward-flow test, both on
+#      the hair-follicle lineage cells. Residuals must run first: it is the
+#      only place the pseudotime is computed, and chromatin-potential's
+#      forward_fraction_* check depends on it (PYTHONPATH must resolve the
+#      `palantir` install, e.g. Data/ma2020/pylib on this cluster).
 awk 'NR>1 && $2>10 {print $1}' "$RUN/peakgene/dorc_rank.tsv" > "$RUN/peakgene/dorc_genes.txt"
 HF="TAC-1,TAC-2,IRS,Medulla,Hair Shaft-cuticle.cortex"
-$IGVF shareseq-chromatin-potential \
-  --atac-mtx "$D/GSM4156597_skin.late.anagen.counts.txt.gz" --atac-barcodes "$D/GSM4156597_skin.late.anagen.barcodes.txt.gz" \
-  --dorc-scores "$RUN/peakgene/dorc_scores.tsv.gz" --dorc-genes "$RUN/peakgene/dorc_genes.txt" \
-  --rna "$D/GSM4156608_skin.late.anagen.rna.counts.txt.gz" --celltypes "$D/GSM4156597_skin_celltype.txt.gz" \
-  --types "$HF" --progenitor "TAC-1,TAC-2" --differentiated "IRS,Medulla,Hair Shaft-cuticle.cortex" \
-  --out "$RUN/chromatin_potential"
 $IGVF shareseq-dorc-residuals \
   --atac-mtx "$D/GSM4156597_skin.late.anagen.counts.txt.gz" --atac-barcodes "$D/GSM4156597_skin.late.anagen.barcodes.txt.gz" \
   --dorc-scores "$RUN/peakgene/dorc_scores.tsv.gz" --dorc-genes "$RUN/peakgene/dorc_genes.txt" \
   --rna "$D/GSM4156608_skin.late.anagen.rna.counts.txt.gz" --celltypes "$D/GSM4156597_skin_celltype.txt.gz" \
   --progenitor "TAC-1,TAC-2" --terminals "IRS,Medulla,Hair Shaft-cuticle.cortex" \
   --out "$RUN/residuals"
+$IGVF shareseq-chromatin-potential \
+  --atac-mtx "$D/GSM4156597_skin.late.anagen.counts.txt.gz" --atac-barcodes "$D/GSM4156597_skin.late.anagen.barcodes.txt.gz" \
+  --dorc-scores "$RUN/peakgene/dorc_scores.tsv.gz" --dorc-genes "$RUN/peakgene/dorc_genes.txt" \
+  --rna "$D/GSM4156608_skin.late.anagen.rna.counts.txt.gz" --celltypes "$D/GSM4156597_skin_celltype.txt.gz" \
+  --types "$HF" --progenitor "TAC-1,TAC-2" --differentiated "IRS,Medulla,Hair Shaft-cuticle.cortex" \
+  --pseudotime "$RUN/residuals/pseudotime.tsv" \
+  --out "$RUN/chromatin_potential"
 
 # 8) Computational pairing (Fig. S2N-S): gene activity here, CCA label
 #    transfer in Seurat (Data/ma2020/ref/run_seurat_label_transfer.R).
