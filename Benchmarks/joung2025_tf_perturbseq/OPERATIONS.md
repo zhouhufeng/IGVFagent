@@ -35,17 +35,17 @@ it makes no paper-specific claim.
 ## Where artefacts land
 
 ```
+Docs/Perturbation/<ts>_summary/
+└── summary.json          ← scored
 Docs/Perturbation/<ts>_search_perturb-seq_KLF4/
-├── search.json
-├── search.tsv
-└── report.md
+└── search.json           ← informational; upstream often times out
 ```
 
 ## Concordance interpretation
 
 | # | Check | What it verifies |
 |---|---|---|
-| 1 | `search.json` exists, non-empty | Perturbation Catalogue API returned results (structural check only — asserted by the route, not by the paper) |
+| 1 | `summary.json` exists, non-empty | Perturbation Catalogue API returned its census (structural check only — asserted by the route, not by the paper). Scored on the summary rather than the KLF4 search because that endpoint times out intermittently and the catalogue CLI takes no `--label`. |
 
 ## Real data and the real reproduction
 

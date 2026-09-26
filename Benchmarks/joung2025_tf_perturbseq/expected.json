@@ -13,13 +13,17 @@
     "modality": "perturb-seq"
   },
   "skill_output_dir": "Perturbation",
-  "label": "joung2025_tf_perturbseq",
-  "primary_artefact": "search.json",
+  "label": "summary",
+  "primary_artefact": "summary.json",
   "checks": [
     {
-      "name": "Perturb-seq search result written",
+      "name": "Perturbation Catalogue summary written",
       "type": "artefact",
-      "filename": "search.json"
+      "filename": "summary.json",
+      "provenance": {
+        "kind": "structural",
+        "note": "generic catalogue census; asserted by the route, not by any paper"
+      }
     }
   ],
   "class": "synthetic-smoke",
