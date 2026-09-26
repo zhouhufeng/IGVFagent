@@ -232,11 +232,19 @@ def read_csv_rows(p: Path) -> list[dict] | None:
 
 
 def get_path(obj: Any, dotted: str) -> Any:
-    """Walk a dotted key path through a nested dict / list of dicts."""
+    """Walk a dotted key path through a nested dict / list of dicts.
+
+    A dict key may itself contain dots (``methods.Full.Score.auprc`` where
+    the key is ``"Full.Score"``): the longest run of parts that names a key
+    wins.
+    """
     if obj is None:
         return None
     cur: Any = obj
-    for part in dotted.split("."):
+    parts = dotted.split(".")
+    i = 0
+    while i < len(parts):
+        part = parts[i]
         if cur is None:
             return None
         if isinstance(cur, list):
@@ -244,6 +252,7 @@ def get_path(obj: Any, dotted: str) -> Any:
             try:
                 idx = int(part)
                 cur = cur[idx] if 0 <= idx < len(cur) else None
+                i += 1
                 continue
             except ValueError:
                 pass
@@ -252,9 +261,16 @@ def get_path(obj: Any, dotted: str) -> Any:
                 (e.get(part) for e in cur if isinstance(e, dict) and part in e),
                 None,
             )
+            i += 1
             continue
         if isinstance(cur, dict):
-            cur = cur.get(part)
+            for j in range(len(parts), i, -1):
+                key = ".".join(parts[i:j])
+                if key in cur:
+                    cur, i = cur[key], j
+                    break
+            else:
+                return None
             continue
         return None
     return cur
@@ -321,8 +337,14 @@ def score_benchmark(paper_dir: Path) -> dict:
     # Extra search roots for skills that scatter artefacts. expected.json
     # may declare ``extra_search_dirs: ["Data/Manifests/MPRA", "Data"]`` etc.
     extras = [ROOT / x for x in (spec.get("extra_search_dirs") or [])]
-    run_dir = latest_run_dir(skill, label, extras,
-                             require=spec.get("primary_artefact"))
+    if skill == "self":
+        # Results committed next to expected.json (runs that need a token or
+        # a large download not every checkout has). The artefact paths are
+        # relative to the benchmark directory itself.
+        run_dir = paper_dir.resolve()
+    else:
+        run_dir = latest_run_dir(skill, label, extras,
+                                 require=spec.get("primary_artefact"))
     if run_dir is None:
         return {"paper": paper_dir.name, "status": "no_run_found",
                 "skill": skill, "label": label, **judge_coverage(spec, [])}
@@ -340,6 +362,8 @@ def score_benchmark(paper_dir: Path) -> dict:
     for chk in spec.get("checks", []):
         ctype = chk.get("type")
         name = chk.get("name", "(unnamed)")
+        if ctype == "note":
+            continue        # provenance recorded for a reader; nothing to test
         # Checks scaffolded by `igvfagent bench` out of a paper's prose carry
         # ``"confirmed": false`` until a human sets a real JSON path and vouches
         # for them. They are reported, never scored — otherwise the suite would

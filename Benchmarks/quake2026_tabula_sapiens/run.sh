@@ -19,9 +19,13 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"; cd "$ROOT"
+# The repo's .venv when it runs on this machine, else the igvfagent on PATH
+# (a .venv copied from another platform cannot run here).
+BIN="$ROOT/.venv/bin"
+"$BIN/igvfagent" --help >/dev/null 2>&1 || BIN="$(dirname "$(readlink -f "$(command -v igvfagent)")")"
 
 LABEL="quake2026_tabula_sapiens"
-PY="${PY:-$ROOT/.venv/bin/python}"
+PY="${PY:-$BIN/python}"
 IGVF="${IGVF:-$PY -m igvfagent.cli}"
 FULL=0
 [ "${1:-}" = "--full" ] && FULL=1

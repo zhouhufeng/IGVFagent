@@ -15,6 +15,7 @@
     ],
     "crispr_ground_truth": "EngreitzLab/CRISPR_comparison training_K562 (10356 pairs / 471 positive)"
   },
+  "skill_output_dir": "self",
   "label": "e2g_crispr_benchmark",
   "checks": [
     {

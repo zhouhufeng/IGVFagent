@@ -3,6 +3,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
+# The repo's .venv when it runs on this machine, else the igvfagent on PATH
+# (a .venv copied from another platform cannot run here).
+BIN="$ROOT/.venv/bin"
+"$BIN/igvfagent" --help >/dev/null 2>&1 || BIN="$(dirname "$(readlink -f "$(command -v igvfagent)")")"
 LABEL="buckley2024_vhl"
 
 # Buckley 2024 VHL SGE scoreset URN — VERIFIED 2026-05-28 via the
@@ -16,15 +20,15 @@ if ! curl -sf "https://api.mavedb.org/api/v1/score-sets/${URN}/scores" > /dev/nu
     exit 77
 fi
 
-.venv/bin/igvfagent mavedb map-scoreset \
+$BIN/igvfagent mavedb map-scoreset \
     --urn "$URN" \
     --gene VHL \
     --label "$LABEL"
 
 # Cross-reference (catalog calls — anonymous)
-.venv/bin/igvfagent catalog get-entity VHL || true
-.venv/bin/igvfagent catalog find-associations VHL --relationship genetic --limit 10 || true
+$BIN/igvfagent catalog get-entity VHL || true
+$BIN/igvfagent catalog find-associations VHL --relationship genetic --limit 10 || true
 
 echo ""
 echo "== Buckley 2024 VHL SGE benchmark complete =="
-echo "Score with: .venv/bin/python Benchmarks/concordance.py --benchmark $LABEL"
+echo "Score with: $BIN/python Benchmarks/concordance.py --benchmark $LABEL"

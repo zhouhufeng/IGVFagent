@@ -10,6 +10,7 @@
     "single_cell": "CELLxGENE SEA-AD Microglia-PVM (collection 1ca90a2d-2943-483d-b678-b809bf464c30)",
     "gwas": "Bellenguez 2022 AD (GCST90027158) -> MAGMA v1.10 gene Z-scores"
   },
+  "skill_output_dir": "self",
   "label": "zou2026_sceps",
   "checks": [
     {
