@@ -34,7 +34,25 @@ igvfagent bench score --paper-id liu2025_kidney_multiome
 | `verify_ports.py` | builds the comparison tables and runs `igvfagent bench verify-port` for both ports |
 | `verify_derived_tables.py` | recomputes the paper's Fig. 2-6 numbers from the deposited tables |
 
-## 4. Troubleshooting
+## 4. Manual step: Fig. 6F (blocked for automation, not for humans)
+
+The GCTA-COJO conditional-analysis procedure and its per-gene result (table S28) are only in the
+supplementary Methods PDF and Tables S1-S31 zip, not on Figshare. Both are real files, reachable at:
+
+```
+https://pmc.ncbi.nlm.nih.gov/articles/instance/12013656/bin/NIHMS2065775-supplement-Supplemental_Material.pdf
+https://pmc.ncbi.nlm.nih.gov/articles/instance/12013656/bin/NIHMS2065775-supplement-Tables_S1_to_S31.zip
+```
+
+`curl` (and WebFetch) get HTTP 200 but a "Preparing to download ..." page with a client-side
+proof-of-work challenge instead of the file — confirmed 2026-09-26. This is an anti-bot gate, not a
+404 or a paywall, and solving it programmatically would be evading that gate, so this port does not
+attempt it. A human opening either URL in a real browser gets the actual file. If someone drops
+`NIHMS2065775-supplement-Supplemental_Material.pdf` and `NIHMS2065775-supplement-Tables_S1_to_S31.zip`
+under `Data/liu2025/`, the COJO procedure can then be read from the Methods and table S28 compared to
+a port, same as the other two ports in this benchmark.
+
+## 5. Troubleshooting
 
 * `verify-port` names its output directory by the second; `verify_ports.py` sleeps 1 s between calls and copies each result to a stable path. Do not run two copies at once.
 * The port `liu2025-open4gene` reproduces pscl's numerics (glm.fit starts, R's `vmmin` BFGS, `optimhess`, R 4.3 `dnbinom`). Count-component estimates for poorly identified fits (few expressing cells, quasi-separation, theta -> infinity) still stop at slightly different points than R; see README.
