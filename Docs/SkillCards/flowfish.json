@@ -1,0 +1,195 @@
+{
+  "schema_version": "1.0",
+  "id": "flowfish",
+  "version": "0.2.9",
+  "title": "CRISPRi Flow-FISH screen analysis (Fulco/Nasser/Engreitz)",
+  "summary": "",
+  "module": "igvfagent.flowfish_crispr_skill",
+  "source": "Scripts/flowfish_crispr_skill.py",
+  "interfaces": {
+    "cli": "igvfagent flowfish",
+    "tools": [
+      {
+        "name": "flowfish_estimate_effects",
+        "subcommand": "flowfish estimate-effects",
+        "description": "Per-guide log-normal MLE on a guide x FACS-bin counts matrix. Fits (logMean, logSD) by minimizing the bin-multinomial NLL with L-BFGS-B and a trailing 'outside' bin EM imputation, then carries metadata through to the raw_effects.tsv output. Clean-room implementation of estimate_effect_sizes.R from EngreitzLab/CRISPRi-FlowFISH-pipeline.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "counts": {
+              "type": "string"
+            },
+            "sortparams": {
+              "type": "string",
+              "description": "TSV with Bin, LowBound, HighBound."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "counts",
+            "sortparams"
+          ]
+        }
+      },
+      {
+        "name": "flowfish_pull_portal",
+        "subcommand": "flowfish pull-portal",
+        "description": "Discover IGVF Portal CRISPRi-FlowFISH MeasurementSets.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "flowfish_real_space",
+        "subcommand": "flowfish real-space",
+        "description": "Convert per-guide (logMean, logSD) to log-normal mean expression (mleAvg = exp(mu*ln10 + (sigma*ln10)^2/2)), divide by the median negative-control mleAvg to get a fold-change vs null, clamp at +/-clamp, and rescale so null centers at 1. Clean-room implementation of convert_to_real_space.py.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "target_col": {
+              "type": "string",
+              "default": "target"
+            },
+            "negative_label": {
+              "type": "string",
+              "default": "negative_control"
+            },
+            "clamp": {
+              "type": "number",
+              "default": 5.0
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "flowfish_score_elements",
+        "subcommand": "flowfish score-elements",
+        "description": "Per-element collapse + significance: two tests vs negative-control distribution (Mann-Whitney U + Welch t-test) with BH-FDR. Flags Significant = (FDR<thr) AND (mean<1) AND (n>=min) and Regulated = Significant AND |1-mean|>=min_effect. Clean-room implementation of ScoreEnhancers.py (Fulco 2019).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "effects": {
+              "type": "string"
+            },
+            "target_col": {
+              "type": "string",
+              "default": "target"
+            },
+            "element_col": {
+              "type": "string",
+              "default": "ElementName"
+            },
+            "negative_label": {
+              "type": "string",
+              "default": "negative_control"
+            },
+            "min_guides": {
+              "type": "integer",
+              "default": 5
+            },
+            "min_negative": {
+              "type": "integer",
+              "default": 10
+            },
+            "fdr": {
+              "type": "number",
+              "default": 0.05
+            },
+            "min_effect": {
+              "type": "number",
+              "default": 0.1
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "effects"
+          ]
+        }
+      },
+      {
+        "name": "flowfish_simulate",
+        "subcommand": "flowfish simulate",
+        "description": "Generate a synthetic guide x bin counts table for smoke testing the Flow-FISH skill: 100 negative controls + N elements each with G guides, fraction-knockdown elements pushed to a lower log-normal mean.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "out_dir": {
+              "type": "string"
+            },
+            "n_elements": {
+              "type": "integer",
+              "default": 40
+            },
+            "guides_per_element": {
+              "type": "integer",
+              "default": 8
+            },
+            "knockdown_frac": {
+              "type": "number",
+              "default": 0.3
+            },
+            "cells_per_guide": {
+              "type": "integer",
+              "default": 800
+            },
+            "seed": {
+              "type": "integer",
+              "default": 7
+            }
+          },
+          "required": [
+            "out_dir"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "martyn2025_variant_flowfish",
+        "paper": {
+          "authors": "Martyn GE et al.",
+          "journal": "Cell",
+          "year": 2025,
+          "doi": "10.1016/j.cell.2025.03.034",
+          "pmid": "40245860"
+        },
+        "checks": 1,
+        "run": "Benchmarks/martyn2025_variant_flowfish/run.sh"
+      }
+    ],
+    "n_checks": 1,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/FLOWFISH_CRISPR_SKILLS.md",
+  "license": "Apache-2.0"
+}

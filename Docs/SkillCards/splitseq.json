@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "id": "splitseq",
+  "version": "0.2.9",
+  "title": "Parse SPLiT-seq end-to-end pipeline",
+  "summary": "",
+  "module": "igvfagent.splitseq_pipeline",
+  "source": "Scripts/splitseq_pipeline.py",
+  "interfaces": {
+    "cli": "igvfagent splitseq",
+    "tools": [
+      {
+        "name": "splitseq_manifest",
+        "subcommand": "splitseq manifest",
+        "description": "Per-pool/per-donor file manifest for one or more SPLiT-seq AnalysisSet accessions.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "accessions": {
+              "type": "string",
+              "description": "Comma-separated AnalysisSet accessions."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "accessions"
+          ]
+        }
+      },
+      {
+        "name": "splitseq_retrieve",
+        "subcommand": "splitseq retrieve",
+        "description": "Discover IGVF Parse SPLiT-seq AnalysisSets by lab/tissue/taxa. Writes a manifest with donor + founder-strain metadata.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "lab": {
+              "type": "string"
+            },
+            "tissue": {
+              "type": "string"
+            },
+            "taxa": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "fetch_file_details": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/SPLITSEQ_SKILLS.md",
+  "license": "Apache-2.0"
+}

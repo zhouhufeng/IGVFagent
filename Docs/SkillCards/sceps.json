@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "sceps",
+  "version": "0.2.9",
+  "title": "scEPS single-cell disease-neighborhood statistics \u2014 clean-room reimpl of Genentech/sceps. Integrates GWAS (MAGMA Z) + single-cell atlas; per-neighborhood variance-component d-statistic (GWAS vs matched control genes). Subcommands: estimate. Runs under the scEPS env (scanpy/anndata/statsmodels).",
+  "summary": "scEPS \u2014 single-cell Expression exPlainability Statistics (IGVFagent port).",
+  "module": "igvfagent.sceps_skill",
+  "source": "Scripts/sceps_skill.py",
+  "interfaces": {
+    "cli": "igvfagent sceps",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "zou2026_sceps",
+        "paper": {
+          "authors": "Zou, Whitley, Tseng, ... Shi (Genentech)",
+          "journal": "medRxiv",
+          "year": 2026,
+          "doi": "10.64898/2026.06.26.26356714"
+        },
+        "checks": 5,
+        "run": "Benchmarks/zou2026_sceps/run.sh"
+      }
+    ],
+    "n_checks": 5,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

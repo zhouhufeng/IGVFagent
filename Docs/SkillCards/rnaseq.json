@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "id": "rnaseq",
+  "version": "0.2.9",
+  "title": "Bulk RNA-seq QC / PCA / DEG / DEG\u2192cCRE linkage",
+  "summary": "",
+  "module": "igvfagent.rnaseq_analysis_skill",
+  "source": "Scripts/rnaseq_analysis_skill.py",
+  "interfaces": {
+    "cli": "igvfagent rnaseq",
+    "tools": [
+      {
+        "name": "rnaseq_link_cre",
+        "subcommand": "rnaseq link-cre",
+        "description": "Given a DEG CSV (with `gene`, `log2FC`, `padj` columns), query the IGVF Catalog for the regulatory elements that control each significant gene. Useful as a follow-up to an existing DEG analysis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "deg": {
+              "type": "string"
+            },
+            "padj_cut": {
+              "type": "number",
+              "default": 0.05
+            },
+            "fc_cut": {
+              "type": "number",
+              "default": 1.0
+            },
+            "limit_per_gene": {
+              "type": "integer",
+              "default": 10
+            },
+            "max_genes": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "deg"
+          ]
+        }
+      },
+      {
+        "name": "rnaseq_pipeline",
+        "subcommand": "rnaseq pipeline",
+        "description": "End-to-end bulk RNA-seq: QC + PCA + differential expression (pyDESeq2 if installed, Welch's t-test + BH FDR fallback) + volcano/MA/heatmap plots + DEG \u2192 controlling cCRE linkage via the IGVF Catalog. Inputs: counts matrix + sample sheet + two group labels in --condition-col.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "counts": {
+              "type": "string"
+            },
+            "sample_sheet": {
+              "type": "string"
+            },
+            "condition_col": {
+              "type": "string",
+              "default": "condition"
+            },
+            "group_a": {
+              "type": "string",
+              "description": "Control / reference group label."
+            },
+            "group_b": {
+              "type": "string",
+              "description": "Treated / test group label."
+            },
+            "padj_cut": {
+              "type": "number",
+              "default": 0.05
+            },
+            "fc_cut": {
+              "type": "number",
+              "default": 1.0
+            },
+            "skip_link_cre": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "counts",
+            "sample_sheet",
+            "group_a",
+            "group_b"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/RNASEQ_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

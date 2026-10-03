@@ -1,0 +1,411 @@
+{
+  "schema_version": "1.0",
+  "id": "encode",
+  "version": "0.2.9",
+  "title": "ENCODE ChIP/ATAC/DNase/Hi-C/ChIA-PET pipeline",
+  "summary": "",
+  "module": "igvfagent.encode_pipeline",
+  "source": "Scripts/encode_pipeline.py",
+  "interfaces": {
+    "cli": "igvfagent encode",
+    "tools": [
+      {
+        "name": "encode_bigwig_frip",
+        "subcommand": "encode bigwig-frip",
+        "description": "FRiP (fraction-of-signal-in-peaks) from bigWig + peak BED. Requires [hic] extras.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bigwig": {
+              "type": "string"
+            },
+            "bed": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bigwig",
+            "bed"
+          ]
+        }
+      },
+      {
+        "name": "encode_bigwig_tss_heatmap",
+        "subcommand": "encode bigwig-tss-heatmap",
+        "description": "bigWig signal heatmap centered on anchors (TSS BED / peak summits) + meta-profile. Requires [hic] extras.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bigwig": {
+              "type": "string"
+            },
+            "anchor_bed": {
+              "type": "string"
+            },
+            "window": {
+              "type": "integer",
+              "default": 4000
+            },
+            "bins": {
+              "type": "integer",
+              "default": 200
+            },
+            "max_anchors": {
+              "type": "integer",
+              "default": 5000
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bigwig",
+            "anchor_bed"
+          ]
+        }
+      },
+      {
+        "name": "encode_browser",
+        "subcommand": "encode browser",
+        "description": "IGV-style multi-track SVG for a region. LABEL:PATH BED tracks + optional SCREEN cCRE overlay. Set `re2g='auto'` (and optionally a gene filter) to also draw enhancer\u2192gene linkage arcs from the IGVF Catalog (rE2G / ENCODE-rE2G / ABC). Use this for any user request that mentions 'rE2G links', 'enhancer-gene arcs', or 'browser view of gene X with its regulatory elements'.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "chr19:44903000-44912000"
+            },
+            "tracks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of `LABEL:PATH` strings for each BED track to render."
+            },
+            "with_ccre": {
+              "type": "boolean",
+              "default": false
+            },
+            "ccre_bed": {
+              "type": "string"
+            },
+            "width": {
+              "type": "integer",
+              "default": 1000
+            },
+            "label": {
+              "type": "string"
+            },
+            "re2g": {
+              "type": "string",
+              "description": "Pass 'auto' to pull enhancer\u2192gene links from the IGVF Catalog, or a path to a BEDPE / CSV linkage file."
+            },
+            "re2g_gene_filter": {
+              "type": "string",
+              "description": "Comma-separated gene symbols to restrict arcs (e.g. 'BRCA1' or 'APOE,TOMM40')."
+            },
+            "re2g_score_cut": {
+              "type": "number",
+              "default": 0.0,
+              "description": "Minimum rE2G/ABC score to render."
+            },
+            "re2g_limit": {
+              "type": "integer",
+              "default": 200
+            },
+            "re2g_arcs_height": {
+              "type": "integer",
+              "default": 140
+            }
+          },
+          "required": [
+            "region"
+          ]
+        }
+      },
+      {
+        "name": "encode_describe",
+        "subcommand": "encode describe",
+        "description": "Plain-language report for one ENCODE experiment: assay, biosample, target, replicates, file inventory.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "accession": {
+              "type": "string",
+              "description": "ENCODE accession (e.g. ENCSR000DUB)."
+            }
+          },
+          "required": [
+            "accession"
+          ]
+        }
+      },
+      {
+        "name": "encode_hic_insulation",
+        "subcommand": "encode hic-insulation",
+        "description": "Crane-style insulation score for TAD-boundary calls from .mcool/.hic. Requires [hic] extras.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "resolution": {
+              "type": "integer",
+              "default": 10000
+            },
+            "window": {
+              "type": "integer",
+              "default": 200000
+            },
+            "balance": {
+              "type": "boolean",
+              "default": false
+            },
+            "boundary_threshold": {
+              "type": "number",
+              "default": -0.3
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input",
+            "region"
+          ]
+        }
+      },
+      {
+        "name": "encode_hic_matrix",
+        "subcommand": "encode hic-matrix",
+        "description": "Hi-C contact heatmap for a region from .mcool or .hic. Requires [hic] extras.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Path to .mcool / .hic file."
+            },
+            "region": {
+              "type": "string",
+              "description": "chr19:44900000-45100000"
+            },
+            "resolution": {
+              "type": "integer",
+              "default": 10000
+            },
+            "balance": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input",
+            "region"
+          ]
+        }
+      },
+      {
+        "name": "encode_integrate_ccre",
+        "subcommand": "encode integrate-ccre",
+        "description": "Overlay a peak BED with SCREEN cCRE classes (PLS/pELS/dELS/CTCF). Auto-downloads the cCRE registry on first use.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bed": {
+              "type": "string"
+            },
+            "ccre_bed": {
+              "type": "string",
+              "description": "Optional local cCRE BED override."
+            },
+            "ccre_class": {
+              "type": "string",
+              "enum": [
+                "PLS",
+                "pELS",
+                "dELS",
+                "CTCF"
+              ]
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bed"
+          ]
+        }
+      },
+      {
+        "name": "encode_loops_analyze",
+        "subcommand": "encode loops-analyze",
+        "description": "Loop QC from .bedpe (Hi-C / ChIA-PET / capture Hi-C): length distribution, intra/inter split, optional anchor-peak overlap.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bedpe": {
+              "type": "string"
+            },
+            "peaks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional `LABEL:PATH` peak BEDs to intersect against the loop anchors."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bedpe"
+          ]
+        }
+      },
+      {
+        "name": "encode_motif_enrichment",
+        "subcommand": "encode motif-enrichment",
+        "description": "TF motif enrichment in peak sequences (CTCF/AP-1/GATA1/ETS/NFkB/STAT1/FOXA1/TP53/MYC/SP1) vs shuffled background. Requires --genome FASTA and [motif] extras.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bed": {
+              "type": "string"
+            },
+            "genome": {
+              "type": "string",
+              "description": "Path to indexed genome FASTA, e.g. hg38.fa or hg38.fa.gz."
+            },
+            "top": {
+              "type": "integer",
+              "default": 2000
+            },
+            "score_cutoff": {
+              "type": "number",
+              "default": 8.0
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bed",
+            "genome"
+          ]
+        }
+      },
+      {
+        "name": "encode_retrieve",
+        "subcommand": "encode retrieve",
+        "description": "Search ENCODE for experiments by assay (ChIP-seq / Histone / ATAC-seq / DNase / Hi-C / capture Hi-C / ChIA-PET / RNA-seq / MNase / FAIRE / CAGE / RAMPAGE), biosample, target, assembly.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "assay": {
+              "type": "string",
+              "description": "Assay group; e.g. 'Histone ChIP-seq', 'ATAC-seq', 'Hi-C'."
+            },
+            "biosample": {
+              "type": "string",
+              "description": "Biosample term name (K562, GM12878, liver, hippocampus, etc.)."
+            },
+            "target": {
+              "type": "string",
+              "description": "ChIP-seq / Histone target (H3K27ac, CTCF, etc.). Ignored for non-ChIP."
+            },
+            "assembly": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "fetch_file_details": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assay"
+          ]
+        }
+      },
+      {
+        "name": "encode_super_enhancers",
+        "subcommand": "encode super-enhancers",
+        "description": "ROSE-style super-enhancer call from an enhancer-mark peak BED (H3K27ac/BRD4/MED1/P300). Stitches + ranks + inflection point.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "bed": {
+              "type": "string"
+            },
+            "stitching_distance": {
+              "type": "integer",
+              "default": 12500
+            },
+            "tss_bed": {
+              "type": "string",
+              "description": "Optional TSS BED for excluding promoter-proximal peaks."
+            },
+            "tss_distance": {
+              "type": "integer",
+              "default": 2000
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "bed"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "wenglab_dl"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "yao2024_encode4_crispri",
+        "paper": {
+          "authors": "Yao D et al.",
+          "journal": "Nat Methods",
+          "year": 2024,
+          "doi": "10.1038/s41592-024-02216-7",
+          "pmid": "38504114"
+        },
+        "checks": 4,
+        "run": "Benchmarks/yao2024_encode4_crispri/run.sh"
+      }
+    ],
+    "n_checks": 4,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/ENCODE_PIPELINE_SKILLS.md",
+  "license": "Apache-2.0"
+}

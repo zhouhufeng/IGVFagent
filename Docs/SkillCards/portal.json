@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0",
+  "id": "portal",
+  "version": "0.2.9",
+  "title": "IGVF Portal canonical-query layer \u2014 faceted search, report.tsv, batch-download, endpoint-param introspection (clean-room reimpl of IGVF-DACC/igvf-portal-mcp)",
+  "summary": "IGVF Portal canonical-query skill.",
+  "module": "igvfagent.portal_query_skill",
+  "source": "Scripts/portal_query_skill.py",
+  "interfaces": {
+    "cli": "igvfagent portal",
+    "tools": [
+      {
+        "name": "portal_batch_download",
+        "subcommand": "portal batch-download",
+        "description": "IGVF PORTAL BATCH-DOWNLOAD MANIFEST \u2605. Hits `/batch-download/` for a FileSet type (MeasurementSet / AnalysisSet / etc.) and returns a manifest of pre-signed S3 URLs for every File hanging off the selected sets. Optional `fetch=true` actually pulls each file to disk. USE THIS to grab raw data files for a slice of IGVF in one round-trip.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "field_filters": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "string",
+              "default": "all"
+            },
+            "fetch": {
+              "type": "boolean",
+              "default": false,
+              "description": "Also download each file in the manifest."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      },
+      {
+        "name": "portal_endpoint_params",
+        "subcommand": "portal endpoint-params",
+        "description": "IGVF PORTAL ENDPOINT-PARAM INTROSPECTION (the DACC UX trick) \u2605. For any portal collection (`measurement-sets`, `analysis-sets`, `sequence-files`, ...), returns the documented filter set as a table mapping the Python-friendly snake_case `agent_param` (file_set_id, lab_title, samples_taxa, ...) to the dotted `search_field` the search index understands (file_set.@id, lab.title, samples.taxa, ...). Lets an LLM pivot between tooled and raw search without re-learning fields.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "collection": {
+              "type": "string",
+              "description": "Snake-case collection (e.g. measurement-sets)."
+            }
+          },
+          "required": [
+            "collection"
+          ]
+        }
+      },
+      {
+        "name": "portal_facets",
+        "subcommand": "portal facets",
+        "description": "IGVF PORTAL FACETS-ONLY CALL \u2605. Calls `/search/` with `limit=0` to retrieve only the `facets[]` aggregation block \u2014 no items, just per-category value counts (assay titles, lab ids, taxa, sample terms, perturbation modality, file formats, etc.). USE THIS to summarise what IGVF has across a slice of data (e.g. 'how many of each assay class for human putamen tissue?'). Set `field` to the name of ONE facet (e.g. 'content_type') to dump EVERY value of that facet with counts instead of the top-5 preview \u2014 the reliable way to discover the exact filter term for a rare value in a single call, rather than guessing field_filters and getting 404s.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "field_filters": {
+              "type": "string"
+            },
+            "field": {
+              "type": "string",
+              "description": "List every value of this one facet field (e.g. 'content_type', 'assay_titles'); lists available fields if the name does not match."
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "portal_get",
+        "subcommand": "portal get",
+        "description": "FETCH ONE IGVF PORTAL ITEM \u2605. Resolves a single item by @id ('/measurement-sets/IGVFDS3909HJKS/'), accession ('IGVFDS3909HJKS'), or UUID, returning the full embedded JSON + @type breakdown + saved file. USE THIS to inspect a specific MeasurementSet / AnalysisSet / Donor / etc. that you know the id of.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "resource_id": {
+              "type": "string",
+              "description": "@id, accession (IGVFFI...), or UUID."
+            }
+          },
+          "required": [
+            "resource_id"
+          ]
+        }
+      },
+      {
+        "name": "portal_list_types",
+        "subcommand": "portal list-types",
+        "description": "List the canonical IGVF CamelCase ItemTypes and their snake-case collection paths (e.g. MeasurementSet \u2194 /measurement-sets/). Useful as a quick lookup before calling portal_search or portal_schema.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "portal_report",
+        "subcommand": "portal report",
+        "description": "IGVF PORTAL TSV REPORT EXPORT \u2605. Streams the canonical `/report.tsv` export for an ItemType (paginated server-side) to disk. Returns row + column count + first-8-column preview + saved TSV path. USE THIS when you need a spreadsheet-shaped dump of every matching item (lab inventories, file manifests, donor cohorts) rather than the per-item JSON.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "field_filters": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "string",
+              "default": "all"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      },
+      {
+        "name": "portal_schema",
+        "subcommand": "portal schema",
+        "description": "IGVF JSON SCHEMA INTROSPECTION \u2605. Fetches the canonical JSON schema (`/profiles/<Type>.json`) for any CamelCase ItemType (MeasurementSet, SequenceFile, HumanDonor, etc.) and reports title + description + all 60+ documented properties. USE THIS to discover what fields exist on a type before constructing a search / report query.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_type": {
+              "type": "string",
+              "description": "CamelCase ItemType (e.g. MeasurementSet)."
+            }
+          },
+          "required": [
+            "item_type"
+          ]
+        }
+      },
+      {
+        "name": "portal_search",
+        "subcommand": "portal search",
+        "description": "IGVF PORTAL FACETED SEARCH (canonical DACC pattern) \u2605. Searches the IGVF Portal `/search/` endpoint with a typed ItemType filter (MeasurementSet / AnalysisSet / SequenceFile / HumanDonor / etc.) and an optional free-text query, returning matching `@graph` items + total count + saved JSON. Supports the DACC field-filter DSL: dotted embedded fields (`lab.@id=/labs/x`), negation (`field!=val`), range ops (`gte:`/`lte:`/`gt:`/`lt:`), and list values (`field=a,b,c`). Clauses joined by `;`. USE THIS for any 'find me IGVF Portal items where ...' question. Works anonymously over `api.data.igvf.org` for released items; HTTP Basic auth via IGVF_ACCESS_KEY/SECRET unlocks restricted ones.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Comma-list of CamelCase ItemTypes (MeasurementSet, AnalysisSet, SequenceFile, HumanDonor, Tissue, Gene, etc.)."
+            },
+            "query": {
+              "type": "string",
+              "description": "Free-text search."
+            },
+            "field_filters": {
+              "type": "string",
+              "description": "DSL: 'lab.@id=/labs/x;file_format=bam,bed'."
+            },
+            "limit": {
+              "type": "string",
+              "default": "25",
+              "description": "Integer or 'all'."
+            },
+            "sort": {
+              "type": "string"
+            },
+            "frame": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/IGVF_PORTAL_DATA_ANALYSIS.md",
+  "license": "Apache-2.0"
+}

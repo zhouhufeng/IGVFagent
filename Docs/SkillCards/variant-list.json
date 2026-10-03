@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "id": "variant-list",
+  "version": "0.2.9",
+  "title": "Annotate a pasted/file variant list in any notation (chr-pos-ref-alt, rsID, SPDI, HGVS, VCF) via FAVOR + IGVF Catalog, and add the results to the local KG",
+  "summary": "Annotate a variant list in any common notation, and land it in the KG.",
+  "module": "igvfagent.variant_list_skill",
+  "source": "Scripts/variant_list_skill.py",
+  "interfaces": {
+    "cli": "igvfagent variant-list",
+    "tools": [
+      {
+        "name": "annotate_variant_list",
+        "subcommand": "variant-list annotate",
+        "description": "ANNOTATE A LIST OF VARIANTS PASTED BY THE USER \u2605 and add them to the local knowledge graph as variant vertices. Pass the list VERBATIM in `variants` \u2014 any notation and any separator works (2-21001846-G-A, chr2:21001846:G:A, rs763341676, SPDI, HGVS, VCF lines; spaces, commas or newlines). THIS IS THE RIGHT TOOL whenever someone pastes variants and asks to annotate, characterise, or add them to the KG \u2014 do NOT ask them for a CSV file first. Queries FAVOR (CADD, ClinVar, GENCODE, enhancer/promoter overlap) and the IGVF Catalog, writes a report plus CSV/JSON, and upserts variant nodes with edges to genes and diseases.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "variants": {
+              "type": "string",
+              "description": "The variant list verbatim, any notation."
+            },
+            "input": {
+              "type": "string",
+              "description": "Alternative: path to a file of variants."
+            },
+            "label": {
+              "type": "string",
+              "description": "Short label for the run directory."
+            },
+            "sources": {
+              "type": "string",
+              "description": "Comma list: favor, catalog (default both)."
+            },
+            "max_rows": {
+              "type": "integer",
+              "description": "0 = all."
+            },
+            "no_kg": {
+              "type": "boolean",
+              "description": "Annotate without writing to the KG."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Manifest",
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

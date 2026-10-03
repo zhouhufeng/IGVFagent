@@ -1,0 +1,30 @@
+study: "Comprehensive evidence pack for a gene"
+description: |
+  Multi-source evidence pack for a single target gene: knowledge-graph
+  traversal + MPRA / STARR evidence + literature corroboration. Designed
+  to give a complete first-pass briefing in one playbook call.
+
+parameters:
+  gene:    { default: APOE,                 description: "HGNC gene symbol." }
+  disease: { default: "Alzheimer disease",  description: "Disease for literature validation." }
+  mpra_limit: { default: 25,                 description: "Number of MPRA evidence rows to pull." }
+
+steps:
+  - tool: kg_gene
+    label: "KG: ${gene} multi-hop evidence"
+    args:
+      symbol: "${gene}"
+      depth: 2
+
+  - tool: mpra_pull
+    label: "MPRA evidence (catalog)"
+    args:
+      source: catalog
+      limit: ${mpra_limit}
+
+synthesis: |
+  Write a publication-ready evidence pack for ${gene} (disease focus:
+  ${disease}). For each step's artefacts, summarize the top findings
+  in 2-3 bullets. End with a single-paragraph integrative narrative
+  tying the KG traversal, the MPRA evidence, and the disease context
+  together.

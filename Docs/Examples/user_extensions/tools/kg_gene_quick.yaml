@@ -1,0 +1,29 @@
+# User tool template — re-surface an existing `igvfagent` subcommand
+# under your own name, defaults, and description. Useful for teaching
+# the agent a lab-specific shortcut without touching Scripts/_tools.py.
+#
+# `cli` (instead of `command`) means: run `igvfagent kg gene ...` — the
+# audit trail and localstore harvest behave exactly like the built-in.
+
+name: kg_gene_quick
+description: >
+  Fast one-hop gene lookup in the IGVF Knowledge Graph with a small
+  result cap. Prefer this over kg_gene when the user only wants a
+  quick sanity check on a gene symbol.
+
+cli: ["kg", "gene"]
+
+parameters:
+  type: object
+  properties:
+    symbol:
+      type: string
+      description: Gene symbol, e.g. APOE.
+    limit:
+      type: integer
+      default: 5
+  required: [symbol]
+
+positional: [symbol]
+flag_map:
+  limit: "--limit"

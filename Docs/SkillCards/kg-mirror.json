@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "id": "kg-mirror",
+  "version": "0.2.9",
+  "title": "Local IGVF KG mirror (Arango -> Parquet + DuckDB)",
+  "summary": "",
+  "module": "igvfagent.kg_mirror_skill",
+  "source": "Scripts/kg_mirror_skill.py",
+  "interfaces": {
+    "cli": "igvfagent kg-mirror",
+    "tools": [
+      {
+        "name": "kg_mirror_inventory",
+        "subcommand": "kg-mirror inventory",
+        "description": "List Arango collections in the IGVF Catalog KG with per-collection document counts and on-disk byte sizes. Writes a CSV inventory.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "kg_mirror_pull",
+        "subcommand": "kg-mirror pull",
+        "description": "Mirror a single Arango collection locally: stream via AQL cursor and persist as zstd-compressed Parquet shards under Data/Warehouse/KG/<collection>/. Resumable \u2014 re-run to continue.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "collection": {
+              "type": "string"
+            },
+            "batch_size": {
+              "type": "integer",
+              "default": 5000
+            },
+            "max_rows": {
+              "type": "integer"
+            },
+            "restart": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "collection"
+          ]
+        }
+      },
+      {
+        "name": "kg_mirror_pull_all",
+        "subcommand": "kg-mirror pull-all",
+        "description": "Mirror every Arango collection except the skip list (default skip: variants and variants_variants \u2014 together ~1.5 TB). Small collections first, then medium, then large. Resumable.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "skip": {
+              "type": "string",
+              "default": "variants,variants_variants"
+            },
+            "only": {
+              "type": "string"
+            },
+            "include_giants": {
+              "type": "boolean",
+              "default": false
+            },
+            "max_collection_bytes": {
+              "type": "integer"
+            },
+            "batch_size": {
+              "type": "integer",
+              "default": 5000
+            },
+            "max_rows": {
+              "type": "integer"
+            },
+            "restart": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      },
+      {
+        "name": "kg_mirror_register",
+        "subcommand": "kg-mirror register",
+        "description": "Register the on-disk Parquet shards as DuckDB views in Data/Warehouse/igvf_kg_mirror.duckdb (one view per collection, named kg_<collection>).",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "kg_mirror_verify",
+        "subcommand": "kg-mirror verify",
+        "description": "Print row counts for every kg_* view in the local DuckDB warehouse.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "arango"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/KG_MIRROR_SKILL.md",
+  "license": "Apache-2.0"
+}

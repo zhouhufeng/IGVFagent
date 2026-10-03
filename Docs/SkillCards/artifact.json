@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "id": "artifact",
+  "version": "0.2.9",
+  "title": "Read back reports/manifests the agent produced (workspace-contained: read / grep / ls)",
+  "summary": "Read back the artefacts the agent just produced.",
+  "module": "igvfagent.artifact_read_skill",
+  "source": "Scripts/artifact_read_skill.py",
+  "interfaces": {
+    "cli": "igvfagent artifact",
+    "tools": [
+      {
+        "name": "grep_artifacts",
+        "subcommand": "artifact grep",
+        "description": "SEARCH INSIDE produced artefacts \u2605 for a regex \u2014 find which report mentions a gene, disease, or accession without reading each one. Returns file, line number, and the matching line.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Regex to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "Directory or file to search (default Docs)."
+            },
+            "max_hits": {
+              "type": "integer",
+              "description": "Cap on hits (default 50)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      },
+      {
+        "name": "list_artifacts",
+        "subcommand": "artifact ls",
+        "description": "LIST a run directory \u2605 to discover what a skill actually wrote before reading it. Use on the run dir a skill reported.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Directory (default Docs)."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Max entries (default 200)."
+            }
+          }
+        }
+      },
+      {
+        "name": "read_artifact",
+        "subcommand": "artifact read",
+        "description": "READ A FILE THIS AGENT PRODUCED \u2605 \u2014 reports, manifests, JSON, CSV, TSV, logs. Skills announce outputs as `Report: <path>`; use this to OPEN that path and quote what is actually inside. ALWAYS call this before summarising a report: without it you only know the counts a skill happened to print, so you would say '18 diseases' instead of naming them. Use --head/--tail to page a large file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Workspace-relative or absolute path to read."
+            },
+            "head": {
+              "type": "integer",
+              "description": "Return only the first N lines."
+            },
+            "tail": {
+              "type": "integer",
+              "description": "Return only the last N lines."
+            },
+            "max_bytes": {
+              "type": "integer",
+              "description": "Byte cap (default 200000)."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

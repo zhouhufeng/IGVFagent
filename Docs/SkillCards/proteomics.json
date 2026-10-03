@@ -1,0 +1,271 @@
+{
+  "schema_version": "1.0",
+  "id": "proteomics",
+  "version": "0.2.9",
+  "title": "Proteomics & PPI: BioGRID/IntAct/HuRI/Reactome/KEGG/IGVF integration, KG, viz, literature survey",
+  "summary": "",
+  "module": "igvfagent.proteomics_skill",
+  "source": "Scripts/proteomics_skill.py",
+  "interfaces": {
+    "cli": "igvfagent proteomics",
+    "tools": [
+      {
+        "name": "proteomics_assay_figures",
+        "subcommand": "proteomics assay-figures",
+        "description": "Generate per-assay example histograms from the IGVF Portal files for VAMP-seq family, MAVE, semi-qY2H v1/v2/v3, DUAL-IPA. Requires `proteomics igvf-protein` first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_assay_survey",
+        "subcommand": "proteomics assay-survey",
+        "description": "Use the Reference skill to retrieve recent Nature/Cell/Science studies on VAMP-seq (MultiSTEP), VAMP-seq, MAVE, semi-qY2H, and DUAL-IPA. Writes literature_survey.md/.json.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "max_per_assay": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_build_kg",
+        "subcommand": "proteomics build-kg",
+        "description": "Build the local SQLite proteomics knowledge graph from previously-downloaded sources. Edges deduped on (id_a, id_b, source, source_id).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "string",
+              "default": "all",
+              "description": "biogrid,intact,huri,reactome,kegg,igvf,uniprot or 'all'."
+            },
+            "max_rows": {
+              "type": "integer",
+              "default": 0,
+              "description": "Cap rows per source (0 = no cap)."
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_download",
+        "subcommand": "proteomics download",
+        "description": "Download latest PPI/pathway sources (BioGRID, IntAct, HuRI, Reactome, KEGG, UniProt idmap) and IGVF Portal protein assays. Maintains _versions.json and only re-fetches changed releases.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "description": "biogrid|intact|huri|reactome|kegg|igvf|uniprot|all (comma-separated)"
+            },
+            "biogrid_version": {
+              "type": "string",
+              "description": "Pin a BioGRID release (e.g. 4.4.244)."
+            },
+            "kegg_max_pathways": {
+              "type": "integer",
+              "default": 400
+            }
+          },
+          "required": [
+            "source"
+          ]
+        }
+      },
+      {
+        "name": "proteomics_igvf_protein",
+        "subcommand": "proteomics igvf-protein",
+        "description": "Pull all IGVF Portal protein-assay metadata + actual PPI / stability files (semi-qY2H, DUAL-IPA, VAMP-seq) into Data/Proteomics/Sources/IGVF/.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "proteomics_kg_stats",
+        "subcommand": "proteomics kg-stats",
+        "description": "Summary statistics on the integrated proteomics PPI-KG: total interactions, distinct proteins, per-source / per-evidence-type / per-detection-method breakdowns, top hubs.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_kg_visualize",
+        "subcommand": "proteomics kg-visualize",
+        "description": "Generate degree distribution, top-hubs, per-source breakdown, and (when --gene given) an ego graph PNG. Saves under Docs/Proteomics/<ts>_<label>/Plots/.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string",
+              "description": "Symbol/UniProt for ego graph."
+            },
+            "max_neighbors": {
+              "type": "integer",
+              "default": 60
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_pipeline",
+        "subcommand": "proteomics pipeline",
+        "description": "End-to-end: download sources \u2192 build KG \u2192 stats \u2192 visualize \u2192 per-assay figures \u2192 literature survey. Use --skip-download to reuse cached files; --gene to add an ego graph.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "string",
+              "default": "all"
+            },
+            "label": {
+              "type": "string",
+              "default": "pipeline"
+            },
+            "gene": {
+              "type": "string"
+            },
+            "max_rows": {
+              "type": "integer",
+              "default": 0
+            },
+            "skip_download": {
+              "type": "boolean",
+              "default": false
+            },
+            "skip_literature": {
+              "type": "boolean",
+              "default": false
+            },
+            "skip_assay_figures": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_vampseq_analyze",
+        "subcommand": "proteomics vampseq-analyze",
+        "description": "Deep VAMP-seq analysis on a MaveDB scoreset. Produces the Fowler-lab-style suite of plots: score-density distribution, residue\u00d7AA heatmap, per-residue mean (\u00b1 IQR) AND per-residue median + 3-residue moving average, replicate concordance (rep-1 vs rep-2) AND N\u00d7N replicate matrix when \u2265 3 reps, abundance-class bar, cumulative ranked variants WITH 95 % CI band, nonsense-by-position QC scatter, biophysical-feature Spearman \u03c1 panel (when RSA / B-factor / hydrophobicity / Grantham / PSIC columns are present), and an optional PyMOL .pml export when `pdb_id` is supplied.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string",
+              "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | NUDT15. Omit for all targets."
+            },
+            "label": {
+              "type": "string"
+            },
+            "pdb_id": {
+              "type": "string",
+              "description": "Optional PDB id (e.g. 1d5r for PTEN, 2bzg for TPMT). When set, emits a PyMOL .pml that overlays the abundance scale on the structure."
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_vampseq_inventory",
+        "subcommand": "proteomics vampseq-inventory",
+        "description": "Decode IGVF Portal raw VAMP-seq MeasurementSets into a tile \u00d7 bin \u00d7 replicate \u00d7 antibody coverage matrix per target gene (currently F9 from the MultiSTEP deposit, plus CYP2C19 / G6PD).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_vampseq_pull",
+        "subcommand": "proteomics vampseq-pull",
+        "description": "Download canonical published VAMP-seq scoresets from MaveDB (PTEN, TPMT, VKOR, PRKN, CYP2C9, NUDT15). Pulls per-replicate score CSVs for downstream analysis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string",
+              "description": "Gene symbol; omit to pull all curated VAMP-seq targets."
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_vampseq_showcase",
+        "subcommand": "proteomics vampseq-showcase",
+        "description": "ONE-COMMAND COMPREHENSIVE VAMP-SEQ DEMO \u2605. Auto-downloads the MaveDB scoreset for a target gene (PTEN by default; also TPMT, VKOR, PRKN, CYP2C9, NUDT15), runs the full Fowler-lab 10-plot suite (score distribution, residue\u00d7AA heatmap, per-residue mean+IQR + median+moving-avg, replicate concordance + N\u00d7N matrix, abundance-class bar, nonsense-by-position QC, cumulative ranked variants with 95% CI, biophysical-feature correlations) AND a publication-grade 9-panel composite figure AND a deep narrative report explaining how to read every plot. USE THIS TOOL for any 'show me VAMP-seq', 'analyze VAMP-seq for <gene>', 'demonstrate variant abundance' question \u2014 do NOT call proteomics_vampseq_pull + proteomics_vampseq_analyze separately.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene": {
+              "type": "string",
+              "description": "PTEN | TPMT | VKOR | PRKN | CYP2C9 | NUDT15"
+            },
+            "label": {
+              "type": "string"
+            },
+            "pdb_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "proteomics_versions",
+        "subcommand": "proteomics versions",
+        "description": "Show locally-installed PPI/pathway source versions and probe upstream-latest. Use before deciding to update.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "biogrid",
+    "huri",
+    "intact_ftp",
+    "kegg_rest",
+    "mavedb_api",
+    "portal_api",
+    "rcsb_files",
+    "reactome_dl",
+    "uniprot_idmap"
+  ],
+  "artefact_kinds": [
+    "Output",
+    "Report",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/PROTEOMICS_SKILLS.md",
+  "license": "Apache-2.0"
+}

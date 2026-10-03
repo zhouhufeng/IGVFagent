@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "id": "explain",
+  "version": "0.2.9",
+  "title": "Explain an IGVF / ENCODE accession or search URL",
+  "summary": "",
+  "module": "igvfagent.data_illustration_interpretation",
+  "source": "Scripts/data_illustration_interpretation.py",
+  "interfaces": {
+    "cli": "igvfagent explain",
+    "tools": [
+      {
+        "name": "explain_dataset",
+        "subcommand": "explain explain",
+        "description": "Plain-language explainer for an IGVF/ENCODE accession or URL: metadata, file inventory, SVG overview plots, how-to-use report.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "accession_or_url": {
+              "type": "string"
+            },
+            "download": {
+              "type": "boolean",
+              "default": false
+            },
+            "max_download_gb": {
+              "type": "number",
+              "default": 0.3
+            }
+          },
+          "required": [
+            "accession_or_url"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "encode",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Manifest",
+    "Report"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/DATA_ILLUSTRATION_INTERPRETATION_SKILLS.md",
+  "license": "Apache-2.0"
+}

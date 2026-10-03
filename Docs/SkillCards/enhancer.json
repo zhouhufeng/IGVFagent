@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "id": "enhancer",
+  "version": "0.2.9",
+  "title": "Enhancer-gene linkage retrieval and comparison",
+  "summary": "",
+  "module": "igvfagent.enhancer_gene_linkage_skills",
+  "source": "Scripts/enhancer_gene_linkage_skills.py",
+  "interfaces": {
+    "cli": "igvfagent enhancer",
+    "tools": [
+      {
+        "name": "enhancer_gene_overview",
+        "subcommand": "enhancer overview",
+        "description": "Pull enhancer-gene linkage (ABC/rE2G/eQTL) from Catalog or ENCODE.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "encode",
+                "all"
+              ],
+              "default": "catalog"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "portal"
+  ],
+  "artefact_kinds": [
+    "Manifest"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/ENHANCER_GENE_LINKAGE_SKILLS.md",
+  "license": "Apache-2.0"
+}

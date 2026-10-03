@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Interactive terminal-side dialog with IGVFagent.
+#
+# Usage:
+#   bash Scripts/igvfagent_repl.sh                         # zsh/bash, OpenAI gpt-5 default
+#   IGVF_LLM_MODEL=gpt-4o-mini bash Scripts/igvfagent_repl.sh   # faster + cheaper
+#   IGVF_LLM_BACKEND=ollama IGVF_LLM_MODEL=qwen3.6:35b-a3b-coding-bf16 \
+#       bash Scripts/igvfagent_repl.sh                     # local, no network
+#
+# Commands inside the REPL:
+#   :q  /  :quit  /  :exit       leave the REPL
+#   :model <name>                switch model on the fly
+#   :iter <n>                    change max-iterations cap (default 12)
+#   :quiet                       toggle per-step trace printing
+#   :history                     list this session's transcripts
+#   :help                        print this menu
+
+set -uo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+cd "$ROOT"
+
+# Source .env files (repo, home, or both) so the API key reaches the agent.
+[ -f "$ROOT/.env" ] && { set -a; source "$ROOT/.env"; set +a; }
+[ -f "$HOME/.env" ] && { set -a; source "$HOME/.env"; set +a; }
+
+# Find a working `igvfagent` executable. Tries, in order:
+#   0. $IGVFAGENT_BIN, if set             (say exactly which one to use)
+#   1. $ROOT/.venv/bin/igvfagent          (script's own repo .venv)
+#   2. .venv/bin/igvfagent in any worktree under $ROOT/.claude/worktrees/
+#   3. system `igvfagent` on PATH
+#   4. .venv/bin/python -m igvfagent      (as a last resort)
+# A .venv is used only if its Python actually runs here. A checkout copied
+# between machines (a laptop's macOS .venv on a Linux cluster, say) keeps the
+# other machine's .venv, and its `igvfagent` looks executable but fails with
+# "Exec format error" on every question.
+venv_runs() { "$1/bin/python" -c '' >/dev/null 2>&1; }
+
+find_igvfagent() {
+    if [ -n "${IGVFAGENT_BIN:-}" ]; then
+        echo "$IGVFAGENT_BIN"; return 0
+    fi
+    if [ -x "$ROOT/.venv/bin/igvfagent" ] && venv_runs "$ROOT/.venv"; then
+        echo "$ROOT/.venv/bin/igvfagent"; return 0
+    fi
+    if [ -d "$ROOT/.claude/worktrees" ]; then
+        for d in "$ROOT/.claude/worktrees"/*/; do
+            if [ -x "$d.venv/bin/igvfagent" ] && venv_runs "$d.venv"; then
+                echo "$d.venv/bin/igvfagent"; return 0
+            fi
+        done
+    fi
+    if command -v igvfagent >/dev/null 2>&1; then
+        echo "$(command -v igvfagent)"; return 0
+    fi
+    if [ -x "$ROOT/.venv/bin/python" ] && venv_runs "$ROOT/.venv"; then
+        echo "$ROOT/.venv/bin/python -m igvfagent"; return 0
+    fi
+    return 1
+}
+
+IGVFAGENT_BIN="$(find_igvfagent)" || {
+    printf 'error: cannot find an `igvfagent` executable.\n' >&2
+    printf '  searched:\n' >&2
+    printf '    %s/.venv/bin/igvfagent\n' "$ROOT" >&2
+    printf '    %s/.claude/worktrees/*/.venv/bin/igvfagent\n' "$ROOT" >&2
+    printf '    $(command -v igvfagent)\n' >&2
+    if [ -x "$ROOT/.venv/bin/python" ] && ! venv_runs "$ROOT/.venv"; then
+        printf '  (%s/.venv exists but its Python does not run on this machine;\n' "$ROOT" >&2
+        printf '   it was probably copied from another OS)\n' >&2
+    fi
+    printf '  or set IGVFAGENT_BIN=/path/to/igvfagent\n' >&2
+    printf '\nTo fix:\n' >&2
+    printf '  cd %s/.claude/worktrees/festive-volhard-60dea7/\n' "$ROOT" >&2
+    printf '  bash Scripts/igvfagent_repl.sh\n' >&2
+    printf '\n(or `pip install -e .` into a .venv at the repo root)\n' >&2
+    exit 2
+}
+
+# Backend: IGVF_LLM_BACKEND / IGVF_LLM_MODEL when set. Otherwise OpenAI gpt-5
+# if there is an OpenAI key (the long-standing default), else Claude if there
+# is an Anthropic key, else leave the choice to `igvfagent ask`, which
+# auto-detects (a local Ollama model when no key is set at all).
+if [ -n "${IGVF_LLM_BACKEND:-}" ]; then
+    BACKEND="$IGVF_LLM_BACKEND"; MODEL="${IGVF_LLM_MODEL:-}"
+elif [ -n "${OPENAI_API_KEY:-}" ]; then
+    BACKEND=openai; MODEL="${IGVF_LLM_MODEL:-gpt-5}"
+elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    BACKEND=anthropic; MODEL="${IGVF_LLM_MODEL:-claude-opus-5-5}"
+else
+    BACKEND=""; MODEL="${IGVF_LLM_MODEL:-}"
+fi
+MAX_ITER="${IGVF_AGENT_MAX_ITER:-12}"
+MAX_TOK="${IGVF_AGENT_MAX_TOK:-4096}"
+TEMP="${IGVF_AGENT_TEMP:-0.0}"
+QUIET_FLAG=""
+
+printf '\n┌──────────────────────────────────────────────────────────────┐\n'
+printf '│ IGVFagent terminal dialog                                    │\n'
+printf '│ backend: %-10s · model: %-30s │\n' "${BACKEND:-auto}" "${MODEL:-default}"
+printf '│ max_iter: %-3d · max_tok: %-5d · temp: %-3s · :help for menu │\n' "$MAX_ITER" "$MAX_TOK" "$TEMP"
+printf '└──────────────────────────────────────────────────────────────┘\n'
+printf '  exec: %s\n\n' "$IGVFAGENT_BIN"
+
+while true; do
+    # Read a multi-line-friendly prompt (single line, ends on Enter)
+    printf '\033[1;36m›\033[0m '
+    if ! IFS= read -r line; then
+        printf '\n(EOF — bye)\n'
+        break
+    fi
+    case "$line" in
+        ""|:|':help')
+            cat <<EOF
+  :q | :quit | :exit       leave the REPL
+  :model <name>            switch LLM (e.g. :model gpt-4o-mini)
+  :iter <n>                set max-iterations (e.g. :iter 25)
+  :quiet                   toggle per-step trace
+  :history                 list this session's transcripts
+EOF
+            continue
+            ;;
+        ':q'|':quit'|':exit')
+            printf 'bye.\n'
+            break
+            ;;
+        ':model '*)
+            MODEL="${line#:model }"
+            printf '  ✓ model -> %s\n' "$MODEL"
+            continue
+            ;;
+        ':iter '*)
+            MAX_ITER="${line#:iter }"
+            printf '  ✓ max_iter -> %s\n' "$MAX_ITER"
+            continue
+            ;;
+        ':quiet')
+            if [ -z "$QUIET_FLAG" ]; then
+                QUIET_FLAG="--quiet"
+                printf '  ✓ quiet mode ON\n'
+            else
+                QUIET_FLAG=""
+                printf '  ✓ quiet mode OFF\n'
+            fi
+            continue
+            ;;
+        ':history')
+            ls -t Docs/Agent/ 2>/dev/null | head -10 | sed 's/^/  /'
+            continue
+            ;;
+    esac
+    # Fire the agent — every turn is an independent run; if you want
+    # cross-turn memory, use the Streamlit UI which keeps a session.
+    LLM_ARGS=()
+    [ -n "$BACKEND" ] && LLM_ARGS+=(--backend "$BACKEND")
+    [ -n "$MODEL" ] && LLM_ARGS+=(--model "$MODEL")
+    $IGVFAGENT_BIN ask \
+        ${LLM_ARGS[@]+"${LLM_ARGS[@]}"} \
+        --max-iterations "$MAX_ITER" \
+        --max-tokens "$MAX_TOK" \
+        --temperature "$TEMP" \
+        $QUIET_FLAG \
+        "$line"
+    echo
+done

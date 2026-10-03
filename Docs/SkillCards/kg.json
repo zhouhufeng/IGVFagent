@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "id": "kg",
+  "version": "0.2.9",
+  "title": "IGVF Knowledge Graph multi-hop traversal",
+  "summary": "",
+  "module": "igvfagent.kg_traversal_skill",
+  "source": "Scripts/kg_traversal_skill.py",
+  "interfaces": {
+    "cli": "igvfagent kg",
+    "tools": [
+      {
+        "name": "kg_gene",
+        "subcommand": "kg gene",
+        "description": "Comprehensive gene context from the IGVF Catalog KG: variants, transcripts, proteins, regulatory elements, diseases, pathways. Default 'tell me about gene X' tool. Optional flags pull FAVOR, enhancer-gene linkage, single-cell datasets, prior literature.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "description": "Gene symbol, e.g. APOE"
+            },
+            "depth": {
+              "type": "integer",
+              "default": 1,
+              "description": "1 = direct relations only; 2 = also fan out per variant."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "call_favor": {
+              "type": "boolean",
+              "default": false
+            },
+            "call_linkage": {
+              "type": "boolean",
+              "default": false
+            },
+            "call_singlecell": {
+              "type": "boolean",
+              "default": false
+            },
+            "call_literature": {
+              "type": "boolean",
+              "default": false
+            },
+            "literature_context": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-text disease / tissue terms for the literature side-call."
+            },
+            "label": {
+              "type": "string",
+              "description": "Run label for output dir."
+            }
+          },
+          "required": [
+            "symbol"
+          ]
+        }
+      },
+      {
+        "name": "kg_region",
+        "subcommand": "kg region",
+        "description": "Region-centric KG: genes + cCREs + enhancer-gene linkage in window. Format chr19:44903000-44912000.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "call_favor": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "region"
+          ]
+        }
+      },
+      {
+        "name": "kg_variant",
+        "subcommand": "kg variant",
+        "description": "Variant-centric KG: linked genes, regulatory elements, phenotypes, biosamples, predictions. Accepts rsID/SPDI/HGVS. Spans several Catalog collections, each with its own IGVF 'method' vocabulary: variant->gene effects are 'Variant-EFFECTS', variant->phenotype functional calls are 'cV2F', and variant->biosample reporter records are 'STARR-seq' / 'BlueSTARR'. For variant effects on protein binding specifically (SEMVAR / ADASTRA allele-specific binding), use grn_protein_variants \u2014 that collection is not traversed here.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "variant": {
+              "type": "string",
+              "description": "rsID (rs429358), SPDI (NC_000019.10:44908821:C:T), or HGVS"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "call_favor": {
+              "type": "boolean",
+              "default": false
+            },
+            "call_literature": {
+              "type": "boolean",
+              "default": false
+            },
+            "literature_context": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "variant"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "arango",
+    "catalog_api",
+    "favor",
+    "portal_api"
+  ],
+  "artefact_kinds": [
+    "Report"
+  ],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/IGVF_KG_TRAVERSAL_SKILLS.md",
+  "license": "Apache-2.0"
+}

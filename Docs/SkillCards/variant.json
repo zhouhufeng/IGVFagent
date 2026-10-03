@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "id": "variant",
+  "version": "0.2.9",
+  "title": "Annotate variants against IGVF Catalog evidence",
+  "summary": "",
+  "module": "igvfagent.annotate_variant_list",
+  "source": "Scripts/annotate_variant_list.py",
+  "interfaces": {
+    "cli": "igvfagent variant",
+    "tools": [
+      {
+        "name": "annotate_variants",
+        "subcommand": "variant",
+        "description": "Annotate a variant CSV against IGVF Catalog evidence (CADD/QTL/phenotypes/regulatory). CSV needs rsid/hgvs/spdi or chr/pos/ref/alt.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Path to variant CSV."
+            },
+            "max_rows": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/ADVANCED_VARIANT_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

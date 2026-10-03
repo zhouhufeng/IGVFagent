@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "id": "synapse",
+  "version": "0.2.9",
+  "title": "Sage Bionetworks Synapse retrieval \u2014 entity / children / walk / search / download. Anonymous for public deposits; PAT-authenticated for PsychENCODE, AMP-AD, AMP-PD, and IGVF-controlled Synapse cohorts (set SYNAPSE_AUTH_TOKEN). Pure urllib + json, no synapseclient dep.",
+  "summary": "Synapse (Sage Bionetworks) data-discovery + download skill.",
+  "module": "igvfagent.synapse_skill",
+  "source": "Scripts/synapse_skill.py",
+  "interfaces": {
+    "cli": "igvfagent synapse",
+    "tools": []
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "deng2024_cortex_mpra",
+        "paper": {
+          "authors": "Deng C, Whalen S et al.",
+          "journal": "Science",
+          "year": 2024,
+          "doi": "10.1126/science.adh0559",
+          "pmid": "38781390",
+          "pmc": "PMC12085231"
+        },
+        "checks": 1,
+        "run": "Benchmarks/deng2024_cortex_mpra/run.sh"
+      },
+      {
+        "benchmark": "e2g_crispr_benchmark",
+        "paper": {
+          "authors": "Gschwind et al. (ENCODE-rE2G); Sheth, Qiu et al. (scE2G)",
+          "journal": "bioRxiv",
+          "year": 2024,
+          "doi": "10.1101/2023.11.09.563812; 10.1101/2024.11.23.624931"
+        },
+        "checks": 6,
+        "run": "Benchmarks/e2g_crispr_benchmark/run.sh"
+      }
+    ],
+    "n_checks": 7,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/SYNAPSE_RETRIEVAL_SKILLS.md",
+  "license": "Apache-2.0"
+}

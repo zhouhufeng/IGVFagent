@@ -1,0 +1,204 @@
+{
+  "schema_version": "1.0",
+  "id": "network",
+  "version": "0.2.9",
+  "title": "Network integration \u2014 clean-room MILP for context-specific subnetworks (CARNIVAL / Steiner)",
+  "summary": "Network-integration skill \u2014 clean-room MILP for context-specific",
+  "module": "igvfagent.network_integration_skill",
+  "source": "Scripts/network_integration_skill.py",
+  "interfaces": {
+    "cli": "igvfagent network",
+    "tools": [
+      {
+        "name": "network_carnival",
+        "subcommand": "network carnival",
+        "description": "CARNIVAL \u2014 given a signed perturbation set + signed measurement set (e.g. perturbed genes + DEG log2FCs from Perturb-seq), infer the minimum-cost upstream subnetwork in a signed PPI that explains the perturbations \u2192 measurements. Clean-room cvxpy MILP; no GPL dependencies. Appends selected edges to the warehouse with upstream='network:carnival:<label>'. Math reference: Docs/Architecture/INTEGRATION_LAYER_REFERENCE.md.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "perturbations": {
+              "type": "string",
+              "description": "CSV: gene,sign in {-1,+1}."
+            },
+            "measurements": {
+              "type": "string",
+              "description": "CSV: gene,score (signed log2FC)."
+            },
+            "pkn": {
+              "type": "string",
+              "description": "SIF file path; if omitted, build from the proteomics KG."
+            },
+            "pkn_limit": {
+              "type": "integer"
+            },
+            "taxon": {
+              "type": "integer",
+              "default": 9606
+            },
+            "beta": {
+              "type": "number",
+              "default": 0.2,
+              "description": "L0 edge-sparsity vs data-fit trade-off."
+            },
+            "lambda_v": {
+              "type": "number",
+              "default": 0.0,
+              "description": "L0 vertex sparsity."
+            },
+            "solver": {
+              "type": "string",
+              "default": "SCIP"
+            },
+            "label": {
+              "type": "string",
+              "default": "run"
+            }
+          },
+          "required": [
+            "perturbations",
+            "measurements"
+          ]
+        }
+      },
+      {
+        "name": "network_demo",
+        "subcommand": "network demo",
+        "description": "Self-test: synthetic EGFR \u2192 MYC cascade. Proves the CARNIVAL MILP recovers all 6 cascade edges and that the warehouse picks up the inferred subnetwork.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "beta": {
+              "type": "number",
+              "default": 0.05
+            },
+            "solver": {
+              "type": "string",
+              "default": "SCIP"
+            },
+            "label": {
+              "type": "string",
+              "default": "demo"
+            }
+          }
+        }
+      },
+      {
+        "name": "network_steiner",
+        "subcommand": "network steiner",
+        "description": "Prize-collecting Steiner tree \u2014 given per-gene prizes (e.g. VAMP-seq abundance change, GWAS hit strength) and a PPI prior, find the connected subnetwork that maximises (prizes \u2212 costs). Clean-room cvxpy MILP. Appends selected edges to the warehouse.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "terminals": {
+              "type": "string",
+              "description": "CSV: gene,prize."
+            },
+            "pkn": {
+              "type": "string"
+            },
+            "pkn_limit": {
+              "type": "integer"
+            },
+            "taxon": {
+              "type": "integer",
+              "default": 9606
+            },
+            "edge_cost": {
+              "type": "number",
+              "default": 1.0
+            },
+            "solver": {
+              "type": "string",
+              "default": "SCIP"
+            },
+            "label": {
+              "type": "string",
+              "default": "run"
+            }
+          },
+          "required": [
+            "terminals"
+          ]
+        }
+      },
+      {
+        "name": "network_viz",
+        "subcommand": "network viz",
+        "description": "PUBLICATION-GRADE NETWORK VISUALIZATION \u2605. Given a signed-SIF subnetwork file (from `network carnival`, `network steiner`, `network demo`, or any external CARNIVAL-style output), produces a force-directed graph (PNG + SVG) with signed edges (green = activation, red = inhibition), node coloring by role (perturbation / measurement / inferred up/down), node sizing by prize, plus a pathway-enrichment bar chart, degree distribution, edge-sign breakdown, and a 4-panel publication composite figure. Also emits an interactive vis.js HTML (with --html) and a per-node summary CSV. USE THIS TOOL whenever the user asks to 'visualize', 'plot', 'render', or 'show' a network result.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "sif": {
+              "type": "string",
+              "description": "Path to signed-SIF input."
+            },
+            "prizes": {
+              "type": "string",
+              "description": "Optional per-node CSV (node, prize, sign, role)."
+            },
+            "pathways": {
+              "type": "string",
+              "description": "Optional node->pathway CSV for enrichment."
+            },
+            "layout": {
+              "type": "string",
+              "default": "spring",
+              "enum": [
+                "spring",
+                "kamada",
+                "circular",
+                "shell"
+              ]
+            },
+            "html": {
+              "type": "boolean",
+              "default": false
+            },
+            "label": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sif"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [
+    "Output",
+    "Wrote"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "weinstock2024_cd4_crispr",
+        "paper": {
+          "authors": "Weinstock JS, Arce MM, Freimer JW, Ota M, Marson A, Battle A, Pritchard JK",
+          "journal": "Cell Genomics",
+          "volume": 4,
+          "issue": 11,
+          "article_number": 100671,
+          "year": 2024,
+          "month": "November",
+          "doi": "10.1016/j.xgen.2024.100671",
+          "pmid": "39395408",
+          "pmc": "PMC11605694",
+          "doi_correction_note": "Earlier benchmark scaffolds had this mis-spelled as 10.1016/j.xgen.2024.100693 \u2014 fixed during execution."
+        },
+        "checks": 1,
+        "run": "Benchmarks/weinstock2024_cd4_crispr/run.sh"
+      }
+    ],
+    "n_checks": 1,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/NETWORK_INTEGRATION_SKILLS.md",
+  "license": "Apache-2.0"
+}

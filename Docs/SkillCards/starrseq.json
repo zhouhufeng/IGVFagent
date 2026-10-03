@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "id": "starrseq",
+  "version": "0.2.9",
+  "title": "STARR-seq allelic test (mpralm clean-room rewrite)",
+  "summary": "",
+  "module": "igvfagent.starr_seq_skill",
+  "source": "Scripts/starr_seq_skill.py",
+  "interfaces": {
+    "cli": "igvfagent starrseq",
+    "tools": [
+      {
+        "name": "starr_activity",
+        "subcommand": "starrseq activity",
+        "description": "Per-fragment STARR-seq log activity = log(RNA TPM / DNA TPM) across paired replicates, plus per-SNP allelic skew (log activity ALT - REF).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "starr_aggregate",
+        "subcommand": "starrseq aggregate",
+        "description": "Collapse barcode-level STARR-seq counts to a per-(SNP, Allele) wide table (long form -> wide).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "starr_allelic_test",
+        "subcommand": "starrseq allelic-test",
+        "description": "STARR-seq allelic significance test: per-(SNP, Allele) OLS on log2((RNA+0.5)/(DNA+0.5)) per replicate, eBayes variance moderation (Smyth 2004 trigamma inversion) with graceful fallback when no variance excess is detected, BH-FDR. Clean-room rewrite of Bioconductor mpra::mpralm.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
+        "name": "starr_pull_portal",
+        "subcommand": "starrseq pull-portal",
+        "description": "Discover IGVF Portal STARR-seq MeasurementSets. Writes a TSV manifest with accession, assay_titles, n_files, status.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 50
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "starr_qc",
+        "subcommand": "starrseq qc",
+        "description": "STARR-seq counts QC: TPM-style scaling, low-expression filter, RLE matrix, per-sample Spearman D-statistic outlier flag (top 5%). Mirrors count_qc.R from gaochengwen/STARR-seq-Data-Analysis.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Counts TSV/CSV."
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "portal_api"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/STARRSEQ_ANALYSIS_SKILLS.md",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "id": "ccre",
+  "version": "0.2.9",
+  "title": "cCRE / FAVOR / linkage annotations",
+  "summary": "",
+  "module": "igvfagent.ccre_linkage_annotation_skills",
+  "source": "Scripts/ccre_linkage_annotation_skills.py",
+  "interfaces": {
+    "cli": "igvfagent ccre",
+    "tools": [
+      {
+        "name": "ccre_favor",
+        "subcommand": "ccre cosmic-from-favor",
+        "description": "Annotate variants in a region with FAVOR (CADD/GERP/conservation).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "region"
+          ]
+        }
+      },
+      {
+        "name": "ccre_screen_manifest",
+        "subcommand": "ccre screen-manifest",
+        "description": "Build a manifest of SCREEN cCRE downloads (PLS/pELS/dELS/CTCF).",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api",
+    "encode",
+    "favor",
+    "portal",
+    "wenglab_dl"
+  ],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": "Docs/Skills/CCRE_LINKAGE_FAVOR_SKILLS.md",
+  "license": "Apache-2.0"
+}

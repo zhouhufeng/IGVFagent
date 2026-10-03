@@ -1,0 +1,65 @@
+{
+  "study": "MULTI-seq / Cell Hashing demultiplexing demo",
+  "playbook_path": "Docs/Playbooks/multiseq_demo.yaml",
+  "params": {
+    "n_cells": 500,
+    "n_tags": 6,
+    "doublet_rate": 0.08,
+    "negative_rate": 0.05
+  },
+  "steps": [
+    {
+      "idx": 0,
+      "tool": "multiseq_showcase",
+      "label": "MULTI-seq showcase (synthetic)",
+      "args": {
+        "n_cells": "500",
+        "n_tags": "6",
+        "doublet_rate": "0.08",
+        "negative_rate": "0.05",
+        "label": "multiseq_playbook"
+      },
+      "exit_code": 0,
+      "stdout_tail": "e/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_2.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_3.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_4.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_5.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_6.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_heatmap.png\nWrote plot: /Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_histogram.png\nSinglet recovery: 87.00%\n",
+      "stderr_tail": "",
+      "artifacts": {
+        "report": [
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/showcase_report.md"
+        ],
+        "composite_figure": [
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/composite_publication_figure.png"
+        ],
+        "wrote_plot": [
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_1.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_2.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_3.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_4.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_5.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_6.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_heatmap.png",
+          "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_histogram.png"
+        ]
+      },
+      "n_artefacts": 10,
+      "elapsed_sec": 5.71,
+      "error": null
+    }
+  ],
+  "artefacts": [
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/showcase_report.md",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/composite_publication_figure.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_1.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_2.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_3.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_4.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_5.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/diagnostics_tag_6.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_heatmap.png",
+    "/Users/bidetime/Research/projects/IGVFagent/.claude/worktrees/festive-volhard-60dea7/Docs/MultiSeq/20260520_224416_multiseq_playbook/Plots/tag_histogram.png"
+  ],
+  "final_answer": "",
+  "synthesized": false,
+  "elapsed_sec": 5.71,
+  "backend": null,
+  "model": null
+}

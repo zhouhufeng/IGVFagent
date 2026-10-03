@@ -1,0 +1,39 @@
+# User tool template — wrap ANY executable on your machine as an agent tool.
+#
+# Drop this file in ~/.igvfagent/tools/ or UserExtensions/tools/ and the
+# tool appears in `igvfagent tools`, the `igvfagent ask` ReAct loop, and
+# the Streamlit UI tool picker. Verify with `igvfagent extensions`.
+#
+# Contract for your executable:
+#   * read arguments from argv (mapped below), write results to stdout
+#   * announce output files as `Report: <path>` / `Manifest: <path>`
+#     lines so the agent can chain them into the next step
+#   * exit 0 on success
+
+name: gc_content
+description: >
+  Compute per-sequence GC content for a FASTA file and write a TSV
+  summary. Use when the user asks for GC%, base composition, or
+  sequence-level QC of a FASTA they provide.
+
+# `command` = argv of your own program (absolute path recommended).
+# Everything the LLM passes is appended per the mappings below.
+command: ["python3", "/home/USER/bin/gc_content.py"]
+
+# JSON Schema for the arguments the LLM may pass.
+parameters:
+  type: object
+  properties:
+    fasta:
+      type: string
+      description: Path to the input FASTA file.
+    window:
+      type: integer
+      default: 0
+      description: Sliding-window size in bp (0 = whole sequence).
+  required: [fasta]
+
+# `fasta` is emitted as a positional argument; `window` becomes --window.
+positional: [fasta]
+flag_map:
+  window: "--window"

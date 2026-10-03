@@ -1,0 +1,23 @@
+study: "VAMP-seq comprehensive showcase for a gene"
+description: |
+  Single-tool demo of the Fowler-lab VAMP-seq analysis. The
+  vampseq_showcase tool produces ~10 plots + a 9-panel publication
+  composite figure + a deep narrative report. Use this playbook to
+  ensure the demo always renders the full suite, regardless of LLM
+  backend.
+
+parameters:
+  gene:   { default: PTEN, description: "MaveDB-catalog gene (PTEN/TPMT/VKOR/PRKN/CYP2C9/NUDT15)." }
+
+steps:
+  - tool: proteomics_vampseq_showcase
+    label: "VAMP-seq showcase: ${gene}"
+    args:
+      gene: "${gene}"
+      label: "${gene}_playbook"
+
+synthesis: |
+  Summarize the VAMP-seq abundance landscape for ${gene}: distribution
+  shape, residue×AA heatmap highlights, replicate concordance, and any
+  biophysical-feature correlations. Reference the composite figure path
+  directly.

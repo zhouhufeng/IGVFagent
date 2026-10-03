@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "id": "sce2g-kg",
+  "version": "0.2.9",
+  "title": "scE2G element\u2192gene linkages \u2192 local KG (bulk, adaptive region tiling, resumable, runs to completion regardless of size)",
+  "summary": "scE2G \u2192 local Knowledge Graph bulk ingestion.",
+  "module": "igvfagent.sce2g_kg_skill",
+  "source": "Scripts/sce2g_kg_skill.py",
+  "interfaces": {
+    "cli": "igvfagent sce2g-kg",
+    "tools": [
+      {
+        "name": "sce2g_kg_pull",
+        "subcommand": "sce2g-kg pull",
+        "description": "BULK-ingest scE2G element\u2192gene regulatory linkages from the IGVF Catalog into the local KG as `regulates` edges. Deterministic, resumable, runs to completion over the whole genome regardless of size (adaptive region tiling around the API's 500-row cap) with a progress heartbeat. USE THIS for 'download/integrate all scE2G linkages' \u2014 one call, not a per-gene loop. Scope with `region` (default 'all' = whole genome) or `chromosomes`.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "'all' (whole genome, default), a chromosome ('chr19'), or a locus ('chr19:44900000-45000000')."
+            },
+            "chromosomes": {
+              "type": "string",
+              "description": "Comma-separated chroms to restrict 'all' (e.g. '19,20,X')."
+            },
+            "min_window": {
+              "type": "integer",
+              "default": 20000
+            },
+            "heartbeat": {
+              "type": "integer",
+              "default": 25
+            },
+            "max_windows": {
+              "type": "integer",
+              "default": 0,
+              "description": "Stop after N windows (0 = unlimited)."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstream_resources": [],
+  "artefact_kinds": [],
+  "validation": {
+    "status": "unvalidated",
+    "method": null,
+    "evidence": [],
+    "n_checks": 0,
+    "scope_note": null
+  },
+  "documentation": null,
+  "license": "Apache-2.0"
+}

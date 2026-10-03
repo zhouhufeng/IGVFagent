@@ -1,0 +1,206 @@
+{
+  "schema_version": "1.0",
+  "id": "catalog",
+  "version": "0.2.9",
+  "title": "IGVF Catalog (KG) canonical-query layer \u2014 universal get-entity, search-region, find-associations (semantic), find-ld, resolve-id, list-sources (clean-room reimpl of IGVF-DACC/igvf-catalog-mcp)",
+  "summary": "IGVF Catalog (Knowledge Graph) canonical-query skill.",
+  "module": "igvfagent.catalog_query_skill",
+  "source": "Scripts/catalog_query_skill.py",
+  "interfaces": {
+    "cli": "igvfagent catalog",
+    "tools": [
+      {
+        "name": "catalog_find_associations",
+        "subcommand": "catalog find-associations",
+        "description": "IGVF CATALOG EDGE QUERY BY SEMANTIC RELATIONSHIP \u2605. Walks every edge in a semantic category (genetic / regulatory / physical / functional / pharmacological / ld / coding / transcription / all) for an entity, aggregating hits across multiple edge endpoints in one call. Accepts the catalog filter DSL (label=eqtl;method=GTEx,FANTOM5;p_value=lte:5e-8) with automatic p_value \u2192 log10pvalue conversion. IGVF 'method' values worth filtering on (all with source=IGVF): 'Perturb-seq' and 'CRISPR screen' on element->gene edges, 'STARR-seq' and 'BlueSTARR' on variant->biosample, 'Variant-EFFECTS' on variant->gene, 'cV2F' on variant->phenotype, 'SEMVAR' on protein->variant. Note this tool does NOT cover the gene-regulatory-network collection \u2014 use grn_network for dEx regulator/target edges.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "entity_id": {
+              "type": "string",
+              "description": "Any IGVF Catalog ID (auto-detected)."
+            },
+            "relationship": {
+              "type": "string",
+              "description": "genetic / regulatory / physical / functional / pharmacological / ld / coding / transcription / all"
+            },
+            "filters": {
+              "type": "string",
+              "description": "DSL e.g. 'label=eqtl;p_value=lte:5e-8'."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "page": {
+              "type": "integer",
+              "default": 0
+            },
+            "verbose": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "entity_id",
+            "relationship"
+          ]
+        }
+      },
+      {
+        "name": "catalog_find_ld",
+        "subcommand": "catalog find-ld",
+        "description": "IGVF CATALOG LD PROXIES \u2605. Dedicated query of `/api/variants/variant-ld` for an index variant, with r\u00b2 / D' / ancestry filters and a strong/moderate/weak/negligible bucket summary plus per-ancestry breakdown.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "variant_id": {
+              "type": "string",
+              "description": "rsID / SPDI / HGVS / CA-ID."
+            },
+            "r2_threshold": {
+              "type": "number"
+            },
+            "d_prime_threshold": {
+              "type": "number"
+            },
+            "ancestry": {
+              "type": "string",
+              "description": "Comma list AFR,AMR,EAS,EUR,SAS."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 100
+            },
+            "verbose": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "variant_id"
+          ]
+        }
+      },
+      {
+        "name": "catalog_get_entity",
+        "subcommand": "catalog get-entity",
+        "description": "IGVF CATALOG UNIVERSAL ENTITY LOOKUP \u2605. Resolves any IGVF Catalog ID \u2014 gene symbol (APOE), ENSG, HGNC:n, ENTREZ:n, rsID (rs429358), SPDI (NC_000019.10:...), HGVS, CA-id, ENSP, UniProt (P02649), MONDO:n / EFO:n / GO:n / HPO / DOID / UBERON / CL / CHEBI / OBA, drugbank (DB...), CHEMBL..., CPX-n (Complex Portal), R-HSA-n (Reactome), GCST... (GWAS Catalog) \u2014 and returns the full node JSON. Auto-detects entity type from the ID format; --hint overrides.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Any IGVF Catalog ID (auto-detected)."
+            },
+            "hint": {
+              "type": "string",
+              "description": "Override entity-type detection."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      {
+        "name": "catalog_list_sources",
+        "subcommand": "catalog list-sources",
+        "description": "Enumerate IGVF Catalog edge endpoints by semantic category, or probe one endpoint for its observed sources / methods.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "catalog_resolve_id",
+        "subcommand": "catalog resolve-id",
+        "description": "IGVF CATALOG ID CROSS-REFERENCE PROJECTION \u2605. Translates one ID into all of its cross-references \u2014 rsID \u2194 SPDI \u2194 HGVS \u2194 CA-ID for variants; symbol \u2194 ENSG \u2194 HGNC \u2194 Entrez \u2194 synonyms for genes; UniProt \u2194 ENSP for proteins; etc. USE THIS as a preflight when an analysis needs identifiers in a specific namespace.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Any IGVF Catalog ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      {
+        "name": "catalog_search_region",
+        "subcommand": "catalog search-region",
+        "description": "IGVF CATALOG REGION FAN-OUT SEARCH \u2605. Parallel query of genes + variants + genomic-elements within a region. Accepts 'chr19:44,907,000-44,910,000', '19:44.9M-44.92M', 'chr1:1K-2K'. Returns three lists (one per type) with per-type pagination metadata. USE THIS to enumerate everything the Catalog knows about a locus.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "chr1:1000-2000, 1:1K-2K, 19:44.9M-44.92M."
+            },
+            "include": {
+              "type": "string",
+              "default": "genes,variants,genomic-elements"
+            },
+            "organism": {
+              "type": "string",
+              "default": "Homo sapiens"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25
+            },
+            "page": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          "required": [
+            "region"
+          ]
+        }
+      }
+    ]
+  },
+  "upstream_resources": [
+    "catalog_api"
+  ],
+  "artefact_kinds": [
+    "Wrote"
+  ],
+  "validation": {
+    "status": "benchmarked",
+    "method": "machine-checked reproduction of published results",
+    "evidence": [
+      {
+        "benchmark": "buckley2024_vhl",
+        "paper": {
+          "authors": "Buckley M et al.",
+          "journal": "Nat Genet",
+          "year": 2024,
+          "doi": "10.1038/s41588-024-01800-z",
+          "pmid": "38969834"
+        },
+        "checks": 4,
+        "run": "Benchmarks/buckley2024_vhl/run.sh"
+      }
+    ],
+    "n_checks": 4,
+    "scope_note": "Benchmarks execute fixed command sequences with no model in the loop, so this establishes implementation correctness only \u2014 not that an agent would select this skill unaided. See Docs/EVALUATION.md."
+  },
+  "documentation": "Docs/Skills/CATALOG_QUERY_SKILL.md",
+  "license": "Apache-2.0"
+}

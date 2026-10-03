@@ -1,0 +1,45 @@
+study: How many transcripts does the gene TP53 have in the IGVF Catalog? Use the KG gene tool.
+description: "Frozen from a recorded session on 2026-08-28. Original question: How many transcripts does the gene TP53 have in the IGVF Catalog? Use the KG gene tool."
+parameters:
+  tp53:
+    default: TP53
+steps:
+  - tool: kg_gene
+    args:
+      symbol: "${tp53}"
+      depth: 1
+      label: tp53_transcripts
+  - tool: catalog_find_associations
+    args:
+      entity_id: "${tp53}"
+      relationship: transcription
+      limit: 100
+      verbose: true
+  - tool: catalog_find_associations
+    args:
+      entity_id: "${tp53}"
+      relationship: transcription
+      limit: 100
+synthesis: Summarise the findings from the captured artefacts. State what was measured and what was not.
+provenance:
+  frozen_from: Docs/Agent/20260820_091746_How_many_transcripts_does_the_gene_TP53_6006c24d
+  frozen_at: "2026-08-28T14:17:56"
+  original_backend: claude_cli
+  original_model: (claude-code default)
+  original_stop_reason: complete
+  consistency:
+    system_prompt_sha1: e9473cff546a
+    seed: 0
+    n_tools_exposed: 128
+    tool_set_sha1: a95ed8794e66
+    routed_shapes: "[]"
+expected_artefacts:
+  - path: Docs/KGTraversal/20260820_091707_tp53_transcripts/gene_TP53_report.md
+    sha256: 15d41f57a5a265b53818cce79a93d7cbc19e13eee62f4de3ef4395a83b84633a
+    bytes: 4184
+  - path: Docs/KGTraversal/20260820_091707_tp53_transcripts/evidence_pack.json
+    sha256: 9b75dd52ca70caf152f213eed6e7c6ff09621c69cd0aebbee0825ea37217ab94
+    bytes: 218783
+  - path: Docs/CatalogQuery/20260820_091733_assoc_TP53_transcription/associations.json
+    sha256: cfd37ba39c1263595ec97dafdc716e87a3fab399e80537a4951884d8f3f95ab6
+    bytes: 3024

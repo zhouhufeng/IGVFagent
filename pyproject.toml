@@ -1,0 +1,193 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "igvfagent"
+version = "0.2.9"
+description = "Local, auditable AI agent for IGVF / ENCODE data analysis with a built-in Plan → Action → Results → Evaluation orchestrator."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Hufeng Zhou", email = "zhouhufeng@gmail.com" }]
+maintainers = [{ name = "Hufeng Zhou", email = "zhouhufeng@gmail.com" }]
+keywords = [
+    "igvf",
+    "encode",
+    "single-cell",
+    "variant-annotation",
+    "knowledge-graph",
+    "splitseq",
+    "multiome",
+    "bioinformatics",
+    "agent",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Operating System :: OS Independent",
+]
+
+# Every skill that does only metadata / KG / Portal work runs on the
+# Python standard library (urllib, json, sqlite3, csv, re). Heavier
+# analytical capabilities pull their deps in via the extras below.
+dependencies = []
+
+[project.optional-dependencies]
+# Every requirement carries an upper bound on the next major.
+#
+# Why: the floors are unchanged, but an open `>=` let each machine resolve
+# whatever was newest *for its Python*, so a macOS box on 3.9 and a Linux
+# box on 3.12 installed different majors of the same package from the same
+# pyproject — "works here, broken there", flipping direction each time one
+# side was fixed. The bounds below block the next major without freezing
+# patch or minor upgrades.
+#
+# These are deliberately permissive rather than exact pins: the runtime
+# already prefers tolerating API drift (see _llm.py's sampling-param
+# self-heal and _stcompat.py's per-widget Streamlit probing). Bounds are
+# the backstop for changes too breaking to absorb at runtime.
+#
+# Single-cell / plotting / variant analysis stack
+analysis = [
+    "pandas>=2.0,<3",
+    "gseapy>=1.1,<2",         # ORA + preranked GSEA (enrich, tabula)
+    "h5py>=3.8,<4",           # direct HDF5 row slicing of large h5ad layers
+    "numpy>=1.24,<3",
+    "scipy>=1.10,<2",
+    "matplotlib>=3.7,<4",
+    "pyarrow>=14,<26",
+    "anndata>=0.10,<1",       # 0.x: treat each minor as potentially breaking
+    "scanpy>=1.9,<2",
+    "seaborn>=0.13,<1",
+    "scikit-learn>=1.3,<2",
+    "umap-learn>=0.5,<1",
+    "leidenalg>=0.10,<1",
+    "python-igraph>=0.11,<2",  # already shipped 1.0; <2 keeps that valid
+    "networkx>=3.0,<4",
+    # Manuscript ingestion: `igvfagent document` extracts text from
+    # uploaded PDFs so a paper can be turned into a reproduction plan.
+    "pypdf>=4.0,<7",
+    # Tabix-indexed outputs (fragments, tagAlign, E2G .bedpe.gz + .tbi) are
+    # part of the IGVF Portal file format; e2g-qc-predictions and
+    # principal-pseudobulks write them. Also BAM reading in abc-pipeline.
+    "pysam>=0.21,<1",
+    # Guide and enhancer tables arrive as .xlsx (igvf-crispr-pipeline,
+    # enhancer-annot); pandas needs openpyxl to read and write them.
+    "openpyxl>=3.1,<4",
+]
+# Raw-read processing: FASTQ -> count matrix. kb-python bundles the
+# kallisto and bustools binaries per-platform, so no compiler, no conda,
+# and no separate aligner install is needed -- which is what makes an
+# aligner shippable in a pip-built image at all. The `kite` workflow
+# covers feature barcoding (CRISPR sgRNA assignment); prebuilt human and
+# mouse indices come from `kb ref -d`.
+align = [
+    "kb-python>=0.28,<0.30",
+]
+# Web UI for natural-language interaction (Streamlit)
+# Streamlit is migrating `use_container_width=` to `width=` on a
+# per-widget schedule; Scripts/_stcompat.py resolves that at call time, so
+# this bound only guards a 2.0 rewrite.
+ui = [
+    "streamlit>=1.30,<2",
+]
+# Optional native LLM SDKs (Anthropic + OpenAI). The agent runtime can
+# also talk to Ollama / vLLM / HuggingFace TGI via the OpenAI-compatible
+# wire format, in which case the openai package alone is sufficient.
+# anthropic <2 (not <1): 1.0 dropped the sampling kwargs from
+# Messages.create and _llm.py already handles that.
+llm = [
+    "anthropic>=0.40,<2",
+    "openai>=1.50,<3",
+]
+# Hi-C contact-matrix loading + bigWig signal analysis
+hic = [
+    "cooler>=0.9",      # .mcool reader
+    "hic-straw>=1.3",   # .hic reader (Aiden lab format)
+    "pyBigWig>=0.3",    # bigWig signal at TSS / FRiP from raw signal
+]
+# TF motif scanning + enrichment
+motif = [
+    "pyfaidx>=0.7",     # genome FASTA indexed access
+    "biopython>=1.81",  # PWM + sequence utilities
+]
+# Central data warehouse + foundation-model integration
+warehouse = [
+    "duckdb>=0.10",     # Silver-tier analytical warehouse
+    "pyarrow>=14",      # Parquet I/O for Gold-tier embeddings
+    "faiss-cpu>=1.7",   # vector indices on the Gold layer
+]
+# Knowledge-graph build (kg-build): the core graph in LadybugDB, the
+# maintained fork of Kuzu. See Docs/Plan/datastructure.md.
+graph = [
+    "duckdb>=0.10",
+    "ladybug>=0.21,<1",
+]
+# Network-integration layer (clean-room MILP — no GPL deps)
+network = [
+    "cvxpy>=1.5",        # solver-agnostic MILP modelling
+    "pyscipopt>=5.0",    # free MILP solver (SCIP)
+    # optional: gurobipy (academic-free, faster)
+    # Visualization half of the layer (`igvfagent network viz`, and the
+    # 🔗 Network tab in the UI). networkx is also in [analysis], but
+    # network_viz.py needs it whether or not the single-cell stack is
+    # installed, so it is declared here too rather than assumed.
+    "networkx>=3.0,<4",
+    "matplotlib>=3.7,<4",  # static panels + composite figure
+    "pyvis>=0.3,<1",       # interactive vis.js HTML (--html)
+]
+# Developer tooling
+dev = [
+    "pytest>=7",
+    "ruff>=0.5",
+    "build>=1.0",
+]
+# AlphaGenome API client (google-deepmind/alphagenome). The SDK needs
+# Python >= 3.10; on 3.9 `igvfagent alphagenome setup --install` builds a
+# separate environment and the skill re-runs itself there.
+alphagenome = [
+    "alphagenome>=0.9,<1; python_version >= '3.10'",
+]
+all = [
+    "igvfagent[analysis,align,ui,llm,hic,motif,warehouse,network,alphagenome]",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhouhufeng/IGVFagent"
+Repository = "https://github.com/zhouhufeng/IGVFagent"
+Issues = "https://github.com/zhouhufeng/IGVFagent/issues"
+
+[project.scripts]
+igvfagent = "igvfagent.cli:main"
+
+# The Python source lives in Scripts/, exposed as the importable package
+# `igvfagent`. Existing `python3 Scripts/<skill>.py` invocations keep
+# working because we don't move any files; we only mark Scripts/ as a
+# package and add a thin dispatcher.
+[tool.setuptools]
+packages = ["igvfagent"]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"igvfagent" = "Scripts"
+
+# Reviewed extensions promoted to built-ins (Scripts/promoted/{tools,skills});
+# not a Python package, so ship the files as package data.
+[tool.setuptools.package-data]
+"igvfagent" = ["promoted/tools/*.json", "promoted/skills/*.py", "promoted/*.json", "promoted/*.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

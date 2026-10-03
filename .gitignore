@@ -1,0 +1,242 @@
+# OS
+.DS_Store
+._*
+.AppleDouble
+Thumbs.db
+
+# Python
+__pycache__/
+.pycache/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local secrets and authenticated session material
+.env
+*.env
+# Hosted-deployment secrets. NOTE: the `*.env` rule above matches files
+# *ending* in .env, so it does NOT cover `.env.prod` — these need their own
+# rules. The .example template stays tracked.
+Deploy/.env.*
+!Deploy/.env.*.example
+Deploy/nginx/htpasswd
+*.cookies
+*.cookie
+*.token
+# API keys and any other secret material — never commit anything under the
+# secrets folder. All three spellings are ignored: the correct one, the
+# singular in actual use, and the historical "Secretes" typo.
+Docs/Secret/
+Docs/Secretes/
+Docs/Secrets/
+# Belt and braces: any path segment named Secret/Secrets, at any depth.
+**/Secret/
+**/Secrets/
+**/APIkeys.txt
+*APIkeys*
+*apikeys*
+# The IGVF Portal access-key pair, by name and at any depth. The Secret/
+# rules above already cover its home, but the file gets copied around and
+# IGVF_PORTAL_API_FILE can relocate it, so match the name too.
+**/IGVFportalAPI.txt
+*IGVFportalAPI*
+*igvfportalapi*
+
+# SSH private keys, at any depth. The deploy key for the hosted VM
+# (igvfagent-deploy) is the one that matters, but the rule is deliberately
+# broad: a key gets copied into a checkout far more often than a checkout
+# legitimately contains one, and a committed private key cannot be un-published
+# by a later `git rm`. Public halves (*.pub) are NOT secret and stay allowed.
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+!*.pub
+
+# Runtime outputs. Keep folder placeholders and READMEs tracked.
+Data/*
+!Data/.gitkeep
+!Data/README.md
+!Data/Input/
+Data/Input/*
+!Data/Input/VariantList/
+Data/Input/VariantList/*
+!Data/Input/VariantList/README.md
+!Data/Input/VariantList/example_variants.csv
+# Worked APOB loss-of-function example set (public FAVOR annotation only) —
+# doubles as the format fixture for `variant-list annotate`.
+!Data/Input/VariantList/gene-variants-APOB.tsv
+!Data/Input/VariantList/gene-variants-APOB-LoF.tsv
+!Data/Input/VariantList/apob_lof_hg38.txt
+!Data/Input/VariantList/apob_lof_rsids.txt
+!Data/Input/VariantList/apob_lof_mixed_notation.txt
+# Reference data (small, version-controlled): SPLiT-seq barcode
+# whitelist, future canonical lookups.
+!Data/References/
+Data/References/*
+!Data/References/SPLiTseq/
+Data/References/SPLiTseq/*
+!Data/References/SPLiTseq/README.md
+!Data/References/SPLiTseq/barcodes_rd1.tsv
+!Data/References/SPLiTseq/barcodes_rd2.tsv
+!Data/References/SPLiTseq/barcodes_rd3.tsv
+
+Docs/Logs/*
+!Docs/Logs/.gitkeep
+!Docs/Logs/README.md
+
+# Generated run outputs (timestamped) under Docs/* — re-add specific files explicitly if needed
+Docs/CRISPRi/2*
+Docs/MPRA/2*
+Docs/SHAREseq/2*
+Docs/STARRseq/2*
+Docs/FlowFISH/2*
+Docs/SingleCell/2*
+
+# Analysis output roots added with the raw-data pipelines. Everything under
+# these is generated -- timestamped run directories, TSVs, PNGs -- and none
+# of it has ever been tracked, unlike Docs/CRISPRi and friends above, which
+# hold hand-written notes beside their 2* run dirs and so ignore only those.
+Docs/CrisprScreen/
+Docs/SGE/
+Docs/MCT/
+Docs/RawPipeline/
+# More timestamped run output, same reason as the entries above: these are
+# regenerable analysis artefacts, and PathwayDB/Publications alone are 460 MB.
+Docs/PathwayDB/
+Docs/MPRAlib/
+Docs/Documents/
+Docs/GradientScreen/
+Docs/BaseEditingScreen/
+Docs/RegulomeDB/
+Docs/SCTransform/
+Docs/scCRISPRde/
+Docs/Processed/
+Docs/MatrixQC/
+Docs/scQers/
+Benchmarks/generated.txt
+# Publications/ holds a manuscript and poster — working documents, not code,
+# and not this repo's to publish.
+Docs/Publications/
+
+Docs/EnhancerGene/2*
+Docs/VariantAnnotation/2*
+Docs/Multiome10x/2*
+Docs/SpecializedIGVF/2*
+Docs/cCRELinkage/2*
+Docs/DataIllustration/2*
+Docs/AdvancedVariantAnalysis/2*
+Docs/TabulaSapiens/2*
+Docs/AdvancedVariantAnalysis/PutamenMultiome/
+Docs/References/2*
+Docs/PathwayDB/2*
+Docs/PathwayViz/2*
+Docs/IntPath/2*
+Docs/eQTLMPRA/2*
+Docs/Documents/2*
+Docs/BugZilla/2*
+# Reference notebooks pulled from IGVF QA/Colab. Every one of them embeds a
+# plaintext ArangoDB `guest` password in its connection cell, so the whole
+# tree stays local — never commit it. Skills may cite these paths in
+# docstrings; the reader is expected to have their own copy.
+Docs/References/IGVF_Catalog-dev/
+Docs/Benchmark/2*
+Docs/SPLiTseq/2*
+Docs/SpatialATACHiC/2*
+Docs/KGTraversal/2*
+Docs/CatalogGRN/2*
+Docs/PortalToKG/2*
+Docs/Agent/2*
+Docs/ENCODE/2*
+Docs/SETargets/2*
+Docs/GEO/2*
+Docs/Proteomics/2*
+Docs/MPRAOligoDesign/2*
+Docs/MPRASnakeflow/2*
+Docs/Perturbation/2*
+# Docs/MultiSeq runs ARE tracked (worked examples, plots, classifications)
+# — but skip the large per-cell × per-tag posterior matrix that
+# regenerates trivially from any rerun.
+Docs/MultiSeq/**/posteriors.csv
+Docs/MultiSeq/**/posteriors.csv.gz
+Docs/RNAseq/2*
+Docs/MultiomeSurvey/2*
+Docs/Enrichment/2*
+Docs/MaveDB/2*
+Docs/PortalQuery/2*
+Docs/CatalogQuery/2*
+# variant-list annotate run dirs (Docs/VariantList/<ts>_<label>/)
+Docs/VariantList/2*
+# eval-tiers run outputs
+Docs/EvalTiers/2*
+Docs/VariantVerify/2*
+Docs/ChIPAtlas/2*
+Docs/Calibration/2*
+Docs/Benchmarks/*/2*
+
+# Benchmarks/results/ holds per-run concordance JSON+MD; per-run dirs
+# under Docs/<skill>/ are already ignored by the per-skill rules above.
+Benchmarks/results/2*
+# Benchmarks/_data/ holds large public datasets downloaded by each run.sh
+# (CELLxGENE h5ad, GEO count matrices, etc.) — never committed; re-fetched on run.
+Benchmarks/_data/
+# Rosenberg 2018's own PMC-fetched supplementary xlsx/pdf (~29 MB, copyrighted
+# publisher material) — never committed; re-fetch from PMC7643870 if needed.
+Benchmarks/rosenberg2018_splitseq/Supplement/
+# Schnitzler/Kang 2024's own Nature/Springer ESM supplementary xlsx (~35 MB,
+# copyrighted publisher material) — never committed; re-fetch from
+# static-content.springer.com (see the benchmark's README) if needed.
+Benchmarks/schnitzler2024_convergence_coronary/Supplement/
+Benchmarks/schnitzler2024_convergence_coronary/work/
+# yan2026_regulatory_evolution: work/ holds large regenerable intermediates
+# (raw SRA fastq, bowtie2 indices/BAMs, per-oligo count tables, reshaped GEO data)
+# downloaded/derived from public GEO (GSE316891/GSE316892) and SRA — never committed.
+# The scripts, sbatch drivers and manifest that produce them ARE tracked.
+Benchmarks/yan2026_regulatory_evolution/work/hybrid_ase/reshaped/
+Benchmarks/yan2026_regulatory_evolution/work/hybrid_ase/deseq2_human_vs_chimp/
+Benchmarks/yan2026_regulatory_evolution/work/hybrid_ase/deseq2_human_vs_gorilla/
+Benchmarks/yan2026_regulatory_evolution/work/hybrid_ase/run_output/
+Benchmarks/yan2026_regulatory_evolution/work/hybrid_ase/port_verify/
+Benchmarks/yan2026_regulatory_evolution/work/mpra/raw_*/
+Benchmarks/yan2026_regulatory_evolution/work/mpra/counts_*/
+Benchmarks/yan2026_regulatory_evolution/work/mpra/mpranalyze_*/
+Benchmarks/yan2026_regulatory_evolution/work/logs/
+# The consortium's own manuscript tracker: internal, not ours to publish.
+# BenchmarkIGVFpapers.md (derived from it) is the shareable artifact and
+# stays tracked despite living in the same folder.
+Benchmarks/IGVFpapers/IGVF Manuscript Tracking List-Sept24.xlsx
+Docs/Demos/*
+# ...but authored demo scripts in there ARE documentation and belong in
+# the repo. 12_demo_questions.md was tracked in spite of the rule above,
+# and demo.md was silently dropped from a commit whose message described
+# it. Scratch files (.txt notes, .DS_Store, run output) stay ignored.
+!Docs/Demos/*.md
+!Docs/Demos/12_demo_questions.md
+
+# Plots subfolders are generated artifacts
+Docs/*/Plots/
+
+# Local helper scripts (not part of the public deploy)
+clean_and_push.sh
+
+# Local-only deliverables (slides, paper drafts) — not pushed
+Docs/Slides/
+Docs/Paper/
+Scripts/_make_overview_slides.py
+
+# Claude Code per-developer state — keep .claude/skills/ tracked but
+# exclude per-machine settings + the parallel-worktree directory.
+.claude/settings.local.json
+.claude/worktrees/
+
+# transient run logs (Claude Code sessions)
+scratch_*.log
+Docs/AlphaGenome/2*
+Docs/PaperCode/2*
+Docs/PerturbTools/2*
+Docs/Synapse/2*
+Docs/TFPerturbSeq/2*
+Docs/eQTLEnrichment/2*
+Docs/Benchmark/*.pdf
