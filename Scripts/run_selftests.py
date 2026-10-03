@@ -28,6 +28,15 @@ ROOT = HERE.parent
 # test file -> why it does not run in CI. Keep this short and honest.
 SKIP: "dict[str, str]" = {
 }
+# Skips that depend on the checkout or interpreter, decided at run time.
+if not (ROOT / "Deploy").is_dir():
+    SKIP["test_landing_stats.py"] = ("Deploy/ (the landing page) is not "
+                                     "part of this checkout")
+try:
+    import ladybug  # noqa: F401
+except ImportError:
+    SKIP["test_kg_build.py"] = ("ladybug (graph extra) not installed; "
+                                "it needs Python >= 3.10")
 
 DEAD_PROXY = "http://127.0.0.1:9"
 

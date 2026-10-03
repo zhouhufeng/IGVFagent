@@ -129,7 +129,8 @@ warehouse = [
 # maintained fork of Kuzu. See Docs/Plan/datastructure.md.
 graph = [
     "duckdb>=0.10",
-    "ladybug>=0.21,<1",
+    # ladybug needs Python >= 3.10; on 3.9 only the duckdb half installs.
+    "ladybug>=0.21,<1; python_version >= '3.10'",
 ]
 # Network-integration layer (clean-room MILP — no GPL deps)
 network = [

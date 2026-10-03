@@ -113,6 +113,10 @@ def discover() -> "dict[str, dict]":
     cli = _cli_names()
     found: "dict[str, dict]" = {}
     for path in sorted(SCRIPTS.glob("*.py")):
+        # Tests use placeholder repos (github.com/x/y) as fixtures; they
+        # declare no provenance.
+        if path.name.startswith("test_"):
+            continue
         head = path.read_text(errors="replace")[:4000]
         for m in _REPO_RE.finditer(head):
             repo = m.group(1).rstrip(".,);:")
