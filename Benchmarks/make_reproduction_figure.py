@@ -196,12 +196,12 @@ def panel_a(fig):
     text(fig, 0.207, 0.885, "igvf-replicate-\npaper", fontsize=5.6, ha="center",
          color=MUTED, style="italic")
 
-    # IGVFagent server box.
+    # IGVF Agent server box.
     x0, x1 = 0.236, 0.630
     box(fig, x0, bot, x1 - x0, top - bot, "white", ec="#7B8794", ls=(0, (3, 2)),
         r=0.012)
     logo(fig, x0 + 0.012, top - 0.033, 0.024)
-    text(fig, x0 + 0.042, top - 0.018, "IGVFagent", fontsize=8, weight="bold")
+    text(fig, x0 + 0.042, top - 0.018, "IGVF Agent", fontsize=8, weight="bold")
 
     rows = [
         ("liu2025-open4gene: hurdle negative-binomial peak→gene test\n"
@@ -244,7 +244,7 @@ def panel_a(fig):
     ax0, ax1 = 0.685, 0.990
     box(fig, ax0, bot, ax1 - ax0, top - bot, "#F7F9FB", ec="#CBD2D9", r=0.012)
     logo(fig, (ax0 + ax1) / 2 - 0.030, top - 0.030, 0.018)
-    text(fig, (ax0 + ax1) / 2 - 0.008, top - 0.016, "IGVFagent", fontsize=6.5,
+    text(fig, (ax0 + ax1) / 2 - 0.008, top - 0.016, "IGVF Agent", fontsize=6.5,
          weight="bold")
     box(fig, ax0 + 0.035, top - 0.078, ax1 - ax0 - 0.045, 0.040, USER, r=0.008)
     text(fig, ax0 + 0.042, top - 0.058,
@@ -340,7 +340,7 @@ def gschwind_bars(ax, color):
     ours = [o for _, _, o in GSCHWIND_AUPRC]
     ax.bar(x - 0.19, paper, 0.36, color="white", ec=color, lw=0.8,
            label="paper")
-    ax.bar(x + 0.19, ours, 0.36, color=color, label="IGVFagent")
+    ax.bar(x + 0.19, ours, 0.36, color=color, label="IGVF Agent")
     for xi, o in zip(x, ours):
         ax.text(xi + 0.19, o + 0.015, f"{o:.2f}", ha="center", fontsize=5)
     ax.set_xticks(x, [m for m, *_ in GSCHWIND_AUPRC], fontsize=5.2)
@@ -356,7 +356,7 @@ def gschwind_bars(ax, color):
 def panel_c(fig):
     panel_label(fig, 0.01, 0.458, "c")
     box(fig, 0.30, 0.435, 0.40, 0.022, USER, r=0.006)
-    text(fig, 0.50, 0.446, "User: Replicate this paper with IGVFagent",
+    text(fig, 0.50, 0.446, "User: Replicate this paper with IGVF Agent",
          fontsize=6.5, ha="center")
 
     left0, colw, gap = 0.075, 0.255, 0.075
@@ -379,7 +379,7 @@ def panel_c(fig):
         # Row 2: every quoted number, ours vs paper.
         rows = NUMBERS[pid]
         n_ok = sum(abs(o - p) / abs(p) <= 0.05 for _, p, o in rows)
-        h = 0.0082 * len(rows)
+        h = 0.0082 * max(len(r) for r in NUMBERS.values())
         ax = fig.add_axes([x + 0.085, 0.240 - h, colw - 0.085, h])
         ax.axvspan(-5, 5, color="#E4E7EB", lw=0)
         ax.axvline(0, color="#9AA5B1", lw=0.5)
@@ -399,7 +399,7 @@ def panel_c(fig):
         ax.set_xlim(-65, 65)
         ax.set_xticks([-50, 0, 50])
         ax.tick_params(axis="x", labelsize=5.5)
-        ax.set_xlabel("IGVFagent vs paper (%)", fontsize=5.8, labelpad=1)
+        ax.set_xlabel("IGVF Agent vs paper (%)", fontsize=5.8, labelpad=1)
         for s in ("top", "right"):
             ax.spines[s].set_visible(False)
         text(fig, x + colw / 2, 0.255,
