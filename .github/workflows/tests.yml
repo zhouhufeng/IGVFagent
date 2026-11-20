@@ -4,7 +4,8 @@
 # network access blocked and no credentials, so a green badge means each
 # skill's self-test passed from a fresh `pip install` alone. Python 3.9 is the
 # supported floor (and the local development version); 3.11 is what the
-# hosted container runs.
+# hosted container runs. The runner is pinned to Ubuntu 24.04: ubuntu-latest
+# moved to 26.04 in 2026, which has no Python 3.9 build for setup-python.
 name: tests
 
 on:
@@ -23,7 +24,7 @@ concurrency:
 jobs:
   selftests:
     name: self-tests (Python ${{ matrix.python }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
