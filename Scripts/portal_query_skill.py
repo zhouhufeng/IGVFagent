@@ -397,24 +397,71 @@ def cmd_list_types(args: argparse.Namespace) -> int:
     return 0
 
 
+_PORTAL_HOSTS = {"api.data.igvf.org": "prod", "data.igvf.org": "prod",
+                 "api.staging.igvf.org": "staging", "staging.igvf.org": "staging"}
+
+
+def resolve_ref(rid: str, mode: "str | None" = None) -> "tuple[str, str]":
+    """``(mode, path)`` for an @id, accession, UUID or Portal URL.
+
+    A URL names its own Portal, and a TST accession exists only on staging; otherwise prod.
+    Every path is ``/<id>/``: an id that did not start with IGVF used to be appended to the
+    host as it was, so ``TSTFI48600603`` became ``https://api.data.igvf.orgTSTFI48600603/``
+    and failed with "Name or service not known".
+    """
+    rid = (rid or "").strip()
+    if rid.startswith(("http://", "https://")):
+        u = urllib.parse.urlsplit(rid)
+        host_mode = _PORTAL_HOSTS.get(u.netloc.lower())
+        if host_mode is None:
+            raise ValueError(f"not an IGVF Portal URL: {rid}")
+        if mode and mode != host_mode:
+            raise ValueError(f"{rid} is on the {host_mode} Portal, not {mode}")
+        mode, rid = host_mode, u.path
+    rid = rid.strip("/")
+    if not rid:
+        raise ValueError("no @id, accession or UUID given")
+    if mode is None:
+        mode = "staging" if rid.split("/")[-1].upper().startswith("TST") else "prod"
+    if mode not in ("prod", "staging"):
+        raise ValueError(f"mode must be prod or staging, not {mode}")
+    return mode, f"/{rid}/"
+
+
+def _get_staging(path: str) -> "tuple[Any, bytes, bool]":
+    """GET from the staging Portal with the staging key pair (never the prod one: keys are per
+    host), through the submission client that already picks it. Returns (doc, raw, authenticated)."""
+    try:
+        from igvf_submission_skill import Portal, PortalError  # type: ignore
+    except ImportError:
+        from .igvf_submission_skill import Portal, PortalError  # type: ignore
+    p = Portal(mode="staging")
+    try:
+        doc = p._request("GET", path, params={"format": "json"})
+    except PortalError as exc:
+        raise SystemExit(f"ERROR: staging Portal: {exc}") from None
+    return doc, json.dumps(doc, indent=1).encode(), p.authenticated
+
+
 def cmd_get(args: argparse.Namespace) -> int:
-    """Get one item by @id, accession, or UUID."""
+    """Get one item by @id, accession, UUID or Portal URL, from prod or staging."""
     setup_logging()
     rid = args.resource_id
-    # Normalise: accept '/files/IGVFFI.../', 'IGVFFI...', UUID, or '@id'
-    if rid.startswith("/"):
-        path = rid if rid.endswith("/") else rid + "/"
-    elif rid.startswith("IGVF") or len(rid) == 36:  # accession or UUID
-        # Try as a top-level item id (portal will resolve to canonical @id)
-        path = f"/{rid}/"
+    try:
+        mode, path = resolve_ref(rid, getattr(args, "mode", None))
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    if mode == "staging":
+        doc, content, authed = _get_staging(path)
     else:
-        path = rid if rid.endswith("/") else rid + "/"
-    url = f"{_API}{path}?format=json"
-    status, content, ct = _request(url, accept="application/json")
-    doc = _ensure_json(status, content, ct, context="portal get")
+        status, content, ct = _request(f"{_API}{path}?format=json", accept="application/json")
+        doc = _ensure_json(status, content, ct, context="portal get")
     out_dir = REPORT_DIR / f"{time.strftime('%Y%m%d_%H%M%S')}_get"
     out_path = _write_response(safe_label(rid), content, ext="json",
                                  out_dir=out_dir)
+    if mode == "staging":
+        print(f"portal:     staging (api.staging.igvf.org){'' if authed else ', no staging key: released objects only'}")
     print(f"@id:        {doc.get('@id', '')}")
     print(f"@type:      {', '.join(doc.get('@type', []))}")
     print(f"uuid:       {doc.get('uuid', '')}")
@@ -1002,9 +1049,11 @@ def main(argv=None) -> int:
                     help="object / embedded / page (portal default).")
     p.set_defaults(func=cmd_search)
 
-    p = sub.add_parser("get", help="Get one item by @id / accession / UUID.")
+    p = sub.add_parser("get", help="Get one item by @id / accession / UUID / Portal URL.")
     p.add_argument("resource_id",
-                    help="@id, accession (IGVFFI...), or UUID.")
+                    help="@id, accession (IGVFFI..., TSTFI...), UUID, or Portal URL.")
+    p.add_argument("--mode", choices=("prod", "staging"), default=None,
+                    help="Portal to read (default: staging for TST accessions and staging URLs, else prod).")
     p.set_defaults(func=cmd_get)
 
     p = sub.add_parser("schema", help="JSON schema for an ItemType.")

@@ -11,7 +11,7 @@ Submitters can now check, audit, create and upload IGVF Portal objects with one 
 - **Web app (igvfagent.genohub.org):** users paste their own Portal keys, upload data to a private folder, let the agent dry-run the submission and click **Submit to staging**. Prod submission is switched off.
 - **Agent tools:** nine read-only `igvf_submit_*` tools, so the agent can audit and prepare but never write.
 
-Status on 2026-10-17: everything below is deployed to igvfagent.genohub.org. This public repository's code is updated separately; the newest pieces (`sheet-*`, `portal-audit`, the web key store) will follow in a later release.
+Status on 2026-11-20: the submission skills in this repository match igvfagent.genohub.org: the `submit` command with `sheet-*`, `portal-audit`, `send` and the working directory, and the agent's `igvf_submit_*` tools. The hosted site's web-app pieces (pasting keys in the chat, the Submit button) are not in this repository's web app; from your own install you send a plan with `igvfagent submit send`. See [Using it from your own install](#using-it-from-your-own-install-2026-11-20).
 
 ## Timeline
 
@@ -27,6 +27,10 @@ Status on 2026-10-17: everything below is deployed to igvfagent.genohub.org. Thi
 | 2026-10-16 | IGVF-DACC igvf-metadata-submitter (Google Sheets) ported as `sheet-template`, `sheet-get`, `sheet-post`, `sheet-patch`, `sheet-put`, `sheet-upload` for TSV/CSV/XLSX |
 | 2026-10-16 | Submitter overview, `Docs/Logs/SubmissionSkills/IGVF-Agent-submission-skills.md` |
 | 2026-10-17 | igvfd's own audit checkers ported as `submit portal-audit`, with staging and prod fixtures and an agreement report |
+| 2026-10-29 | Changing objects already on the Portal from the agent: `sheet-patch` dry runs save a plan; reading staging objects (TST accessions) with your staging key; boto3 for uploads |
+| 2026-11-19 | Working directory for local installs (`igvfagent ask/ui --workdir DIR`, or `IGVF_PROJECT_ROOT`): the submission commands find your files there and, inside a sheet, next to the sheet. On a shared deployment a submission may name only the signed-in person's own files |
+| 2026-11-20 | `submit send <plan>` sends a saved dry-run plan as checked; every dry run prints it. Each plan records who made it, so the hosted Submit button offers your latest unsent plan, also one made by a deep-analysis job |
+| 2026-11-20 | This public repository updated with all of the above |
 
 ## What exists now
 
@@ -100,3 +104,31 @@ Lab `xihong-lin`, award `HG012064`:
 | Submitter overview | `Docs/Logs/SubmissionSkills/IGVF-Agent-submission-skills.md` |
 | Submitter's guide | `Docs/Skills/igvf-submission.md` |
 | Tests | `Benchmarks/test_igvf_submission.py`, `Benchmarks/test_igvfd_audits.py` |
+
+## Using it from your own install (2026-11-20)
+
+```bash
+git pull                                   # or clone github.com/zhouhufeng/IGVFagent
+pip install -e '.[analysis,ui,llm,submit]' # submit = boto3, for uploading file contents
+export IGVF_STAGING_API_KEY=...            # your own staging key pair (Portal profile -> Access keys)
+export IGVF_STAGING_SECRET_KEY=...
+igvfagent submit -m staging doctor         # keys, account, the labs you may submit for
+
+# 1. Dry run: checks the drafts against the live schema and your files, orders them, saves the exact plan
+igvfagent submit create --objects curated_set.json tabular_file.json -m staging
+#    -> Submission plan: Data/Submitter/<time>_plan_staging/drafts.json  (2 object(s), staging)
+# 2. Send that plan, exactly as checked (prod also needs --yes)
+igvfagent submit send Data/Submitter/<time>_plan_staging/drafts.json
+# 3. Check the new objects
+igvfagent submit -m staging audit <new IGVFDS accession> --recurse   # the DACC-meeting checklist
+igvfagent submit -m staging portal-audit <new IGVFDS accession>      # the Portal's own audits
+```
+
+With the agent: `igvfagent ask --workdir /path/to/your/data "prepare a staging submission of chr1.tsv.gz as a
+tabular file in a curated set"` (or the browser UI started with `igvfagent ui --workdir /path/to/your/data`). The
+agent only prepares the dry run; it then gives you the `igvfagent submit send ...` command, which you run yourself
+with your keys. To change objects already on the Portal, the agent prepares a `sheet-patch` plan the same way.
+
+Lab and award come from each draft, or from `IGVF_LAB` / `IGVF_AWARD` when a draft has none. Every object needs an
+alias with your lab's prefix (`<lab-name>:<id>`); the Portal rejects other prefixes.
+

@@ -898,6 +898,32 @@ def _run_localstore(args: "list[str]") -> int:
     return 2
 
 
+def _workdir_mod():
+    try:
+        from igvfagent import _workdir
+    except ImportError:
+        import _workdir  # type: ignore[no-redef]
+    return _workdir
+
+
+def _enter_workdir(path: str) -> int:
+    """`--workdir DIR`: make DIR the workspace root and the current directory.
+
+    Must run before the agent modules are imported: several fix their paths
+    (``Docs/Agent``, the job store) from IGVF_PROJECT_ROOT at import. Returns
+    0, or 2 after an error message."""
+    try:
+        d = _workdir_mod().enter(path)
+    except NotADirectoryError:
+        sys.stderr.write(f"--workdir: not a directory: {path}\n")
+        return 2
+    except OSError as exc:
+        sys.stderr.write(f"--workdir: cannot use {path}: {exc}\n")
+        return 2
+    sys.stderr.write(f"  → Working directory: {d}\n")
+    return 0
+
+
 def _run_ask(args: "list[str]") -> int:
     import argparse
     parser = argparse.ArgumentParser(
@@ -929,7 +955,14 @@ def _run_ask(args: "list[str]") -> int:
                          help="Suppress the per-step progress trace.")
     parser.add_argument("--no-persist", action="store_true",
                          help="Don't write the transcript / report files.")
+    parser.add_argument("--workdir", metavar="DIR", default=None,
+                         help="Working directory: the agent reads your files "
+                              "from DIR and writes its results (Docs/, Data/) "
+                              "into it. Same as `cd DIR` with "
+                              "IGVF_PROJECT_ROOT=DIR.")
     parsed = parser.parse_args(args)
+    if parsed.workdir and (rc := _enter_workdir(parsed.workdir)):
+        return rc
 
     # Lazy-import the agent module so `igvfagent --help` doesn't pay the
     # SDK-import cost.
@@ -1175,9 +1208,28 @@ def _run_ui(args: "list[str]") -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true",
                          help="Don't auto-open the browser tab.")
+    parser.add_argument("--workdir", metavar="DIR", default=None,
+                         help="Working directory: the agent reads your files "
+                              "from DIR and writes its results (Docs/, Data/) "
+                              "into it. Same as starting the UI in DIR with "
+                              "IGVF_PROJECT_ROOT=DIR.")
     parser.add_argument("--", dest="extra", nargs=argparse.REMAINDER,
                          help="Forward arbitrary `streamlit run` flags.")
     parsed = parser.parse_args(args)
+    wd = _workdir_mod()
+    if parsed.workdir:
+        if (rc := _enter_workdir(parsed.workdir)):
+            return rc
+    elif os.environ.get("IGVF_PROJECT_ROOT", "").strip():
+        # IGVF_PROJECT_ROOT without --workdir: start there as well. Tools that
+        # open a path as given (the submission commands) resolve it against
+        # the current directory, so a UI started elsewhere did not find files
+        # that `ask`, run from inside the folder, did.
+        try:
+            wd.enter(os.environ["IGVF_PROJECT_ROOT"])
+        except OSError as exc:
+            sys.stderr.write(f"IGVF_PROJECT_ROOT={os.environ['IGVF_PROJECT_ROOT']} "
+                             f"is not a usable directory ({exc}); starting in the current one.\n")
 
     # Prefer ``python -m streamlit run`` so we always invoke the streamlit
     # installed in the SAME venv as igvfagent, regardless of whether the
@@ -1234,9 +1286,55 @@ def _run_ui(args: "list[str]") -> int:
     sys.stderr.write(
         f"\n  → Streamlit UI starting at http://{parsed.host}:{parsed.port}\n"
         f"  → Source: {app_path}\n"
+        f"  → Working directory: {wd.root()}"
+        f"{'' if wd.is_explicit() else '  (the IGVF Agent folder; choose another with --workdir DIR)'}\n"
         f"  → Backends: `igvfagent backends`  ·  Tools: `igvfagent tools`\n\n"
     )
-    return subprocess.call(cmd)
+    return _supervise_ui(cmd, host=parsed.host)
+
+
+def _supervise_ui(cmd: "list[str]", *, host: str, call=None) -> int:
+    """Run the Streamlit server, and run it again in a new working directory
+    when the app asks for one.
+
+    The sidebar's "Change working directory" cannot re-root a running app
+    (its modules fixed their paths at import), so it leaves the folder in the
+    file named by IGVF_UI_RESTART_FILE and stops the server; this loop starts
+    the next one there. The file is private to this account (mkstemp, 0600)
+    and the folder is validated again before use. On a shared deployment
+    (IGVF_PUBLIC_MODE) no file is offered, so the app cannot ask.
+    ``call`` is injectable for the self-test."""
+    import subprocess
+    import tempfile
+    call = call or subprocess.call
+    wd = _workdir_mod()
+    env = dict(os.environ)
+    env["IGVF_UI_HOST"] = host
+    public = env.get("IGVF_PUBLIC_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+    req = None
+    if not public:
+        fd, req = tempfile.mkstemp(prefix="igvfagent-ui-", suffix=".json")
+        os.close(fd)
+        env[wd.RESTART_ENV] = req
+    else:
+        env.pop(wd.RESTART_ENV, None)
+    cwd = None
+    try:
+        while True:
+            rc = call(cmd, env=env, cwd=cwd)
+            nxt = wd.read_request(req)
+            if not nxt:
+                return rc
+            env["IGVF_PROJECT_ROOT"] = cwd = nxt
+            sys.stderr.write(f"\n  → Restarting the UI in the working directory {nxt}\n\n")
+    except KeyboardInterrupt:
+        return 130
+    finally:
+        if req:
+            try:
+                os.unlink(req)
+            except OSError:
+                pass
 
 
 def _run_introspection(skill: str, args: "list[str]") -> int:

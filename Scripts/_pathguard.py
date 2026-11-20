@@ -46,6 +46,7 @@ _DENY_SEGMENTS = frozenset({
     "secret", "secrets", "secretes",      # incl. the historical typo
     ".ssh", ".aws", ".config", ".git",
     "credentials",
+    "keystore",                           # web users' Portal keys (portal_keystore.py)
 })
 
 # Exact filenames that are never renderable, whatever directory they sit in.
@@ -87,6 +88,34 @@ def _configured_credential_files() -> "set[Path]":
     return out
 
 
+def user_upload_dirname(user: str) -> str:
+    """The folder name of one person's uploads under Data/Uploads/users/.
+
+    Keyed with the server's own secret when it has one, so the name cannot be
+    worked out from a username: uploads are often unreleased data.
+    """
+    import hashlib
+    import hmac
+    key = (os.environ.get("IGVF_KEYSTORE_SECRET") or os.environ.get("IGVF_SESSION_SECRET") or "").encode()
+    raw = (user or "local").encode()
+    digest = hmac.new(key, raw, hashlib.sha256).hexdigest() if key else hashlib.sha256(raw).hexdigest()
+    return digest[:24]
+
+
+def _acting_user() -> str:
+    try:
+        from . import _history as _h          # type: ignore
+    except ImportError:
+        try:
+            import _history as _h             # type: ignore
+        except ImportError:
+            return os.environ.get("IGVF_ACTING_USER", "").strip()
+    try:
+        return _h.actor() or ""
+    except Exception:
+        return os.environ.get("IGVF_ACTING_USER", "").strip()
+
+
 def why_blocked(path: "str | Path", *, require_file: bool = True) -> "str | None":
     """Return a short reason the path is not renderable, or ``None`` if it is.
 
@@ -125,6 +154,17 @@ def why_blocked(path: "str | Path", *, require_file: bool = True) -> "str | None
         return "key material"
     if any(part in name for part in _DENY_NAME_PARTS):
         return "credential-like filename"
+
+    # 2b) Another person's uploads. Data/Uploads/users/<their folder>/ is
+    #     readable only while acting as them (the folder name is theirs).
+    rel = p.relative_to(root).parts
+    if len(rel) >= 4 and [x.lower() for x in rel[:3]] == ["data", "uploads", "users"]:
+        own = os.environ.get("IGVF_ACTING_UPLOAD_DIR", "").strip()
+        acting = _acting_user()
+        if not own and acting:
+            own = user_upload_dirname(acting)
+        if (own or acting) and rel[3] != own:
+            return "another user's uploads"
 
     # 3) Must be a real regular file (not a device or FIFO). Directories are
     #    allowed only for callers that opted in via require_file=False.

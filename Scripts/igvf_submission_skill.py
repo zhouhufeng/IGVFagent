@@ -32,8 +32,10 @@ import gzip
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -146,7 +148,38 @@ def plan_submission(objects: "list[dict]") -> dict:
     }
 
 
-def _portal_key_pair():
+def _host_key_pair(mode: str):
+    """Keys for a rehearsal host (staging), which issues its own.
+
+    Portal keys are per host: a prod key gets HTTP 401 on staging. IGVFagent's
+    own key names and Docs/Secret/IGVFportalAPI.txt hold the PROD pair, so for
+    any other mode they must never be used. Looked up instead:
+    IGVF_<MODE>_API_KEY / IGVF_<MODE>_SECRET_KEY, then
+    Docs/Secret/IGVFportalAPI-<mode>.txt (same layout as the prod file).
+    """
+    tag = mode.upper().replace("-", "_")
+    key = os.environ.get(f"IGVF_{tag}_API_KEY")
+    secret = os.environ.get(f"IGVF_{tag}_SECRET_KEY")
+    if key and secret:
+        return key.strip(), secret.strip()
+    root = Path(os.environ.get("IGVF_PROJECT_ROOT") or Path(__file__).resolve().parents[1])
+    path = root / "Docs" / "Secret" / f"IGVFportalAPI-{mode}.txt"
+    if path.is_file() and not os.environ.get("IGVF_NO_KEY_FILES"):
+        try:
+            from . import _credentials          # type: ignore
+        except ImportError:
+            try:
+                import _credentials             # type: ignore
+            except ImportError:
+                _credentials = None
+        if _credentials is not None:
+            k, sct = _credentials._parse(path.read_text())
+            if k and sct:
+                return k, sct
+    return None, None
+
+
+def _portal_key_pair(mode: str = "prod"):
     """The portal key pair, from either naming convention.
 
     This tool was written standalone against IGVF_API_KEY / IGVF_SECRET_KEY,
@@ -161,10 +194,19 @@ def _portal_key_pair():
     IGVF-Submit README keeps working; then IGVFagent's own names; then
     _credentials.py, which also reads the on-disk key file.
     """
+    # The host's own names first (IGVF_STAGING_API_KEY, IGVF_PROD_API_KEY): the
+    # web app hands a signed-in user's pairs over under these, one per host.
+    tag = mode.upper().replace("-", "_")
+    key = os.environ.get(f"IGVF_{tag}_API_KEY")
+    secret = os.environ.get(f"IGVF_{tag}_SECRET_KEY")
+    if key and secret:
+        return key.strip(), secret.strip()
     key = os.environ.get("IGVF_API_KEY")
     secret = os.environ.get("IGVF_SECRET_KEY")
     if key and secret:
         return key, secret
+    if mode != "prod":
+        return _host_key_pair(mode)
     key = os.environ.get("IGVF_ACCESS_KEY")
     secret = os.environ.get("IGVF_SECRET_ACCESS_KEY")
     if key and secret:
@@ -229,7 +271,7 @@ class Portal:
         # environment -- and portal keys are per-host, so that is how a prod
         # key ends up being sent to staging.
         if api_key is None and secret_key is None:
-            self.api_key, self.secret_key = _portal_key_pair()
+            self.api_key, self.secret_key = _portal_key_pair(self.mode)
         else:
             self.api_key, self.secret_key = api_key, secret_key
 
@@ -838,6 +880,11 @@ def cmd_doctor(portal: Portal, args) -> int:
     print(f"mode:  {portal.mode}  ->  {portal.base}")
     print(f"keys:  {'present' if portal.authenticated else _c('MISSING', '31;1')}"
           f" (IGVF_API_KEY / IGVF_SECRET_KEY)")
+    if not portal.authenticated and portal.mode != "prod":
+        tag = portal.mode.upper()
+        print(f"       {portal.mode} issues its own keys (prod keys get 401 there): set "
+              f"IGVF_{tag}_API_KEY / IGVF_{tag}_SECRET_KEY, or save them to "
+              f"Docs/Secret/IGVFportalAPI-{portal.mode}.txt")
     for var in ("IGVF_LAB", "IGVF_AWARD"):
         val = os.environ.get(var)
         print(f"{var.lower():6} {val if val else '(unset)'}")
@@ -967,6 +1014,118 @@ def cmd_fileset_files(portal: Portal, args) -> int:
     return 0
 
 
+def _shared_deployment() -> bool:
+    return os.environ.get("IGVF_PUBLIC_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+_READONLY_TOP = ("Scripts", ".git", "Deploy", ".github", "src")
+
+
+def _access_refusal(path, *, write: bool) -> "Optional[str]":
+    """Why this person may not read (or write) ``path`` on a shared deployment, or None.
+
+    The rules are the file tools' own: inside the workspace, not secret material, not another person's uploads
+    (``_pathguard``), not inside another person's run or job (``artifact_read_skill``). A request with no
+    signed-in user is refused outright, and so is any failure of the check itself."""
+    try:
+        try:
+            from . import _pathguard as pg, artifact_read_skill as ar  # type: ignore
+        except ImportError:
+            import _pathguard as pg  # type: ignore
+            import artifact_read_skill as ar  # type: ignore
+        if not os.environ.get("IGVF_ACTING_USER", "").strip():
+            return "no signed-in user for this request"
+        q = Path(str(path)).expanduser()
+        why = pg.why_blocked(q, require_file=False, allow_missing=True) or ar._owner_block(q)
+        if why or not write:
+            return why
+        rel = q.resolve().relative_to(pg.project_root()).parts
+        if rel and rel[0] in _READONLY_TOP:
+            return f"{rel[0]}/ is not writable"
+        return None
+    except Exception as exc:                                   # noqa: BLE001  fail closed
+        return f"the access check failed ({exc.__class__.__name__})"
+
+
+def _may_read(path, what: str = "file") -> str:
+    """``path`` unchanged, or exit: on a shared deployment a submission may only name the asker's own files.
+
+    Found 2026-11-19. These commands opened whatever path they were given. On the hosted site that meant: a
+    draft's ``_attachment_file`` (or a sheet's ``attachment`` cell) copied any file the server could read into the
+    request, and the dry run printed it and saved it in the plan; ``validate`` and ``create`` reported the md5
+    and size of any file; and ``create --upload`` and ``sheet upload`` sent any gzipped file to a Portal object of
+    the person asking. On your own machine the files are yours, and nothing is checked."""
+    if _shared_deployment():
+        why = _access_refusal(path, write=False)
+        if why:
+            die(f"{what} {path}: not available on this site ({why}). Use a file in your own data folder or "
+                f"in one of your own runs.")
+    return str(path)
+
+
+def _may_write(path, what: str = "output") -> str:
+    """``path`` unchanged, or exit: on a shared deployment output goes inside the workspace, never into its code,
+    its secrets or another person's folder."""
+    if _shared_deployment():
+        why = _access_refusal(path, write=True)
+        if why:
+            die(f"{what} {path}: cannot be written on this site ({why}).")
+    return str(path)
+
+
+def _local(path, also: "Optional[str]" = None) -> str:
+    """A local path the user named, as this process should open it.
+
+    As given when it is absolute or exists from the current directory. Otherwise the same path under the working
+    directory (IGVF_PROJECT_ROOT), or under ``also`` (the folder of the sheet that listed it), when it exists
+    there; that one is returned absolute. Otherwise as given, so the "not found" message names what was typed.
+
+    Before 2026-11-19 a relative path meant "relative to wherever the program was started". From `igvfagent ask`
+    run inside the data folder that was the data folder; from a browser UI started elsewhere it was not, and
+    `validate` and `create` reported files as missing that sat in the configured working directory.
+    """
+    given = str(path)
+    try:
+        try:
+            from . import _workdir as _wd  # type: ignore
+        except ImportError:
+            import _workdir as _wd  # type: ignore
+        found = _wd.resolve_input(given)
+    except Exception:
+        found = given
+    if found == given and also and not os.path.isabs(os.path.expanduser(given)) and not os.path.exists(given):
+        cand = os.path.join(also, given)
+        if os.path.exists(cand):
+            return os.path.abspath(cand)
+    return found
+
+
+def _localize_args(args) -> None:
+    """Resolve the path arguments of the commands that read local files (see ``_local``), then, on a shared
+    deployment, refuse the ones the asker may not use (``_may_read``, ``_may_write``). An accession given to
+    `crosscheck` is not a file anywhere and passes through unchanged."""
+    fn = getattr(getattr(args, "fn", None), "__name__", "")
+    reads = {"cmd_validate": ("path",), "cmd_plan": ("objects",), "cmd_crosscheck": ("old", "new", "mine"),
+             "cmd_sheet_get": ("sheet",), "cmd_sheet_post": ("sheet",), "cmd_sheet_patch": ("sheet",),
+             "cmd_sheet_put": ("sheet",), "cmd_sheet_upload": ("sheet",), "cmd_send": ("plan",)}.get(fn, ())
+    for name in reads:
+        v = getattr(args, name, None)
+        if isinstance(v, str) and v:
+            v = _local(v)
+            if fn != "cmd_crosscheck" or os.path.exists(v):
+                v = _may_read(v, f"--{name}" if fn == "cmd_crosscheck" else "file")
+            setattr(args, name, v)
+    if fn == "cmd_create" and isinstance(getattr(args, "objects", None), list):
+        args.objects = [_may_read(_local(o), "objects file") for o in args.objects]
+    writes = {"cmd_crosscheck": ("workdir",), "cmd_sheet_template": ("out",), "cmd_sheet_get": ("out",),
+              "cmd_sheet_post": ("out",), "cmd_sheet_patch": ("out",), "cmd_sheet_put": ("out",),
+              "cmd_sheet_upload": ("out",)}.get(fn, ())
+    for name in writes:
+        v = getattr(args, name, None)
+        if isinstance(v, str) and v:
+            _may_write(v, f"--{name}")
+
+
 def cmd_validate(portal: Portal, args) -> int:
     findings = validate_local(args.path, expect_bed3=args.bed3)
     return report(findings, args.json)
@@ -985,7 +1144,7 @@ def cmd_crosscheck(portal: Portal, args) -> int:
     def resolve(spec):
         """Accession -> downloaded path; a local path passes straight through."""
         if os.path.exists(spec):
-            return spec
+            return _may_read(spec, "input")
         obj = portal.get(spec)
         ext = ".csv.gz" if obj.get("file_format") == "csv" else ".tsv.gz"
         dest = os.path.join(tmp, f"{acc_of(obj.get('@id', spec))}{ext}")
@@ -1120,9 +1279,21 @@ def cmd_patch(portal: Portal, args) -> int:
     if portal.mode == "prod" and not args.yes:
         die("refusing to write to PRODUCTION without --yes "
             "(rehearse with -m staging first; sandbox is deprecated)")
-    result = portal.patch(args.accession, payload)
-    print(ok(f"patched {result.get('accession', args.accession)} -- "
-             f"status={result.get('status')}"))
+    portal.patch(args.accession, payload)
+    # The Portal answers a write before its reads show it (about 30 s on
+    # staging), so an audit run straight after a fix still saw the old value
+    # and called it broken. Wait until the new values are visible.
+    want = {k: v for k, v in payload.items()}
+    for _ in range(18):
+        cur = portal.get(args.accession)
+        if all(acc_of(cur.get(k)) == acc_of(v) if not isinstance(v, list)
+               else [acc_of(x) for x in (cur.get(k) or [])] == [acc_of(x) for x in v]
+               for k, v in want.items()):
+            print(ok(f"patched {args.accession}; the Portal now shows the new values"))
+            return 0
+        time.sleep(5)
+    print(warn(f"patched {args.accession}, but after 90 s the Portal still shows the old "
+               f"values; it can lag after a write -- check again before auditing"))
     return 0
 
 
@@ -1256,19 +1427,7 @@ Rehearse against staging before touching prod:  igvf-sub -m staging ...
 
 def cmd_plan(portal: Portal, args) -> int:
     """Dependency-ordered submission plan from a draft JSON/YAML object list."""
-    raw = Path(args.objects).read_text()
-    try:
-        objects = json.loads(raw)
-    except json.JSONDecodeError:
-        try:
-            import yaml
-            objects = yaml.safe_load(raw)
-        except ImportError:
-            die(f"{args.objects} is not JSON and PyYAML is not installed")
-        except Exception as e:
-            die(f"could not parse {args.objects}: {e}")
-    if isinstance(objects, dict):
-        objects = objects.get("objects") or [objects]
+    objects = _load_objects(args.objects)
     out = plan_submission(objects)
     print(f"Submission plan — {len(out['steps'])} object(s), "
           f"{out['n_ready']} ready, {out['n_blocked']} blocked\n")
@@ -1370,6 +1529,423 @@ def cmd_status(portal: Portal, args) -> int:
     return 0
 
 
+# ── create: POST drafts in dependency order, upload file contents ───────────
+
+# Profile names (snake_case) of file objects, for `create`. NOT FILE_TYPES,
+# which holds the @type names the audit uses; reusing that name here
+# silently turned off every file check in `audit`.
+CREATE_FILE_TYPES = ("tabular_file", "alignment_file", "sequence_file", "matrix_file",
+              "signal_file", "reference_file", "configuration_file",
+              "image_file", "model_file", "genome_browser_annotation_file")
+
+
+def _load_sheet(path: str, profile: str = "") -> "list[dict]":
+    """An iu_register-style TSV/CSV sheet: one row per object, `#` columns ignored."""
+    p = Path(path)
+    opener = gzip.open if p.suffix == ".gz" else open
+    with opener(p, "rt", newline="") as fh:
+        sample = fh.read(4096)
+        fh.seek(0)
+        delim = "\t" if "\t" in sample.splitlines()[0] else ","
+        rows = list(csv.DictReader(fh, delimiter=delim))
+    out = []
+    for r in rows:
+        d = {k.strip(): v.strip() for k, v in r.items()
+             if k and not k.strip().startswith("#") and v is not None and v.strip() != ""}
+        if profile and "type" not in d:
+            d["type"] = profile
+        if d:
+            out.append(d)
+    return out
+
+
+def _coerce(d: dict, prof: dict) -> dict:
+    """Sheet cells are text; give each property the type its schema wants."""
+    props = (prof or {}).get("properties") or {}
+    for k, v in list(d.items()):
+        if not isinstance(v, str) or k not in props:
+            continue
+        typ = props[k].get("type")
+        # JSON in a cell ("[...]" / "{...}") is taken as JSON, as the DACC's
+        # metadata-submitter sheets write arrays and objects; a plain list
+        # still splits on commas, as iu_register sheets do.
+        if v[:1] in "[{" and typ in ("array", "object"):
+            try:
+                d[k] = json.loads(v)
+                continue
+            except ValueError:
+                pass
+        if typ == "array":
+            d[k] = [x.strip() for x in v.split(",") if x.strip()]
+        elif typ == "integer" and re.fullmatch(r"-?\d+", v):
+            d[k] = int(v)
+        elif typ == "number" and re.fullmatch(r"-?\d+(\.\d+)?([eE]-?\d+)?", v):
+            d[k] = float(v)
+        elif typ == "boolean" and v.lower() in ("true", "false"):
+            d[k] = v.lower() == "true"
+        elif typ == "object" and v.startswith("{"):
+            try:
+                d[k] = json.loads(v)
+            except ValueError:
+                pass
+    return d
+
+
+def _load_objects(path: str, profile: str = "") -> "list[dict]":
+    if Path(path).name.lower().endswith((".tsv", ".csv", ".tsv.gz", ".csv.gz", ".txt")):
+        return _load_sheet(path, profile)
+    raw = Path(path).read_text()
+    try:
+        objects = json.loads(raw)
+    except json.JSONDecodeError:
+        try:
+            import yaml
+            objects = yaml.safe_load(raw)
+        except ImportError:
+            die(f"{path} is not JSON and PyYAML is not installed")
+        except Exception as e:
+            die(f"could not parse {path}: {e}")
+    if isinstance(objects, dict):
+        objects = objects.get("objects") or [objects]
+    return [dict(o) for o in objects]
+
+
+def _aliases(o: dict) -> list:
+    a = o.get("aliases") or o.get("alias") or []
+    return [a] if isinstance(a, str) else list(a)
+
+
+def _refs(value) -> "set[str]":
+    """Every string inside a property value (links are strings or lists of them)."""
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list):
+        return set().union(*[_refs(v) for v in value]) if value else set()
+    if isinstance(value, dict):
+        return set().union(*[_refs(v) for v in value.values()]) if value else set()
+    return set()
+
+
+def order_drafts(objects: "list[dict]") -> "list[dict]":
+    """Each draft after every draft it links to by alias; ties by SUBMISSION_ORDER.
+
+    The fixed order alone breaks as soon as a submission has a type it does not
+    list (a sample, a second document) or links two of the same type, and the
+    Portal reports an out-of-order POST as a missing link target.
+    """
+    rank = {t: i for i, (t, _) in enumerate(SUBMISSION_ORDER)}
+    owner = {}
+    for i, o in enumerate(objects):
+        for a in _aliases(o):
+            owner[a] = i
+    deps = {i: {owner[r] for k, v in o.items() if k not in ("aliases", "alias")
+                 for r in _refs(v) if r in owner and owner[r] != i}
+            for i, o in enumerate(objects)}
+    done, out = set(), []
+    while len(out) < len(objects):
+        ready = [i for i in range(len(objects)) if i not in done and deps[i] <= done]
+        if not ready:
+            cyc = [_aliases(objects[i])[:1] for i in range(len(objects)) if i not in done]
+            die(f"drafts link to each other in a cycle; cannot order: {cyc}")
+        ready.sort(key=lambda i: (rank.get(str(objects[i].get("type")), len(rank)), i))
+        done.add(ready[0])
+        out.append(objects[ready[0]])
+    return out
+
+
+def _schema_errors(prof: dict, payload: dict) -> "list[str]":
+    """Validate against the live profile when jsonschema is installed (igvf_utils brings it)."""
+    try:
+        import jsonschema
+    except ImportError:
+        return []
+    schema = {k: v for k, v in prof.items() if k not in ("mixinProperties",)}
+    try:
+        v = jsonschema.Draft202012Validator(schema)
+    except Exception:
+        v = jsonschema.Draft7Validator(schema)
+    out = []
+    for e in sorted(v.iter_errors(payload), key=lambda e: list(e.path)):
+        where = ".".join(str(x) for x in e.path) or "(top level)"
+        out.append(f"{where}: {e.message[:200]}")
+    return out
+
+
+def _upload_bytes(creds: dict, path: str) -> str:
+    """Copy a local file to the S3 location the Portal issued. Returns how."""
+    env_creds = {"AWS_ACCESS_KEY_ID": creds["access_key"],
+                 "AWS_SECRET_ACCESS_KEY": creds["secret_key"],
+                 "AWS_SESSION_TOKEN": creds["session_token"]}
+    url = creds["upload_url"]
+    try:
+        import boto3
+        bucket, _, key = url.replace("s3://", "", 1).partition("/")
+        boto3.client("s3", aws_access_key_id=env_creds["AWS_ACCESS_KEY_ID"],
+                     aws_secret_access_key=env_creds["AWS_SECRET_ACCESS_KEY"],
+                     aws_session_token=env_creds["AWS_SESSION_TOKEN"]).upload_file(path, bucket, key)
+        return "boto3"
+    except ImportError:
+        pass
+    import shutil
+    import subprocess
+    if shutil.which("aws"):
+        r = subprocess.run(["aws", "s3", "cp", path, url, "--no-progress"],
+                           env={**os.environ, **env_creds}, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise PortalError(f"aws s3 cp failed: {r.stderr.strip()[:300]}")
+        return "aws s3 cp"
+    raise PortalError("neither boto3 nor the aws CLI is available to upload the file; "
+                      "pip install boto3, or upload later with iu_register / "
+                      "`submit create --upload` once one is installed")
+
+
+def cmd_create(portal: Portal, args) -> int:
+    """POST draft objects in dependency order; dry run unless --apply."""
+    drafts = []
+    for spec in args.objects:
+        loaded = _load_objects(spec, args.profile or "")
+        here = str(Path(spec).resolve().parent)
+        for d in loaded:
+            if isinstance(d, dict):
+                d.setdefault("_listed_in", here)     # where a relative file path in this draft may be meant from
+        drafts += loaded
+    drafts = order_drafts(drafts)
+    lab = os.environ.get("IGVF_LAB", "")
+    award = os.environ.get("IGVF_AWARD", "")
+    profiles, planned, problems, saved_plan = {}, [], 0, []
+    print(_c(f"CREATE {len(drafts)} object(s) on {portal.mode} ({portal.base})", "1"))
+    for n, d in enumerate(drafts, 1):
+        t = str(d.pop("type", "") or d.pop("@type", ""))
+        if not t:
+            die(f"draft {n} has no `type`")
+        listed_in = d.pop("_listed_in", None)
+        local = d.pop("_local_file", None) or (d.get("submitted_file_name") if t in CREATE_FILE_TYPES else None)
+        if local:
+            local = _may_read(_local(local, also=listed_in), "data file")
+        att = d.pop("_attachment_file", None)
+        if att:
+            # A document's file travels inside the object as a data: URI.
+            ap = Path(_may_read(_local(att, also=listed_in), "attachment"))
+            if not ap.is_file():
+                die(f"draft {n}: attachment not found: {att}")
+            mime = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg", ".tsv": "text/tab-separated-values",
+                    ".json": "application/json", ".html": "text/html"}.get(ap.suffix.lower(), "text/plain")
+            d["attachment"] = {"download": ap.name,
+                               "href": f"data:{mime};base64," + base64.b64encode(ap.read_bytes()).decode()}
+        for k, v in (("lab", lab), ("award", award)):
+            if v and not d.get(k):
+                d[k] = v
+        errs = []
+        if not _aliases(d):
+            errs.append("no `aliases`: every object needs one (lab-name:some-id), "
+                        "so a re-run finds it instead of posting a duplicate")
+        if t in CREATE_FILE_TYPES and local:
+            if not Path(local).is_file():
+                errs.append(f"local file not found: {local}")
+            else:
+                for f in validate_local(local, expect_bed3=(d.get("file_format_type") == "bed3")):
+                    if f.level == "fail":
+                        errs.append(f"{Path(local).name}: {f.message}")
+                d.setdefault("md5sum", md5_of(local))
+                d.setdefault("file_size", Path(local).stat().st_size)
+                d.setdefault("submitted_file_name", Path(local).name)
+        if t not in profiles:
+            try:
+                profiles[t] = portal.profile(t)
+            except PortalError as exc:
+                errs.append(f"no profile `{t}` on {portal.mode}: {str(exc)[:120]}")
+                profiles[t] = None
+        if profiles[t]:
+            _coerce(d, profiles[t])
+            errs += _schema_errors(profiles[t], d)
+        problems += bool(errs)
+        print(f"\n  {n}. {t}  {_aliases(d)[:1] or ''}" + ("" if errs else "  " + ok("valid")))
+        for e in errs:
+            print("       " + fail(e))
+        if args.verbose or errs:
+            shown = dict(d)
+            if isinstance(shown.get("attachment"), dict) and len(str(shown["attachment"].get("href", ""))) > 80:
+                shown["attachment"] = dict(shown["attachment"], href=shown["attachment"]["href"][:60] + "…")
+            print("       " + json.dumps(shown, indent=2).replace("\n", "\n       "))
+        planned.append((t, d, local))
+        d_saved = dict(d, type=t, **({"_local_file": local} if local else {}))
+        saved_plan.append(d_saved)
+    print()
+    if problems:
+        print(fail(f"{problems} draft(s) would be rejected; nothing sent."))
+        return 1
+    if not args.apply:
+        # The exact, validated drafts, so what is reviewed is what is sent:
+        # `create --objects <this file> --apply` posts these and nothing else.
+        root = Path(os.environ.get("IGVF_PROJECT_ROOT") or ".")
+        plan_dir = root / "Data" / "Submitter" / f"{time.strftime('%Y%m%d_%H%M%S')}_plan_{portal.mode}"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        (plan_dir / "drafts.json").write_text(json.dumps(saved_plan, indent=1))
+        save_plan_meta(plan_dir / "drafts.json", "create", len(saved_plan), portal.mode)
+        print(f"Submission plan: {plan_dir / 'drafts.json'}  ({len(saved_plan)} object(s), {portal.mode})")
+        print(warn("dry run -- nothing sent. To send exactly this plan with your own Portal keys: "
+                   f"igvfagent submit send {plan_dir / 'drafts.json'}"
+                   + (" --yes" if portal.mode == "prod" else "") + "  (on the web app: its Submit button)"))
+        return 0
+    if portal.mode == "prod" and not args.yes:
+        die("refusing to write to PRODUCTION without --yes (rehearse with --mode staging first)")
+    if not portal.authenticated:
+        die(f"no keys for {portal.mode}; run `doctor`")
+
+    root = Path(os.environ.get("IGVF_PROJECT_ROOT") or ".")
+    run_dir = root / "Data" / "Submitter" / f"{time.strftime('%Y%m%d_%H%M%S')}_create_{portal.mode}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {"mode": portal.mode, "base": portal.base, "objects": []}
+    for t, d, local in planned:
+        alias = _aliases(d)[0]
+        rec = {"type": t, "alias": alias}
+        try:
+            res = portal.post(t, d)
+            obj = (res.get("@graph") or [res])[0]
+            rec.update(accession=obj.get("accession") or obj.get("uuid"), action="created")
+            print(ok(f"created {t} {rec['accession']}  ({alias})"))
+        except PortalError as exc:
+            if "HTTP 409" not in str(exc):
+                rec.update(action="failed", error=str(exc)[:400])
+                manifest["objects"].append(rec)
+                (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+                print(fail(f"{t} {alias}: {exc}"))
+                print(info(f"stopped; manifest: {run_dir / 'manifest.json'}"))
+                return 1
+            existing = portal.get(alias)
+            rec.update(accession=existing.get("accession") or existing.get("uuid"), action="exists")
+            print(info(f"exists  {t} {rec['accession']}  ({alias}) -- not posted again"))
+        if t in CREATE_FILE_TYPES and local and args.upload:
+            try:
+                up = portal._request("POST", f"/{rec['accession']}/@@upload", payload={})
+                creds = (up.get("@graph") or [up])[0]["upload_credentials"]
+                how = _upload_bytes(creds, local)
+                rec.update(uploaded=True, upload_via=how)
+                print(ok(f"uploaded {Path(local).name} via {how}"))
+            except (PortalError, KeyError) as exc:
+                rec.update(uploaded=False, upload_error=str(exc)[:300])
+                print(fail(f"upload of {Path(local).name} failed: {exc}"))
+        manifest["objects"].append(rec)
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    print(info(f"\nmanifest: {run_dir / 'manifest.json'}"))
+    print(info(f"next: `submit --mode {portal.mode} audit "
+               + " ".join(o["accession"] for o in manifest["objects"] if o.get("accession")) + "`"))
+    return 0
+
+
+# ── saved plans: whose they are, and which one is waiting to be sent ────────────────────────────────
+#
+# A dry run (`create`, or `sheet-patch` without --apply) saves its exact plan under Data/Submitter and
+# beside it plan.meta.json: who made it (IGVF_ACTING_USER, which _tools.execute sets for the signed-in
+# person and agent_jobs for a job's owner), what kind, how many objects, where to, when. The web app
+# offers that person's latest unsent plan for sending, however the dry run ran: in the chat, in a deep
+# analysis or another background job, or before the page was reloaded (2026-11-20: a deep job's plan
+# and a chat plan both ended without a Submit button).
+
+PLAN_META = "plan.meta.json"
+PLAN_OFFER_HOURS = 48
+
+
+def save_plan_meta(plan_file: Path, kind: str, n: int, mode: str) -> Path:
+    """Write plan.meta.json beside a saved plan (``kind``: create or patch)."""
+    meta = {"owner": os.environ.get("IGVF_ACTING_USER", "").strip(), "kind": kind, "n": int(n),
+            "mode": mode, "plan": Path(plan_file).name, "created": time.time(),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    p = Path(plan_file).parent / PLAN_META
+    p.write_text(json.dumps(meta, indent=1))
+    return p
+
+
+def mark_plan(meta_path, **fields) -> None:
+    """Add fields (applied_at, discarded_at, last_exit, ...) to a plan's meta file."""
+    p = Path(meta_path)
+    try:
+        meta = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return
+    meta.update(fields)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(meta, indent=1))
+    tmp.replace(p)
+
+
+def latest_unsent_plan(root, owner: str, *, max_age_h: float = PLAN_OFFER_HOURS) -> "dict | None":
+    """The newest plan that ``owner`` made in the last ``max_age_h`` hours and has not sent or set
+    aside, as {plan, meta, n, mode, kind, created}; None if there is none. Plans of anyone else, plans
+    without a meta file (made before 2026-11-20) and plans whose file is gone are never offered. An
+    empty ``owner`` matches only plans made with no signed-in person (a local install)."""
+    base = Path(root) / "Data" / "Submitter"
+    if not base.is_dir():
+        return None
+    now = time.time()
+    for d in sorted((x for x in base.iterdir() if x.is_dir()), key=lambda x: x.name, reverse=True):
+        mp = d / PLAN_META
+        if not mp.is_file():
+            continue
+        try:
+            meta = json.loads(mp.read_text())
+        except (OSError, ValueError):
+            continue
+        if str(meta.get("owner", "")) != (owner or ""):
+            continue
+        if now - float(meta.get("created") or 0) > max_age_h * 3600:
+            break                                  # directories are time-ordered: the rest are older
+        if meta.get("applied_at") or meta.get("discarded_at"):
+            return None                            # the newest one was dealt with; older ones are superseded
+        plan = d / str(meta.get("plan") or "")
+        if meta.get("kind") not in ("create", "patch") or not plan.is_file():
+            continue
+        return {"plan": str(plan), "meta": str(mp), "n": int(meta.get("n") or 0), "mode": str(meta.get("mode")),
+                "kind": meta["kind"], "created": float(meta.get("created") or 0)}
+    return None
+
+
+def _plan_mode(plan: Path) -> str:
+    """The Portal a saved plan was checked against: its meta file, a patch plan's own field, or the folder
+    name (<time>_plan_<mode>, <time>_patch_<mode>)."""
+    for src in (plan.parent / PLAN_META, plan):
+        try:
+            mode = json.loads(src.read_text()).get("mode") if src.suffix == ".json" else None
+        except (OSError, ValueError, AttributeError):
+            mode = None
+        if mode in ("staging", "prod", "sandbox"):
+            return mode
+    m = re.search(r"_(?:plan|patch)_(staging|prod|sandbox)$", plan.parent.name)
+    return m.group(1) if m else ""
+
+
+def cmd_send(portal: Portal, args) -> int:
+    """Send a plan that a dry run saved (create's drafts.json or sheet-patch's patch.json), as checked, with
+    your own Portal keys: what the web app's Submit button does, from the command line."""
+    plan = Path(args.plan)
+    if not plan.is_file():
+        die(f"plan not found: {plan}")
+    mode = _plan_mode(plan)
+    if not mode:
+        die(f"{plan}: cannot tell which Portal this plan was checked against")
+    if args.mode and args.mode != mode:
+        die(f"{plan} was checked on {mode}; send it there (no -m), or make a new dry run on {args.mode}")
+    if mode == "prod" and not args.yes:
+        die("refusing to write to PRODUCTION without --yes (rehearse on staging first)")
+    if plan.name == "patch.json":
+        try:
+            from . import igvf_metadata_sheet as ms  # type: ignore
+        except ImportError:
+            import igvf_metadata_sheet as ms  # type: ignore
+        sub = ms.patch_plan_command(plan, mode)
+        if isinstance(sub, str):
+            die(sub)
+        argv = sub[1:]                                   # after `submit`
+    else:
+        argv = ["-m", mode, "create", "--objects", str(plan), "--apply", "--upload"] + (["--yes"] if mode == "prod" else [])
+    print(info(f"sending {plan} to {mode}: igvfagent submit {' '.join(argv)}"))
+    rc = main(argv)
+    if rc == 0 and (plan.parent / PLAN_META).is_file():
+        mark_plan(plan.parent / PLAN_META, applied_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"), applied_by="submit send")
+    return rc
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="igvfagent submit",
@@ -1459,6 +2035,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--yes", action="store_true", help="required to write to prod")
     p.set_defaults(fn=cmd_patch)
 
+    p = sub.add_parser("create", help="POST draft objects in dependency order "
+                                       "(dry run unless --apply)")
+    p.add_argument("--objects", required=True, nargs="+", action="extend",
+                   help="JSON/YAML list(s) of drafts, each with `type`, `aliases` and its properties, "
+                        "and/or iu_register-style TSV/CSV sheets (one row per object; give --profile); "
+                        "files name their local path in submitted_file_name (or _local_file)")
+    p.add_argument("--profile", help="profile for rows of a TSV/CSV sheet with no `type` column")
+    p.add_argument("--apply", action="store_true", help="actually POST")
+    p.add_argument("--upload", action="store_true", help="also upload each file's contents")
+    p.add_argument("--yes", action="store_true", help="required to write to prod")
+    p.add_argument("--verbose", action="store_true", help="print every payload")
+    p.set_defaults(fn=cmd_create)
+
+    p = sub.add_parser("send", help="send a plan saved by a dry run (create or sheet-patch), exactly as "
+                                     "checked, with your own Portal keys (the web app's Submit button)")
+    p.add_argument("plan", help="the plan's drafts.json or patch.json under Data/Submitter")
+    p.add_argument("--yes", action="store_true", help="required to write to prod")
+    p.set_defaults(fn=cmd_send)
+
     p = sub.add_parser("template", help="emit a TSV header for iu_register from a profile")
     p.add_argument("profile", help="e.g. tabular_file, prediction_set, document")
     p.add_argument("--include", nargs="*", help="extra non-required columns to add")
@@ -1469,11 +2064,52 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("property")
     p.add_argument("--grep", help="substring filter")
     p.set_defaults(fn=cmd_enum)
+    try:                                   # IGVF-DACC metadata-submitter sheets (sheet-*)
+        from .igvf_metadata_sheet import register as _register_sheet  # type: ignore
+    except ImportError:
+        try:
+            from igvf_metadata_sheet import register as _register_sheet  # type: ignore
+        except ImportError:
+            _register_sheet = None
+    if _register_sheet:
+        _register_sheet(sub)
+    try:                                   # the Portal's own audits, ported from igvfd (portal-audit)
+        from .igvfd_audits import register as _register_igvfd  # type: ignore
+    except ImportError:
+        try:
+            from igvfd_audits import register as _register_igvfd  # type: ignore
+        except ImportError:
+            _register_igvfd = None
+    if _register_igvfd:
+        _register_igvfd(sub)
     return ap
 
 
+def _mode_first(argv: "list[str]") -> "list[str]":
+    """Move `-m/--mode X` in front of the subcommand.
+
+    The agent's tools append `-m staging` after the subcommand, where the
+    top-level parser rejects it ("unrecognized arguments"), so every staging
+    call made through the agent failed.
+    """
+    argv, front, out, i = list(argv), [], [], 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-m", "--mode") and i + 1 < len(argv):
+            front += [a, argv[i + 1]]
+            i += 2
+            continue
+        if a.startswith("--mode="):
+            front.append(a)
+        else:
+            out.append(a)
+        i += 1
+    return front + out
+
+
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
+    args = build_parser().parse_args(_mode_first(sys.argv[1:] if argv is None else argv))
+    _localize_args(args)
     portal = Portal(mode=args.mode)
     try:
         return args.fn(portal, args)

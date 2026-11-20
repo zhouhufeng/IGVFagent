@@ -98,6 +98,15 @@ align = [
 # this bound only guards a 2.0 rewrite.
 ui = [
     "streamlit>=1.30,<2",
+    # Encrypts each web user's IGVF Portal keys at rest (Scripts/portal_keystore.py).
+    "cryptography>=42,<51",
+]
+# IGVF Portal submission: `submit create --upload` and `submit sheet-upload` send
+# file contents to the Portal's S3 bucket with the upload credentials it issues.
+# Without boto3 (or the aws CLI) every upload stops with "neither boto3 nor the
+# aws CLI is available", which is what the hosted site did until 2026-10-29.
+submit = [
+    "boto3>=1.28,<2",
 ]
 # Optional native LLM SDKs (Anthropic + OpenAI). The agent runtime can
 # also talk to Ollama / vLLM / HuggingFace TGI via the OpenAI-compatible
@@ -158,7 +167,7 @@ alphagenome = [
     "alphagenome>=0.9,<1; python_version >= '3.10'",
 ]
 all = [
-    "igvfagent[analysis,align,ui,llm,hic,motif,warehouse,network,alphagenome]",
+    "igvfagent[analysis,align,ui,submit,llm,hic,motif,warehouse,network,alphagenome]",
 ]
 
 [project.urls]

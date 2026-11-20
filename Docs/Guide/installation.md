@@ -142,7 +142,10 @@ account) need credentials you supply locally. Never commit `.env`, cookies,
 tokens, or any other authenticated session material.
 
 Set `IGVF_PROJECT_ROOT` if you want to run the scripts from outside the
-repository directory.
+repository directory. It is the *working directory*: the agent reads your files
+from that folder and writes `Docs/` and `Data/` into it. `igvfagent ask
+--workdir DIR` and `igvfagent ui --workdir DIR` set it for one run; see
+[Web UI on your machine](interfaces.md#web-ui-on-your-machine).
 
 ## Smoke test
 

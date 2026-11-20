@@ -5125,12 +5125,15 @@ _TOOLS: "list[Tool]" = [
         "('IGVFDS3909HJKS'), or UUID, returning the full embedded JSON "
         "+ @type breakdown + saved file. USE THIS to inspect a specific "
         "MeasurementSet / AnalysisSet / Donor / etc. that you know the "
-        "id of.",
+        "id of. Staging objects (TST... accessions, or mode=staging) are "
+        "read from the staging Portal with the signed-in user's own staging key.",
         {
             "type": "object",
             "properties": {
                 "resource_id": {**_S_STRING, "description":
-                                  "@id, accession (IGVFFI...), or UUID."},
+                                  "@id, accession (IGVFFI..., TSTFI...), UUID, or a Portal URL."},
+                "mode": {**_S_STRING, "description":
+                         "prod (default) or staging. TST accessions and staging URLs use staging."},
             },
             "required": ["resource_id"],
         },
@@ -12139,6 +12142,117 @@ _TOOLS: "list[Tool]" = [
         flag_map={"mode": "-m"},
     ),
     _T(
+        "igvf_submit_sheet_template",
+        "A blank IGVF metadata sheet for one Portal profile, in the DACC "
+        "metadata-submitter layout: header in submission order plus a legend "
+        "file giving each column's role (identifying/required/admin-only), "
+        "type, whether it is an array, the linked type and allowed values. "
+        "Give it to a submitter who asks what to fill in for a document, "
+        "curated_set, tabular_file, measurement_set, etc. Writes the sheet "
+        "(`Wrote: <path>`); nothing is sent to the Portal.",
+        {
+            "type": "object",
+            "properties": {
+                "profile": {**_S_STRING, "description": "Portal profile, e.g. tabular_file."},
+                "mode": {**_S_STRING, "description": "staging (default) or prod."},
+            },
+            "required": ["profile"],
+        },
+        cli=["submit", "sheet-template"],
+        positional=("profile",),
+        flag_map={"mode": "-m"},
+    ),
+    _T(
+        "igvf_submit_sheet_get",
+        "Fill a metadata sheet from the Portal: for each row's accession, "
+        "uuid or alias, GET the object and write its submitted properties "
+        "into a new sheet (DACC metadata-submitter GET). Use it to show a "
+        "submitter what is already on the Portal before they change it, or to "
+        "start a correction sheet. Read-only; writes a new sheet.",
+        {
+            "type": "object",
+            "properties": {
+                "sheet": {**_S_STRING, "description": "TSV/CSV/XLSX with an identifying column."},
+                "profile": {**_S_STRING, "description": "Profile of the rows, e.g. tabular_file."},
+                "mode": {**_S_STRING, "description": "staging (default) or prod."},
+            },
+            "required": ["sheet"],
+        },
+        cli=["submit", "sheet-get"],
+        positional=("sheet",),
+        flag_map={"mode": "-m"},
+    ),
+    _T(
+        "igvf_submit_sheet_patch",
+        "★ PREPARE A CHANGE TO EXISTING IGVF PORTAL OBJECTS (DRY RUN) ★ — the "
+        "PATCH counterpart of igvf_submit_create, which only creates new "
+        "objects; use this to edit metadata of objects already on the Portal "
+        "(e.g. a file's description). Give it a metadata sheet (TSV/CSV/XLSX), "
+        "one row per object, with an identifying column (accession, uuid or "
+        "alias) and the properties to change. Start one with "
+        "igvf_submit_sheet_get, or write a two-line TSV such as "
+        "`accession<TAB>description` and pass `profile` (e.g. tabular_file). "
+        "Say what is sent: `columns` (comma-separated, e.g. description), "
+        "`all` (every non-empty column) or `remove` (properties to delete). It "
+        "checks each row against the live schema, NEVER sends anything, and on "
+        "success prints `Patch plan: <path>` and the `igvfagent submit send "
+        "<plan>` command. The user reviews it and runs that command, which "
+        "applies it with THEIR OWN Portal keys — you cannot apply it, so say "
+        "the change is ready and give them the command. "
+        "Use mode=staging unless the user explicitly asks for prod.",
+        {
+            "type": "object",
+            "properties": {
+                "sheet": {**_S_STRING, "description": "TSV/CSV/XLSX, one row per object, with an identifying column."},
+                "profile": {**_S_STRING, "description": "Profile of the rows, e.g. tabular_file (default: the "
+                                                         "file name's first part)."},
+                "columns": {**_S_STRING, "description": "Comma-separated properties to send, e.g. description."},
+                "all": {"type": "boolean", "description": "Send every non-empty column instead of `columns`."},
+                "remove": {**_S_STRING, "description": "Comma-separated properties to delete from the objects."},
+                "mode": {**_S_STRING, "description": "staging (default) or prod."},
+            },
+            "required": ["sheet"],
+        },
+        cli=["submit", "sheet-patch"],
+        positional=("sheet",),
+        flag_map={"mode": "-m"},
+        bool_flags=("all",),
+    ),
+    _T(
+        "igvf_submit_create",
+        "★ PREPARE AN IGVF PORTAL SUBMISSION (DRY RUN) ★ — checks and orders "
+        "the user's draft objects for submission and saves the exact plan; it "
+        "NEVER sends anything. Give it the user's metadata: JSON/YAML drafts "
+        "(each with `type`, `aliases` and properties) and/or iu_register-style "
+        "TSV/CSV sheets (one row per object, with `profile` for sheets that "
+        "have no `type` column). Files name their local upload path in "
+        "`submitted_file_name`; documents can give `_attachment_file`. It "
+        "orders drafts by the aliases they link to, fills lab/award, computes "
+        "md5sum/file_size, validates each file locally and each object against "
+        "the live Portal schema, and on success prints `Submission plan: "
+        "<path>` and the `igvfagent submit send <plan>` command. The user "
+        "reviews it and runs that command, which sends it with THEIR OWN "
+        "Portal keys (IGVF_ACCESS_KEY / IGVF_SECRET_KEY or their key file) — "
+        "you cannot submit, so say the plan is ready and give them the "
+        "command. Use mode="
+        "staging unless the user explicitly asks for prod. After submission, "
+        "use igvf_submit_audit on the new accessions.",
+        {
+            "type": "object",
+            "properties": {
+                "objects": {"type": "array", "items": {**_S_STRING},
+                            "description": "Paths of draft files (JSON/YAML) and/or TSV/CSV sheets."},
+                "profile": {**_S_STRING, "description":
+                            "Profile for sheet rows with no `type` column, e.g. tabular_file."},
+                "mode": {**_S_STRING, "description": "staging (default for rehearsal) or prod."},
+            },
+            "required": ["objects"],
+        },
+        cli=["submit", "create"],
+        flag_map={"mode": "-m"},
+        flag_repeat=("objects",),
+    ),
+    _T(
         "igvf_submit_template",
         "The required properties of a Portal profile as a TSV header, and "
         "`enum` for a property's allowed values — both read from the LIVE "
@@ -13368,7 +13482,10 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
     # "no accounts here, show everything", leaking one user's private sessions
     # into another user's answer.
     try:
-        from . import _history as _h
+        try:
+            from . import _history as _h
+        except ImportError:
+            import _history as _h  # type: ignore[no-redef]
 
         acting = _h.actor()
         if acting:
@@ -13378,6 +13495,53 @@ def execute(name: str, arguments: dict, *, timeout: Optional[float] = None,
         pass
     if extra_env:
         env.update(extra_env)
+    # Which uploads folder is this user's: computed here, where the keyed
+    # name can be, because the secret that keys it is removed just below.
+    try:
+        from . import _pathguard as _pg
+    except ImportError:
+        import _pathguard as _pg  # type: ignore[no-redef]
+    if env.get("IGVF_ACTING_USER"):
+        env["IGVF_ACTING_UPLOAD_DIR"] = _pg.user_upload_dirname(env["IGVF_ACTING_USER"])
+    # The web key store's master secret is for the app process alone.
+    env.pop("IGVF_KEYSTORE_SECRET", None)
+    # A signed-in web user's Portal work runs with THEIR keys, never the
+    # operator's: the deployment's own pair (IGVF_ACCESS_KEY, the key file)
+    # is removed and the user's pairs are passed per host, so an audit or a
+    # dry run sees exactly what that person may see and submit.
+    if name.startswith("igvf_submit_"):
+        try:
+            acting = _h.actor()
+        except Exception:
+            acting = None
+        if acting:
+            try:
+                from . import portal_keystore as _pk
+            except ImportError:
+                import portal_keystore as _pk  # type: ignore[no-redef]
+            for k in _pk.PORTAL_ENV:
+                env.pop(k, None)
+            env["IGVF_PORTAL_API_FILE"] = os.devnull   # not the operator's key file
+            env["IGVF_NO_KEY_FILES"] = "1"            # nor a per-host one
+            env.update(_pk.env_for(acting))
+    elif name == "portal_get":
+        # A staging object (TST...) is visible only to a key of a lab that may see it, so a
+        # signed-in user's staging reads go with THEIR staging pair, never a staging key file
+        # on the server. Prod reads keep the deployment's key (IGVF_ACCESS_KEY), as before.
+        try:
+            acting = _h.actor()
+        except Exception:
+            acting = None
+        if acting:
+            try:
+                from . import portal_keystore as _pk
+            except ImportError:
+                import portal_keystore as _pk  # type: ignore[no-redef]
+            for k in ("IGVF_API_KEY", "IGVF_SECRET_KEY", "IGVF_STAGING_API_KEY", "IGVF_STAGING_SECRET_KEY",
+                      "IGVF_PROD_API_KEY", "IGVF_PROD_SECRET_KEY"):
+                env.pop(k, None)
+            env["IGVF_NO_KEY_FILES"] = "1"
+            env.update(_pk.env_for(acting))
     logger.info("tool=%s argv=%s", name, shlex.join(argv))
     try:
         # stdin=DEVNULL: a tool must never inherit ours. Under the MCP server

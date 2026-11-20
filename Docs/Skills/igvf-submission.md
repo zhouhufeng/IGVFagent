@@ -51,9 +51,35 @@ igvfagent submit crosscheck --old A --new B --mine C        # did an input revis
 igvfagent submit patch <acc> --repoint derived_from=OLD:NEW # safe array element swap
 igvfagent submit template <profile> --include ...           # TSV header for iu_register
 igvfagent submit enum <profile> <property> --grep <term>    # allowed values
+igvfagent submit create --objects drafts.json -m staging     # dry run: checks, orders, saves a plan
+igvfagent submit send Data/Submitter/<time>_plan_staging/drafts.json   # send that plan, as checked
 ```
 
+A dry run (`create`, or `sheet-patch` without `--apply`) never sends anything. It saves the exact plan under
+`Data/Submitter/` and prints the `submit send` command for it. `send` refuses a plan checked on another Portal,
+needs `--yes` for prod, and uses your own keys (`IGVF_ACCESS_KEY`/`IGVF_SECRET_KEY`, or the key file). On
+igvfagent.genohub.org the Submit button above the chat input does the same.
+
 `audit` exits non-zero when something will block release, so it works in CI.
+
+### Local files
+
+A local path given to these commands (`validate <path>`, `create --objects <sheet>`, a sheet for the `sheet-*`
+commands, and inside a sheet or draft a `submitted_file_name`, `_local_file`, `_attachment_file` or upload path) may
+be:
+
+- a full path;
+- relative to the current directory;
+- relative to the working directory (`IGVF_PROJECT_ROOT`, or `--workdir` of `igvfagent ask` and `igvfagent ui`);
+- inside a sheet, relative to the folder the sheet is in.
+
+So one sheet works the same from `igvfagent submit`, from `igvfagent ask` and from the browser UI, wherever each was
+started. Until 2026-11-19 only the first two were tried, and a browser UI started outside the data folder reported
+files in the working directory as missing.
+
+On the hosted site a submission can name only your own files: those in your data folder and in your own runs. A
+path outside the workspace, another person's file, or a credential file is refused, for the data file, an attachment,
+the sheet itself and any output path alike.
 
 ## Order of submission
 

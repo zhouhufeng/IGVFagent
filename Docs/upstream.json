@@ -908,6 +908,24 @@
         "pinned_at": "2026-09-17"
       },
       "notes": "GPL-3.0 upstream; source explicitly NOT vendored or imported. The MILP formulation is re-derived from the published description."
+    },
+    {
+      "repo": "IGVF-DACC/igvf-metadata-submitter",
+      "skills": [],
+      "modules": [
+        "igvf_metadata_sheet.py"
+      ],
+      "license": "MIT",
+      "relationship": "port",
+      "pinned": {
+        "ref": "944f35be80eaf4493fb0ef6ee22575089a41ff1a",
+        "kind": "commit",
+        "branch": "main",
+        "upstream_date": "2026-08-27T13:36:05-05:00",
+        "release": "v0.3.9",
+        "pinned_at": "2026-10-26"
+      },
+      "notes": "igvf_metadata_sheet.py ports the add-on's row <-> JSON rules and actions to local TSV/CSV/XLSX sheets, from commit 944f35b (its docstring)."
     }
   ]
 }

@@ -80,6 +80,30 @@ chat with a live progress trace, figures, tables, PDFs and reports rendered
 inline, background jobs, the knowledge-graph explorer and the data viewers.
 Tab by tab: [The browser UI](web-ui.md#the-browser-ui).
 
+**Your data folder (the working directory).** Start the UI in the folder that
+holds your data, or name the folder:
+
+```bash
+igvfagent ui --workdir /path/to/project     # same as: cd /path/to/project && IGVF_PROJECT_ROOT=$PWD igvfagent ui
+```
+
+The agent reads your files in that folder by their path, with no upload, and
+writes its results under `Docs/` and `Data/` inside it. Without `--workdir` or
+`IGVF_PROJECT_ROOT` the working directory is the IGVF Agent folder itself.
+
+- `IGVF_PROJECT_ROOT` alone was always honoured by the UI, but commands that
+  open a path as given (the submission commands) looked for it in the folder the
+  UI was *started* in. `igvfagent ui` now starts in the working directory, and
+  those commands look there too (and, inside a sheet, next to the sheet).
+- **On a cluster**, run the UI on the node that sees your data, keep the
+  default `--host 127.0.0.1`, and reach it through an SSH tunnel, for example
+  `ssh -L 8501:localhost:8501 -J <login-node> <compute-node>`. A local UI has
+  no sign-in: with `--host 0.0.0.0` anyone who can reach the port can use it.
+- **Submitting to the IGVF Portal** from your own install: the agent prepares
+  a dry run and saves the plan; you send it with the `igvfagent submit send
+  <plan>` command it prints, using your own Portal keys. See
+  [IGVF Portal submission](../Skills/igvf-submission.md).
+
 ### Terminal chat
 
 ```bash
@@ -122,8 +146,9 @@ The agent behind the web UI, run once: it plans, calls skills, and prints an
 answer with the paths of every file it made. Options worth knowing:
 `--backend` / `--model` to choose the LLM, `--max-iterations` to cap the loop,
 `--tool` (repeatable) to restrict which tools it may use, `--quiet` for the
-answer only. Because it is a single command it fits in shell scripts and
-SLURM jobs.
+answer only, `--workdir DIR` to work in another folder than the current one
+(your files are read from it and results written into it). Because it is a
+single command it fits in shell scripts and SLURM jobs.
 
 ### Direct skill commands
 
